@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { X } from "lucide-react";
@@ -11,34 +11,60 @@ import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { staggerContainer, fadeUp } from "@/lib/animations";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 const categories = ["All", "Academics", "Sports", "Cultural", "Campus", "Events"];
 
-const galleryImages = [
-  { id: "1", category: "campus", alt: "School Campus", src: "/images/gallery/g10.jpg" },
-  { id: "2", category: "events", alt: "School Event", src: "/images/news/n1.jpg" },
-  { id: "3", category: "sports", alt: "Sports Activities", src: "/images/news/n3.jpg" },
-  { id: "4", category: "cultural", alt: "Cultural Programme", src: "/images/news/n5.jpg" },
-  { id: "5", category: "events", alt: "Annual Function", src: "/images/news/n2.jpg" },
-  { id: "6", category: "academics", alt: "Academic Excellence", src: "/images/news/n4.jpg" },
-  { id: "7", category: "cultural", alt: "Performance", src: "/images/news/n6.jpg" },
-  { id: "8", category: "campus", alt: "School Life", src: "/images/news/n7.jpg" },
-  { id: "9", category: "academics", alt: "Student Achievement", src: "/images/gallery/st1.jpg" },
-  { id: "10", category: "academics", alt: "Shining Star", src: "/images/gallery/st2.jpg" },
-  { id: "11", category: "academics", alt: "Student Success", src: "/images/gallery/st3.jpg" },
-  { id: "12", category: "events", alt: "School Assembly", src: "/images/gallery/st4.jpg" },
+const staticImages = [
+  { id: "static-1", category: "campus", alt: "School Campus", src: "/images/gallery/g10.jpg" },
+  { id: "static-2", category: "events", alt: "School Event", src: "/images/news/n1.jpg" },
+  { id: "static-3", category: "sports", alt: "Sports Activities", src: "/images/news/n3.jpg" },
+  { id: "static-4", category: "cultural", alt: "Cultural Programme", src: "/images/news/n5.jpg" },
+  { id: "static-5", category: "events", alt: "Annual Function", src: "/images/news/n2.jpg" },
+  { id: "static-6", category: "academics", alt: "Academic Excellence", src: "/images/news/n4.jpg" },
+  { id: "static-7", category: "cultural", alt: "Performance", src: "/images/news/n6.jpg" },
+  { id: "static-8", category: "campus", alt: "School Life", src: "/images/news/n7.jpg" },
+  { id: "static-9", category: "academics", alt: "Student Achievement", src: "/images/gallery/st1.jpg" },
+  { id: "static-10", category: "academics", alt: "Shining Star", src: "/images/gallery/st2.jpg" },
+  { id: "static-11", category: "academics", alt: "Student Success", src: "/images/gallery/st3.jpg" },
+  { id: "static-12", category: "events", alt: "School Assembly", src: "/images/gallery/st4.jpg" },
 ];
 
 const aspectPatterns = ["aspect-[4/3]", "aspect-[3/4]", "aspect-square"];
 
-function getCategoryCount(category: string) {
-  if (category === "All") return galleryImages.length;
-  return galleryImages.filter((img) => img.category === category.toLowerCase()).length;
-}
+type GalleryImage = { id: string; category: string; alt: string; src: string };
 
 export default function GalleryPage() {
   const [activeCategory, setActiveCategory] = useState("All");
-  const [lightboxImage, setLightboxImage] = useState<(typeof galleryImages)[number] | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>(staticImages);
+
+  useEffect(() => {
+    async function fetchImages() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("gallery_images")
+        .select("id, src, alt, category")
+        .order("sort_order", { ascending: true });
+
+      if (data && data.length > 0) {
+        const dbImages: GalleryImage[] = data.map((img) => ({
+          id: String(img.id),
+          src: img.src,
+          alt: img.alt,
+          category: img.category,
+        }));
+        // DB images first, then static fallbacks
+        setGalleryImages([...dbImages, ...staticImages]);
+      }
+    }
+    fetchImages();
+  }, []);
+
+  function getCategoryCount(category: string) {
+    if (category === "All") return galleryImages.length;
+    return galleryImages.filter((img) => img.category === category.toLowerCase()).length;
+  }
 
   const filteredImages =
     activeCategory === "All"

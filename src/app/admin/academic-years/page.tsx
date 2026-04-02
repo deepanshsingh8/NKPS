@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Star } from "lucide-react";
+import { adminApi } from "@/lib/admin-api";
 import type { AcademicYear } from "@/types";
 
 export default function AdminAcademicYearsPage() {
@@ -72,15 +73,19 @@ export default function AdminAcademicYearsPage() {
     }
     setSubmitting(true);
 
-    const { error } = await supabase.from("academic_years").insert({
-      name: name.trim(),
-      start_date: startDate,
-      end_date: endDate,
-      is_current: false,
+    const result = await adminApi({
+      action: "insert",
+      table: "academic_years",
+      data: {
+        name: name.trim(),
+        start_date: startDate,
+        end_date: endDate,
+        is_current: false,
+      },
     });
 
-    if (error) {
-      toast.error(error.message || "Failed to create academic year");
+    if (!result.success) {
+      toast.error(result.error || "Failed to create academic year");
     } else {
       toast.success("Academic year created successfully");
       setDialogOpen(false);
@@ -93,23 +98,27 @@ export default function AdminAcademicYearsPage() {
 
   const handleSetCurrent = async (id: string) => {
     // First, unset all as not current
-    const { error: resetError } = await supabase
-      .from("academic_years")
-      .update({ is_current: false })
-      .neq("id", "00000000-0000-0000-0000-000000000000"); // update all
-
-    if (resetError) {
-      toast.error("Failed to update academic years");
-      return;
+    // We need to update each year individually via the proxy
+    for (const year of years) {
+      if (year.is_current) {
+        await adminApi({
+          action: "update",
+          table: "academic_years",
+          data: { is_current: false },
+          match: { column: "id", value: year.id },
+        });
+      }
     }
 
     // Set selected as current
-    const { error } = await supabase
-      .from("academic_years")
-      .update({ is_current: true })
-      .eq("id", id);
+    const result = await adminApi({
+      action: "update",
+      table: "academic_years",
+      data: { is_current: true },
+      match: { column: "id", value: id },
+    });
 
-    if (error) {
+    if (!result.success) {
       toast.error("Failed to set as current");
       return;
     }
@@ -122,12 +131,13 @@ export default function AdminAcademicYearsPage() {
     if (!confirm("Delete this academic year? This may affect associated classes."))
       return;
 
-    const { error } = await supabase
-      .from("academic_years")
-      .delete()
-      .eq("id", id);
+    const result = await adminApi({
+      action: "delete",
+      table: "academic_years",
+      match: { column: "id", value: id },
+    });
 
-    if (error) {
+    if (!result.success) {
       toast.error("Failed to delete academic year");
       return;
     }

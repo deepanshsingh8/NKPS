@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2 } from "lucide-react";
+import { adminApi } from "@/lib/admin-api";
 import type { Subject } from "@/types";
 
 export default function AdminSubjectsPage() {
@@ -70,14 +71,14 @@ export default function AdminSubjectsPage() {
     }
     setSubmitting(true);
 
-    const { error } = await supabase.from("subjects").insert({
-      name: name.trim(),
-      code: code.trim() || null,
-      is_active: true,
+    const result = await adminApi({
+      action: "insert",
+      table: "subjects",
+      data: { name: name.trim(), code: code.trim() || null, is_active: true },
     });
 
-    if (error) {
-      toast.error(error.message || "Failed to create subject");
+    if (!result.success) {
+      toast.error(result.error || "Failed to create subject");
     } else {
       toast.success("Subject created successfully");
       setDialogOpen(false);
@@ -89,12 +90,14 @@ export default function AdminSubjectsPage() {
   };
 
   const toggleActive = async (subject: Subject) => {
-    const { error } = await supabase
-      .from("subjects")
-      .update({ is_active: !subject.is_active })
-      .eq("id", subject.id);
+    const result = await adminApi({
+      action: "update",
+      table: "subjects",
+      data: { is_active: !subject.is_active },
+      match: { column: "id", value: subject.id },
+    });
 
-    if (error) {
+    if (!result.success) {
       toast.error("Failed to update subject");
       return;
     }
@@ -108,9 +111,13 @@ export default function AdminSubjectsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this subject?")) return;
 
-    const { error } = await supabase.from("subjects").delete().eq("id", id);
+    const result = await adminApi({
+      action: "delete",
+      table: "subjects",
+      match: { column: "id", value: id },
+    });
 
-    if (error) {
+    if (!result.success) {
       toast.error("Failed to delete subject");
       return;
     }

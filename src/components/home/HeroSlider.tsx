@@ -121,26 +121,26 @@ export function HeroSlider() {
       {/* Mouse-reactive floating geometric shapes */}
       <MouseParallax strength={30} className="absolute top-[15%] right-[20%] pointer-events-none z-[5]">
         <motion.div
-          className="w-48 h-48 rounded-full border-2 border-gold-400/30 opacity-30"
+          className="w-48 h-48 rounded-full border-2 border-gold-400/50 opacity-50"
           animate={{ rotate: [0, 90, 0] }}
           transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
         />
       </MouseParallax>
       <MouseParallax strength={20} invert className="absolute bottom-[30%] left-[8%] pointer-events-none z-[5]">
         <motion.div
-          className="w-32 h-32 rounded-lg border-2 border-gold-400/25 opacity-25"
+          className="w-32 h-32 rounded-lg border-2 border-gold-400/45 opacity-45"
           animate={{ rotate: [0, -45, 0] }}
           transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
         />
       </MouseParallax>
       <MouseParallax strength={40} className="absolute top-[40%] left-[60%] pointer-events-none z-[5]">
-        <div className="w-24 h-24 rounded-full border-2 border-gold-400/30 opacity-30" />
+        <div className="w-24 h-24 rounded-full border-2 border-gold-400/50 opacity-50" />
       </MouseParallax>
       <MouseParallax strength={15} invert className="absolute top-[60%] right-[10%] pointer-events-none z-[5]">
-        <div className="w-16 h-16 rounded-full bg-gold-400/15 opacity-40" />
+        <div className="w-16 h-16 rounded-full bg-gold-400/30 opacity-60" />
       </MouseParallax>
       <MouseParallax strength={25} className="absolute top-[25%] left-[35%] pointer-events-none z-[5]">
-        <div className="w-8 h-8 rounded-full bg-gold-400/20 opacity-50" />
+        <div className="w-8 h-8 rounded-full bg-gold-400/35 opacity-65" />
       </MouseParallax>
 
       {/* Content */}

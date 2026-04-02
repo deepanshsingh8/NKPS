@@ -1,11 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
-import { Navbar } from "@/components/layout/Navbar";
-import { Footer } from "@/components/layout/Footer";
-import { TopBar } from "@/components/layout/TopBar";
-import { ScrollToTop } from "@/components/layout/ScrollToTop";
-import { ChatBot } from "@/components/shared/ChatBot";
+import { LayoutShell } from "@/components/layout/LayoutShell";
 import "./globals.css";
 
 const inter = Inter({
@@ -52,12 +48,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
       <body className="min-h-screen flex flex-col antialiased">
-        <TopBar />
-        <Navbar />
-        <main className="flex-1">{children}</main>
-        <Footer />
-        <ScrollToTop />
-        <ChatBot />
+        <LayoutShell>
+          <main className="flex-1">{children}</main>
+        </LayoutShell>
         <Toaster position="top-right" richColors />
       </body>
     </html>

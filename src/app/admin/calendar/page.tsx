@@ -23,6 +23,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, CalendarDays } from "lucide-react";
+import { adminApi } from "@/lib/admin-api";
 import type { CalendarEvent, CalendarEventType } from "@/types";
 
 const EVENT_TYPES: CalendarEventType[] = [
@@ -123,27 +124,31 @@ export default function AdminCalendarPage() {
     setSubmitting(true);
 
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    if (!user) {
+    if (!session) {
       toast.error("Not authenticated");
       setSubmitting(false);
       return;
     }
 
-    const { error } = await supabase.from("calendar_events").insert({
-      title: newEvent.title,
-      description: newEvent.description || null,
-      event_type: newEvent.event_type,
-      start_date: newEvent.start_date,
-      end_date: newEvent.end_date || null,
-      class_id: newEvent.class_id || null,
-      created_by: user.id,
+    const result = await adminApi({
+      action: "insert",
+      table: "calendar_events",
+      data: {
+        title: newEvent.title,
+        description: newEvent.description || null,
+        event_type: newEvent.event_type,
+        start_date: newEvent.start_date,
+        end_date: newEvent.end_date || null,
+        class_id: newEvent.class_id || null,
+        created_by: session.user.id,
+      },
     });
 
-    if (error) {
-      toast.error(`Failed to add event: ${error.message}`);
+    if (!result.success) {
+      toast.error(`Failed to add event: ${result.error}`);
     } else {
       toast.success("Event added");
       setAddEventOpen(false);
@@ -163,13 +168,14 @@ export default function AdminCalendarPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this event? This cannot be undone.")) return;
 
-    const { error } = await supabase
-      .from("calendar_events")
-      .delete()
-      .eq("id", id);
+    const result = await adminApi({
+      action: "delete",
+      table: "calendar_events",
+      match: { column: "id", value: id },
+    });
 
-    if (error) {
-      toast.error(`Failed to delete: ${error.message}`);
+    if (!result.success) {
+      toast.error(`Failed to delete: ${result.error}`);
       return;
     }
     toast.success("Event deleted");

@@ -29,6 +29,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Search } from "lucide-react";
+import { adminApi } from "@/lib/admin-api";
 import type { FeeStructure, FeePayment, Profile } from "@/types";
 
 const CLASS_NAMES = [
@@ -207,17 +208,21 @@ export default function AdminFeesPage() {
     }
 
     setStructureSubmitting(true);
-    const { error } = await supabase.from("fee_structures").insert({
-      academic_year_id: academicYearId,
-      class_name: newStructure.class_name,
-      fee_type: newStructure.fee_type,
-      amount,
-      frequency: newStructure.frequency,
-      due_date: newStructure.due_date || null,
+    const result = await adminApi({
+      action: "insert",
+      table: "fee_structures",
+      data: {
+        academic_year_id: academicYearId,
+        class_name: newStructure.class_name,
+        fee_type: newStructure.fee_type,
+        amount,
+        frequency: newStructure.frequency,
+        due_date: newStructure.due_date || null,
+      },
     });
 
-    if (error) {
-      toast.error(`Failed to add fee structure: ${error.message}`);
+    if (!result.success) {
+      toast.error(`Failed to add fee structure: ${result.error}`);
     } else {
       toast.success("Fee structure added");
       setAddStructureOpen(false);
@@ -237,13 +242,14 @@ export default function AdminFeesPage() {
   const handleDeleteStructure = async (id: string) => {
     if (!confirm("Delete this fee structure? This cannot be undone.")) return;
 
-    const { error } = await supabase
-      .from("fee_structures")
-      .delete()
-      .eq("id", id);
+    const result = await adminApi({
+      action: "delete",
+      table: "fee_structures",
+      match: { column: "id", value: id },
+    });
 
-    if (error) {
-      toast.error(`Failed to delete: ${error.message}`);
+    if (!result.success) {
+      toast.error(`Failed to delete: ${result.error}`);
       return;
     }
     toast.success("Fee structure deleted");

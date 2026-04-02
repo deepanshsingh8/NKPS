@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Download, Trash2, Loader2, Search } from "lucide-react";
+import { adminUpload, adminDelete } from "@/lib/admin-api";
 import type { TransferCertificate } from "@/types";
 
 export default function AdminTransferCertificatesPage() {
@@ -72,32 +73,17 @@ export default function AdminTransferCertificatesPage() {
     setUploading(true);
 
     try {
-      const fileName = `${Date.now()}-${studentName.replace(/\s+/g, "-").toLowerCase()}.pdf`;
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("studentName", studentName.trim());
+      formData.append("academicYear", academicYear.trim());
 
-      const { error: uploadError } = await supabase.storage
-        .from("transfer-certificates")
-        .upload(fileName, file);
+      const res = await adminUpload("/api/transfer-certificates", formData);
 
-      if (uploadError) {
-        toast.error(`Upload failed: ${uploadError.message}`);
-        return;
-      }
+      const data = await res.json();
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("transfer-certificates").getPublicUrl(fileName);
-
-      const { error: insertError } = await supabase
-        .from("transfer_certificates")
-        .insert({
-          student_name: studentName,
-          file_url: publicUrl,
-          academic_year: academicYear,
-          upload_date: new Date().toISOString().split("T")[0],
-        });
-
-      if (insertError) {
-        toast.error(`Failed to save record: ${insertError.message}`);
+      if (!res.ok) {
+        toast.error(data.error || "Upload failed");
         return;
       }
 
@@ -118,29 +104,21 @@ export default function AdminTransferCertificatesPage() {
     if (!confirm(`Delete TC for "${tc.student_name}"? This cannot be undone.`))
       return;
 
-    const urlParts = tc.file_url.split("/");
-    const fileName = urlParts[urlParts.length - 1];
+    try {
+      const res = await adminDelete("/api/transfer-certificates", { id: tc.id, fileUrl: tc.file_url });
 
-    const { error: storageError } = await supabase.storage
-      .from("transfer-certificates")
-      .remove([fileName]);
+      const data = await res.json();
 
-    if (storageError) {
-      toast.error(`Storage deletion failed: ${storageError.message}`);
+      if (!res.ok) {
+        toast.error(data.error || "Delete failed");
+        return;
+      }
+
+      toast.success("Transfer certificate deleted");
+      fetchCertificates();
+    } catch {
+      toast.error("An unexpected error occurred");
     }
-
-    const { error: dbError } = await supabase
-      .from("transfer_certificates")
-      .delete()
-      .eq("id", tc.id);
-
-    if (dbError) {
-      toast.error(`Database deletion failed: ${dbError.message}`);
-      return;
-    }
-
-    toast.success("Transfer certificate deleted");
-    fetchCertificates();
   };
 
   const filtered = certificates.filter((tc) =>

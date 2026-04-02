@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Download, Search, FileText, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -10,17 +10,33 @@ import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { staggerContainer, fadeUp } from "@/lib/animations";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
-const placeholderTCs = [
-  { id: "1", student_name: "Sample Student 1", academic_year: "2024-25", file_url: "#" },
-  { id: "2", student_name: "Sample Student 2", academic_year: "2023-24", file_url: "#" },
-  { id: "3", student_name: "Sample Student 3", academic_year: "2024-25", file_url: "#" },
-];
+interface TC {
+  id: string;
+  student_name: string;
+  academic_year: string;
+  file_url: string;
+}
 
 export default function TransferCertificatesPage() {
   const [search, setSearch] = useState("");
+  const [tcs, setTcs] = useState<TC[]>([]);
 
-  const filteredTCs = placeholderTCs.filter((tc) =>
+  useEffect(() => {
+    async function fetchTCs() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("transfer_certificates")
+        .select("id, student_name, academic_year, file_url")
+        .order("created_at", { ascending: false });
+
+      if (data) setTcs(data as TC[]);
+    }
+    fetchTCs();
+  }, []);
+
+  const filteredTCs = tcs.filter((tc) =>
     tc.student_name.toLowerCase().includes(search.toLowerCase())
   );
 

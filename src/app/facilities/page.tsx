@@ -81,8 +81,8 @@ export default function FacilitiesPage() {
       {/* Featured Hero Banner */}
       <section className="relative h-[40vh] w-full overflow-hidden">
         <Image
-          src="/images/news/n3.jpg"
-          alt="NK Public School Campus"
+          src="/images/hero/campus-1.jpg"
+          alt="NK Public School Campus Building"
           fill
           className="object-cover"
           priority

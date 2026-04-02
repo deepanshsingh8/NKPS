@@ -5,6 +5,59 @@ import { AnimatePresence, motion } from "framer-motion";
 import { MessageCircle, X, Send, Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+function formatMessage(text: string) {
+  // Split into lines and process
+  const lines = text.split("\n");
+  const elements: React.ReactNode[] = [];
+  let listItems: string[] = [];
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      elements.push(
+        <ul key={`ul-${elements.length}`} className="list-disc pl-4 my-1 space-y-0.5">
+          {listItems.map((item, i) => (
+            <li key={i}>{formatInline(item)}</li>
+          ))}
+        </ul>
+      );
+      listItems = [];
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const bulletMatch = line.match(/^[-*•]\s+(.+)/);
+    if (bulletMatch) {
+      listItems.push(bulletMatch[1]);
+    } else {
+      flushList();
+      if (line.trim() === "") {
+        elements.push(<br key={`br-${i}`} />);
+      } else {
+        elements.push(
+          <span key={`line-${i}`}>
+            {formatInline(line)}
+            {i < lines.length - 1 && !lines[i + 1]?.match(/^[-*•]\s+/) ? <br /> : null}
+          </span>
+        );
+      }
+    }
+  }
+  flushList();
+  return <>{elements}</>;
+}
+
+function formatInline(text: string): React.ReactNode {
+  // Parse **bold** markers
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+}
+
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -143,7 +196,7 @@ export function ChatBot() {
                         : "bg-cream-50 text-navy-900 rounded-bl-sm"
                     )}
                   >
-                    {msg.content}
+                    {msg.role === "assistant" ? formatMessage(msg.content) : msg.content}
                   </div>
                 </div>
               ))}

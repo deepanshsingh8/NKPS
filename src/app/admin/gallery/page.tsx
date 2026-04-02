@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2 } from "lucide-react";
+import { adminUpload, adminDelete } from "@/lib/admin-api";
 import type { GalleryImage } from "@/types";
 
 const CATEGORIES = ["academics", "sports", "cultural", "campus", "events"];
@@ -61,40 +62,33 @@ export default function AdminGalleryPage() {
     setUploading(true);
 
     try {
+      const formData = new FormData();
       for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const fileExt = file.name.split(".").pop();
-        const fileName = `${Date.now()}-${i}.${fileExt}`;
+        formData.append("files", files[i]);
+      }
+      formData.append("alt", altText.trim());
+      formData.append("category", category);
+      formData.append("currentCount", String(images.length));
 
-        const { error: uploadError } = await supabase.storage
-          .from("gallery")
-          .upload(fileName, file);
+      const res = await adminUpload("/api/gallery", formData);
 
-        if (uploadError) {
-          toast.error(`Failed to upload ${file.name}: ${uploadError.message}`);
-          continue;
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Upload failed");
+      } else if (data.results) {
+        const failed = data.results.filter((r: { success: boolean }) => !r.success);
+        if (failed.length > 0) {
+          failed.forEach((r: { name: string; error: string }) =>
+            toast.error(`Failed: ${r.name} — ${r.error}`)
+          );
         }
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("gallery").getPublicUrl(fileName);
-
-        const { error: insertError } = await supabase
-          .from("gallery_images")
-          .insert({
-            src: publicUrl,
-            alt: files.length > 1 ? `${altText} ${i + 1}` : altText,
-            category,
-            sort_order: images.length + i,
-          });
-
-        if (insertError) {
-          toast.error(`Failed to save record: ${insertError.message}`);
-          continue;
+        const succeeded = data.results.filter((r: { success: boolean }) => r.success);
+        if (succeeded.length > 0) {
+          toast.success(`${succeeded.length} image(s) uploaded successfully`);
         }
       }
 
-      toast.success("Images uploaded successfully");
       setDialogOpen(false);
       setAltText("");
       setCategory(CATEGORIES[0]);
@@ -110,30 +104,21 @@ export default function AdminGalleryPage() {
   const handleDelete = async (image: GalleryImage) => {
     if (!confirm(`Delete "${image.alt}"? This cannot be undone.`)) return;
 
-    // Extract file name from URL for storage deletion
-    const urlParts = image.src.split("/");
-    const fileName = urlParts[urlParts.length - 1];
+    try {
+      const res = await adminDelete("/api/gallery", { id: image.id, src: image.src });
 
-    const { error: storageError } = await supabase.storage
-      .from("gallery")
-      .remove([fileName]);
+      const data = await res.json();
 
-    if (storageError) {
-      toast.error(`Storage deletion failed: ${storageError.message}`);
+      if (!res.ok) {
+        toast.error(data.error || "Delete failed");
+        return;
+      }
+
+      toast.success("Image deleted");
+      fetchImages();
+    } catch {
+      toast.error("An unexpected error occurred");
     }
-
-    const { error: dbError } = await supabase
-      .from("gallery_images")
-      .delete()
-      .eq("id", image.id);
-
-    if (dbError) {
-      toast.error(`Database deletion failed: ${dbError.message}`);
-      return;
-    }
-
-    toast.success("Image deleted");
-    fetchImages();
   };
 
   return (

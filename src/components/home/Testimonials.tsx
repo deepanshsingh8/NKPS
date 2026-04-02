@@ -46,10 +46,10 @@ export function Testimonials() {
     <section className="bg-white section-padding relative overflow-hidden">
       {/* Mouse parallax decorative shapes */}
       <MouseParallax strength={20} className="absolute top-16 right-[15%] pointer-events-none">
-        <div className="w-36 h-36 rounded-full border-2 border-gold-400/15 opacity-20" />
+        <div className="w-36 h-36 rounded-full border-2 border-gold-400/35 opacity-40" />
       </MouseParallax>
       <MouseParallax strength={12} invert className="absolute bottom-20 left-[10%] pointer-events-none">
-        <div className="w-16 h-16 rounded-lg border-2 border-navy-900/8 opacity-15" />
+        <div className="w-16 h-16 rounded-lg border-2 border-navy-900/20 opacity-35" />
       </MouseParallax>
 
       <div className="page-container relative z-10">

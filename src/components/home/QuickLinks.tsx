@@ -18,14 +18,14 @@ const links = [
     icon: GraduationCap,
     title: "Student Portal",
     description: "Access academic records, results, and assignments online",
-    href: "#",
+    href: "/portal/login",
     span: "md:col-span-2",
   },
   {
     icon: Users,
     title: "Staff Portal",
     description: "Teacher & admin login",
-    href: "#",
+    href: "/portal/login",
     span: "",
   },
   {
@@ -49,10 +49,10 @@ export function QuickLinks() {
     <section className="bg-cream-50 section-padding relative overflow-hidden">
       {/* Mouse parallax decorative shapes */}
       <MouseParallax strength={20} className="absolute top-10 right-[10%] pointer-events-none">
-        <div className="w-32 h-32 rounded-full border-2 border-gold-400/20 opacity-20" />
+        <div className="w-32 h-32 rounded-full border-2 border-gold-400/40 opacity-40" />
       </MouseParallax>
       <MouseParallax strength={15} invert className="absolute bottom-10 left-[5%] pointer-events-none">
-        <div className="w-24 h-24 rounded-lg border-2 border-navy-900/10 opacity-15" />
+        <div className="w-24 h-24 rounded-lg border-2 border-navy-900/25 opacity-35" />
       </MouseParallax>
 
       <div className="page-container relative z-10">

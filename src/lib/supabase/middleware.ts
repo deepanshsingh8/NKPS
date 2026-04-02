@@ -56,6 +56,11 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
+  // API routes: only refresh session, don't redirect
+  if (pathname.startsWith("/api/")) {
+    return supabaseResponse;
+  }
+
   // Unauthenticated users accessing protected routes → redirect to portal login
   if (!user && isProtectedRoute(pathname) && !isLoginPage(pathname)) {
     const url = request.nextUrl.clone();

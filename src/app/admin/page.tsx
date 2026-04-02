@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import {
   Image as ImageIcon,
   FileText,
   MessageSquare,
+  Users,
+  GraduationCap,
 } from "lucide-react";
+import { adminFetch } from "@/lib/admin-api";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import type { ContactSubmission } from "@/types";
@@ -15,6 +17,9 @@ interface Stats {
   galleryCount: number;
   tcCount: number;
   unreadCount: number;
+  totalUsers: number;
+  totalStudents: number;
+  totalTeachers: number;
 }
 
 export default function AdminDashboardPage() {
@@ -24,34 +29,19 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const supabase = createClient();
+      try {
+        const res = await adminFetch("/api/admin/dashboard");
+        const data = await res.json();
 
-      const [galleryRes, tcRes, unreadRes, messagesRes] = await Promise.all([
-        supabase
-          .from("gallery_images")
-          .select("*", { count: "exact", head: true }),
-        supabase
-          .from("transfer_certificates")
-          .select("*", { count: "exact", head: true }),
-        supabase
-          .from("contact_submissions")
-          .select("*", { count: "exact", head: true })
-          .eq("is_read", false),
-        supabase
-          .from("contact_submissions")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(5),
-      ]);
-
-      setStats({
-        galleryCount: galleryRes.count ?? 0,
-        tcCount: tcRes.count ?? 0,
-        unreadCount: unreadRes.count ?? 0,
-      });
-
-      setRecentMessages((messagesRes.data as ContactSubmission[]) ?? []);
-      setLoading(false);
+        if (res.ok) {
+          setStats(data.stats);
+          setRecentMessages(data.recentMessages ?? []);
+        }
+      } catch {
+        // Silently fail — dashboard will show empty state
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
@@ -59,10 +49,28 @@ export default function AdminDashboardPage() {
 
   const statCards = [
     {
+      label: "Total Users",
+      count: stats?.totalUsers ?? 0,
+      icon: Users,
+      color: "bg-purple-100 text-purple-600",
+    },
+    {
+      label: "Students",
+      count: stats?.totalStudents ?? 0,
+      icon: GraduationCap,
+      color: "bg-blue-100 text-blue-600",
+    },
+    {
+      label: "Teachers",
+      count: stats?.totalTeachers ?? 0,
+      icon: Users,
+      color: "bg-indigo-100 text-indigo-600",
+    },
+    {
       label: "Gallery Images",
       count: stats?.galleryCount ?? 0,
       icon: ImageIcon,
-      color: "bg-blue-100 text-blue-600",
+      color: "bg-amber-100 text-amber-600",
     },
     {
       label: "Transfer Certificates",

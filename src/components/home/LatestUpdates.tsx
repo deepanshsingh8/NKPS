@@ -36,10 +36,10 @@ export function LatestUpdates() {
     <section className="section-padding relative overflow-hidden">
       {/* Mouse parallax decorative shapes */}
       <MouseParallax strength={18} className="absolute top-20 left-[8%] pointer-events-none">
-        <div className="w-40 h-40 rounded-full border-2 border-gold-400/15 opacity-20" />
+        <div className="w-40 h-40 rounded-full border-2 border-gold-400/35 opacity-40" />
       </MouseParallax>
       <MouseParallax strength={25} invert className="absolute bottom-16 right-[12%] pointer-events-none">
-        <div className="w-20 h-20 rounded-full bg-gold-400/10 opacity-25" />
+        <div className="w-20 h-20 rounded-full bg-gold-400/25 opacity-40" />
       </MouseParallax>
 
       <div className="page-container relative z-10">

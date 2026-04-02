@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2 } from "lucide-react";
+import { adminApi } from "@/lib/admin-api";
 import type { Class, AcademicYear, Profile } from "@/types";
 
 const CLASS_NAMES = [
@@ -131,16 +132,20 @@ export default function AdminClassesPage() {
     }
     setSubmitting(true);
 
-    const { error } = await supabase.from("classes").insert({
-      name: className,
-      section,
-      academic_year_id: academicYearId,
-      class_teacher_id: classTeacherId || null,
-      sort_order: CLASS_NAMES.indexOf(className) * 10 + SECTIONS.indexOf(section),
+    const result = await adminApi({
+      action: "insert",
+      table: "classes",
+      data: {
+        name: className,
+        section,
+        academic_year_id: academicYearId,
+        class_teacher_id: classTeacherId || null,
+        sort_order: CLASS_NAMES.indexOf(className) * 10 + SECTIONS.indexOf(section),
+      },
     });
 
-    if (error) {
-      toast.error(error.message || "Failed to create class");
+    if (!result.success) {
+      toast.error(result.error || "Failed to create class");
     } else {
       toast.success("Class created successfully");
       setDialogOpen(false);
@@ -155,9 +160,13 @@ export default function AdminClassesPage() {
     if (!confirm("Delete this class? This will also remove associated enrollments."))
       return;
 
-    const { error } = await supabase.from("classes").delete().eq("id", id);
+    const result = await adminApi({
+      action: "delete",
+      table: "classes",
+      match: { column: "id", value: id },
+    });
 
-    if (error) {
+    if (!result.success) {
       toast.error("Failed to delete class");
       return;
     }
@@ -290,14 +299,15 @@ export default function AdminClassesPage() {
 
             <div>
               <Label>Class Teacher (optional)</Label>
-              <Select value={classTeacherId} onValueChange={(val) => setClassTeacherId(val ?? "")}>
+              <Select value={classTeacherId} onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select teacher" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
                   {teachers.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
-                      {t.full_name}
+                      {t.full_name} ({t.email})
                     </SelectItem>
                   ))}
                 </SelectContent>
