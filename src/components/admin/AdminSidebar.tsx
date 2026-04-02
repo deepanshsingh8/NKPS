@@ -1,0 +1,118 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import {
+  LayoutDashboard,
+  Image as ImageIcon,
+  FileText,
+  LogOut,
+  Users,
+  GraduationCap,
+  BookOpen,
+  CreditCard,
+  Calendar,
+  CheckSquare,
+  BarChart3,
+  CalendarDays,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+const contentLinks = [
+  { icon: LayoutDashboard, label: "Dashboard", href: "/admin" },
+  { icon: ImageIcon, label: "Gallery", href: "/admin/gallery" },
+  {
+    icon: FileText,
+    label: "Transfer Certificates",
+    href: "/admin/transfer-certificates",
+  },
+];
+
+const erpLinks = [
+  { icon: Users, label: "Users", href: "/admin/users" },
+  { icon: GraduationCap, label: "Classes", href: "/admin/classes" },
+  { icon: BookOpen, label: "Subjects", href: "/admin/subjects" },
+  { icon: CalendarDays, label: "Academic Years", href: "/admin/academic-years" },
+  { icon: CreditCard, label: "Fees", href: "/admin/fees" },
+  { icon: Calendar, label: "Calendar", href: "/admin/calendar" },
+  { icon: CheckSquare, label: "Attendance", href: "/admin/attendance" },
+  { icon: BarChart3, label: "Results", href: "/admin/results" },
+];
+
+export function AdminSidebar() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    toast.success("Logged out");
+    router.push("/admin/login");
+  };
+
+  const renderLink = ({ icon: Icon, label, href }: (typeof contentLinks)[0]) => {
+    const isActive =
+      href === "/admin"
+        ? pathname === "/admin"
+        : pathname.startsWith(href);
+
+    return (
+      <Link
+        key={href}
+        href={href}
+        className={cn(
+          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+          isActive
+            ? "bg-navy-900/10 text-navy-900 font-semibold border-l-[3px] border-gold-500"
+            : "text-gray-600 hover:bg-gray-50"
+        )}
+      >
+        <Icon className="h-5 w-5 shrink-0" />
+        {label}
+      </Link>
+    );
+  };
+
+  return (
+    <aside className="fixed left-0 top-0 h-screen w-64 bg-white border-r border-gray-200 flex flex-col z-40">
+      <div className="p-6">
+        <h1 className="font-heading text-xl font-bold text-navy-900">
+          NKPS Admin
+        </h1>
+        <div className="mt-1 h-0.5 w-12 bg-gold-500 rounded-full" />
+      </div>
+
+      <nav className="flex-1 px-3 overflow-y-auto">
+        <div className="mb-1">
+          <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+            Content
+          </p>
+          <div className="space-y-1">
+            {contentLinks.map(renderLink)}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+            ERP
+          </p>
+          <div className="space-y-1">
+            {erpLinks.map(renderLink)}
+          </div>
+        </div>
+      </nav>
+
+      <div className="p-3 border-t border-gray-200">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 w-full transition-colors"
+        >
+          <LogOut className="h-5 w-5 shrink-0" />
+          Logout
+        </button>
+      </div>
+    </aside>
+  );
+}

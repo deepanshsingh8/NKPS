@@ -1,0 +1,613 @@
+-- NK Public School - Supabase Database Schema
+-- Run this in the Supabase SQL Editor to set up your database
+
+-- Enable UUID extension
+create extension if not exists "uuid-ossp";
+
+-- Gallery Images table
+create table if not exists gallery_images (
+  id uuid default uuid_generate_v4() primary key,
+  src text not null,
+  alt text not null,
+  category text not null check (category in ('academics', 'sports', 'cultural', 'campus', 'events')),
+  sort_order integer default 0,
+  created_at timestamptz default now()
+);
+
+-- Transfer Certificates table
+create table if not exists transfer_certificates (
+  id uuid default uuid_generate_v4() primary key,
+  student_name text not null,
+  file_url text not null,
+  academic_year text not null,
+  upload_date date default current_date,
+  created_at timestamptz default now()
+);
+
+-- Contact Submissions table
+create table if not exists contact_submissions (
+  id uuid default uuid_generate_v4() primary key,
+  full_name text not null,
+  email text not null,
+  phone text not null,
+  subject text not null,
+  message text not null,
+  is_read boolean default false,
+  created_at timestamptz default now()
+);
+
+-- Row Level Security Policies
+
+-- Gallery: public read, authenticated write
+alter table gallery_images enable row level security;
+
+create policy "Public can view gallery images"
+  on gallery_images for select
+  using (true);
+
+create policy "Authenticated users can insert gallery images"
+  on gallery_images for insert
+  with check (auth.role() = 'authenticated');
+
+create policy "Authenticated users can update gallery images"
+  on gallery_images for update
+  using (auth.role() = 'authenticated');
+
+create policy "Authenticated users can delete gallery images"
+  on gallery_images for delete
+  using (auth.role() = 'authenticated');
+
+-- Transfer Certificates: public read, authenticated write
+alter table transfer_certificates enable row level security;
+
+create policy "Public can view transfer certificates"
+  on transfer_certificates for select
+  using (true);
+
+create policy "Authenticated users can insert transfer certificates"
+  on transfer_certificates for insert
+  with check (auth.role() = 'authenticated');
+
+create policy "Authenticated users can delete transfer certificates"
+  on transfer_certificates for delete
+  using (auth.role() = 'authenticated');
+
+-- Contact Submissions: authenticated read/write (submitted via service role key)
+alter table contact_submissions enable row level security;
+
+create policy "Authenticated users can view contact submissions"
+  on contact_submissions for select
+  using (auth.role() = 'authenticated');
+
+create policy "Authenticated users can update contact submissions"
+  on contact_submissions for update
+  using (auth.role() = 'authenticated');
+
+create policy "Service role can insert contact submissions"
+  on contact_submissions for insert
+  with check (true);
+
+-- Storage Buckets
+-- Note: Create these in the Supabase Dashboard > Storage:
+-- 1. Bucket: "gallery" (Public)
+-- 2. Bucket: "transfer-certificates" (Public)
+--
+-- Storage Policies (set in Dashboard > Storage > Policies):
+-- gallery bucket:
+--   - SELECT: Allow public access
+--   - INSERT: Allow authenticated users
+--   - DELETE: Allow authenticated users
+--
+-- transfer-certificates bucket:
+--   - SELECT: Allow public access
+--   - INSERT: Allow authenticated users
+--   - DELETE: Allow authenticated users
+
+-- =============================================================
+-- ERP System Tables
+-- =============================================================
+
+-- 1. Profiles
+create table if not exists profiles (
+  id uuid references auth.users(id) on delete cascade primary key,
+  role text not null default 'student' check (role in ('admin', 'teacher', 'student')),
+  full_name text not null,
+  email text not null,
+  phone text,
+  avatar_url text,
+  is_active boolean default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Helper: current user's role (defined after profiles exists; used by RLS policies below)
+create or replace function public.get_user_role()
+returns text as $$
+  select role from public.profiles where id = auth.uid();
+$$ language sql security definer stable;
+
+-- Auto-create profile on user signup
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, email, full_name, role)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'full_name', new.email),
+    coalesce(new.raw_user_meta_data->>'role', 'student')
+  );
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create or replace trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+-- 2. Academic Years
+create table if not exists academic_years (
+  id uuid default gen_random_uuid() primary key,
+  name text not null unique,
+  start_date date not null,
+  end_date date not null,
+  is_current boolean default false,
+  created_at timestamptz default now()
+);
+
+-- 3. Classes
+create table if not exists classes (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  section text not null,
+  academic_year_id uuid references academic_years(id) not null,
+  class_teacher_id uuid references profiles(id),
+  sort_order integer default 0,
+  unique(name, section, academic_year_id)
+);
+
+-- 4. Subjects
+create table if not exists subjects (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  code text,
+  is_active boolean default true,
+  created_at timestamptz default now()
+);
+
+-- 5. Class Subjects (join table)
+create table if not exists class_subjects (
+  id uuid default gen_random_uuid() primary key,
+  class_id uuid references classes(id) on delete cascade not null,
+  subject_id uuid references subjects(id) on delete cascade not null,
+  teacher_id uuid references profiles(id),
+  unique(class_id, subject_id)
+);
+
+-- 6. Student Enrollments
+create table if not exists student_enrollments (
+  id uuid default gen_random_uuid() primary key,
+  student_id uuid references profiles(id) on delete cascade not null,
+  class_id uuid references classes(id) on delete cascade not null,
+  roll_number integer,
+  enrollment_date date default current_date,
+  unique(student_id, class_id)
+);
+
+-- 7. Attendance
+create table if not exists attendance (
+  id uuid default gen_random_uuid() primary key,
+  student_id uuid references profiles(id) on delete cascade not null,
+  class_id uuid references classes(id) on delete cascade not null,
+  date date not null,
+  status text not null check (status in ('present', 'absent', 'late', 'holiday')),
+  marked_by uuid references profiles(id) not null,
+  remarks text,
+  created_at timestamptz default now(),
+  unique(student_id, class_id, date)
+);
+
+-- 8. Exam Types
+create table if not exists exam_types (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  academic_year_id uuid references academic_years(id) not null,
+  max_marks integer not null default 100,
+  weightage numeric(5,2),
+  sort_order integer default 0,
+  unique(name, academic_year_id)
+);
+
+-- 9. Results
+create table if not exists results (
+  id uuid default gen_random_uuid() primary key,
+  student_id uuid references profiles(id) on delete cascade not null,
+  class_id uuid references classes(id) on delete cascade not null,
+  subject_id uuid references subjects(id) on delete cascade not null,
+  exam_type_id uuid references exam_types(id) on delete cascade not null,
+  marks_obtained numeric(5,2) not null,
+  max_marks numeric(5,2) not null default 100,
+  grade text,
+  remarks text,
+  entered_by uuid references profiles(id) not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique(student_id, subject_id, exam_type_id)
+);
+
+-- 10. Fee Structures
+create table if not exists fee_structures (
+  id uuid default gen_random_uuid() primary key,
+  academic_year_id uuid references academic_years(id) not null,
+  class_name text not null,
+  fee_type text not null,
+  amount numeric(10,2) not null,
+  due_date date,
+  frequency text not null default 'monthly' check (frequency in ('monthly', 'quarterly', 'annual', 'one_time')),
+  created_at timestamptz default now()
+);
+
+-- 11. Fee Payments
+create table if not exists fee_payments (
+  id uuid default gen_random_uuid() primary key,
+  student_id uuid references profiles(id) on delete cascade not null,
+  fee_structure_id uuid references fee_structures(id) not null,
+  amount_paid numeric(10,2) not null,
+  payment_date date default current_date,
+  payment_method text check (payment_method in ('cash', 'online', 'cheque', 'bank_transfer')),
+  receipt_number text unique,
+  month text,
+  status text not null default 'paid' check (status in ('paid', 'partial', 'pending', 'refunded')),
+  recorded_by uuid references profiles(id) not null,
+  remarks text,
+  created_at timestamptz default now()
+);
+
+-- 12. Timetable Periods
+create table if not exists timetable_periods (
+  id uuid default gen_random_uuid() primary key,
+  class_id uuid references classes(id) on delete cascade not null,
+  subject_id uuid references subjects(id),
+  teacher_id uuid references profiles(id),
+  day_of_week integer not null check (day_of_week between 0 and 6),
+  period_number integer not null,
+  start_time time not null,
+  end_time time not null,
+  room text,
+  unique(class_id, day_of_week, period_number)
+);
+
+-- 13. Calendar Events
+create table if not exists calendar_events (
+  id uuid default gen_random_uuid() primary key,
+  title text not null,
+  description text,
+  event_type text not null check (event_type in ('exam', 'holiday', 'event', 'pta_meeting', 'other')),
+  start_date date not null,
+  end_date date,
+  class_id uuid references classes(id),
+  created_by uuid references profiles(id) not null,
+  created_at timestamptz default now()
+);
+
+-- =============================================================
+-- ERP Row Level Security
+-- =============================================================
+
+-- Profiles
+alter table profiles enable row level security;
+
+create policy "Users can read own profile"
+  on profiles for select
+  using (id = auth.uid());
+
+create policy "Admins can read all profiles"
+  on profiles for select
+  using (public.get_user_role() = 'admin');
+
+create policy "Teachers can read student profiles in their classes"
+  on profiles for select
+  using (
+    public.get_user_role() = 'teacher'
+    and (
+      role = 'student'
+      and id in (
+        select se.student_id from student_enrollments se
+        join classes c on c.id = se.class_id
+        where c.class_teacher_id = auth.uid()
+      )
+    )
+  );
+
+create policy "Users can update own profile"
+  on profiles for update
+  using (id = auth.uid());
+
+create policy "Admins can insert profiles"
+  on profiles for insert
+  with check (public.get_user_role() = 'admin');
+
+create policy "Admins can update any profile"
+  on profiles for update
+  using (public.get_user_role() = 'admin');
+
+create policy "Admins can delete profiles"
+  on profiles for delete
+  using (public.get_user_role() = 'admin');
+
+-- Academic Years
+alter table academic_years enable row level security;
+
+create policy "Public can read academic years"
+  on academic_years for select
+  using (true);
+
+create policy "Admins can insert academic years"
+  on academic_years for insert
+  with check (public.get_user_role() = 'admin');
+
+create policy "Admins can update academic years"
+  on academic_years for update
+  using (public.get_user_role() = 'admin');
+
+create policy "Admins can delete academic years"
+  on academic_years for delete
+  using (public.get_user_role() = 'admin');
+
+-- Classes
+alter table classes enable row level security;
+
+create policy "Public can read classes"
+  on classes for select
+  using (true);
+
+create policy "Admins can insert classes"
+  on classes for insert
+  with check (public.get_user_role() = 'admin');
+
+create policy "Admins can update classes"
+  on classes for update
+  using (public.get_user_role() = 'admin');
+
+create policy "Admins can delete classes"
+  on classes for delete
+  using (public.get_user_role() = 'admin');
+
+-- Subjects
+alter table subjects enable row level security;
+
+create policy "Public can read subjects"
+  on subjects for select
+  using (true);
+
+create policy "Admins can insert subjects"
+  on subjects for insert
+  with check (public.get_user_role() = 'admin');
+
+create policy "Admins can update subjects"
+  on subjects for update
+  using (public.get_user_role() = 'admin');
+
+create policy "Admins can delete subjects"
+  on subjects for delete
+  using (public.get_user_role() = 'admin');
+
+-- Class Subjects
+alter table class_subjects enable row level security;
+
+create policy "Public can read class subjects"
+  on class_subjects for select
+  using (true);
+
+create policy "Admins can insert class subjects"
+  on class_subjects for insert
+  with check (public.get_user_role() = 'admin');
+
+create policy "Admins can update class subjects"
+  on class_subjects for update
+  using (public.get_user_role() = 'admin');
+
+create policy "Admins can delete class subjects"
+  on class_subjects for delete
+  using (public.get_user_role() = 'admin');
+
+-- Student Enrollments
+alter table student_enrollments enable row level security;
+
+create policy "Students can read own enrollment"
+  on student_enrollments for select
+  using (student_id = auth.uid());
+
+create policy "Teachers can read enrollments for their classes"
+  on student_enrollments for select
+  using (
+    public.get_user_role() = 'teacher'
+    and class_id in (
+      select id from classes where class_teacher_id = auth.uid()
+    )
+  );
+
+create policy "Admins can read all enrollments"
+  on student_enrollments for select
+  using (public.get_user_role() = 'admin');
+
+create policy "Admins can insert enrollments"
+  on student_enrollments for insert
+  with check (public.get_user_role() = 'admin');
+
+create policy "Admins can update enrollments"
+  on student_enrollments for update
+  using (public.get_user_role() = 'admin');
+
+create policy "Admins can delete enrollments"
+  on student_enrollments for delete
+  using (public.get_user_role() = 'admin');
+
+-- Attendance
+alter table attendance enable row level security;
+
+create policy "Students can read own attendance"
+  on attendance for select
+  using (student_id = auth.uid());
+
+create policy "Teachers can read attendance for their classes"
+  on attendance for select
+  using (
+    public.get_user_role() = 'teacher'
+    and class_id in (
+      select id from classes where class_teacher_id = auth.uid()
+    )
+  );
+
+create policy "Teachers can insert attendance for their classes"
+  on attendance for insert
+  with check (
+    public.get_user_role() = 'teacher'
+    and class_id in (
+      select id from classes where class_teacher_id = auth.uid()
+    )
+  );
+
+create policy "Teachers can update attendance for their classes"
+  on attendance for update
+  using (
+    public.get_user_role() = 'teacher'
+    and class_id in (
+      select id from classes where class_teacher_id = auth.uid()
+    )
+  );
+
+create policy "Admins have full access to attendance"
+  on attendance for all
+  using (public.get_user_role() = 'admin');
+
+-- Exam Types
+alter table exam_types enable row level security;
+
+create policy "Public can read exam types"
+  on exam_types for select
+  using (true);
+
+create policy "Admins can insert exam types"
+  on exam_types for insert
+  with check (public.get_user_role() = 'admin');
+
+create policy "Admins can update exam types"
+  on exam_types for update
+  using (public.get_user_role() = 'admin');
+
+create policy "Admins can delete exam types"
+  on exam_types for delete
+  using (public.get_user_role() = 'admin');
+
+-- Results
+alter table results enable row level security;
+
+create policy "Students can read own results"
+  on results for select
+  using (student_id = auth.uid());
+
+create policy "Teachers can read results for their class/subject"
+  on results for select
+  using (
+    public.get_user_role() = 'teacher'
+    and class_id in (
+      select id from classes where class_teacher_id = auth.uid()
+    )
+  );
+
+create policy "Teachers can insert results for their class/subject"
+  on results for insert
+  with check (
+    public.get_user_role() = 'teacher'
+    and class_id in (
+      select id from classes where class_teacher_id = auth.uid()
+    )
+    and subject_id in (
+      select subject_id from class_subjects where teacher_id = auth.uid()
+    )
+  );
+
+create policy "Teachers can update results for their class/subject"
+  on results for update
+  using (
+    public.get_user_role() = 'teacher'
+    and class_id in (
+      select id from classes where class_teacher_id = auth.uid()
+    )
+    and subject_id in (
+      select subject_id from class_subjects where teacher_id = auth.uid()
+    )
+  );
+
+create policy "Admins have full access to results"
+  on results for all
+  using (public.get_user_role() = 'admin');
+
+-- Fee Structures
+alter table fee_structures enable row level security;
+
+create policy "Public can read fee structures"
+  on fee_structures for select
+  using (true);
+
+create policy "Admins can insert fee structures"
+  on fee_structures for insert
+  with check (public.get_user_role() = 'admin');
+
+create policy "Admins can update fee structures"
+  on fee_structures for update
+  using (public.get_user_role() = 'admin');
+
+create policy "Admins can delete fee structures"
+  on fee_structures for delete
+  using (public.get_user_role() = 'admin');
+
+-- Fee Payments
+alter table fee_payments enable row level security;
+
+create policy "Students can read own fee payments"
+  on fee_payments for select
+  using (student_id = auth.uid());
+
+create policy "Admins have full access to fee payments"
+  on fee_payments for all
+  using (public.get_user_role() = 'admin');
+
+-- Timetable Periods
+alter table timetable_periods enable row level security;
+
+create policy "Public can read timetable periods"
+  on timetable_periods for select
+  using (true);
+
+create policy "Admins can insert timetable periods"
+  on timetable_periods for insert
+  with check (public.get_user_role() = 'admin');
+
+create policy "Admins can update timetable periods"
+  on timetable_periods for update
+  using (public.get_user_role() = 'admin');
+
+create policy "Admins can delete timetable periods"
+  on timetable_periods for delete
+  using (public.get_user_role() = 'admin');
+
+-- Calendar Events
+alter table calendar_events enable row level security;
+
+create policy "Public can read calendar events"
+  on calendar_events for select
+  using (true);
+
+create policy "Admins can insert calendar events"
+  on calendar_events for insert
+  with check (public.get_user_role() = 'admin');
+
+create policy "Admins can update calendar events"
+  on calendar_events for update
+  using (public.get_user_role() = 'admin');
+
+create policy "Admins can delete calendar events"
+  on calendar_events for delete
+  using (public.get_user_role() = 'admin');

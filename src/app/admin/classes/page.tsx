@@ -1,0 +1,331 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { toast } from "sonner";
+import { Plus, Trash2, Loader2 } from "lucide-react";
+import type { Class, AcademicYear, Profile } from "@/types";
+
+const CLASS_NAMES = [
+  "Nursery",
+  "LKG",
+  "UKG",
+  "I",
+  "II",
+  "III",
+  "IV",
+  "V",
+  "VI",
+  "VII",
+  "VIII",
+  "IX",
+  "X",
+  "XI",
+  "XII",
+];
+
+const SECTIONS = ["A", "B", "C"];
+
+interface ClassWithRelations extends Class {
+  teacher_name?: string;
+  academic_year_name?: string;
+  student_count?: number;
+}
+
+export default function AdminClassesPage() {
+  const [classes, setClasses] = useState<ClassWithRelations[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [teachers, setTeachers] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Form state
+  const [className, setClassName] = useState(CLASS_NAMES[0]);
+  const [section, setSection] = useState(SECTIONS[0]);
+  const [academicYearId, setAcademicYearId] = useState("");
+  const [classTeacherId, setClassTeacherId] = useState("");
+
+  const supabase = createClient();
+
+  const fetchData = async () => {
+    const [classesRes, yearsRes, teachersRes] = await Promise.all([
+      supabase
+        .from("classes")
+        .select("*, profiles:class_teacher_id(full_name), academic_years:academic_year_id(name)")
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("academic_years")
+        .select("*")
+        .order("start_date", { ascending: false }),
+      supabase
+        .from("profiles")
+        .select("*")
+        .eq("role", "teacher")
+        .eq("is_active", true)
+        .order("full_name"),
+    ]);
+
+    if (classesRes.error) {
+      toast.error("Failed to fetch classes");
+    } else {
+      const enriched: ClassWithRelations[] = (classesRes.data ?? []).map(
+        (c: Record<string, unknown>) => ({
+          ...(c as unknown as Class),
+          teacher_name:
+            (c.profiles as { full_name: string } | null)?.full_name ?? "—",
+          academic_year_name:
+            (c.academic_years as { name: string } | null)?.name ?? "—",
+        })
+      );
+      setClasses(enriched);
+    }
+
+    setAcademicYears((yearsRes.data as AcademicYear[]) ?? []);
+    setTeachers((teachersRes.data as Profile[]) ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const resetForm = () => {
+    setClassName(CLASS_NAMES[0]);
+    setSection(SECTIONS[0]);
+    setAcademicYearId("");
+    setClassTeacherId("");
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!academicYearId) {
+      toast.error("Please select an academic year");
+      return;
+    }
+    setSubmitting(true);
+
+    const { error } = await supabase.from("classes").insert({
+      name: className,
+      section,
+      academic_year_id: academicYearId,
+      class_teacher_id: classTeacherId || null,
+      sort_order: CLASS_NAMES.indexOf(className) * 10 + SECTIONS.indexOf(section),
+    });
+
+    if (error) {
+      toast.error(error.message || "Failed to create class");
+    } else {
+      toast.success("Class created successfully");
+      setDialogOpen(false);
+      resetForm();
+      await fetchData();
+    }
+
+    setSubmitting(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this class? This will also remove associated enrollments."))
+      return;
+
+    const { error } = await supabase.from("classes").delete().eq("id", id);
+
+    if (error) {
+      toast.error("Failed to delete class");
+      return;
+    }
+
+    toast.success("Class deleted");
+    await fetchData();
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="font-heading text-2xl font-bold text-navy-900">
+          Classes
+        </h1>
+        <Button
+          onClick={() => {
+            resetForm();
+            setDialogOpen(true);
+          }}
+          className="bg-navy-900 hover:bg-navy-800 text-white"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add Class
+        </Button>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+          </div>
+        ) : classes.length === 0 ? (
+          <p className="text-center py-12 text-gray-500">
+            No classes found. Add one to get started.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Class</TableHead>
+                <TableHead>Section</TableHead>
+                <TableHead>Academic Year</TableHead>
+                <TableHead>Class Teacher</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {classes.map((cls) => (
+                <TableRow key={cls.id}>
+                  <TableCell className="font-medium">{cls.name}</TableCell>
+                  <TableCell>{cls.section}</TableCell>
+                  <TableCell className="text-gray-600">
+                    {cls.academic_year_name}
+                  </TableCell>
+                  <TableCell className="text-gray-600">
+                    {cls.teacher_name}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleDelete(cls.id)}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      {/* Add Class Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Class</DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label>Class Name</Label>
+              <Select value={className} onValueChange={(val) => val && setClassName(val)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLASS_NAMES.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Section</Label>
+              <Select value={section} onValueChange={(val) => val && setSection(val)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SECTIONS.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Academic Year</Label>
+              <Select value={academicYearId} onValueChange={(val) => val && setAcademicYearId(val)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select academic year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {academicYears.map((ay) => (
+                    <SelectItem key={ay.id} value={ay.id}>
+                      {ay.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Class Teacher (optional)</Label>
+              <Select value={classTeacherId} onValueChange={(val) => setClassTeacherId(val ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select teacher" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teachers.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="bg-navy-900 hover:bg-navy-800 text-white"
+              >
+                {submitting && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                Create Class
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
