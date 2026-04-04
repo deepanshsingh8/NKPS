@@ -193,3 +193,39 @@ export interface CalendarEvent {
   created_by: string;
   created_at: string;
 }
+
+// =============================================================
+// Student Records (standalone, no auth required)
+// =============================================================
+
+export type Gender = 'male' | 'female' | 'other';
+export type BloodGroup = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
+
+export interface Student {
+  id: string;
+  admission_no: string;
+  full_name: string;
+  father_name: string | null;
+  mother_name: string | null;
+  date_of_birth: string | null;
+  gender: Gender | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  blood_group: BloodGroup | null;
+  category: string | null;
+  aadhar_number: string | null;
+  previous_school: string | null;
+  admission_date: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StudentWithClass extends Student {
+  class_name?: string;
+  section?: string;
+  roll_number?: number | null;
+  enrollment_id?: string;
+  class_id?: string;
+}

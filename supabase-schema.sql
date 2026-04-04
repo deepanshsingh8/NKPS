@@ -649,3 +649,68 @@ create policy "Authenticated users can insert site_media"
 --   - SELECT: Allow public access
 --   - INSERT: Allow authenticated users
 --   - DELETE: Allow authenticated users
+
+-- =============================================================
+-- Students Table (standalone student records, no auth required)
+-- =============================================================
+
+create table if not exists students (
+  id uuid default gen_random_uuid() primary key,
+  admission_no text not null unique,
+  full_name text not null,
+  father_name text,
+  mother_name text,
+  date_of_birth date,
+  gender text check (gender in ('male', 'female', 'other')),
+  address text,
+  phone text,
+  email text,
+  blood_group text check (blood_group in ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-')),
+  category text,
+  aadhar_number text,
+  previous_school text,
+  admission_date date default current_date,
+  is_active boolean default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table students enable row level security;
+
+create policy "Admins can read all students"
+  on students for select
+  using (public.get_user_role() = 'admin');
+
+create policy "Teachers can read students in their classes"
+  on students for select
+  using (
+    public.get_user_role() = 'teacher'
+    and id in (
+      select se.student_id from student_enrollments se
+      join classes c on c.id = se.class_id
+      where c.class_teacher_id = auth.uid()
+    )
+  );
+
+create policy "Admins can insert students"
+  on students for insert
+  with check (public.get_user_role() = 'admin');
+
+create policy "Admins can update students"
+  on students for update
+  using (public.get_user_role() = 'admin');
+
+create policy "Admins can delete students"
+  on students for delete
+  using (public.get_user_role() = 'admin');
+
+-- =============================================================
+-- FK Migration: student_enrollments.student_id → students(id)
+-- Run ONLY if student_enrollments currently references profiles(id)
+-- and no student enrollment data exists yet
+-- =============================================================
+-- alter table student_enrollments
+--   drop constraint if exists student_enrollments_student_id_fkey;
+-- alter table student_enrollments
+--   add constraint student_enrollments_student_id_fkey
+--   foreign key (student_id) references students(id) on delete cascade;

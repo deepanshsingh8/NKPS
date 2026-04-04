@@ -3,6 +3,7 @@ import { verifyAdmin } from "@/lib/verify-admin";
 
 // Allowlisted tables that admins can read/write via this proxy
 const ALLOWED_TABLES = [
+  "students",
   "classes",
   "subjects",
   "academic_years",

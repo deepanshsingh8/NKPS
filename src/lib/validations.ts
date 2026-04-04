@@ -136,3 +136,44 @@ export const calendarEventSchema = z.object({
 });
 
 export type CalendarEventData = z.infer<typeof calendarEventSchema>;
+
+// =============================================================
+// Student Records
+// =============================================================
+
+export const studentSchema = z.object({
+  admission_no: z.string().min(1, "Admission number is required"),
+  full_name: z.string().min(2, "Full name must be at least 2 characters"),
+  father_name: z.string().optional().or(z.literal("")),
+  mother_name: z.string().optional().or(z.literal("")),
+  date_of_birth: z.string().optional().or(z.literal("")),
+  gender: z.enum(["male", "female", "other"]).optional(),
+  address: z.string().optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
+  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  blood_group: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]).optional(),
+  category: z.string().optional().or(z.literal("")),
+  aadhar_number: z.string().optional().or(z.literal("")),
+  previous_school: z.string().optional().or(z.literal("")),
+});
+
+export type StudentData = z.infer<typeof studentSchema>;
+
+export const studentBulkUploadSchema = z.object({
+  class_id: z.string().uuid("Invalid class"),
+  students: z.array(
+    z.object({
+      admission_no: z.string().min(1, "Admission number is required"),
+      full_name: z.string().min(2, "Name is required"),
+      father_name: z.string().optional().or(z.literal("")),
+      mother_name: z.string().optional().or(z.literal("")),
+      date_of_birth: z.string().optional().or(z.literal("")),
+      gender: z.string().optional().or(z.literal("")),
+      phone: z.string().optional().or(z.literal("")),
+      address: z.string().optional().or(z.literal("")),
+      roll_number: z.number().int().optional(),
+    })
+  ).min(1, "At least one student is required"),
+});
+
+export type StudentBulkUploadData = z.infer<typeof studentBulkUploadSchema>;

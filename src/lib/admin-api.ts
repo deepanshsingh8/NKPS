@@ -50,13 +50,16 @@ export async function adminApi(options: AdminApiOptions): Promise<AdminApiResult
 }
 
 /**
- * Fetch helper for admin GET endpoints. Includes auth token automatically.
+ * Fetch helper for admin endpoints. Includes auth token automatically.
+ * Supports GET (default) and other methods via options.
  */
-export async function adminFetch(url: string): Promise<Response> {
+export async function adminFetch(url: string, options?: RequestInit): Promise<Response> {
   const token = await getAccessToken();
-  return fetch(url, {
-    headers: token ? { "Authorization": `Bearer ${token}` } : {},
-  });
+  const headers = new Headers(options?.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return fetch(url, { ...options, headers });
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   Layers,
   LogOut,
   Users,
+  UserCheck,
   GraduationCap,
   BookOpen,
   CreditCard,
@@ -46,6 +47,7 @@ const contentLinks = [
 
 const erpLinks = [
   { icon: Users, label: "Users", href: "/admin/users" },
+  { icon: UserCheck, label: "Students", href: "/admin/students" },
   { icon: GraduationCap, label: "Classes", href: "/admin/classes" },
   { icon: BookOpen, label: "Subjects", href: "/admin/subjects" },
   { icon: CalendarDays, label: "Academic Years", href: "/admin/academic-years" },
