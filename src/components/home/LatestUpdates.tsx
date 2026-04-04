@@ -7,7 +7,7 @@ import { staggerContainer, fadeUp } from "@/lib/animations";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { MouseParallax } from "@/components/shared/MouseParallax";
 
-const updates = [
+const defaultUpdates = [
   {
     date: "March 2026",
     title: "Admissions Open 2026-27",
@@ -31,7 +31,15 @@ const updates = [
   },
 ];
 
-export function LatestUpdates() {
+interface LatestUpdatesProps {
+  images?: string[];
+}
+
+export function LatestUpdates({ images }: LatestUpdatesProps = {}) {
+  const updates = defaultUpdates.map((u, i) => ({
+    ...u,
+    image: images?.[i] || u.image,
+  }));
   return (
     <section className="section-padding relative overflow-hidden">
       {/* Mouse parallax decorative shapes */}

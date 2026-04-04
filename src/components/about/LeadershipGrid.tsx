@@ -7,11 +7,15 @@ import { GlassCard } from "@/components/shared/GlassCard";
 import { SCHOOL } from "@/lib/constants";
 import { staggerContainer, fadeUp } from "@/lib/animations";
 
-const leaderPhotos: Record<string, string> = {
+const defaultLeaderPhotos: Record<string, string> = {
   "Dr. N.C. Lunayach": "/images/staff/managing-director.jpg",
   "Mr. Kuldeep Singh": "/images/staff/director.jpg",
   "Mrs. Prema Kavia": "/images/staff/principal.jpg",
 };
+
+interface LeadershipGridProps {
+  photos?: Record<string, string>;
+}
 
 function getInitials(name: string): string {
   return name
@@ -24,7 +28,8 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-export function LeadershipGrid() {
+export function LeadershipGrid({ photos }: LeadershipGridProps = {}) {
+  const leaderPhotos = { ...defaultLeaderPhotos, ...photos };
   return (
     <section className="section-padding">
       <div className="page-container">

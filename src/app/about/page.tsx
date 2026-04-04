@@ -8,12 +8,23 @@ import { WhyChooseUs } from "@/components/about/WhyChooseUs";
 import { AchievementsCounter } from "@/components/about/AchievementsCounter";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { SectionDivider } from "@/components/shared/SectionDivider";
+import { getPageMedia, mediaUrl } from "@/lib/site-media";
 
 export const metadata: Metadata = {
   title: "About Us",
 };
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const media = await getPageMedia("about");
+
+  const aboutHeroImage = mediaUrl(media, "about_hero", "/images/gallery/g10.jpg");
+  const founderPhoto = mediaUrl(media, "founder_photo", "/images/about/rk-choudhary.png");
+  const leaderPhotos: Record<string, string> = {
+    "Dr. N.C. Lunayach": mediaUrl(media, "leadership_managing_director", "/images/staff/managing-director.jpg"),
+    "Mr. Kuldeep Singh": mediaUrl(media, "leadership_director", "/images/staff/director.jpg"),
+    "Mrs. Prema Kavia": mediaUrl(media, "leadership_principal", "/images/staff/principal.jpg"),
+  };
+
   return (
     <PageTransition>
       <PageHeader
@@ -24,7 +35,7 @@ export default function AboutPage() {
       {/* Hero Image Section */}
       <div className="relative h-[50vh] w-full overflow-hidden">
         <Image
-          src="/images/gallery/g10.jpg"
+          src={aboutHeroImage}
           alt="NK Public School Campus"
           fill
           className="object-cover"
@@ -45,11 +56,11 @@ export default function AboutPage() {
       <SectionDivider color="fill-white" />
 
       <LegacyTimeline />
-      <FounderTribute />
+      <FounderTribute photoUrl={founderPhoto} />
 
       <SectionDivider color="fill-cream-50" />
 
-      <LeadershipGrid />
+      <LeadershipGrid photos={leaderPhotos} />
       <WhyChooseUs />
 
       <SectionDivider flip color="fill-navy-900" />

@@ -4,7 +4,11 @@ import Image from "next/image";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { SCHOOL } from "@/lib/constants";
 
-export function FounderTribute() {
+interface FounderTributeProps {
+  photoUrl?: string;
+}
+
+export function FounderTribute({ photoUrl }: FounderTributeProps = {}) {
   return (
     <section className="section-padding bg-navy-900 text-white">
       <div className="page-container">
@@ -16,7 +20,7 @@ export function FounderTribute() {
             {/* Avatar */}
             <div className="w-40 h-40 rounded-full mx-auto mb-6 overflow-hidden border-4 border-gold-500/30">
               <Image
-                src="/images/about/rk-choudhary.png"
+                src={photoUrl || "/images/about/rk-choudhary.png"}
                 alt={SCHOOL.founder.name}
                 width={160}
                 height={160}

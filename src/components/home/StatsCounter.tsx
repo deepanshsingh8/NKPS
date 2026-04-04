@@ -4,13 +4,17 @@ import Image from "next/image";
 import { SCHOOL } from "@/lib/constants";
 import { CounterAnimation } from "@/components/shared/CounterAnimation";
 
-export function StatsCounter() {
+interface StatsCounterProps {
+  backgroundImage?: string;
+}
+
+export function StatsCounter({ backgroundImage }: StatsCounterProps = {}) {
   return (
     <section className="relative bg-navy-900 overflow-hidden">
       {/* Background image with dark overlay */}
       <div className="absolute inset-0">
         <Image
-          src="/images/gallery/g10.jpg"
+          src={backgroundImage || "/images/gallery/g10.jpg"}
           alt=""
           fill
           className="object-cover"

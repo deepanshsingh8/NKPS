@@ -611,3 +611,41 @@ create policy "Admins can update calendar events"
 create policy "Admins can delete calendar events"
   on calendar_events for delete
   using (public.get_user_role() = 'admin');
+
+-- =============================================================
+-- Site Media Management (admin-managed website images)
+-- =============================================================
+
+create table if not exists site_media (
+  id uuid default uuid_generate_v4() primary key,
+  slot text not null unique,
+  page text not null,
+  section text not null,
+  label text not null,
+  current_url text not null,
+  default_url text not null,
+  alt_text text not null default '',
+  sort_order integer default 0,
+  updated_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+
+alter table site_media enable row level security;
+
+create policy "Public can read site_media"
+  on site_media for select
+  using (true);
+
+create policy "Authenticated users can update site_media"
+  on site_media for update
+  using (auth.role() = 'authenticated');
+
+create policy "Authenticated users can insert site_media"
+  on site_media for insert
+  with check (auth.role() = 'authenticated');
+
+-- Storage Bucket: "site-media" (Public)
+-- Policies:
+--   - SELECT: Allow public access
+--   - INSERT: Allow authenticated users
+--   - DELETE: Allow authenticated users

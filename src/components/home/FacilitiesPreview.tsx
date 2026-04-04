@@ -8,12 +8,16 @@ import { FACILITIES } from "@/lib/constants";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { fadeUp, staggerContainer } from "@/lib/animations";
 
-const facilityImages = [
+const defaultFacilityImages = [
   "/images/news/n1.jpg",
   "/images/news/n2.jpg",
   "/images/news/n4.jpg",
   "/images/news/n6.jpg",
 ];
+
+interface FacilitiesPreviewProps {
+  images?: string[];
+}
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Monitor,
@@ -22,7 +26,10 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   BookOpen,
 };
 
-export function FacilitiesPreview() {
+export function FacilitiesPreview({ images }: FacilitiesPreviewProps = {}) {
+  const facilityImages = images?.length
+    ? images
+    : defaultFacilityImages;
   const preview = FACILITIES.slice(0, 4);
 
   return (

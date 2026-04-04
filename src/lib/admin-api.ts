@@ -72,6 +72,21 @@ export async function adminUpload(url: string, formData: FormData): Promise<Resp
 }
 
 /**
+ * Fetch helper for admin PATCH endpoints. Includes auth token.
+ */
+export async function adminPatch(url: string, body: unknown): Promise<Response> {
+  const token = await getAccessToken();
+  return fetch(url, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+/**
  * Fetch helper for admin DELETE endpoints. Includes auth token.
  */
 export async function adminDelete(url: string, body: unknown): Promise<Response> {

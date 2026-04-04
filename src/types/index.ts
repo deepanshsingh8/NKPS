@@ -16,6 +16,20 @@ export interface TransferCertificate {
   created_at: string;
 }
 
+export interface SiteMedia {
+  id: string;
+  slot: string;
+  page: string;
+  section: string;
+  label: string;
+  current_url: string;
+  default_url: string;
+  alt_text: string;
+  sort_order: number;
+  updated_at: string;
+  created_at: string;
+}
+
 export interface ContactSubmission {
   id: string;
   full_name: string;

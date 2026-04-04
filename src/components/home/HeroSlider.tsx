@@ -8,7 +8,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { MouseParallax } from "@/components/shared/MouseParallax";
 
-const slides = [
+const defaultSlides = [
   {
     title: "Where Futures",
     titleHighlight: "Begin",
@@ -37,6 +37,10 @@ const slides = [
   },
 ];
 
+interface HeroSliderProps {
+  images?: string[];
+}
+
 const stats = [
   { number: "10000+", label: "Students" },
   { number: "40+", label: "Years" },
@@ -46,7 +50,11 @@ const stats = [
 
 const INTERVAL = 6000;
 
-export function HeroSlider() {
+export function HeroSlider({ images }: HeroSliderProps = {}) {
+  const slides = defaultSlides.map((slide, i) => ({
+    ...slide,
+    image: images?.[i] || slide.image,
+  }));
   const [current, setCurrent] = useState(0);
   const [progress, setProgress] = useState(0);
 

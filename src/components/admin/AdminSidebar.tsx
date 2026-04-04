@@ -8,6 +8,8 @@ import {
   LayoutDashboard,
   Image as ImageIcon,
   FileText,
+  MessageSquare,
+  Layers,
   LogOut,
   Users,
   GraduationCap,
@@ -29,6 +31,16 @@ const contentLinks = [
     icon: FileText,
     label: "Transfer Certificates",
     href: "/admin/transfer-certificates",
+  },
+  {
+    icon: MessageSquare,
+    label: "Contact Messages",
+    href: "/admin/contact",
+  },
+  {
+    icon: Layers,
+    label: "Site Media",
+    href: "/admin/site-media",
   },
 ];
 

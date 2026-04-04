@@ -95,9 +95,24 @@ export default function ContactPage() {
   });
 
   const onSubmit = async (data: ContactFormData) => {
-    // Placeholder: just show success toast
-    toast.success("Message sent successfully! We will get back to you soon.");
-    reset();
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        toast.error(err?.error ?? "Failed to send message. Please try again.");
+        return;
+      }
+
+      toast.success("Message sent successfully! We will get back to you soon.");
+      reset();
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    }
   };
 
   return (
