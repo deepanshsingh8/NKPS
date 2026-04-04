@@ -19,6 +19,8 @@ function getDashboardPath(role: string): string {
 }
 
 function isProtectedRoute(pathname: string): boolean {
+  // /student-life is a public page, not a protected ERP route
+  if (pathname.startsWith("/student-life")) return false;
   return PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
@@ -69,28 +71,15 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user) {
-    // Try to get cached role from cookie
-    let role: string = request.cookies.get("x-user-role")?.value ?? "";
+    // Fetch role from profiles — always fresh to avoid stale cookie issues
+    // (e.g. different user logging in reuses previous user's cached role)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
 
-    // If no cached role, fetch from profiles table and set cookie
-    if (!role) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-      role = profile?.role ?? "student";
-
-      // Cache the role in a cookie on the response
-      supabaseResponse.cookies.set("x-user-role", role, {
-        path: "/",
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60, // 1 hour
-      });
-    }
+    const role = profile?.role ?? "student";
 
     const dashboard = getDashboardPath(role);
 
@@ -114,7 +103,7 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    if (pathname.startsWith("/student") && role !== "student") {
+    if (pathname.startsWith("/student") && !pathname.startsWith("/student-life") && role !== "student") {
       const url = request.nextUrl.clone();
       url.pathname = dashboard;
       return NextResponse.redirect(url);
