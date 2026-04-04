@@ -1,23 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidateTag, revalidatePath } from "next/cache";
+import { revalidatePath } from "next/cache";
 import { verifyAdmin } from "@/lib/verify-admin";
 
-const PAGE_ROUTES: Record<string, string> = {
-  home: "/",
-  about: "/about",
-  "student-life": "/student-life",
-  global: "/",
+const PAGE_ROUTES: Record<string, string[]> = {
+  home: ["/"],
+  about: ["/about"],
+  "student-life": ["/student-life"],
+  global: ["/", "/about", "/student-life"],
 };
 
-function revalidateAll(page: string) {
-  revalidateTag("site-media", "max");
-  // Revalidate the specific page so static HTML is regenerated
-  const route = PAGE_ROUTES[page];
-  if (route) revalidatePath(route);
-  // Global slots affect multiple pages
-  if (page === "global") {
-    revalidatePath("/about");
-    revalidatePath("/student-life");
+function revalidatePages(page: string) {
+  const routes = PAGE_ROUTES[page] ?? ["/"];
+  for (const route of routes) {
+    revalidatePath(route);
   }
 }
 
@@ -90,7 +85,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    revalidateAll(updated?.page ?? "home");
+    revalidatePages(updated?.page ?? "home");
 
     return NextResponse.json({ success: true, url: publicUrl });
   } catch {
@@ -140,7 +135,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  revalidateAll(record.page);
+  revalidatePages(record.page);
 
   return NextResponse.json({ success: true });
 }

@@ -14,6 +14,8 @@ export const metadata: Metadata = {
   title: "About Us",
 };
 
+export const revalidate = 60;
+
 export default async function AboutPage() {
   const media = await getPageMedia("about");
 

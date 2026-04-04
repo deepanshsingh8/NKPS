@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   title: "Student Life",
 };
 
+export const revalidate = 60;
+
 export default async function StudentLifePage() {
   const media = await getPageMedia("student-life");
 

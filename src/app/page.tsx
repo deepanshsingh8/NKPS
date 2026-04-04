@@ -9,6 +9,9 @@ import { MarqueeStrip } from "@/components/shared/MarqueeStrip";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { getPageMedia, mediaUrl } from "@/lib/site-media";
 
+// ISR: revalidate every 60s, plus on-demand via revalidatePath from admin
+export const revalidate = 60;
+
 export default async function HomePage() {
   const media = await getPageMedia("home");
 
