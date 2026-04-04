@@ -46,7 +46,7 @@ export function Navbar() {
         "fixed left-0 right-0 top-0 z-50 transition-all duration-500",
         isTransparent
           ? "bg-navy-900/20 backdrop-blur-md border-b border-white/10"
-          : "bg-navy-900/75 backdrop-blur-xl border-b border-gold-500/30 shadow-lg shadow-black/10"
+          : "bg-navy-900/95 backdrop-blur-xl border-b-2 border-gold-500/50 shadow-lg shadow-black/20"
       )}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
