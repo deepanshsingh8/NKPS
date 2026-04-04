@@ -1,6 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidateTag } from "next/cache";
+import { revalidateTag, revalidatePath } from "next/cache";
 import { verifyAdmin } from "@/lib/verify-admin";
+
+const PAGE_ROUTES: Record<string, string> = {
+  home: "/",
+  about: "/about",
+  "student-life": "/student-life",
+  global: "/",
+};
+
+function revalidateAll(page: string) {
+  revalidateTag("site-media", "max");
+  // Revalidate the specific page so static HTML is regenerated
+  const route = PAGE_ROUTES[page];
+  if (route) revalidatePath(route);
+  // Global slots affect multiple pages
+  if (page === "global") {
+    revalidatePath("/about");
+    revalidatePath("/student-life");
+  }
+}
 
 export async function GET() {
   const admin = await verifyAdmin();
@@ -56,11 +75,13 @@ export async function POST(request: NextRequest) {
       data: { publicUrl },
     } = admin.storage.from("site-media").getPublicUrl(fileName);
 
-    // Update the slot's current_url
-    const { error: updateError } = await admin
+    // Update the slot's current_url and get the page for revalidation
+    const { data: updated, error: updateError } = await admin
       .from("site_media")
       .update({ current_url: publicUrl, updated_at: new Date().toISOString() })
-      .eq("slot", slot);
+      .eq("slot", slot)
+      .select("page")
+      .single();
 
     if (updateError) {
       return NextResponse.json(
@@ -69,7 +90,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    revalidateTag("site-media", "max");
+    revalidateAll(updated?.page ?? "home");
 
     return NextResponse.json({ success: true, url: publicUrl });
   } catch {
@@ -89,10 +110,10 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  // Get the default_url for this slot
+  // Get the default_url and page for this slot
   const { data: record, error: fetchError } = await admin
     .from("site_media")
-    .select("default_url, current_url")
+    .select("default_url, current_url, page")
     .eq("slot", slot)
     .single();
 
@@ -119,7 +140,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  revalidateTag("site-media", "max");
+  revalidateAll(record.page);
 
   return NextResponse.json({ success: true });
 }
