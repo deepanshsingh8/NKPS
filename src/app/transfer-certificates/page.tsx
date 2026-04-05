@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { Download, Search, FileText, Info } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { SectionDivider } from "@/components/shared/SectionDivider";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { SectionHeading } from "@/components/shared/SectionHeading";
-import { staggerContainer, fadeUp } from "@/lib/animations";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
@@ -23,6 +22,7 @@ interface TC {
 export default function TransferCertificatesPage() {
   const [search, setSearch] = useState("");
   const [tcs, setTcs] = useState<TC[]>([]);
+  const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
@@ -36,9 +36,10 @@ export default function TransferCertificatesPage() {
       if (error) {
         console.error("Failed to fetch transfer certificates:", error);
         setFetchError(true);
-        return;
+      } else if (data) {
+        setTcs(data as TC[]);
       }
-      if (data) setTcs(data as TC[]);
+      setLoading(false);
     }
     fetchTCs();
   }, []);
@@ -124,84 +125,89 @@ export default function TransferCertificatesPage() {
           {/* TC Cards */}
           <AnimatedSection delay={0.2}>
             <div className="mt-10">
-              <AnimatePresence mode="popLayout">
-                {filteredTCs.length > 0 ? (
-                  <motion.div
-                    variants={staggerContainer}
-                    initial="hidden"
-                    animate="visible"
-                    className="grid grid-cols-1 gap-4 md:grid-cols-2"
-                  >
-                    {filteredTCs.map((tc) => (
-                      <motion.div
-                        key={tc.id}
-                        variants={fadeUp}
-                        layout
-                        className="group rounded-2xl border border-navy-900/5 bg-white p-5 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-gold-500/20 hover:-translate-y-0.5"
-                      >
-                        <div className="flex items-center gap-4">
-                          {/* Icon */}
-                          <div className="flex-shrink-0 rounded-xl bg-navy-900/5 p-3 transition-colors duration-300 group-hover:bg-navy-900/10">
-                            <FileText className="h-6 w-6 text-navy-900" />
-                          </div>
-
-                          {/* Details */}
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-navy-900 truncate">
-                              {tc.student_name}
-                            </h3>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="inline-block rounded-full bg-cream-100 px-3 py-0.5 text-xs font-semibold text-navy-800">
-                                {tc.academic_year}
-                              </span>
-                              {tc.admission_no && (
-                                <span className="inline-block rounded-full bg-gray-100 px-3 py-0.5 text-xs font-medium text-gray-600">
-                                  Adm: {tc.admission_no}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Download Button */}
-                          <a
-                            href={tc.file_url}
-                            className={cn(
-                              "flex-shrink-0 inline-flex items-center gap-2 rounded-full px-5 py-2.5",
-                              "bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900",
-                              "font-semibold text-sm shadow-sm",
-                              "transition-all duration-300",
-                              "hover:shadow-md hover:shadow-gold-500/25 hover:scale-105",
-                              "active:scale-95"
-                            )}
-                          >
-                            <Download className="h-4 w-4" />
-                            <span className="hidden sm:inline">Download</span>
-                          </a>
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900/20 border-t-navy-900" />
+                  <p className="mt-4 text-sm text-navy-800/50">Loading certificates...</p>
+                </div>
+              ) : filteredTCs.length > 0 ? (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {filteredTCs.map((tc) => (
+                    <motion.div
+                      key={tc.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="group rounded-2xl border border-navy-900/5 bg-white p-5 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-gold-500/20 hover:-translate-y-0.5"
+                    >
+                      <div className="flex items-center gap-4">
+                        {/* Icon */}
+                        <div className="flex-shrink-0 rounded-xl bg-navy-900/5 p-3 transition-colors duration-300 group-hover:bg-navy-900/10">
+                          <FileText className="h-6 w-6 text-navy-900" />
                         </div>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="flex flex-col items-center justify-center py-20"
-                  >
-                    <div className="rounded-full bg-cream-100 p-6">
-                      <Search className="h-10 w-10 text-navy-800/30" />
-                    </div>
-                    <h3 className="mt-5 text-lg font-semibold text-navy-900">
-                      No certificates found
-                    </h3>
-                    <p className="mt-2 text-sm text-navy-800/50 text-center max-w-sm">
-                      We couldn&apos;t find any transfer certificates matching
-                      &ldquo;{search}&rdquo;. Try a different name or contact the school office
-                      for assistance.
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+
+                        {/* Details */}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-navy-900 truncate">
+                            {tc.student_name}
+                          </h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="inline-block rounded-full bg-cream-100 px-3 py-0.5 text-xs font-semibold text-navy-800">
+                              {tc.academic_year}
+                            </span>
+                            {tc.admission_no && (
+                              <span className="inline-block rounded-full bg-gray-100 px-3 py-0.5 text-xs font-medium text-gray-600">
+                                Adm: {tc.admission_no}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Download Button */}
+                        <a
+                          href={tc.file_url}
+                          className={cn(
+                            "flex-shrink-0 inline-flex items-center gap-2 rounded-full px-5 py-2.5",
+                            "bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900",
+                            "font-semibold text-sm shadow-sm",
+                            "transition-all duration-300",
+                            "hover:shadow-md hover:shadow-gold-500/25 hover:scale-105",
+                            "active:scale-95"
+                          )}
+                        >
+                          <Download className="h-4 w-4" />
+                          <span className="hidden sm:inline">Download</span>
+                        </a>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : search ? (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <div className="rounded-full bg-cream-100 p-6">
+                    <Search className="h-10 w-10 text-navy-800/30" />
+                  </div>
+                  <h3 className="mt-5 text-lg font-semibold text-navy-900">
+                    No certificates found
+                  </h3>
+                  <p className="mt-2 text-sm text-navy-800/50 text-center max-w-sm">
+                    We couldn&apos;t find any transfer certificates matching
+                    &ldquo;{search}&rdquo;. Try a different name or contact the school office
+                    for assistance.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <div className="rounded-full bg-cream-100 p-6">
+                    <FileText className="h-10 w-10 text-navy-800/30" />
+                  </div>
+                  <h3 className="mt-5 text-lg font-semibold text-navy-900">
+                    No certificates uploaded yet
+                  </h3>
+                  <p className="mt-2 text-sm text-navy-800/50 text-center max-w-sm">
+                    Transfer certificates will appear here once uploaded by the school administration.
+                  </p>
+                </div>
+              )}
             </div>
           </AnimatedSection>
 

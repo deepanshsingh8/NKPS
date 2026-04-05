@@ -3,13 +3,12 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { X } from "lucide-react";
+import { X, Download, Calendar, Filter, ChevronLeft, ImageIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { SectionDivider } from "@/components/shared/SectionDivider";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { SectionHeading } from "@/components/shared/SectionHeading";
-import { staggerContainer, fadeUp } from "@/lib/animations";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
@@ -46,12 +45,15 @@ interface GalleryEventWithImages {
 
 export default function GalleryPage() {
   const [activeCategory, setActiveCategory] = useState("All");
-  const [viewMode, setViewMode] = useState<"categories" | "events">("categories");
+  const [viewMode, setViewMode] = useState<"categories" | "events">("events");
   const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>(staticImages);
   const [galleryEvents, setGalleryEvents] = useState<GalleryEventWithImages[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<GalleryEventWithImages | null>(null);
   const [eventImages, setEventImages] = useState<GalleryImage[]>([]);
+  const [selectedYear, setSelectedYear] = useState<string>("all");
+  const [availableYears, setAvailableYears] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchImages() {
@@ -103,7 +105,16 @@ export default function GalleryPage() {
         }));
 
         setGalleryEvents(eventsWithCounts);
+
+        // Extract unique academic years for the filter
+        const years = new Set<string>();
+        eventsWithCounts.forEach((evt) => {
+          if (evt.academic_year) years.add(evt.academic_year);
+        });
+        setAvailableYears(Array.from(years).sort().reverse());
       }
+
+      setLoading(false);
     }
     fetchImages();
   }, []);
@@ -127,6 +138,26 @@ export default function GalleryPage() {
     );
   };
 
+  const downloadImage = async (image: GalleryImage) => {
+    try {
+      const response = await fetch(image.src);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      // Extract extension from src, default to jpg
+      const ext = image.src.split(".").pop()?.split("?")[0] || "jpg";
+      a.download = `${image.alt.replace(/[^a-zA-Z0-9]/g, "_")}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // Fallback: open in new tab
+      window.open(image.src, "_blank");
+    }
+  };
+
   function getCategoryCount(category: string) {
     if (category === "All") return galleryImages.length;
     return galleryImages.filter((img) => img.category === category.toLowerCase()).length;
@@ -138,6 +169,12 @@ export default function GalleryPage() {
       : galleryImages.filter(
           (img) => img.category === activeCategory.toLowerCase()
         );
+
+  // Filter events by selected year
+  const filteredEvents =
+    selectedYear === "all"
+      ? galleryEvents
+      : galleryEvents.filter((evt) => evt.academic_year === selectedYear);
 
   const closeLightbox = useCallback(() => setLightboxImage(null), []);
 
@@ -154,224 +191,340 @@ export default function GalleryPage() {
           </AnimatedSection>
 
           {/* View Mode Toggle */}
-          {galleryEvents.length > 0 && (
-            <AnimatedSection delay={0.08}>
-              <div className="mt-10 flex justify-center gap-2">
-                <button
-                  onClick={() => { setViewMode("categories"); setSelectedEvent(null); }}
-                  className={cn(
-                    "px-5 py-2 rounded-lg text-sm font-medium transition-all",
-                    viewMode === "categories"
-                      ? "bg-navy-900 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  )}
-                >
-                  By Category
-                </button>
-                <button
-                  onClick={() => setViewMode("events")}
-                  className={cn(
-                    "px-5 py-2 rounded-lg text-sm font-medium transition-all",
-                    viewMode === "events"
-                      ? "bg-navy-900 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  )}
-                >
-                  By Event
-                </button>
-              </div>
-            </AnimatedSection>
-          )}
-
-          {/* Filter Tabs — category mode */}
-          {viewMode === "categories" && (<>
-          <AnimatedSection delay={0.1}>
-            <div className="mt-10 flex flex-wrap justify-center gap-3">
-              {categories.map((category) => (
-                <button
-                  key={category}
-                  onClick={() => setActiveCategory(category)}
-                  className={cn(
-                    "rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 flex items-center gap-2",
-                    activeCategory === category
-                      ? "bg-gradient-to-r from-navy-900 to-navy-800 text-white shadow-lg shadow-navy-900/25 scale-105"
-                      : "border-2 border-navy-900/10 bg-white text-navy-900 hover:border-navy-900/30 hover:bg-cream-50 hover:shadow-md"
-                  )}
-                >
-                  {category}
-                  <span
-                    className={cn(
-                      "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold min-w-[1.5rem]",
-                      activeCategory === category
-                        ? "bg-gold-500 text-navy-900"
-                        : "bg-cream-100 text-navy-800"
-                    )}
-                  >
-                    {getCategoryCount(category)}
-                  </span>
-                </button>
-              ))}
+          <AnimatedSection delay={0.08}>
+            <div className="mt-10 flex justify-center gap-2">
+              <button
+                onClick={() => { setViewMode("categories"); setSelectedEvent(null); }}
+                className={cn(
+                  "px-5 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
+                  viewMode === "categories"
+                    ? "bg-navy-900 text-white shadow-lg shadow-navy-900/20"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                )}
+              >
+                <Filter className="h-4 w-4" />
+                By Category
+              </button>
+              <button
+                onClick={() => setViewMode("events")}
+                className={cn(
+                  "px-5 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
+                  viewMode === "events"
+                    ? "bg-navy-900 text-white shadow-lg shadow-navy-900/20"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                )}
+              >
+                <Calendar className="h-4 w-4" />
+                By Event
+              </button>
             </div>
           </AnimatedSection>
 
-          {/* Masonry Grid */}
-          <motion.div
-            layout
-            className="mt-12 columns-1 gap-4 md:columns-2 lg:columns-3"
-          >
-            <AnimatePresence mode="popLayout">
-              {filteredImages.map((image, index) => (
-                <motion.div
-                  key={image.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.3 }}
-                  className={cn(
-                    "group relative mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-navy-100 cursor-pointer",
-                    aspectPatterns[index % 3]
-                  )}
-                  onClick={() => setLightboxImage(image)}
-                >
-                  <Image
-                    src={image.src}
-                    alt={image.alt}
-                    fill
-                    className="object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-navy-900/70 via-navy-900/0 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
-                    <div className="p-4 w-full">
-                      <span className="text-white font-semibold text-sm">
-                        {image.alt}
-                      </span>
-                      <span className="block text-gold-400 text-xs mt-0.5 capitalize">
-                        {image.category}
-                      </span>
+          {/* ============================================================= */}
+          {/* CATEGORY VIEW                                                  */}
+          {/* ============================================================= */}
+          {viewMode === "categories" && (<>
+            {/* Filter Tabs */}
+            <AnimatedSection delay={0.1}>
+              <div className="mt-10 flex flex-wrap justify-center gap-3">
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setActiveCategory(category)}
+                    className={cn(
+                      "rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 flex items-center gap-2",
+                      activeCategory === category
+                        ? "bg-gradient-to-r from-navy-900 to-navy-800 text-white shadow-lg shadow-navy-900/25 scale-105"
+                        : "border-2 border-navy-900/10 bg-white text-navy-900 hover:border-navy-900/30 hover:bg-cream-50 hover:shadow-md"
+                    )}
+                  >
+                    {category}
+                    <span
+                      className={cn(
+                        "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold min-w-[1.5rem]",
+                        activeCategory === category
+                          ? "bg-gold-500 text-navy-900"
+                          : "bg-cream-100 text-navy-800"
+                      )}
+                    >
+                      {getCategoryCount(category)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </AnimatedSection>
+
+            {/* Masonry Grid */}
+            <motion.div
+              layout
+              className="mt-12 columns-1 gap-4 md:columns-2 lg:columns-3"
+            >
+              <AnimatePresence mode="popLayout">
+                {filteredImages.map((image, index) => (
+                  <motion.div
+                    key={image.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.3 }}
+                    className={cn(
+                      "group relative mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-navy-100 cursor-pointer",
+                      aspectPatterns[index % 3]
+                    )}
+                    onClick={() => setLightboxImage(image)}
+                  >
+                    <Image
+                      src={image.src}
+                      alt={image.alt}
+                      fill
+                      className="object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-navy-900/70 via-navy-900/0 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
+                      <div className="p-4 w-full flex items-end justify-between">
+                        <div>
+                          <span className="text-white font-semibold text-sm">
+                            {image.alt}
+                          </span>
+                          <span className="block text-gold-400 text-xs mt-0.5 capitalize">
+                            {image.category}
+                          </span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadImage(image);
+                          }}
+                          className="flex-shrink-0 rounded-full bg-white/20 p-2 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
+                          aria-label="Download image"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </motion.div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
           </>)}
 
-          {/* Events View */}
+          {/* ============================================================= */}
+          {/* EVENTS VIEW                                                    */}
+          {/* ============================================================= */}
           {viewMode === "events" && !selectedEvent && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-            >
-              {galleryEvents.map((evt) => (
-                <motion.div
-                  key={evt.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="group cursor-pointer bg-white rounded-2xl border border-navy-900/5 overflow-hidden shadow-sm hover:shadow-lg hover:border-gold-500/20 transition-all duration-300 hover:-translate-y-1"
-                  onClick={() => fetchEventImages(evt)}
-                >
-                  <div className="aspect-[16/9] bg-navy-100 relative">
-                    {evt.cover_url ? (
-                      <Image
-                        src={evt.cover_url}
-                        alt={evt.title}
-                        fill
-                        className="object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">
-                        <span className="text-4xl">📷</span>
-                      </div>
-                    )}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
-                      <span className="text-white text-xs font-medium">
-                        {evt.image_count} photo{evt.image_count !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <h3 className="font-bold text-navy-900">{evt.title}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-gray-500">
-                        {new Date(evt.event_date + "T00:00:00").toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </span>
-                      {evt.academic_year && (
-                        <span className="text-xs bg-cream-100 text-navy-800 px-2 py-0.5 rounded-full font-medium">
-                          {evt.academic_year}
-                        </span>
+            <div className="mt-10">
+              {/* Year Filter */}
+              {availableYears.length > 0 && (
+                <AnimatedSection delay={0.1}>
+                  <div className="flex flex-wrap justify-center gap-2 mb-8">
+                    <button
+                      onClick={() => setSelectedYear("all")}
+                      className={cn(
+                        "rounded-full px-5 py-2 text-sm font-medium transition-all duration-300",
+                        selectedYear === "all"
+                          ? "bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900 shadow-md shadow-gold-500/20"
+                          : "border-2 border-navy-900/10 bg-white text-navy-900 hover:border-gold-500/30 hover:bg-cream-50"
                       )}
-                    </div>
-                    {evt.description && (
-                      <p className="text-xs text-gray-500 mt-2 line-clamp-2">
-                        {evt.description}
-                      </p>
-                    )}
+                    >
+                      All Years
+                    </button>
+                    {availableYears.map((year) => (
+                      <button
+                        key={year}
+                        onClick={() => setSelectedYear(year)}
+                        className={cn(
+                          "rounded-full px-5 py-2 text-sm font-medium transition-all duration-300",
+                          selectedYear === year
+                            ? "bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900 shadow-md shadow-gold-500/20"
+                            : "border-2 border-navy-900/10 bg-white text-navy-900 hover:border-gold-500/30 hover:bg-cream-50"
+                        )}
+                      >
+                        {year}
+                      </button>
+                    ))}
                   </div>
+                </AnimatedSection>
+              )}
+
+              {/* Event Cards */}
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900/20 border-t-navy-900" />
+                  <p className="mt-4 text-sm text-navy-800/50">Loading events...</p>
+                </div>
+              ) : filteredEvents.length > 0 ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                >
+                  {filteredEvents.map((evt, i) => (
+                    <motion.div
+                      key={evt.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      className="group cursor-pointer bg-white rounded-2xl border border-navy-900/5 overflow-hidden shadow-sm hover:shadow-xl hover:border-gold-500/20 transition-all duration-300 hover:-translate-y-1"
+                      onClick={() => fetchEventImages(evt)}
+                    >
+                      <div className="aspect-[16/9] bg-navy-100 relative overflow-hidden">
+                        {evt.cover_url ? (
+                          <Image
+                            src={evt.cover_url}
+                            alt={evt.title}
+                            fill
+                            className="object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-navy-50 to-cream-100">
+                            <ImageIcon className="h-12 w-12 text-navy-300" />
+                          </div>
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+                          <span className="text-white text-xs font-medium bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+                            {evt.image_count} photo{evt.image_count !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-5">
+                        <h3 className="font-heading font-bold text-navy-900 text-lg leading-tight">
+                          {evt.title}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs text-gray-500 flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(evt.event_date + "T00:00:00").toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </span>
+                          {evt.academic_year && (
+                            <span className="text-xs bg-cream-100 text-navy-800 px-2.5 py-0.5 rounded-full font-medium">
+                              {evt.academic_year}
+                            </span>
+                          )}
+                        </div>
+                        {evt.description && (
+                          <p className="text-sm text-gray-500 mt-3 line-clamp-2 leading-relaxed">
+                            {evt.description}
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
                 </motion.div>
-              ))}
-            </motion.div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <div className="rounded-full bg-cream-100 p-6">
+                    <ImageIcon className="h-10 w-10 text-navy-800/30" />
+                  </div>
+                  <h3 className="mt-5 text-lg font-semibold text-navy-900">
+                    No events found
+                  </h3>
+                  <p className="mt-2 text-sm text-navy-800/50 text-center max-w-sm">
+                    {selectedYear !== "all"
+                      ? `No gallery events for ${selectedYear}. Try selecting a different year.`
+                      : "Gallery events will appear here once added by the school administration."}
+                  </p>
+                </div>
+              )}
+            </div>
           )}
 
-          {/* Selected Event Images */}
+          {/* ============================================================= */}
+          {/* SELECTED EVENT — PHOTO BROWSER                                 */}
+          {/* ============================================================= */}
           {viewMode === "events" && selectedEvent && (
             <div className="mt-10">
-              <button
-                onClick={() => { setSelectedEvent(null); setEventImages([]); }}
-                className="text-sm text-gold-500 hover:underline mb-4 inline-block"
-              >
-                ← Back to events
-              </button>
-              <h3 className="font-heading text-xl font-bold text-navy-900 mb-2">
-                {selectedEvent.title}
-              </h3>
-              {selectedEvent.description && (
-                <p className="text-sm text-gray-500 mb-6">{selectedEvent.description}</p>
-              )}
+              {/* Back button + Event header */}
+              <div className="mb-8">
+                <button
+                  onClick={() => { setSelectedEvent(null); setEventImages([]); }}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-navy-900 hover:text-gold-600 transition-colors mb-4"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Back to events
+                </button>
+                <h3 className="font-heading text-2xl font-bold text-navy-900">
+                  {selectedEvent.title}
+                </h3>
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="text-sm text-gray-500 flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {new Date(selectedEvent.event_date + "T00:00:00").toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </span>
+                  {selectedEvent.academic_year && (
+                    <span className="text-xs bg-cream-100 text-navy-800 px-2.5 py-0.5 rounded-full font-medium">
+                      {selectedEvent.academic_year}
+                    </span>
+                  )}
+                  <span className="text-xs bg-navy-50 text-navy-700 px-2.5 py-0.5 rounded-full font-medium">
+                    {eventImages.length} photo{eventImages.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                {selectedEvent.description && (
+                  <p className="text-sm text-gray-500 mt-3 max-w-2xl leading-relaxed">
+                    {selectedEvent.description}
+                  </p>
+                )}
+              </div>
+
               {eventImages.length === 0 ? (
-                <p className="text-center py-12 text-gray-400 text-sm">
-                  No photos uploaded for this event yet.
-                </p>
+                <div className="flex flex-col items-center justify-center py-20">
+                  <div className="rounded-full bg-cream-100 p-6">
+                    <ImageIcon className="h-10 w-10 text-navy-800/30" />
+                  </div>
+                  <p className="mt-4 text-sm text-gray-400">
+                    No photos uploaded for this event yet.
+                  </p>
+                </div>
               ) : (
                 <motion.div
                   layout
                   className="columns-1 gap-4 md:columns-2 lg:columns-3"
                 >
-                  <AnimatePresence mode="popLayout">
-                    {eventImages.map((image, index) => (
-                      <motion.div
-                        key={image.id}
-                        layout
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ duration: 0.3 }}
-                        className={cn(
-                          "group relative mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-navy-100 cursor-pointer",
-                          aspectPatterns[index % 3]
-                        )}
-                        onClick={() => setLightboxImage(image)}
-                      >
-                        <Image
-                          src={image.src}
-                          alt={image.alt}
-                          fill
-                          className="object-cover transition-transform duration-500 group-hover:scale-110"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-navy-900/70 via-navy-900/0 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
-                          <div className="p-4 w-full">
-                            <span className="text-white font-semibold text-sm">
-                              {image.alt}
-                            </span>
-                          </div>
+                  {eventImages.map((image, index) => (
+                    <motion.div
+                      key={image.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.3, delay: index * 0.03 }}
+                      className={cn(
+                        "group relative mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-navy-100 cursor-pointer",
+                        aspectPatterns[index % 3]
+                      )}
+                      onClick={() => setLightboxImage(image)}
+                    >
+                      <Image
+                        src={image.src}
+                        alt={image.alt}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-navy-900/70 via-navy-900/0 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
+                        <div className="p-4 w-full flex items-end justify-between">
+                          <span className="text-white font-semibold text-sm">
+                            {image.alt}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              downloadImage(image);
+                            }}
+                            className="flex-shrink-0 rounded-full bg-white/20 p-2 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
+                            aria-label="Download image"
+                          >
+                            <Download className="h-4 w-4" />
+                          </button>
                         </div>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
+                      </div>
+                    </motion.div>
+                  ))}
                 </motion.div>
               )}
             </div>
@@ -379,12 +532,12 @@ export default function GalleryPage() {
 
           {/* Note */}
           <p className="mt-12 text-center text-sm text-gray-400">
-            Gallery images will be managed by the school administration.
+            Gallery images are managed by the school administration.
           </p>
         </div>
       </section>
 
-      {/* Lightbox */}
+      {/* Lightbox with Download */}
       <AnimatePresence>
         {lightboxImage && (
           <motion.div
@@ -395,14 +548,26 @@ export default function GalleryPage() {
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 md:p-8"
             onClick={closeLightbox}
           >
-            {/* Close Button */}
-            <button
-              onClick={closeLightbox}
-              className="absolute top-4 right-4 z-10 rounded-full bg-white/10 p-2 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
-              aria-label="Close lightbox"
-            >
-              <X className="h-6 w-6" />
-            </button>
+            {/* Top buttons */}
+            <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  downloadImage(lightboxImage);
+                }}
+                className="rounded-full bg-white/10 p-2.5 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+                aria-label="Download image"
+              >
+                <Download className="h-5 w-5" />
+              </button>
+              <button
+                onClick={closeLightbox}
+                className="rounded-full bg-white/10 p-2.5 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+                aria-label="Close lightbox"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
             {/* Image */}
             <motion.div
