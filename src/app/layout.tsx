@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { LayoutShell } from "@/components/layout/LayoutShell";
-import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -49,12 +48,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
       <body className="min-h-screen flex flex-col antialiased">
-        <ThemeProvider>
-          <LayoutShell>
-            <main className="flex-1">{children}</main>
-          </LayoutShell>
-          <Toaster position="top-right" richColors />
-        </ThemeProvider>
+        <LayoutShell>
+          <main className="flex-1">{children}</main>
+        </LayoutShell>
+        <Toaster position="top-right" richColors />
       </body>
     </html>
   );

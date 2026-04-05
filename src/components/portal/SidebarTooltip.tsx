@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
 interface SidebarTooltipProps {
   label: string;
   children: React.ReactNode;
 }
+
+const subscribe = () => () => {};
+const getSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 /**
  * A tooltip that renders via a portal so it escapes overflow:hidden/auto
@@ -17,11 +21,7 @@ export function SidebarTooltip({ label, children }: SidebarTooltipProps) {
   const [visible, setVisible] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0 });
   const triggerRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const isBrowser = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const showTooltip = useCallback(() => {
     if (triggerRef.current) {
@@ -45,7 +45,7 @@ export function SidebarTooltip({ label, children }: SidebarTooltipProps) {
       onMouseLeave={hideTooltip}
     >
       {children}
-      {mounted && visible &&
+      {isBrowser && visible &&
         createPortal(
           <div
             className="fixed z-[9999] px-3 py-1.5 bg-navy-800 text-white text-xs font-medium rounded-lg shadow-xl border border-white/10 whitespace-nowrap pointer-events-none animate-in fade-in duration-100"

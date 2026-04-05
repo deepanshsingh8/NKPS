@@ -21,7 +21,6 @@ import {
   ClipboardList,
   Clock,
   ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SidebarProfileMenu } from "@/components/portal/SidebarProfileMenu";
@@ -60,30 +59,31 @@ export function AdminSidebar() {
         ? pathname === "/admin"
         : pathname.startsWith(href);
 
-    return (
-      <div key={href} className="relative group">
-        <Link
-          href={href}
-          className={cn(
-            "flex items-center gap-3 rounded-lg text-sm transition-all duration-200",
-            collapsed ? "px-2.5 py-2.5 justify-center" : "px-3 py-2.5",
-            isActive
-              ? "bg-white/10 text-white font-semibold border-l-[3px] border-gold-500"
-              : "text-white/60 hover:bg-white/5 hover:text-white hover:translate-x-0.5"
-          )}
-        >
-          <Icon className="h-5 w-5 shrink-0" />
-          {!collapsed && <span className="truncate">{label}</span>}
-        </Link>
-        {/* Floating tooltip when collapsed */}
-        {collapsed && (
-          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-navy-800 text-white text-xs font-medium rounded-lg shadow-xl border border-white/10 whitespace-nowrap opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50">
-            {label}
-            <div className="absolute top-1/2 -translate-y-1/2 -left-1 w-2 h-2 bg-navy-800 border-l border-b border-white/10 rotate-45" />
-          </div>
+    const linkContent = (
+      <Link
+        href={href}
+        className={cn(
+          "flex items-center gap-3 rounded-lg text-sm transition-all duration-200",
+          collapsed ? "px-2.5 py-2.5 justify-center" : "px-3 py-2.5",
+          isActive
+            ? "bg-white/10 text-white font-semibold border-l-[3px] border-gold-500"
+            : "text-white/60 hover:bg-white/5 hover:text-white hover:translate-x-0.5"
         )}
-      </div>
+      >
+        <Icon className="h-5 w-5 shrink-0" />
+        {!collapsed && <span className="truncate">{label}</span>}
+      </Link>
     );
+
+    if (collapsed) {
+      return (
+        <SidebarTooltip key={href} label={label}>
+          {linkContent}
+        </SidebarTooltip>
+      );
+    }
+
+    return <div key={href}>{linkContent}</div>;
   };
 
   return (

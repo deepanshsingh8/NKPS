@@ -6,7 +6,6 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
-import { useTheme } from "@/components/providers/ThemeProvider"
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
@@ -48,13 +47,10 @@ function DialogContent({
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
 }) {
-  const { resolvedTheme } = useTheme()
-
   return (
     <DialogPortal>
-      <div className={cn(resolvedTheme === "dark" && "dark")}>
-        <DialogOverlay />
-        <DialogPrimitive.Popup
+      <DialogOverlay />
+      <DialogPrimitive.Popup
           data-slot="dialog-content"
           className={cn(
             "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-2xl bg-white dark:bg-card p-6 text-sm text-popover-foreground shadow-xl shadow-navy-900/10 ring-1 ring-navy-900/5 dark:ring-border duration-200 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-closed:slide-out-to-bottom-2",
@@ -79,7 +75,6 @@ function DialogContent({
             </DialogPrimitive.Close>
           )}
         </DialogPrimitive.Popup>
-      </div>
     </DialogPortal>
   )
 }

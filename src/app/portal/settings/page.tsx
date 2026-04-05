@@ -7,29 +7,14 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { useTheme, type Theme } from "@/components/providers/ThemeProvider";
 import {
   Loader2,
   Camera,
   User,
   Shield,
-  Palette,
-  Sun,
-  Moon,
-  Monitor,
   ArrowLeft,
   Check,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-function SettingsWrapper({ children }: { children: React.ReactNode }) {
-  const { resolvedTheme } = useTheme();
-  return (
-    <div className={cn(resolvedTheme === "dark" && "dark")}>
-      {children}
-    </div>
-  );
-}
 
 interface ProfileData {
   id: string;
@@ -40,15 +25,8 @@ interface ProfileData {
   avatar_url: string | null;
 }
 
-const themeOptions: { value: Theme; label: string; icon: typeof Sun }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
-];
-
 export default function SettingsPage() {
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -211,17 +189,14 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <SettingsWrapper>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50 dark:bg-background">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900/20 border-t-navy-900 dark:border-gold-500/20 dark:border-t-gold-500" />
-        </div>
-      </SettingsWrapper>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900/20 border-t-navy-900" />
+      </div>
     );
   }
 
   return (
-    <SettingsWrapper>
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-50 dark:bg-background">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-50">
       <div className="mx-auto max-w-2xl px-6 py-10">
         {/* Header */}
         <div className="mb-8">
@@ -409,56 +384,8 @@ export default function SettingsPage() {
             </form>
           </div>
 
-          {/* ── Appearance Section ── */}
-          <div className="bg-white dark:bg-card rounded-2xl border border-gray-200 dark:border-border shadow-sm p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <Palette className="h-5 w-5 text-gray-400" />
-              <h2 className="font-heading text-lg font-semibold text-navy-900 dark:text-white">
-                Appearance
-              </h2>
-            </div>
-
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Choose how the portal looks for you. Select a theme or let the system decide.
-            </p>
-
-            <div className="grid grid-cols-3 gap-3">
-              {themeOptions.map(({ value, label, icon: Icon }) => (
-                <button
-                  key={value}
-                  onClick={() => setTheme(value)}
-                  className={cn(
-                    "flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all duration-200",
-                    theme === value
-                      ? "border-navy-900 dark:border-gold-500 bg-navy-900/5 dark:bg-gold-500/10"
-                      : "border-gray-200 dark:border-border hover:border-gray-300 dark:hover:border-gray-600"
-                  )}
-                >
-                  <Icon
-                    className={cn(
-                      "h-6 w-6",
-                      theme === value
-                        ? "text-navy-900 dark:text-gold-400"
-                        : "text-gray-400"
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      "text-sm font-medium",
-                      theme === value
-                        ? "text-navy-900 dark:text-gold-400"
-                        : "text-gray-500 dark:text-gray-400"
-                    )}
-                  >
-                    {label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>
-    </SettingsWrapper>
   );
 }

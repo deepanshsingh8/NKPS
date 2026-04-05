@@ -323,30 +323,30 @@ export default function AdminGalleryPage() {
       </div>
 
       {/* Toggle Tabs */}
-      <div className="flex items-center gap-1 mb-6 bg-gray-100 dark:bg-muted rounded-xl p-1 w-fit">
+      <div className="flex items-center gap-1 mb-6 bg-gray-100 rounded-xl p-1 w-fit">
         <button
           onClick={() => setTab("images")}
           className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
             tab === "images"
-              ? "bg-white dark:bg-card text-navy-900 dark:text-white shadow-sm"
-              : "text-gray-500 dark:text-gray-400 hover:text-navy-900 dark:hover:text-white"
+              ? "bg-white text-navy-900 shadow-sm"
+              : "text-gray-500 hover:text-navy-900"
           )}
         >
           <LucideImage className="h-4 w-4" />
-          Images
+          By Category
         </button>
         <button
           onClick={() => setTab("events")}
           className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
             tab === "events"
-              ? "bg-white dark:bg-card text-navy-900 dark:text-white shadow-sm"
-              : "text-gray-500 dark:text-gray-400 hover:text-navy-900 dark:hover:text-white"
+              ? "bg-white text-navy-900 shadow-sm"
+              : "text-gray-500 hover:text-navy-900"
           )}
         >
           <FolderOpen className="h-4 w-4" />
-          Events
+          By Event
         </button>
       </div>
 

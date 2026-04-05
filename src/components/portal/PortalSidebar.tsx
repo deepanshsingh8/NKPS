@@ -3,9 +3,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SidebarProfileMenu } from "./SidebarProfileMenu";
+import { SidebarTooltip } from "./SidebarTooltip";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 
 interface PortalSidebarProps {
@@ -38,20 +39,33 @@ export function PortalSidebar({ title, role, navLinks }: PortalSidebarProps) {
               height={36}
               className="rounded-full shrink-0"
             />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h1 className="font-heading text-xl font-bold text-white truncate">{title}</h1>
               <p className="text-sm text-gold-500 mt-0.5">{role}</p>
             </div>
+            <button
+              onClick={toggle}
+              className="flex items-center justify-center h-7 w-7 rounded-lg text-white/40 hover:bg-white/5 hover:text-white transition-colors shrink-0"
+              title="Collapse sidebar"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
           </>
         )}
         {collapsed && (
-          <Image
-            src="/images/logo.png"
-            alt="NKPS Logo"
-            width={32}
-            height={32}
-            className="rounded-full"
-          />
+          <button
+            onClick={toggle}
+            className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-white/5 transition-colors"
+            title="Expand sidebar"
+          >
+            <Image
+              src="/images/logo.png"
+              alt="NKPS Logo"
+              width={32}
+              height={32}
+              className="rounded-full"
+            />
+          </button>
         )}
       </div>
 
@@ -61,31 +75,16 @@ export function PortalSidebar({ title, role, navLinks }: PortalSidebarProps) {
         </div>
       )}
 
-      {/* Toggle button */}
-      <div className={cn("px-3 mb-2", collapsed && "flex justify-center")}>
-        <button
-          onClick={toggle}
-          className="flex items-center justify-center h-8 w-8 rounded-lg text-white/40 hover:bg-white/5 hover:text-white transition-colors"
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="h-4 w-4" />
-          ) : (
-            <PanelLeftClose className="h-4 w-4" />
-          )}
-        </button>
-      </div>
-
       {/* Navigation */}
-      <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
-        {navLinks.map(({ icon, label, href }) => {
-          const isActive =
-            href === basePath
-              ? pathname === basePath
-              : pathname.startsWith(href);
+      <nav className="flex-1 min-h-0 px-2 overflow-y-auto">
+        <div className="space-y-0.5 pb-2">
+          {navLinks.map(({ icon, label, href }) => {
+            const isActive =
+              href === basePath
+                ? pathname === basePath
+                : pathname.startsWith(href);
 
-          return (
-            <div key={href} className="relative group">
+            const linkContent = (
               <Link
                 href={href}
                 className={cn(
@@ -99,16 +98,19 @@ export function PortalSidebar({ title, role, navLinks }: PortalSidebarProps) {
                 {icon}
                 {!collapsed && <span className="truncate">{label}</span>}
               </Link>
-              {/* Floating tooltip when collapsed */}
-              {collapsed && (
-                <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-navy-800 text-white text-xs font-medium rounded-lg shadow-xl border border-white/10 whitespace-nowrap opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50">
-                  {label}
-                  <div className="absolute top-1/2 -translate-y-1/2 -left-1 w-2 h-2 bg-navy-800 border-l border-b border-white/10 rotate-45" />
-                </div>
-              )}
-            </div>
-          );
-        })}
+            );
+
+            if (collapsed) {
+              return (
+                <SidebarTooltip key={href} label={label}>
+                  {linkContent}
+                </SidebarTooltip>
+              );
+            }
+
+            return <div key={href}>{linkContent}</div>;
+          })}
+        </div>
       </nav>
 
       <SidebarProfileMenu settingsHref="/portal/settings" collapsed={collapsed} />

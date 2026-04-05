@@ -76,7 +76,7 @@ export function SidebarProfileMenu({
     : "?";
 
   return (
-    <div ref={menuRef} className="relative p-3 border-t border-white/10">
+    <div ref={menuRef} className={cn("relative border-t border-white/10", collapsed ? "p-2" : "p-3")}>
       {/* Popover menu */}
       {open && (
         <div
