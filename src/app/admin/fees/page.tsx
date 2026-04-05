@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Search } from "lucide-react";
+import { Plus, Trash2, Loader2, Search, CreditCard, Banknote } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
 import type { FeeStructure, FeePayment, Student } from "@/types";
 
@@ -566,7 +566,15 @@ export default function AdminFeesPage() {
       <Dialog open={addStructureOpen} onOpenChange={setAddStructureOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Fee Structure</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
+                <CreditCard className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <DialogTitle>Add Fee Structure</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Define fees for a class</p>
+              </div>
+            </div>
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
@@ -663,7 +671,15 @@ export default function AdminFeesPage() {
       <Dialog open={recordPaymentOpen} onOpenChange={setRecordPaymentOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Record Payment</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-500/10">
+                <Banknote className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <DialogTitle>Record Payment</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Log a fee payment from a student</p>
+              </div>
+            </div>
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div className="space-y-2">

@@ -61,6 +61,14 @@ export default function AdminGalleryPage() {
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [imageCounts, setImageCounts] = useState<Record<string, number>>({});
+
+  // ── Event upload state ──
+  const [eventUploadOpen, setEventUploadOpen] = useState(false);
+  const [uploadEventId, setUploadEventId] = useState<string>("");
+  const [eventUploadFiles, setEventUploadFiles] = useState<FileList | null>(null);
+  const [eventUploadAlt, setEventUploadAlt] = useState("");
+  const [eventUploadCategory, setEventUploadCategory] = useState(CATEGORIES[0]);
+  const [eventUploading, setEventUploading] = useState(false);
   const [eventForm, setEventForm] = useState({
     title: "",
     description: "",
@@ -201,6 +209,65 @@ export default function AdminGalleryPage() {
       fetchImages();
     } catch {
       toast.error("An unexpected error occurred");
+    }
+  };
+
+  // ── Event upload handler ──
+  const openEventUpload = (evtId: string) => {
+    setUploadEventId(evtId);
+    setEventUploadFiles(null);
+    setEventUploadAlt("");
+    setEventUploadCategory(CATEGORIES[0]);
+    setEventUploadOpen(true);
+  };
+
+  const handleEventUpload = async () => {
+    if (!eventUploadFiles || eventUploadFiles.length === 0) {
+      toast.error("Please select at least one image");
+      return;
+    }
+    if (!eventUploadAlt.trim()) {
+      toast.error("Please enter a description");
+      return;
+    }
+
+    setEventUploading(true);
+
+    try {
+      const formData = new FormData();
+      for (let i = 0; i < eventUploadFiles.length; i++) {
+        formData.append("files", eventUploadFiles[i]);
+      }
+      formData.append("alt", eventUploadAlt.trim());
+      formData.append("category", eventUploadCategory);
+      formData.append("currentCount", String(images.length));
+      formData.append("gallery_event_id", uploadEventId);
+
+      const res = await adminUpload("/api/gallery", formData);
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Upload failed");
+      } else if (data.results) {
+        const failed = data.results.filter((r: { success: boolean }) => !r.success);
+        if (failed.length > 0) {
+          failed.forEach((r: { name: string; error: string }) =>
+            toast.error(`Failed: ${r.name} — ${r.error}`)
+          );
+        }
+        const succeeded = data.results.filter((r: { success: boolean }) => r.success);
+        if (succeeded.length > 0) {
+          toast.success(`${succeeded.length} image(s) uploaded to event`);
+        }
+      }
+
+      setEventUploadOpen(false);
+      fetchImages();
+      fetchEvents();
+    } catch {
+      toast.error("An unexpected error occurred");
+    } finally {
+      setEventUploading(false);
     }
   };
 
@@ -447,13 +514,13 @@ export default function AdminGalleryPage() {
 
           {/* Images Grid */}
           {imagesLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {[1, 2, 3, 4].map((i) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
                 <div
                   key={i}
-                  className="bg-white dark:bg-card rounded-2xl overflow-hidden shadow-sm border border-gray-200 dark:border-border animate-pulse"
+                  className="bg-white dark:bg-card rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-border animate-pulse"
                 >
-                  <div className="aspect-[4/3] bg-gray-200 dark:bg-muted" />
+                  <div className="aspect-square bg-gray-200 dark:bg-muted" />
                   <div className="p-4 space-y-2">
                     <div className="h-4 bg-gray-200 dark:bg-muted rounded w-3/4" />
                     <div className="h-3 bg-gray-200 dark:bg-muted rounded w-1/2" />
@@ -467,13 +534,13 @@ export default function AdminGalleryPage() {
               <p className="text-sm mt-1">Click &quot;Add Images&quot; to get started.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
               {images.map((image) => (
                 <div
                   key={image.id}
-                  className="relative group bg-white dark:bg-card rounded-2xl overflow-hidden shadow-sm border border-gray-200 dark:border-border"
+                  className="relative group bg-white dark:bg-card rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-border"
                 >
-                  <div className="aspect-[4/3] bg-navy-100 flex items-center justify-center">
+                  <div className="aspect-square bg-navy-100 flex items-center justify-center">
                     {image.src ? (
                       <img
                         src={image.src}
@@ -484,9 +551,9 @@ export default function AdminGalleryPage() {
                       <span className="text-gray-400 dark:text-gray-500">{image.alt}</span>
                     )}
                   </div>
-                  <div className="p-4">
-                    <p className="text-sm font-medium truncate">{image.alt}</p>
-                    <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                  <div className="p-2.5">
+                    <p className="text-xs font-medium truncate">{image.alt}</p>
+                    <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 px-1.5 py-0.5 rounded-full">
                       {image.category}
                     </span>
                   </div>
@@ -510,9 +577,15 @@ export default function AdminGalleryPage() {
           <Dialog open={eventDialogOpen} onOpenChange={setEventDialogOpen}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>
-                  {editingId ? "Edit Gallery Event" : "Add Gallery Event"}
-                </DialogTitle>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
+                    <FolderOpen className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <DialogTitle>{editingId ? "Edit Gallery Event" : "Add Gallery Event"}</DialogTitle>
+                    <p className="text-xs text-gray-500 mt-0.5">{editingId ? "Update event details" : "Create an event to organize photos"}</p>
+                  </div>
+                </div>
               </DialogHeader>
               <form onSubmit={handleEventSubmit} className="space-y-4">
                 <div>
@@ -596,6 +669,85 @@ export default function AdminGalleryPage() {
             </DialogContent>
           </Dialog>
 
+          {/* Event Upload Dialog */}
+          <Dialog open={eventUploadOpen} onOpenChange={setEventUploadOpen}>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
+                    <Upload className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <DialogTitle>Upload Photos to Event</DialogTitle>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Bulk upload images for{" "}
+                      <span className="font-medium text-gray-700">
+                        {events.find((e) => e.id === uploadEventId)?.title}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-5">
+                <FileDropZone
+                  accept="image/*"
+                  multiple
+                  icon="image"
+                  onChange={(fileList) => setEventUploadFiles(fileList)}
+                  value={eventUploadFiles}
+                  label="Drop images here or click to browse"
+                  hint="JPEG, PNG, WebP — max 10MB each"
+                />
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="event-upload-alt" className="text-xs font-medium">Description *</Label>
+                  <Input
+                    id="event-upload-alt"
+                    placeholder="Describe the image(s) for accessibility"
+                    value={eventUploadAlt}
+                    onChange={(e) => setEventUploadAlt(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="event-upload-category" className="text-xs font-medium">Category</Label>
+                  <select
+                    id="event-upload-category"
+                    value={eventUploadCategory}
+                    onChange={(e) => setEventUploadCategory(e.target.value)}
+                    className="w-full h-9 rounded-lg border border-gray-200 px-3 text-sm bg-white focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                  >
+                    {CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <Button
+                  onClick={handleEventUpload}
+                  disabled={eventUploading || !eventUploadFiles || eventUploadFiles.length === 0}
+                  className="w-full bg-navy-900 hover:bg-navy-800 text-white h-11 rounded-xl font-medium"
+                >
+                  {eventUploading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload {eventUploadFiles && eventUploadFiles.length > 1 ? `${eventUploadFiles.length} Images` : "Image"}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           {/* Events Table */}
           {eventsLoading ? (
             <div className="flex items-center justify-center h-64">
@@ -654,8 +806,17 @@ export default function AdminGalleryPage() {
                             <Button
                               variant="ghost"
                               size="icon-sm"
+                              onClick={() => openEventUpload(evt.id)}
+                              className="text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50"
+                              title="Upload photos to this event"
+                            >
+                              <Upload className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
                               onClick={() => openEditEvent(evt)}
-                              className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                              className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -663,7 +824,7 @@ export default function AdminGalleryPage() {
                               variant="ghost"
                               size="icon-sm"
                               onClick={() => handleEventDelete(evt.id)}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, Loader2, Star } from "lucide-react";
+import { Plus, Trash2, Pencil, Loader2, Star, CalendarDays } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
 import type { AcademicYear } from "@/types";
 
@@ -288,7 +288,15 @@ export default function AdminAcademicYearsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Academic Year</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10">
+                <CalendarDays className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <DialogTitle>Add Academic Year</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Define a new academic year period</p>
+              </div>
+            </div>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -349,7 +357,15 @@ export default function AdminAcademicYearsPage() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Academic Year</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
+                <Pencil className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <DialogTitle>Edit Academic Year</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Update academic year details</p>
+              </div>
+            </div>
           </DialogHeader>
 
           <form onSubmit={handleEditSubmit} className="space-y-4">

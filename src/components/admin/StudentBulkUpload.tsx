@@ -422,9 +422,15 @@ export function StudentBulkUpload({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {step === "upload" ? "Upload Student Data" : "Preview & Import"}
-          </DialogTitle>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10">
+              <Upload className="h-5 w-5 text-violet-600" />
+            </div>
+            <div>
+              <DialogTitle>{step === "upload" ? "Upload Student Data" : "Preview & Import"}</DialogTitle>
+              <p className="text-xs text-gray-500 mt-0.5">{step === "upload" ? "Import students from Excel or CSV" : "Review data before importing"}</p>
+            </div>
+          </div>
         </DialogHeader>
 
         {step === "upload" ? (

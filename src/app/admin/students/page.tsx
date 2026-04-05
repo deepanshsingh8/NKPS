@@ -38,6 +38,7 @@ import {
   Loader2,
   Search,
   Users,
+  GraduationCap,
 } from "lucide-react";
 import { StudentBulkUpload } from "@/components/admin/StudentBulkUpload";
 import type { Student, Gender, BloodGroup } from "@/types";
@@ -710,7 +711,15 @@ export default function AdminStudentsPage() {
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add New Student</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
+                <GraduationCap className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <DialogTitle>Add New Student</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Enroll a new student into the system</p>
+              </div>
+            </div>
           </DialogHeader>
           {renderStudentForm(handleAddStudent, false)}
         </DialogContent>
@@ -720,7 +729,15 @@ export default function AdminStudentsPage() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Student</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
+                <Pencil className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <DialogTitle>Edit Student</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Update student information</p>
+              </div>
+            </div>
           </DialogHeader>
           {renderStudentForm(handleEditStudent, true)}
         </DialogContent>

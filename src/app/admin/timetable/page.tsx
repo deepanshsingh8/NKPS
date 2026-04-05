@@ -372,9 +372,15 @@ export default function AdminTimetablePage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {editingId ? "Edit Period" : "Add Period"}
-            </DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10">
+                <Clock className="h-5 w-5 text-cyan-600" />
+              </div>
+              <div>
+                <DialogTitle>{editingId ? "Edit Period" : "Add Period"}</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">{editingId ? "Update period details" : "Add a new period to the timetable"}</p>
+              </div>
+            </div>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">

@@ -571,7 +571,15 @@ export default function AdminSubjectsPage() {
       <Dialog open={subjectDialogOpen} onOpenChange={setSubjectDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Subject</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10">
+                <BookOpen className="h-5 w-5 text-indigo-600" />
+              </div>
+              <div>
+                <DialogTitle>Add New Subject</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Create a new subject for the curriculum</p>
+              </div>
+            </div>
           </DialogHeader>
 
           <form onSubmit={handleCreateSubject} className="space-y-4">
@@ -622,7 +630,15 @@ export default function AdminSubjectsPage() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Subject</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
+                <Pencil className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <DialogTitle>Edit Subject</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Update subject details</p>
+              </div>
+            </div>
           </DialogHeader>
 
           <form onSubmit={handleEditSubject} className="space-y-4">
@@ -673,7 +689,15 @@ export default function AdminSubjectsPage() {
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Assign Subject to Class</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-500/10">
+                <Library className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <DialogTitle>Assign Subject to Class</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Link a subject and teacher to this class</p>
+              </div>
+            </div>
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div>

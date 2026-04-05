@@ -368,7 +368,15 @@ export default function AdminCalendarPage() {
       <Dialog open={addEventOpen} onOpenChange={setAddEventOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Calendar Event</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10">
+                <CalendarDays className="h-5 w-5 text-rose-600" />
+              </div>
+              <div>
+                <DialogTitle>Add Calendar Event</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Schedule an event on the school calendar</p>
+              </div>
+            </div>
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
@@ -469,7 +477,15 @@ export default function AdminCalendarPage() {
       <Dialog open={editEventOpen} onOpenChange={setEditEventOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Calendar Event</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
+                <Pencil className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <DialogTitle>Edit Calendar Event</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Update event details</p>
+              </div>
+            </div>
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div className="space-y-2">

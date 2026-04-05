@@ -14,20 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const categories = ["All", "Academics", "Sports", "Cultural", "Campus", "Events"];
 
-const staticImages = [
-  { id: "static-1", category: "campus", alt: "School Campus", src: "/images/gallery/g10.jpg" },
-  { id: "static-2", category: "events", alt: "School Event", src: "/images/news/n1.jpg" },
-  { id: "static-3", category: "sports", alt: "Sports Activities", src: "/images/news/n3.jpg" },
-  { id: "static-4", category: "cultural", alt: "Cultural Programme", src: "/images/news/n5.jpg" },
-  { id: "static-5", category: "events", alt: "Annual Function", src: "/images/news/n2.jpg" },
-  { id: "static-6", category: "academics", alt: "Academic Excellence", src: "/images/news/n4.jpg" },
-  { id: "static-7", category: "cultural", alt: "Performance", src: "/images/news/n6.jpg" },
-  { id: "static-8", category: "campus", alt: "School Life", src: "/images/news/n7.jpg" },
-  { id: "static-9", category: "academics", alt: "Student Achievement", src: "/images/gallery/st1.jpg" },
-  { id: "static-10", category: "academics", alt: "Shining Star", src: "/images/gallery/st2.jpg" },
-  { id: "static-11", category: "academics", alt: "Student Success", src: "/images/gallery/st3.jpg" },
-  { id: "static-12", category: "events", alt: "School Assembly", src: "/images/gallery/st4.jpg" },
-];
+// Static images have been migrated to Supabase via /api/admin/migrate-gallery
 
 const aspectPatterns = ["aspect-[4/3]", "aspect-[3/4]", "aspect-square"];
 
@@ -47,7 +34,7 @@ export default function GalleryPage() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [viewMode, setViewMode] = useState<"categories" | "events">("events");
   const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
-  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>(staticImages);
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [galleryEvents, setGalleryEvents] = useState<GalleryEventWithImages[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<GalleryEventWithImages | null>(null);
   const [eventImages, setEventImages] = useState<GalleryImage[]>([]);
@@ -63,14 +50,14 @@ export default function GalleryPage() {
         .select("id, src, alt, category")
         .order("sort_order", { ascending: true });
 
-      if (data && data.length > 0) {
+      if (data) {
         const dbImages: GalleryImage[] = data.map((img) => ({
           id: String(img.id),
           src: img.src,
           alt: img.alt,
           category: img.category,
         }));
-        setGalleryImages([...dbImages, ...staticImages]);
+        setGalleryImages(dbImages);
       }
 
       // Fetch gallery events

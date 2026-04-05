@@ -28,7 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, Loader2 } from "lucide-react";
+import { Plus, Trash2, Pencil, Loader2, Layers } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
 import type { Class, AcademicYear, Profile } from "@/types";
 
@@ -295,7 +295,15 @@ export default function AdminClassesPage() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Class</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
+                <Pencil className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <DialogTitle>Edit Class</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Update class details</p>
+              </div>
+            </div>
           </DialogHeader>
 
           <form onSubmit={handleEditSubmit} className="space-y-4">
@@ -377,7 +385,15 @@ export default function AdminClassesPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Class</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10">
+                <Layers className="h-5 w-5 text-teal-600" />
+              </div>
+              <div>
+                <DialogTitle>Add New Class</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Create a new class section</p>
+              </div>
+            </div>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">

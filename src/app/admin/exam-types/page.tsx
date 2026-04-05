@@ -269,9 +269,15 @@ export default function AdminExamTypesPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {editingId ? "Edit Exam Type" : "Add Exam Type"}
-            </DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10">
+                <ClipboardList className="h-5 w-5 text-orange-600" />
+              </div>
+              <div>
+                <DialogTitle>{editingId ? "Edit Exam Type" : "Add Exam Type"}</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">{editingId ? "Update exam type details" : "Define a new exam type"}</p>
+              </div>
+            </div>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
