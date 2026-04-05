@@ -94,7 +94,7 @@ export default function TeacherStudentsPage() {
     const { data } = await supabase
       .from("student_enrollments")
       .select(
-        "roll_number, student:profiles(full_name, email, phone)"
+        "roll_number, student:students(full_name, email, phone)"
       )
       .eq("class_id", selectedClassId)
       .order("roll_number", { ascending: true });

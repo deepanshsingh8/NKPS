@@ -6,6 +6,7 @@ import {
   BarChart3,
   Clock,
   Users,
+  CalendarDays,
 } from "lucide-react";
 import { PortalSidebar } from "./PortalSidebar";
 
@@ -34,6 +35,11 @@ const navLinks = [
     href: "/teacher/students",
     label: "Students",
     icon: <Users className="h-5 w-5 shrink-0" />,
+  },
+  {
+    href: "/teacher/calendar",
+    label: "Calendar",
+    icon: <CalendarDays className="h-5 w-5 shrink-0" />,
   },
 ];
 

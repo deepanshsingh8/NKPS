@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +13,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2 } from "lucide-react";
+import { Plus, Trash2, Loader2, FolderOpen } from "lucide-react";
 import { adminUpload, adminDelete } from "@/lib/admin-api";
-import type { GalleryImage } from "@/types";
+import type { GalleryImage, GalleryEvent } from "@/types";
 
 const CATEGORIES = ["academics", "sports", "cultural", "campus", "events"];
 
@@ -25,6 +26,8 @@ export default function AdminGalleryPage() {
   const [uploading, setUploading] = useState(false);
   const [altText, setAltText] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
+  const [eventId, setEventId] = useState("");
+  const [galleryEvents, setGalleryEvents] = useState<GalleryEvent[]>([]);
   const [files, setFiles] = useState<FileList | null>(null);
 
   const supabase = createClient();
@@ -44,8 +47,17 @@ export default function AdminGalleryPage() {
     setLoading(false);
   };
 
+  const fetchGalleryEvents = async () => {
+    const { data } = await supabase
+      .from("gallery_events")
+      .select("*")
+      .order("event_date", { ascending: false });
+    setGalleryEvents((data as GalleryEvent[]) ?? []);
+  };
+
   useEffect(() => {
     fetchImages();
+    fetchGalleryEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -69,6 +81,9 @@ export default function AdminGalleryPage() {
       formData.append("alt", altText.trim());
       formData.append("category", category);
       formData.append("currentCount", String(images.length));
+      if (eventId) {
+        formData.append("gallery_event_id", eventId);
+      }
 
       const res = await adminUpload("/api/gallery", formData);
 
@@ -92,6 +107,7 @@ export default function AdminGalleryPage() {
       setDialogOpen(false);
       setAltText("");
       setCategory(CATEGORIES[0]);
+      setEventId("");
       setFiles(null);
       fetchImages();
     } catch {
@@ -128,10 +144,18 @@ export default function AdminGalleryPage() {
           Gallery Management
         </h1>
 
-        <Button className="bg-navy-900 hover:bg-navy-800 text-white" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Images
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link href="/admin/gallery/events">
+            <Button variant="outline" className="gap-2">
+              <FolderOpen className="h-4 w-4" />
+              Manage Events
+            </Button>
+          </Link>
+          <Button className="bg-navy-900 hover:bg-navy-800 text-white" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Images
+          </Button>
+        </div>
 
       </div>
 
@@ -171,6 +195,22 @@ export default function AdminGalleryPage() {
                   {CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>
                       {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="event">Gallery Event (optional)</Label>
+                <select
+                  id="event"
+                  value={eventId}
+                  onChange={(e) => setEventId(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                >
+                  <option value="">No event</option>
+                  {galleryEvents.map((evt) => (
+                    <option key={evt.id} value={evt.id}>
+                      {evt.title} ({evt.event_date})
                     </option>
                   ))}
                 </select>

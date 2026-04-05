@@ -54,6 +54,11 @@ interface ParsedRow {
   phone: string;
   address: string;
   roll_number: number | undefined;
+  email: string;
+  blood_group: string;
+  category: string;
+  aadhar_number: string;
+  previous_school: string;
   errors: string[];
 }
 
@@ -105,6 +110,11 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   phone: ["phone", "mobile", "contact", "phone no", "mobile no", "contact no", "phone number"],
   address: ["address", "residential address", "home address"],
   roll_number: ["roll no", "roll number", "roll", "rollno", "roll no."],
+  email: ["email", "e-mail", "email id", "email address", "mail"],
+  blood_group: ["blood group", "blood type", "bloodgroup", "bg"],
+  category: ["category", "caste", "caste category", "reservation", "social category"],
+  aadhar_number: ["aadhar", "aadhaar", "aadhar no", "aadhaar no", "aadhar number", "aadhaar number", "uid", "aadhar no."],
+  previous_school: ["previous school", "prev school", "last school", "school", "previous institution"],
 };
 
 function normalizeHeader(header: string): string {
@@ -249,6 +259,11 @@ export function StudentBulkUpload({
               phone: "",
               address: "",
               roll_number: undefined,
+              email: "",
+              blood_group: "",
+              category: "",
+              aadhar_number: "",
+              previous_school: "",
               errors: [],
             };
 
@@ -324,6 +339,11 @@ export function StudentBulkUpload({
             phone: r.phone || undefined,
             address: r.address || undefined,
             roll_number: r.roll_number,
+            email: r.email || undefined,
+            blood_group: r.blood_group || undefined,
+            category: r.category || undefined,
+            aadhar_number: r.aadhar_number || undefined,
+            previous_school: r.previous_school || undefined,
           })),
         }),
       });
@@ -366,8 +386,13 @@ export function StudentBulkUpload({
         "Phone",
         "Address",
         "Roll No",
+        "Email",
+        "Blood Group",
+        "Category",
+        "Aadhar Number",
+        "Previous School",
       ],
-      ["1001", "Rahul Kumar", "Rajesh Kumar", "Sunita Devi", "15/03/2012", "M", "9876543210", "123, Main Street", "1"],
+      ["1001", "Rahul Kumar", "Rajesh Kumar", "Sunita Devi", "15/03/2012", "M", "9876543210", "123, Main Street", "1", "", "O+", "General", "", ""],
     ]);
 
     // Set column widths
@@ -381,6 +406,11 @@ export function StudentBulkUpload({
       { wch: 14 },
       { wch: 30 },
       { wch: 8 },
+      { wch: 22 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 16 },
+      { wch: 24 },
     ];
 
     const wb = XLSX.utils.book_new();

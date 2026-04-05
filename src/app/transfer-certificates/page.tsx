@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 interface TC {
   id: string;
   student_name: string;
+  admission_no: string | null;
   academic_year: string;
   file_url: string;
 }
@@ -22,23 +23,33 @@ interface TC {
 export default function TransferCertificatesPage() {
   const [search, setSearch] = useState("");
   const [tcs, setTcs] = useState<TC[]>([]);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     async function fetchTCs() {
       const supabase = createClient();
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("transfer_certificates")
-        .select("id, student_name, academic_year, file_url")
+        .select("id, student_name, admission_no, academic_year, file_url")
         .order("created_at", { ascending: false });
 
+      if (error) {
+        console.error("Failed to fetch transfer certificates:", error);
+        setFetchError(true);
+        return;
+      }
       if (data) setTcs(data as TC[]);
     }
     fetchTCs();
   }, []);
 
-  const filteredTCs = tcs.filter((tc) =>
-    tc.student_name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredTCs = tcs.filter((tc) => {
+    const q = search.toLowerCase();
+    return (
+      tc.student_name.toLowerCase().includes(q) ||
+      (tc.admission_no && tc.admission_no.toLowerCase().includes(q))
+    );
+  });
 
   return (
     <PageTransition>
@@ -85,7 +96,7 @@ export default function TransferCertificatesPage() {
               </div>
               <input
                 type="text"
-                placeholder="Search by student name..."
+                placeholder="Search by name or admission number..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className={cn(
@@ -98,6 +109,17 @@ export default function TransferCertificatesPage() {
               />
             </div>
           </AnimatedSection>
+
+          {/* Error State */}
+          {fetchError && (
+            <AnimatedSection delay={0.2}>
+              <div className="mt-10 rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
+                <p className="text-sm text-red-700">
+                  Unable to load transfer certificates. Please try again later or contact the school office.
+                </p>
+              </div>
+            </AnimatedSection>
+          )}
 
           {/* TC Cards */}
           <AnimatedSection delay={0.2}>
@@ -128,9 +150,16 @@ export default function TransferCertificatesPage() {
                             <h3 className="font-bold text-navy-900 truncate">
                               {tc.student_name}
                             </h3>
-                            <span className="mt-1 inline-block rounded-full bg-cream-100 px-3 py-0.5 text-xs font-semibold text-navy-800">
-                              {tc.academic_year}
-                            </span>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="inline-block rounded-full bg-cream-100 px-3 py-0.5 text-xs font-semibold text-navy-800">
+                                {tc.academic_year}
+                              </span>
+                              {tc.admission_no && (
+                                <span className="inline-block rounded-full bg-gray-100 px-3 py-0.5 text-xs font-medium text-gray-600">
+                                  Adm: {tc.admission_no}
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           {/* Download Button */}

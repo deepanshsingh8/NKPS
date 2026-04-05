@@ -63,11 +63,24 @@ export default function StudentAttendancePage() {
 
       if (!user) return;
 
+      // Resolve linked student record ID
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("student_id")
+        .eq("id", user.id)
+        .single();
+
+      const studentId = profile?.student_id;
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+
       // Get enrollment
       const { data: enrollment } = await supabase
         .from("student_enrollments")
         .select("class_id")
-        .eq("student_id", user.id)
+        .eq("student_id", studentId)
         .limit(1)
         .single();
 
@@ -88,7 +101,7 @@ export default function StudentAttendancePage() {
       let query = supabase
         .from("attendance")
         .select("date, status")
-        .eq("student_id", user.id)
+        .eq("student_id", studentId)
         .eq("class_id", enrollment.class_id)
         .order("date", { ascending: true });
 

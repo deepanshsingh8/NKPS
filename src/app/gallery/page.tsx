@@ -34,10 +34,24 @@ const aspectPatterns = ["aspect-[4/3]", "aspect-[3/4]", "aspect-square"];
 
 type GalleryImage = { id: string; category: string; alt: string; src: string };
 
+interface GalleryEventWithImages {
+  id: string;
+  title: string;
+  description: string | null;
+  event_date: string;
+  academic_year: string | null;
+  image_count: number;
+  cover_url: string | null;
+}
+
 export default function GalleryPage() {
   const [activeCategory, setActiveCategory] = useState("All");
+  const [viewMode, setViewMode] = useState<"categories" | "events">("categories");
   const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>(staticImages);
+  const [galleryEvents, setGalleryEvents] = useState<GalleryEventWithImages[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<GalleryEventWithImages | null>(null);
+  const [eventImages, setEventImages] = useState<GalleryImage[]>([]);
 
   useEffect(() => {
     async function fetchImages() {
@@ -54,12 +68,64 @@ export default function GalleryPage() {
           alt: img.alt,
           category: img.category,
         }));
-        // DB images first, then static fallbacks
         setGalleryImages([...dbImages, ...staticImages]);
+      }
+
+      // Fetch gallery events
+      const { data: events } = await supabase
+        .from("gallery_events")
+        .select("id, title, description, event_date, academic_year, cover_image_url")
+        .eq("is_public", true)
+        .order("event_date", { ascending: false });
+
+      if (events && events.length > 0) {
+        // Get image counts per event
+        const { data: eventImgs } = await supabase
+          .from("gallery_images")
+          .select("gallery_event_id")
+          .not("gallery_event_id", "is", null);
+
+        const counts: Record<string, number> = {};
+        (eventImgs ?? []).forEach((img: { gallery_event_id: string | null }) => {
+          if (img.gallery_event_id) {
+            counts[img.gallery_event_id] = (counts[img.gallery_event_id] || 0) + 1;
+          }
+        });
+
+        const eventsWithCounts: GalleryEventWithImages[] = events.map((e) => ({
+          id: e.id,
+          title: e.title,
+          description: e.description,
+          event_date: e.event_date,
+          academic_year: e.academic_year,
+          image_count: counts[e.id] || 0,
+          cover_url: e.cover_image_url,
+        }));
+
+        setGalleryEvents(eventsWithCounts);
       }
     }
     fetchImages();
   }, []);
+
+  const fetchEventImages = async (event: GalleryEventWithImages) => {
+    setSelectedEvent(event);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("gallery_images")
+      .select("id, src, alt, category")
+      .eq("gallery_event_id", event.id)
+      .order("sort_order", { ascending: true });
+
+    setEventImages(
+      (data ?? []).map((img) => ({
+        id: String(img.id),
+        src: img.src,
+        alt: img.alt,
+        category: img.category,
+      }))
+    );
+  };
 
   function getCategoryCount(category: string) {
     if (category === "All") return galleryImages.length;
@@ -87,7 +153,38 @@ export default function GalleryPage() {
             <SectionHeading title="Photo Gallery" />
           </AnimatedSection>
 
-          {/* Filter Tabs */}
+          {/* View Mode Toggle */}
+          {galleryEvents.length > 0 && (
+            <AnimatedSection delay={0.08}>
+              <div className="mt-10 flex justify-center gap-2">
+                <button
+                  onClick={() => { setViewMode("categories"); setSelectedEvent(null); }}
+                  className={cn(
+                    "px-5 py-2 rounded-lg text-sm font-medium transition-all",
+                    viewMode === "categories"
+                      ? "bg-navy-900 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  )}
+                >
+                  By Category
+                </button>
+                <button
+                  onClick={() => setViewMode("events")}
+                  className={cn(
+                    "px-5 py-2 rounded-lg text-sm font-medium transition-all",
+                    viewMode === "events"
+                      ? "bg-navy-900 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  )}
+                >
+                  By Event
+                </button>
+              </div>
+            </AnimatedSection>
+          )}
+
+          {/* Filter Tabs — category mode */}
+          {viewMode === "categories" && (<>
           <AnimatedSection delay={0.1}>
             <div className="mt-10 flex flex-wrap justify-center gap-3">
               {categories.map((category) => (
@@ -157,6 +254,128 @@ export default function GalleryPage() {
               ))}
             </AnimatePresence>
           </motion.div>
+          </>)}
+
+          {/* Events View */}
+          {viewMode === "events" && !selectedEvent && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            >
+              {galleryEvents.map((evt) => (
+                <motion.div
+                  key={evt.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="group cursor-pointer bg-white rounded-2xl border border-navy-900/5 overflow-hidden shadow-sm hover:shadow-lg hover:border-gold-500/20 transition-all duration-300 hover:-translate-y-1"
+                  onClick={() => fetchEventImages(evt)}
+                >
+                  <div className="aspect-[16/9] bg-navy-100 relative">
+                    {evt.cover_url ? (
+                      <Image
+                        src={evt.cover_url}
+                        alt={evt.title}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        <span className="text-4xl">📷</span>
+                      </div>
+                    )}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+                      <span className="text-white text-xs font-medium">
+                        {evt.image_count} photo{evt.image_count !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-bold text-navy-900">{evt.title}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-500">
+                        {new Date(evt.event_date + "T00:00:00").toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </span>
+                      {evt.academic_year && (
+                        <span className="text-xs bg-cream-100 text-navy-800 px-2 py-0.5 rounded-full font-medium">
+                          {evt.academic_year}
+                        </span>
+                      )}
+                    </div>
+                    {evt.description && (
+                      <p className="text-xs text-gray-500 mt-2 line-clamp-2">
+                        {evt.description}
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+
+          {/* Selected Event Images */}
+          {viewMode === "events" && selectedEvent && (
+            <div className="mt-10">
+              <button
+                onClick={() => { setSelectedEvent(null); setEventImages([]); }}
+                className="text-sm text-gold-500 hover:underline mb-4 inline-block"
+              >
+                ← Back to events
+              </button>
+              <h3 className="font-heading text-xl font-bold text-navy-900 mb-2">
+                {selectedEvent.title}
+              </h3>
+              {selectedEvent.description && (
+                <p className="text-sm text-gray-500 mb-6">{selectedEvent.description}</p>
+              )}
+              {eventImages.length === 0 ? (
+                <p className="text-center py-12 text-gray-400 text-sm">
+                  No photos uploaded for this event yet.
+                </p>
+              ) : (
+                <motion.div
+                  layout
+                  className="columns-1 gap-4 md:columns-2 lg:columns-3"
+                >
+                  <AnimatePresence mode="popLayout">
+                    {eventImages.map((image, index) => (
+                      <motion.div
+                        key={image.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.3 }}
+                        className={cn(
+                          "group relative mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-navy-100 cursor-pointer",
+                          aspectPatterns[index % 3]
+                        )}
+                        onClick={() => setLightboxImage(image)}
+                      >
+                        <Image
+                          src={image.src}
+                          alt={image.alt}
+                          fill
+                          className="object-cover transition-transform duration-500 group-hover:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-navy-900/70 via-navy-900/0 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
+                          <div className="p-4 w-full">
+                            <span className="text-white font-semibold text-sm">
+                              {image.alt}
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </div>
+          )}
 
           {/* Note */}
           <p className="mt-12 text-center text-sm text-gray-400">

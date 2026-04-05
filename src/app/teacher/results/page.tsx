@@ -180,7 +180,7 @@ export default function TeacherResultsPage() {
     // Fetch enrolled students
     const { data: enrollments } = await supabase
       .from("student_enrollments")
-      .select("student_id, roll_number, profiles(full_name)")
+      .select("student_id, roll_number, students(full_name)")
       .eq("class_id", selectedClassId)
       .order("roll_number", { ascending: true });
 
@@ -189,7 +189,7 @@ export default function TeacherResultsPage() {
         student_id: e.student_id,
         roll_number: e.roll_number,
         full_name:
-          (e.profiles as unknown as { full_name: string })?.full_name ??
+          (e.students as unknown as { full_name: string })?.full_name ??
           "Unknown",
       })
     );

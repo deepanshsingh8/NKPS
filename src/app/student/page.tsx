@@ -14,9 +14,8 @@ import {
   ClipboardCheck,
   BarChart3,
   CreditCard,
-  CalendarDays,
-  Clock,
 } from "lucide-react";
+import { UpcomingEvents } from "@/components/shared/UpcomingEvents";
 import type { Profile } from "@/types";
 
 interface StudentStats {
@@ -43,7 +42,7 @@ export default function StudentDashboard() {
 
       if (!user) return;
 
-      // Fetch profile
+      // Fetch profile (includes student_id linking to students table)
       const { data: profileData } = await supabase
         .from("profiles")
         .select("*")
@@ -52,11 +51,18 @@ export default function StudentDashboard() {
 
       if (profileData) setProfile(profileData);
 
-      // Fetch enrollment
+      // Resolve the linked student record ID
+      const studentId = profileData?.student_id;
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch enrollment using the linked student_id
       const { data: enrollment } = await supabase
         .from("student_enrollments")
         .select("class_id")
-        .eq("student_id", user.id)
+        .eq("student_id", studentId)
         .limit(1)
         .single();
 
@@ -68,13 +74,13 @@ export default function StudentDashboard() {
         const { count: totalDays } = await supabase
           .from("attendance")
           .select("*", { count: "exact", head: true })
-          .eq("student_id", user.id)
+          .eq("student_id", studentId)
           .eq("class_id", classId);
 
         const { count: presentDays } = await supabase
           .from("attendance")
           .select("*", { count: "exact", head: true })
-          .eq("student_id", user.id)
+          .eq("student_id", studentId)
           .eq("class_id", classId)
           .in("status", ["present", "late"]);
 
@@ -90,7 +96,7 @@ export default function StudentDashboard() {
       const { data: resultData } = await supabase
         .from("results")
         .select("marks_obtained, max_marks, grade")
-        .eq("student_id", user.id)
+        .eq("student_id", studentId)
         .order("created_at", { ascending: false })
         .limit(1)
         .single();
@@ -106,7 +112,7 @@ export default function StudentDashboard() {
       const { data: feeData } = await supabase
         .from("fee_payments")
         .select("status")
-        .eq("student_id", user.id)
+        .eq("student_id", studentId)
         .order("created_at", { ascending: false })
         .limit(1)
         .single();
@@ -245,17 +251,7 @@ export default function StudentDashboard() {
         <h2 className="font-heading text-lg font-semibold text-navy-900 mb-4">
           Upcoming Events
         </h2>
-        <Card className="bg-white rounded-xl">
-          <CardContent className="flex items-center justify-center py-12">
-            <div className="text-center text-gray-400">
-              <CalendarDays className="h-10 w-10 mx-auto mb-3 opacity-50" />
-              <p className="text-sm">No upcoming events</p>
-              <p className="text-xs text-gray-300 mt-1">
-                Events will appear here when scheduled
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <UpcomingEvents limit={5} />
       </div>
     </div>
   );

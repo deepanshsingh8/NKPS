@@ -121,7 +121,7 @@ export default function TeacherAttendancePage() {
       // Fetch enrolled students with their profiles
       const { data: enrollments } = await supabase
         .from("student_enrollments")
-        .select("student_id, roll_number, profiles(full_name)")
+        .select("student_id, roll_number, students(full_name)")
         .eq("class_id", classId)
         .order("roll_number");
 
@@ -149,11 +149,11 @@ export default function TeacherAttendancePage() {
       setAlreadyMarked(existingMap.size > 0);
 
       const rows: StudentRow[] = enrollments.map((e) => {
-        const profileData = e.profiles as unknown as { full_name: string } | null;
+        const studentData = e.students as unknown as { full_name: string } | null;
         return {
           student_id: e.student_id,
           roll_number: e.roll_number,
-          full_name: profileData?.full_name ?? "Unknown",
+          full_name: studentData?.full_name ?? "Unknown",
           status: existingMap.get(e.student_id) ?? "present",
         };
       });

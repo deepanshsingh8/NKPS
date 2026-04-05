@@ -23,9 +23,9 @@ export async function GET(request: Request) {
       );
     }
 
-    // Fetch student profile
+    // Fetch student record (from students table, not profiles)
     const { data: studentProfile } = await supabase
-      .from("profiles")
+      .from("students")
       .select("id, full_name, email")
       .eq("id", studentId)
       .single();

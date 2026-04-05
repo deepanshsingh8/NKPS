@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File;
     const studentName = formData.get("studentName") as string;
     const academicYear = formData.get("academicYear") as string;
+    const admissionNo = formData.get("admissionNo") as string | null;
 
     if (!file || !studentName || !academicYear) {
       return NextResponse.json(
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
       .from("transfer_certificates")
       .insert({
         student_name: studentName,
+        admission_no: admissionNo || null,
         file_url: publicUrl,
         academic_year: academicYear,
         upload_date: new Date().toISOString().split("T")[0],

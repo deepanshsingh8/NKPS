@@ -31,6 +31,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Search, Copy } from "lucide-react";
+import { adminFetch } from "@/lib/admin-api";
 import type { Profile, UserRole } from "@/types";
 
 const ROLES: UserRole[] = ["admin", "teacher", "student"];
@@ -151,21 +152,28 @@ export default function AdminUsersPage() {
     await fetchProfiles();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this user? This cannot be undone.")) return;
+  const handleDelete = async (profile: Profile) => {
+    if (!confirm(`Delete ${profile.full_name}? This removes their login and all profile data. This cannot be undone.`)) return;
 
-    const { error } = await supabase
-      .from("profiles")
-      .delete()
-      .eq("id", id);
+    try {
+      const res = await adminFetch("/api/erp/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: profile.id }),
+      });
 
-    if (error) {
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Failed to delete user");
+        return;
+      }
+
+      toast.success("User deleted");
+      await fetchProfiles();
+    } catch {
       toast.error("Failed to delete user");
-      return;
     }
-
-    toast.success("User deleted");
-    await fetchProfiles();
   };
 
   return (
@@ -281,7 +289,7 @@ export default function AdminUsersPage() {
                             <Button
                               variant="ghost"
                               size="icon-sm"
-                              onClick={() => handleDelete(profile.id)}
+                              onClick={() => handleDelete(profile)}
                               className="text-red-500 hover:text-red-700 hover:bg-red-50"
                             >
                               <Trash2 className="h-4 w-4" />

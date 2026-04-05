@@ -17,6 +17,7 @@ import {
   BarChart3,
   Clock,
 } from "lucide-react";
+import { UpcomingEvents } from "@/components/shared/UpcomingEvents";
 import type { Profile } from "@/types";
 
 interface TeacherStats {
@@ -230,6 +231,14 @@ export default function TeacherDashboard() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Upcoming Events */}
+      <div>
+        <h2 className="font-heading text-lg font-semibold text-navy-900 mb-4">
+          Upcoming Events
+        </h2>
+        <UpcomingEvents limit={5} />
       </div>
     </div>
   );

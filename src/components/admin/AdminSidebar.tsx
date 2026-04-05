@@ -21,6 +21,10 @@ import {
   BarChart3,
   CalendarDays,
   ExternalLink,
+  Library,
+  ClipboardList,
+  Clock,
+  FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -28,6 +32,7 @@ import { toast } from "sonner";
 const contentLinks = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/admin" },
   { icon: ImageIcon, label: "Gallery", href: "/admin/gallery" },
+  { icon: FolderOpen, label: "Gallery Events", href: "/admin/gallery/events" },
   {
     icon: FileText,
     label: "Transfer Certificates",
@@ -50,8 +55,11 @@ const erpLinks = [
   { icon: UserCheck, label: "Students", href: "/admin/students" },
   { icon: GraduationCap, label: "Classes", href: "/admin/classes" },
   { icon: BookOpen, label: "Subjects", href: "/admin/subjects" },
+  { icon: Library, label: "Class Subjects", href: "/admin/class-subjects" },
   { icon: CalendarDays, label: "Academic Years", href: "/admin/academic-years" },
+  { icon: ClipboardList, label: "Exam Types", href: "/admin/exam-types" },
   { icon: CreditCard, label: "Fees", href: "/admin/fees" },
+  { icon: Clock, label: "Timetable", href: "/admin/timetable" },
   { icon: Calendar, label: "Calendar", href: "/admin/calendar" },
   { icon: CheckSquare, label: "Attendance", href: "/admin/attendance" },
   { icon: BarChart3, label: "Results", href: "/admin/results" },

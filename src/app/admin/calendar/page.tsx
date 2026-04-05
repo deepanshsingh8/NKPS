@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, CalendarDays } from "lucide-react";
+import { Plus, Trash2, Pencil, Loader2, CalendarDays } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
 import type { CalendarEvent, CalendarEventType } from "@/types";
 
@@ -66,7 +66,17 @@ export default function AdminCalendarPage() {
     "all"
   );
   const [addEventOpen, setAddEventOpen] = useState(false);
+  const [editEventOpen, setEditEventOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [editData, setEditData] = useState({
+    title: "",
+    description: "",
+    event_type: "event" as CalendarEventType,
+    start_date: "",
+    end_date: "",
+    class_id: "",
+  });
   const [newEvent, setNewEvent] = useState({
     title: "",
     description: "",
@@ -182,6 +192,57 @@ export default function AdminCalendarPage() {
     fetchEvents();
   };
 
+  const openEdit = (evt: CalendarEvent) => {
+    setEditingEvent(evt);
+    setEditData({
+      title: evt.title,
+      description: evt.description ?? "",
+      event_type: evt.event_type,
+      start_date: evt.start_date,
+      end_date: evt.end_date ?? "",
+      class_id: evt.class_id ?? "",
+    });
+    setEditEventOpen(true);
+  };
+
+  const handleEditEvent = async () => {
+    if (!editingEvent) return;
+    if (!editData.title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+    if (!editData.start_date) {
+      toast.error("Start date is required");
+      return;
+    }
+
+    setSubmitting(true);
+
+    const result = await adminApi({
+      action: "update",
+      table: "calendar_events",
+      data: {
+        title: editData.title,
+        description: editData.description || null,
+        event_type: editData.event_type,
+        start_date: editData.start_date,
+        end_date: editData.end_date || null,
+        class_id: editData.class_id || null,
+      },
+      match: { column: "id", value: editingEvent.id },
+    });
+
+    if (!result.success) {
+      toast.error(`Failed to update event: ${result.error}`);
+    } else {
+      toast.success("Event updated");
+      setEditEventOpen(false);
+      setEditingEvent(null);
+      fetchEvents();
+    }
+    setSubmitting(false);
+  };
+
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr + "T00:00:00");
     return d.toLocaleDateString("en-IN", {
@@ -280,12 +341,20 @@ export default function AdminCalendarPage() {
                       {evt.description || "--"}
                     </TableCell>
                     <TableCell>
-                      <button
-                        onClick={() => handleDelete(evt.id)}
-                        className="text-red-500 hover:text-red-700 p-1"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => openEdit(evt)}
+                          className="text-blue-500 hover:text-blue-700 p-1"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(evt.id)}
+                          className="text-red-500 hover:text-red-700 p-1"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -390,6 +459,107 @@ export default function AdminCalendarPage() {
                 </>
               ) : (
                 "Add Event"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Event Dialog */}
+      <Dialog open={editEventOpen} onOpenChange={setEditEventOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Calendar Event</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input
+                placeholder="Event title"
+                value={editData.title}
+                onChange={(e) =>
+                  setEditData({ ...editData, title: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description (optional)</Label>
+              <Input
+                placeholder="Brief description"
+                value={editData.description}
+                onChange={(e) =>
+                  setEditData({ ...editData, description: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Event Type</Label>
+              <select
+                value={editData.event_type}
+                onChange={(e) =>
+                  setEditData({
+                    ...editData,
+                    event_type: e.target.value as CalendarEventType,
+                  })
+                }
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              >
+                {EVENT_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {EVENT_TYPE_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Start Date</Label>
+              <Input
+                type="date"
+                value={editData.start_date}
+                onChange={(e) =>
+                  setEditData({ ...editData, start_date: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>End Date (optional)</Label>
+              <Input
+                type="date"
+                value={editData.end_date}
+                onChange={(e) =>
+                  setEditData({ ...editData, end_date: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Class (optional, leave blank for all)</Label>
+              <select
+                value={editData.class_id}
+                onChange={(e) =>
+                  setEditData({ ...editData, class_id: e.target.value })
+                }
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="">All Classes</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}-{c.section}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button
+              onClick={handleEditEvent}
+              disabled={submitting}
+              className="w-full bg-navy-900 hover:bg-navy-800 text-white"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Update Event"
               )}
             </Button>
           </div>

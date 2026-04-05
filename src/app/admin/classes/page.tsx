@@ -28,7 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2 } from "lucide-react";
+import { Plus, Trash2, Pencil, Loader2 } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
 import type { Class, AcademicYear, Profile } from "@/types";
 
@@ -64,7 +64,9 @@ export default function AdminClassesPage() {
   const [teachers, setTeachers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editingClass, setEditingClass] = useState<ClassWithRelations | null>(null);
 
   // Form state
   const [className, setClassName] = useState(CLASS_NAMES[0]);
@@ -175,6 +177,44 @@ export default function AdminClassesPage() {
     await fetchData();
   };
 
+  const openEdit = (cls: ClassWithRelations) => {
+    setEditingClass(cls);
+    setClassName(cls.name);
+    setSection(cls.section);
+    setAcademicYearId(cls.academic_year_id);
+    setClassTeacherId(cls.class_teacher_id ?? "");
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClass) return;
+
+    setSubmitting(true);
+    const result = await adminApi({
+      action: "update",
+      table: "classes",
+      data: {
+        name: className,
+        section,
+        academic_year_id: academicYearId,
+        class_teacher_id: classTeacherId || null,
+        sort_order: CLASS_NAMES.indexOf(className) * 10 + SECTIONS.indexOf(section),
+      },
+      match: { column: "id", value: editingClass.id },
+    });
+
+    if (!result.success) {
+      toast.error(result.error || "Failed to update class");
+    } else {
+      toast.success("Class updated successfully");
+      setEditDialogOpen(false);
+      setEditingClass(null);
+      await fetchData();
+    }
+    setSubmitting(false);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -225,14 +265,24 @@ export default function AdminClassesPage() {
                     {cls.teacher_name}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => handleDelete(cls.id)}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => openEdit(cls)}
+                        className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleDelete(cls.id)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -240,6 +290,88 @@ export default function AdminClassesPage() {
           </Table>
         )}
       </div>
+
+      {/* Edit Class Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Class</DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div>
+              <Label>Class Name</Label>
+              <Select value={className} onValueChange={(val) => val && setClassName(val)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLASS_NAMES.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Section</Label>
+              <Select value={section} onValueChange={(val) => val && setSection(val)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SECTIONS.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Academic Year</Label>
+              <Select value={academicYearId} onValueChange={(val) => val && setAcademicYearId(val)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select academic year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {academicYears.map((ay) => (
+                    <SelectItem key={ay.id} value={ay.id}>
+                      {ay.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Class Teacher (optional)</Label>
+              <Select value={classTeacherId} onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select teacher" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {teachers.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.full_name} ({t.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submitting} className="bg-navy-900 hover:bg-navy-800 text-white">
+                {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Update Class
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Class Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

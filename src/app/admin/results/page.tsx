@@ -234,13 +234,13 @@ export default function AdminResultsPage() {
     let topPerformers: { name: string; percentage: number }[] = [];
 
     if (topIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
+      const { data: studentRecords } = await supabase
+        .from("students")
         .select("id, full_name")
         .in("id", topIds);
 
       const nameMap = new Map<string, string>();
-      for (const p of profiles ?? []) {
+      for (const p of studentRecords ?? []) {
         nameMap.set(p.id, p.full_name);
       }
 

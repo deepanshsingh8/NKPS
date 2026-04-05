@@ -51,6 +51,8 @@ interface ClassOption {
 interface StudentRow extends Student {
   roll_number: number | null;
   enrollment_id: string | null;
+  class_name?: string;
+  class_section?: string;
 }
 
 const GENDER_OPTIONS: Gender[] = ["male", "female", "other"];
@@ -116,18 +118,13 @@ export default function AdminStudentsPage() {
   }, []);
 
   const fetchStudents = useCallback(async () => {
-    if (!selectedClassId) {
-      setStudents([]);
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const res = await adminFetch(
-        `/api/erp/students?class_id=${selectedClassId}`
-      );
+      const url = selectedClassId
+        ? `/api/erp/students?class_id=${selectedClassId}`
+        : `/api/erp/students`;
+      const res = await adminFetch(url);
       const json = await res.json();
 
       if (!res.ok) {
@@ -151,10 +148,9 @@ export default function AdminStudentsPage() {
     fetchClasses();
   }, [fetchClasses]);
 
+  // Fetch all students on initial load, and re-fetch when class changes
   useEffect(() => {
-    if (selectedClassId) {
-      fetchStudents();
-    }
+    fetchStudents();
   }, [selectedClassId, fetchStudents]);
 
   const filteredStudents = students.filter((s) => {
@@ -578,11 +574,12 @@ export default function AdminStudentsPage() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="w-full sm:w-64">
-            <Select value={selectedClassId} onValueChange={(val) => val && setSelectedClassId(val)}>
+            <Select value={selectedClassId || "all"} onValueChange={(val) => setSelectedClassId(!val || val === "all" ? "" : val)}>
               <SelectTrigger>
-                <SelectValue placeholder="Select class..." />
+                <SelectValue placeholder="All Classes" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">All Classes</SelectItem>
                 {classes.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name} - {c.section}
@@ -609,11 +606,7 @@ export default function AdminStudentsPage() {
           </div>
         </div>
 
-        {!selectedClassId ? (
-          <p className="text-center py-12 text-gray-500">
-            Select a class to view students.
-          </p>
-        ) : loading ? (
+        {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
           </div>
@@ -632,6 +625,7 @@ export default function AdminStudentsPage() {
                 <TableRow>
                   <TableHead>Adm No</TableHead>
                   <TableHead>Name</TableHead>
+                  {!selectedClassId && <TableHead>Class</TableHead>}
                   <TableHead>Father&apos;s Name</TableHead>
                   <TableHead>Roll No</TableHead>
                   <TableHead>Gender</TableHead>
@@ -647,6 +641,13 @@ export default function AdminStudentsPage() {
                       {student.admission_no}
                     </TableCell>
                     <TableCell>{student.full_name}</TableCell>
+                    {!selectedClassId && (
+                      <TableCell className="text-gray-600">
+                        {student.class_name
+                          ? `${student.class_name}-${student.class_section ?? ""}`
+                          : "—"}
+                      </TableCell>
+                    )}
                     <TableCell className="text-gray-600">
                       {student.father_name || "—"}
                     </TableCell>

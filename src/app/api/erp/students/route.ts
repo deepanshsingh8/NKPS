@@ -11,15 +11,40 @@ export async function GET(request: NextRequest) {
     const classId = request.nextUrl.searchParams.get("class_id");
 
     if (!classId) {
-      const { data, error } = await admin
+      // Fetch all students with their enrollment/class info
+      const { data: allStudents, error } = await admin
         .from("students")
         .select("*")
+        .eq("is_active", true)
         .order("full_name", { ascending: true });
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      return NextResponse.json({ data });
+
+      if (!allStudents || allStudents.length === 0) {
+        return NextResponse.json({ data: [] });
+      }
+
+      // Fetch enrollments with class info for all students
+      const { data: enrollments } = await admin
+        .from("student_enrollments")
+        .select("student_id, roll_number, id, classes(name, section)")
+        .in("student_id", allStudents.map((s) => s.id));
+
+      const merged = allStudents.map((s) => {
+        const enrollment = (enrollments ?? []).find((e) => e.student_id === s.id);
+        const cls = enrollment?.classes as unknown as { name: string; section: string } | null;
+        return {
+          ...s,
+          roll_number: enrollment?.roll_number ?? null,
+          enrollment_id: enrollment?.id ?? null,
+          class_name: cls?.name ?? null,
+          class_section: cls?.section ?? null,
+        };
+      });
+
+      return NextResponse.json({ data: merged });
     }
 
     // Get enrollments for the class

@@ -116,6 +116,7 @@ create table if not exists profiles (
   phone text,
   avatar_url text,
   is_active boolean default true,
+  student_id uuid references students(id) on delete set null, -- links auth user to students record
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -185,9 +186,11 @@ create table if not exists class_subjects (
 );
 
 -- 6. Student Enrollments
+-- NOTE: student_id references students(id), NOT profiles(id)
+-- See migration-001-student-fk.sql for the FK switch
 create table if not exists student_enrollments (
   id uuid default gen_random_uuid() primary key,
-  student_id uuid references profiles(id) on delete cascade not null,
+  student_id uuid references students(id) on delete cascade not null,
   class_id uuid references classes(id) on delete cascade not null,
   roll_number integer,
   enrollment_date date default current_date,
@@ -197,7 +200,7 @@ create table if not exists student_enrollments (
 -- 7. Attendance
 create table if not exists attendance (
   id uuid default gen_random_uuid() primary key,
-  student_id uuid references profiles(id) on delete cascade not null,
+  student_id uuid references students(id) on delete cascade not null,
   class_id uuid references classes(id) on delete cascade not null,
   date date not null,
   status text not null check (status in ('present', 'absent', 'late', 'holiday')),
@@ -221,7 +224,7 @@ create table if not exists exam_types (
 -- 9. Results
 create table if not exists results (
   id uuid default gen_random_uuid() primary key,
-  student_id uuid references profiles(id) on delete cascade not null,
+  student_id uuid references students(id) on delete cascade not null,
   class_id uuid references classes(id) on delete cascade not null,
   subject_id uuid references subjects(id) on delete cascade not null,
   exam_type_id uuid references exam_types(id) on delete cascade not null,
@@ -250,7 +253,7 @@ create table if not exists fee_structures (
 -- 11. Fee Payments
 create table if not exists fee_payments (
   id uuid default gen_random_uuid() primary key,
-  student_id uuid references profiles(id) on delete cascade not null,
+  student_id uuid references students(id) on delete cascade not null,
   fee_structure_id uuid references fee_structures(id) not null,
   amount_paid numeric(10,2) not null,
   payment_date date default current_date,
@@ -424,6 +427,8 @@ create policy "Teachers can read enrollments for their classes"
     public.get_user_role() = 'teacher'
     and class_id in (
       select id from classes where class_teacher_id = auth.uid()
+      union
+      select class_id from class_subjects where teacher_id = auth.uid()
     )
   );
 
@@ -705,12 +710,8 @@ create policy "Admins can delete students"
   using (public.get_user_role() = 'admin');
 
 -- =============================================================
--- FK Migration: student_enrollments.student_id → students(id)
--- Run ONLY if student_enrollments currently references profiles(id)
--- and no student enrollment data exists yet
+-- FK Migration: student_enrollments, attendance, results, fee_payments
+-- All now reference students(id) instead of profiles(id).
+-- See scripts/migration-001-student-fk.sql for the migration to run
+-- on existing databases.
 -- =============================================================
--- alter table student_enrollments
---   drop constraint if exists student_enrollments_student_id_fkey;
--- alter table student_enrollments
---   add constraint student_enrollments_student_id_fkey
---   foreign key (student_id) references students(id) on delete cascade;

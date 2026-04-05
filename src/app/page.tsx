@@ -4,6 +4,7 @@ import { FacilitiesPreview } from "@/components/home/FacilitiesPreview";
 import { StatsCounter } from "@/components/home/StatsCounter";
 import { LatestUpdates } from "@/components/home/LatestUpdates";
 import { Testimonials } from "@/components/home/Testimonials";
+import { SchoolEvents } from "@/components/home/SchoolEvents";
 import { SectionDivider } from "@/components/shared/SectionDivider";
 import { MarqueeStrip } from "@/components/shared/MarqueeStrip";
 import { PageTransition } from "@/components/shared/PageTransition";
@@ -65,6 +66,8 @@ export default async function HomePage() {
       <SectionDivider flip color="fill-cream-50" />
 
       <LatestUpdates images={updateImages} />
+
+      <SchoolEvents />
 
       <Testimonials />
     </PageTransition>

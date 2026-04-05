@@ -68,9 +68,22 @@ export default function StudentResultsPage() {
 
       if (!user) return;
 
-      // Fetch report card via API
+      // Resolve linked student record ID
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("student_id")
+        .eq("id", user.id)
+        .single();
+
+      const studentId = profile?.student_id;
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch report card via API using the students table ID
       const res = await fetch(
-        `/api/erp/results/report-card?student_id=${user.id}`
+        `/api/erp/results/report-card?student_id=${studentId}`
       );
 
       if (!res.ok) {

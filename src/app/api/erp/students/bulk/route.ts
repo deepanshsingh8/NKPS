@@ -60,6 +60,11 @@ export async function POST(request: Request) {
         gender: s.gender || null,
         phone: s.phone?.trim() || null,
         address: s.address?.trim() || null,
+        email: s.email?.trim() || null,
+        blood_group: s.blood_group?.trim() || null,
+        category: s.category?.trim() || null,
+        aadhar_number: s.aadhar_number?.trim() || null,
+        previous_school: s.previous_school?.trim() || null,
       }));
 
       const { data: upsertedStudents, error: upsertError } = await admin

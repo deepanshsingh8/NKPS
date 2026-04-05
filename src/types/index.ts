@@ -3,13 +3,28 @@ export interface GalleryImage {
   src: string;
   alt: string;
   category: "academics" | "sports" | "cultural" | "campus" | "events";
+  gallery_event_id: string | null;
   sort_order: number;
   created_at: string;
+}
+
+export interface GalleryEvent {
+  id: string;
+  title: string;
+  description: string | null;
+  event_date: string;
+  academic_year: string | null;
+  cover_image_url: string | null;
+  is_public: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TransferCertificate {
   id: string;
   student_name: string;
+  admission_no: string | null;
   file_url: string;
   academic_year: string;
   upload_date: string;
@@ -55,6 +70,8 @@ export interface Profile {
   phone: string | null;
   avatar_url: string | null;
   is_active: boolean;
+  student_id: string | null;
+  must_change_password: boolean;
   created_at: string;
   updated_at: string;
 }

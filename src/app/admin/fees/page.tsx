@@ -30,7 +30,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Search } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
-import type { FeeStructure, FeePayment, Profile } from "@/types";
+import type { FeeStructure, FeePayment, Student } from "@/types";
 
 const CLASS_NAMES = [
   "Nursery",
@@ -78,8 +78,8 @@ export default function AdminFeesPage() {
 
   // Payments state
   const [studentSearch, setStudentSearch] = useState("");
-  const [studentResults, setStudentResults] = useState<Profile[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<Profile | null>(null);
+  const [studentResults, setStudentResults] = useState<Student[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentFeeStructures, setStudentFeeStructures] = useState<
     FeeStructure[]
   >([]);
@@ -135,7 +135,7 @@ export default function AdminFeesPage() {
     fetchFeeStructures();
   }, [fetchFeeStructures]);
 
-  // Search students
+  // Search students (from students table, not profiles)
   const searchStudents = async (query: string) => {
     setStudentSearch(query);
     if (query.length < 2) {
@@ -144,17 +144,17 @@ export default function AdminFeesPage() {
     }
 
     const { data } = await supabase
-      .from("profiles")
+      .from("students")
       .select("*")
-      .eq("role", "student")
+      .eq("is_active", true)
       .ilike("full_name", `%${query}%`)
       .limit(10);
 
-    setStudentResults((data as Profile[]) ?? []);
+    setStudentResults((data as Student[]) ?? []);
   };
 
   // Select a student and load their data
-  const selectStudent = async (student: Profile) => {
+  const selectStudent = async (student: Student) => {
     setSelectedStudent(student);
     setStudentResults([]);
     setStudentSearch(student.full_name);
@@ -446,7 +446,7 @@ export default function AdminFeesPage() {
                         className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm"
                       >
                         <span className="font-medium">{s.full_name}</span>
-                        <span className="text-gray-400 ml-2">{s.email}</span>
+                        <span className="text-gray-400 ml-2">{s.admission_no}</span>
                       </button>
                     ))}
                   </div>

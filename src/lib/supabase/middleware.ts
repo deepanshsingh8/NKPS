@@ -71,17 +71,31 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user) {
-    // Fetch role from profiles — always fresh to avoid stale cookie issues
-    // (e.g. different user logging in reuses previous user's cached role)
+    // Fetch role and password-change flag from profiles
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, must_change_password")
       .eq("id", user.id)
       .single();
 
     const role = profile?.role ?? "student";
+    const mustChangePassword = profile?.must_change_password ?? false;
 
     const dashboard = getDashboardPath(role);
+
+    // Force password change — redirect everywhere except the change-password page itself
+    if (mustChangePassword && pathname !== "/portal/change-password") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/portal/change-password";
+      return NextResponse.redirect(url);
+    }
+
+    // If password already changed, don't let them stay on the change-password page
+    if (!mustChangePassword && pathname === "/portal/change-password") {
+      const url = request.nextUrl.clone();
+      url.pathname = dashboard;
+      return NextResponse.redirect(url);
+    }
 
     // Redirect logged-in users away from login pages to their dashboard
     if (isLoginPage(pathname)) {

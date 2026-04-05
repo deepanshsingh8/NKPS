@@ -172,6 +172,11 @@ export const studentBulkUploadSchema = z.object({
       phone: z.string().optional().or(z.literal("")),
       address: z.string().optional().or(z.literal("")),
       roll_number: z.number().int().optional(),
+      email: z.string().optional().or(z.literal("")),
+      blood_group: z.string().optional().or(z.literal("")),
+      category: z.string().optional().or(z.literal("")),
+      aadhar_number: z.string().optional().or(z.literal("")),
+      previous_school: z.string().optional().or(z.literal("")),
     })
   ).min(1, "At least one student is required"),
 });

@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
     const altText = formData.get("alt") as string;
     const category = formData.get("category") as string;
     const currentCount = parseInt(formData.get("currentCount") as string) || 0;
+    const galleryEventId = formData.get("gallery_event_id") as string | null;
 
     if (!files.length || !altText || !category) {
       return NextResponse.json(
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
           alt: files.length > 1 ? `${altText} ${i + 1}` : altText,
           category,
           sort_order: currentCount + i,
+          gallery_event_id: galleryEventId || null,
         });
 
       if (insertError) {

@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Star } from "lucide-react";
+import { Plus, Trash2, Pencil, Loader2, Star } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
 import type { AcademicYear } from "@/types";
 
@@ -30,7 +30,9 @@ export default function AdminAcademicYearsPage() {
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editingYear, setEditingYear] = useState<AcademicYear | null>(null);
 
   // Form state
   const [name, setName] = useState("");
@@ -146,6 +148,44 @@ export default function AdminAcademicYearsPage() {
     await fetchYears();
   };
 
+  const openEdit = (year: AcademicYear) => {
+    setEditingYear(year);
+    setName(year.name);
+    setStartDate(year.start_date);
+    setEndDate(year.end_date);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingYear || !name.trim() || !startDate || !endDate) {
+      toast.error("All fields are required");
+      return;
+    }
+    setSubmitting(true);
+
+    const result = await adminApi({
+      action: "update",
+      table: "academic_years",
+      data: {
+        name: name.trim(),
+        start_date: startDate,
+        end_date: endDate,
+      },
+      match: { column: "id", value: editingYear.id },
+    });
+
+    if (!result.success) {
+      toast.error(result.error || "Failed to update");
+    } else {
+      toast.success("Academic year updated");
+      setEditDialogOpen(false);
+      setEditingYear(null);
+      await fetchYears();
+    }
+    setSubmitting(false);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -222,6 +262,14 @@ export default function AdminAcademicYearsPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
+                        onClick={() => openEdit(year)}
+                        className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => handleDelete(year.id)}
                         className="text-red-500 hover:text-red-700 hover:bg-red-50"
                       >
@@ -292,6 +340,67 @@ export default function AdminAcademicYearsPage() {
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 )}
                 Create
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      {/* Edit Academic Year Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Academic Year</DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="editYearName">Name</Label>
+              <Input
+                id="editYearName"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. 2025-26"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="editStartDate">Start Date</Label>
+              <Input
+                id="editStartDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="editEndDate">End Date</Label>
+              <Input
+                id="editEndDate"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                required
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="bg-navy-900 hover:bg-navy-800 text-white"
+              >
+                {submitting && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                Update
               </Button>
             </DialogFooter>
           </form>

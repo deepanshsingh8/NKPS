@@ -42,11 +42,24 @@ export default function StudentFeesPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Resolve linked student record ID
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("student_id")
+        .eq("id", user.id)
+        .single();
+
+      const studentId = profile?.student_id;
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+
       // Fetch enrollment to determine class
       const { data: enrollment } = await supabase
         .from("student_enrollments")
         .select("class_id, classes(name)")
-        .eq("student_id", user.id)
+        .eq("student_id", studentId)
         .limit(1)
         .single();
 
@@ -66,7 +79,7 @@ export default function StudentFeesPage() {
       const { data: paymentData } = await supabase
         .from("fee_payments")
         .select("*, fee_structure:fee_structures(*)")
-        .eq("student_id", user.id)
+        .eq("student_id", studentId)
         .order("payment_date", { ascending: false });
 
       setPayments(
