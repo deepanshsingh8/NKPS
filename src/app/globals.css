@@ -222,52 +222,9 @@
     @apply text-sm font-medium text-navy-900 dark:text-gray-200;
   }
 
-  /* ── ERP Dark Mode Overrides ── */
-  /* These cascade inside .dark wrapper applied by ERP layouts */
-
-  .dark .erp-empty-state {
-    color: theme(--color-gray-400);
+  .erp-empty-state p, .erp-empty-state span {
+    @apply dark:text-gray-400;
   }
-
-  /* Auto-fix common text/bg classes inside ERP dark mode */
-  .dark .text-navy-900 { color: #fff; }
-  .dark .text-gray-400 { color: oklch(0.55 0 0); }
-  .dark .text-gray-500 { color: oklch(0.55 0 0); }
-  .dark .text-gray-600 { color: oklch(0.65 0 0); }
-  .dark .text-gray-700 { color: oklch(0.7 0 0); }
-  .dark .bg-white { background-color: var(--card); }
-  .dark .bg-gray-50 { background-color: var(--muted); }
-  .dark .bg-gray-100 { background-color: var(--secondary); }
-  .dark .bg-gray-200 { background-color: oklch(0.27 0.015 260); }
-  .dark .border-gray-100 { border-color: var(--border); }
-  .dark .border-gray-200 { border-color: var(--border); }
-  .dark .border-gray-200\/80 { border-color: var(--border); }
-  .dark .hover\:bg-gray-50:hover { background-color: var(--muted); }
-  .dark .hover\:bg-gray-100:hover { background-color: var(--secondary); }
-
-  /* Light tinted backgrounds → darker versions */
-  .dark .bg-blue-50 { background-color: oklch(0.25 0.06 250); }
-  .dark .bg-blue-50\/30 { background-color: oklch(0.2 0.04 250 / 0.3); }
-  .dark .bg-blue-100 { background-color: oklch(0.28 0.06 250); }
-  .dark .bg-green-50 { background-color: oklch(0.25 0.06 155); }
-  .dark .bg-green-100 { background-color: oklch(0.28 0.06 155); }
-  .dark .bg-red-50 { background-color: oklch(0.25 0.06 25); }
-  .dark .bg-red-100 { background-color: oklch(0.28 0.06 25); }
-  .dark .bg-amber-100 { background-color: oklch(0.28 0.06 80); }
-  .dark .bg-violet-100 { background-color: oklch(0.28 0.06 290); }
-  .dark .bg-emerald-100 { background-color: oklch(0.28 0.06 160); }
-  .dark .bg-rose-100 { background-color: oklch(0.28 0.06 15); }
-  .dark .bg-yellow-50 { background-color: oklch(0.25 0.06 85); }
-  .dark .bg-gold-300\/30 { background-color: oklch(0.3 0.06 85 / 0.3); }
-  .dark .bg-cream-50 { background-color: var(--background); }
-
-  /* Tinted text in dark → slightly brighter */
-  .dark .text-blue-700 { color: oklch(0.7 0.15 250); }
-  .dark .text-green-700 { color: oklch(0.7 0.15 155); }
-  .dark .text-red-700 { color: oklch(0.7 0.15 25); }
-
-  /* Skeleton/pulse in dark mode */
-  .dark .animate-pulse { opacity: 0.5; }
 }
 
 /* Smooth scroll for anchor links */

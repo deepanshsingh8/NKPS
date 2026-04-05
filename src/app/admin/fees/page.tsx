@@ -305,13 +305,13 @@ export default function AdminFeesPage() {
     switch (status) {
       case "paid":
         return (
-          <Badge className="bg-green-100 text-green-700 border-green-200">
+          <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800">
             Paid
           </Badge>
         );
       case "partial":
         return (
-          <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
+          <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-950/30 dark:text-yellow-400 dark:border-yellow-800">
             Partial
           </Badge>
         );
@@ -326,7 +326,7 @@ export default function AdminFeesPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-bold text-navy-900 mb-6">
+      <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white mb-6">
         Fee Management
       </h1>
 
@@ -338,14 +338,14 @@ export default function AdminFeesPage() {
 
         {/* Tab 1: Fee Structures */}
         <TabsContent value="structures">
-          <Card className="bg-white rounded-2xl shadow-sm mt-4">
+          <Card className="bg-white dark:bg-card rounded-2xl shadow-sm mt-4">
             <CardContent>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <select
                     value={classFilter}
                     onChange={(e) => setClassFilter(e.target.value)}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    className="rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
                   >
                     <option value="">All Classes</option>
                     {CLASS_NAMES.map((cn) => (
@@ -366,10 +366,10 @@ export default function AdminFeesPage() {
 
               {structuresLoading ? (
                 <div className="flex justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-navy-900" />
+                  <Loader2 className="h-6 w-6 animate-spin text-navy-900 dark:text-white" />
                 </div>
               ) : feeStructures.length === 0 ? (
-                <p className="text-center py-12 text-gray-500">
+                <p className="text-center py-12 text-gray-500 dark:text-gray-400">
                   No fee structures found.
                 </p>
               ) : (
@@ -421,15 +421,15 @@ export default function AdminFeesPage() {
 
         {/* Tab 2: Payments */}
         <TabsContent value="payments">
-          <Card className="bg-white rounded-2xl shadow-sm mt-4">
+          <Card className="bg-white dark:bg-card rounded-2xl shadow-sm mt-4">
             <CardContent>
               {/* Student search */}
               <div className="relative mb-6">
-                <Label className="mb-2 block text-sm font-medium text-navy-900">
+                <Label className="mb-2 block text-sm font-medium text-navy-900 dark:text-white">
                   Search Student
                 </Label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
                   <Input
                     placeholder="Search by student name..."
                     value={studentSearch}
@@ -438,15 +438,15 @@ export default function AdminFeesPage() {
                   />
                 </div>
                 {studentResults.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  <div className="absolute z-10 mt-1 w-full bg-white dark:bg-card border border-gray-200 dark:border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
                     {studentResults.map((s) => (
                       <button
                         key={s.id}
                         onClick={() => selectStudent(s)}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm"
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-muted text-sm"
                       >
                         <span className="font-medium">{s.full_name}</span>
-                        <span className="text-gray-400 ml-2">{s.admission_no}</span>
+                        <span className="text-gray-400 dark:text-gray-500 ml-2">{s.admission_no}</span>
                       </button>
                     ))}
                   </div>
@@ -456,7 +456,7 @@ export default function AdminFeesPage() {
               {selectedStudent && (
                 <>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-heading text-lg font-semibold text-navy-900">
+                    <h3 className="font-heading text-lg font-semibold text-navy-900 dark:text-white">
                       {selectedStudent.full_name}
                     </h3>
                     <Button
@@ -471,26 +471,26 @@ export default function AdminFeesPage() {
                   {/* Fee structures for student's class */}
                   {studentFeeStructures.length > 0 && (
                     <div className="mb-6">
-                      <h4 className="text-sm font-medium text-gray-500 mb-2">
+                      <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
                         Applicable Fee Structures
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {studentFeeStructures.map((fs) => (
                           <div
                             key={fs.id}
-                            className="border border-gray-200 rounded-lg p-3"
+                            className="border border-gray-200 dark:border-border rounded-lg p-3"
                           >
                             <p className="font-medium text-sm">
                               {fs.fee_type}
                             </p>
-                            <p className="text-lg font-bold text-navy-900">
+                            <p className="text-lg font-bold text-navy-900 dark:text-white">
                               {new Intl.NumberFormat("en-IN", {
                                 style: "currency",
                                 currency: "INR",
                                 maximumFractionDigits: 0,
                               }).format(fs.amount)}
                             </p>
-                            <p className="text-xs text-gray-400 capitalize">
+                            <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">
                               {fs.frequency.replace("_", " ")}
                             </p>
                           </div>
@@ -500,15 +500,15 @@ export default function AdminFeesPage() {
                   )}
 
                   {/* Payment history */}
-                  <h4 className="text-sm font-medium text-gray-500 mb-2">
+                  <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
                     Payment History
                   </h4>
                   {paymentsLoading ? (
                     <div className="flex justify-center py-8">
-                      <Loader2 className="h-5 w-5 animate-spin text-navy-900" />
+                      <Loader2 className="h-5 w-5 animate-spin text-navy-900 dark:text-white" />
                     </div>
                   ) : studentPayments.length === 0 ? (
-                    <p className="text-center py-8 text-gray-400 text-sm">
+                    <p className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
                       No payments recorded yet.
                     </p>
                   ) : (
@@ -553,7 +553,7 @@ export default function AdminFeesPage() {
               )}
 
               {!selectedStudent && (
-                <p className="text-center py-12 text-gray-400 text-sm">
+                <p className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
                   Search and select a student to view fee details.
                 </p>
               )}
@@ -576,7 +576,7 @@ export default function AdminFeesPage() {
                 onChange={(e) =>
                   setNewStructure({ ...newStructure, class_name: e.target.value })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
               >
                 {CLASS_NAMES.map((cn) => (
                   <option key={cn} value={cn}>
@@ -592,7 +592,7 @@ export default function AdminFeesPage() {
                 onChange={(e) =>
                   setNewStructure({ ...newStructure, fee_type: e.target.value })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
               >
                 {FEE_TYPES.map((ft) => (
                   <option key={ft} value={ft}>
@@ -622,7 +622,7 @@ export default function AdminFeesPage() {
                     frequency: e.target.value as (typeof FREQUENCIES)[number],
                   })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
               >
                 {FREQUENCIES.map((f) => (
                   <option key={f} value={f}>
@@ -676,7 +676,7 @@ export default function AdminFeesPage() {
                     fee_structure_id: e.target.value,
                   })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
               >
                 <option value="">Select fee type</option>
                 {studentFeeStructures.map((fs) => (
@@ -712,7 +712,7 @@ export default function AdminFeesPage() {
                     payment_method: e.target.value as (typeof PAYMENT_METHODS)[number],
                   })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
               >
                 {PAYMENT_METHODS.map((m) => (
                   <option key={m} value={m}>

@@ -53,13 +53,13 @@ function calculateGrade(marks: number, maxMarks: number): string {
 }
 
 const GRADE_COLORS: Record<string, string> = {
-  "A+": "bg-green-100 text-green-700 border-green-200",
-  A: "bg-green-50 text-green-600 border-green-200",
-  "B+": "bg-blue-100 text-blue-700 border-blue-200",
-  B: "bg-blue-50 text-blue-600 border-blue-200",
-  C: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  D: "bg-orange-100 text-orange-700 border-orange-200",
-  F: "bg-red-100 text-red-700 border-red-200",
+  "A+": "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800",
+  A: "bg-green-50 dark:bg-green-950/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800",
+  "B+": "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+  B: "bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+  C: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
+  D: "bg-orange-100 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800",
+  F: "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
 };
 
 export default function TeacherResultsPage() {
@@ -298,20 +298,20 @@ export default function TeacherResultsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Enter Results
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           Select class, subject, and exam type to enter student marks.
         </p>
       </div>
 
       {/* Selectors */}
-      <Card className="bg-white rounded-2xl">
+      <Card className="bg-white dark:bg-card rounded-2xl">
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-navy-900">Class</label>
+              <label className="text-sm font-medium text-navy-900 dark:text-white">Class</label>
               <Select
                 value={selectedClassId}
                 onValueChange={(val) => val && setSelectedClassId(val)}
@@ -330,7 +330,7 @@ export default function TeacherResultsPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-navy-900">
+              <label className="text-sm font-medium text-navy-900 dark:text-white">
                 Subject
               </label>
               <Select
@@ -352,7 +352,7 @@ export default function TeacherResultsPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-navy-900">
+              <label className="text-sm font-medium text-navy-900 dark:text-white">
                 Exam Type
               </label>
               <Select
@@ -377,11 +377,11 @@ export default function TeacherResultsPage() {
 
       {/* Marks Entry Table */}
       {selectedClassId && selectedSubjectId && selectedExamTypeId && (
-        <Card className="bg-white rounded-2xl">
+        <Card className="bg-white dark:bg-card rounded-2xl">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-navy-900">
+            <CardTitle className="text-navy-900 dark:text-white">
               Marks Entry
-              <span className="text-sm font-normal text-gray-500 ml-2">
+              <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
                 (Max: {maxMarks})
               </span>
             </CardTitle>
@@ -404,7 +404,7 @@ export default function TeacherResultsPage() {
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900 border-t-transparent" />
               </div>
             ) : students.length === 0 ? (
-              <p className="text-center text-gray-400 py-12">
+              <p className="text-center text-gray-400 dark:text-gray-500 py-12">
                 No students enrolled in this class.
               </p>
             ) : (
@@ -460,7 +460,7 @@ export default function TeacherResultsPage() {
                                 {grade}
                               </Badge>
                             ) : (
-                              <span className="text-gray-300">--</span>
+                              <span className="text-gray-300 dark:text-gray-500">--</span>
                             )}
                           </TableCell>
                         </TableRow>

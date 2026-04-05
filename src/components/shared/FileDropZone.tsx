@@ -87,8 +87,8 @@ export function FileDropZone({
         isDragging
           ? "border-gold-500 bg-gold-500/5 scale-[1.01]"
           : fileCount > 0
-            ? "border-green-400 bg-green-50/50"
-            : "border-gray-300 hover:border-navy-900/40 hover:bg-gray-50/50"
+            ? "border-green-400 bg-green-50/50 dark:bg-green-950/30"
+            : "border-gray-300 dark:border-gray-600 hover:border-navy-900/40 dark:hover:border-gray-500 hover:bg-gray-50/50 dark:hover:bg-muted/30"
       )}
     >
       <input
@@ -120,7 +120,7 @@ export function FileDropZone({
           </div>
           <button
             onClick={clearFiles}
-            className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 transition-colors mt-1"
+            className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors mt-1"
           >
             <X className="h-3 w-3" />
             Remove
@@ -131,19 +131,19 @@ export function FileDropZone({
           <div
             className={cn(
               "mx-auto flex h-12 w-12 items-center justify-center rounded-full transition-colors",
-              isDragging ? "bg-gold-500/10" : "bg-gray-100"
+              isDragging ? "bg-gold-500/10" : "bg-gray-100 dark:bg-muted"
             )}
           >
             <Upload
               className={cn(
                 "h-6 w-6 transition-colors",
-                isDragging ? "text-gold-600" : "text-gray-400"
+                isDragging ? "text-gold-600" : "text-gray-400 dark:text-gray-500"
               )}
             />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-600">{label}</p>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">{label}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
               {hint || `Max ${maxSizeMB}MB per file`}
             </p>
           </div>

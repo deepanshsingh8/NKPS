@@ -121,11 +121,11 @@ export default function TeacherDashboard() {
     <div className="space-y-8">
       {/* Welcome */}
       <div>
-        <p className="text-sm text-gray-400 mb-1">{greeting}</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">{greeting}</p>
         <h1 className="erp-page-title">
           Welcome back, {firstName}!
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Here is an overview of your classes and tasks for today.
         </p>
       </div>
@@ -136,15 +136,15 @@ export default function TeacherDashboard() {
           <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-blue-500/8 to-transparent rounded-bl-full" />
           <div className="relative">
             <div className="flex items-center gap-3 mb-3">
-              <div className="h-10 w-10 rounded-xl bg-blue-100 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                 <BookOpen className="h-5 w-5 text-blue-600" />
               </div>
-              <span className="text-sm font-medium text-gray-500">My Classes</span>
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">My Classes</span>
             </div>
-            <p className="text-3xl font-bold text-navy-900 tracking-tight">
+            <p className="text-3xl font-bold text-navy-900 dark:text-white tracking-tight">
               {stats.classCount}
             </p>
-            <p className="text-xs text-gray-400 mt-1">Assigned classes</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Assigned classes</p>
           </div>
         </div>
 
@@ -152,15 +152,15 @@ export default function TeacherDashboard() {
           <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-emerald-500/8 to-transparent rounded-bl-full" />
           <div className="relative">
             <div className="flex items-center gap-3 mb-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
                 <Users className="h-5 w-5 text-emerald-600" />
               </div>
-              <span className="text-sm font-medium text-gray-500">Students</span>
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Students</span>
             </div>
-            <p className="text-3xl font-bold text-navy-900 tracking-tight">
+            <p className="text-3xl font-bold text-navy-900 dark:text-white tracking-tight">
               {stats.studentCount}
             </p>
-            <p className="text-xs text-gray-400 mt-1">Total students</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Total students</p>
           </div>
         </div>
 
@@ -176,25 +176,25 @@ export default function TeacherDashboard() {
             <div className="flex items-center gap-3 mb-3">
               <div className={cn(
                 "h-10 w-10 rounded-xl flex items-center justify-center",
-                stats.pendingAttendance ? "bg-amber-100" : "bg-green-100"
+                stats.pendingAttendance ? "bg-amber-100 dark:bg-amber-900/30" : "bg-green-100 dark:bg-green-950/30"
               )}>
                 <ClipboardCheck className={cn(
                   "h-5 w-5",
                   stats.pendingAttendance ? "text-amber-600" : "text-green-600"
                 )} />
               </div>
-              <span className="text-sm font-medium text-gray-500">Attendance Today</span>
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Attendance Today</span>
             </div>
             {stats.pendingAttendance ? (
-              <Badge className="bg-amber-100 text-amber-700 text-xs font-semibold">
+              <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-semibold">
                 Pending
               </Badge>
             ) : (
-              <Badge className="bg-green-100 text-green-700 text-xs font-semibold">
+              <Badge className="bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-xs font-semibold">
                 Marked
               </Badge>
             )}
-            <p className="text-xs text-gray-400 mt-2">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
               {stats.pendingAttendance
                 ? "Attendance not marked yet"
                 : "All done for today"}
@@ -210,8 +210,8 @@ export default function TeacherDashboard() {
           {[
             { href: "/teacher/attendance", icon: ClipboardCheck, label: "Mark Attendance", color: "bg-navy-900 text-white hover:bg-navy-800" },
             { href: "/teacher/results", icon: BarChart3, label: "Enter Results", color: "bg-gold-500 text-navy-900 hover:bg-gold-400" },
-            { href: "/teacher/students", icon: Users, label: "View Students", color: "bg-white text-navy-900 border border-gray-200 hover:bg-gray-50" },
-            { href: "/teacher/timetable", icon: Clock, label: "View Timetable", color: "bg-white text-navy-900 border border-gray-200 hover:bg-gray-50" },
+            { href: "/teacher/students", icon: Users, label: "View Students", color: "bg-white dark:bg-card text-navy-900 dark:text-white border border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted" },
+            { href: "/teacher/timetable", icon: Clock, label: "View Timetable", color: "bg-white dark:bg-card text-navy-900 dark:text-white border border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted" },
           ].map(({ href, icon: Icon, label, color }) => (
             <Link
               key={href}
@@ -237,10 +237,10 @@ export default function TeacherDashboard() {
         <div className="erp-card">
           <div className="flex items-center justify-center py-14">
             <div className="text-center">
-              <div className="h-12 w-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
-                <Clock className="h-6 w-6 text-gray-400" />
+              <div className="h-12 w-12 rounded-xl bg-gray-100 dark:bg-muted flex items-center justify-center mx-auto mb-3">
+                <Clock className="h-6 w-6 text-gray-400 dark:text-gray-500" />
               </div>
-              <p className="text-sm text-gray-500 font-medium">No timetable configured yet</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">No timetable configured yet</p>
               <Link
                 href="/teacher/timetable"
                 className="text-sm text-gold-600 hover:text-gold-500 font-medium mt-2 inline-flex items-center gap-1 transition-colors"
@@ -256,7 +256,7 @@ export default function TeacherDashboard() {
       {/* Upcoming Events */}
       <div>
         <div className="flex items-center gap-2 mb-4">
-          <CalendarDays className="h-5 w-5 text-gray-400" />
+          <CalendarDays className="h-5 w-5 text-gray-400 dark:text-gray-500" />
           <h2 className="erp-section-title">Upcoming Events</h2>
         </div>
         <UpcomingEvents limit={5} />

@@ -29,7 +29,7 @@ const statCardConfig = [
     key: "totalUsers",
     label: "Total Users",
     icon: Users,
-    iconBg: "bg-violet-100",
+    iconBg: "bg-violet-100 dark:bg-violet-900/30",
     iconColor: "text-violet-600",
     accent: "from-violet-500/10 to-transparent",
   },
@@ -37,7 +37,7 @@ const statCardConfig = [
     key: "totalStudents",
     label: "Students",
     icon: GraduationCap,
-    iconBg: "bg-blue-100",
+    iconBg: "bg-blue-100 dark:bg-blue-900/30",
     iconColor: "text-blue-600",
     accent: "from-blue-500/10 to-transparent",
   },
@@ -45,7 +45,7 @@ const statCardConfig = [
     key: "totalTeachers",
     label: "Teachers",
     icon: Users,
-    iconBg: "bg-emerald-100",
+    iconBg: "bg-emerald-100 dark:bg-emerald-900/30",
     iconColor: "text-emerald-600",
     accent: "from-emerald-500/10 to-transparent",
   },
@@ -53,7 +53,7 @@ const statCardConfig = [
     key: "galleryCount",
     label: "Gallery Images",
     icon: ImageIcon,
-    iconBg: "bg-amber-100",
+    iconBg: "bg-amber-100 dark:bg-amber-900/30",
     iconColor: "text-amber-600",
     accent: "from-amber-500/10 to-transparent",
   },
@@ -61,7 +61,7 @@ const statCardConfig = [
     key: "tcCount",
     label: "Transfer Certificates",
     icon: FileText,
-    iconBg: "bg-gold-300/30",
+    iconBg: "bg-gold-300/30 dark:bg-gold-500/20",
     iconColor: "text-gold-600",
     accent: "from-gold-500/10 to-transparent",
   },
@@ -69,7 +69,7 @@ const statCardConfig = [
     key: "unreadCount",
     label: "Unread Messages",
     icon: MessageSquare,
-    iconBg: "bg-rose-100",
+    iconBg: "bg-rose-100 dark:bg-rose-900/30",
     iconColor: "text-rose-600",
     accent: "from-rose-500/10 to-transparent",
   },
@@ -135,13 +135,13 @@ export default function AdminDashboardPage() {
               </div>
               <div>
                 {loading ? (
-                  <div className="h-8 w-16 bg-gray-100 rounded-lg animate-pulse" />
+                  <div className="h-8 w-16 bg-gray-100 dark:bg-muted rounded-lg animate-pulse" />
                 ) : (
-                  <p className="text-3xl font-bold text-navy-900 tracking-tight">
+                  <p className="text-3xl font-bold text-navy-900 dark:text-white tracking-tight">
                     {stats?.[key] ?? 0}
                   </p>
                 )}
-                <p className="text-sm text-gray-500 mt-0.5">{label}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{label}</p>
               </div>
             </div>
           </div>
@@ -160,20 +160,20 @@ export default function AdminDashboardPage() {
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="bg-white rounded-xl border border-gray-200/80 p-5 animate-pulse"
+                className="bg-white dark:bg-card rounded-xl border border-gray-200/80 dark:border-border p-5 animate-pulse"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 bg-gray-100 rounded-full" />
+                  <div className="h-10 w-10 bg-gray-100 dark:bg-muted rounded-full" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-4 w-32 bg-gray-100 rounded" />
-                    <div className="h-3 w-48 bg-gray-50 rounded" />
+                    <div className="h-4 w-32 bg-gray-100 dark:bg-muted rounded" />
+                    <div className="h-3 w-48 bg-gray-50 dark:bg-muted rounded" />
                   </div>
                 </div>
               </div>
             ))}
           </div>
         ) : recentMessages.length === 0 ? (
-          <div className="erp-empty-state bg-white rounded-2xl border border-gray-200/80">
+          <div className="erp-empty-state bg-white dark:bg-card rounded-2xl border border-gray-200/80 dark:border-border">
             <MessageSquare className="h-10 w-10 text-gray-300 mb-3" />
             <p className="text-sm text-gray-400">No contact messages yet</p>
           </div>
@@ -183,10 +183,10 @@ export default function AdminDashboardPage() {
               <div
                 key={msg.id}
                 className={cn(
-                  "bg-white rounded-xl border p-5 transition-all duration-200 hover:shadow-sm cursor-default",
+                  "bg-white dark:bg-card rounded-xl border p-5 transition-all duration-200 hover:shadow-sm cursor-default",
                   !msg.is_read
-                    ? "border-blue-200/80 bg-blue-50/30"
-                    : "border-gray-200/80"
+                    ? "border-blue-200/80 bg-blue-50/30 dark:bg-blue-950/30 dark:border-border"
+                    : "border-gray-200/80 dark:border-border"
                 )}
               >
                 <div className="flex items-start gap-4">
@@ -194,19 +194,19 @@ export default function AdminDashboardPage() {
                   <div className={cn(
                     "h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0",
                     !msg.is_read
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-gray-100 text-gray-500"
+                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
+                      : "bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400"
                   )}>
                     {msg.full_name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-navy-900 text-sm">
+                        <p className="font-semibold text-navy-900 dark:text-white text-sm">
                           {msg.full_name}
                         </p>
                         {!msg.is_read && (
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0">
+                          <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[10px] px-1.5 py-0">
                             New
                           </Badge>
                         )}
@@ -218,7 +218,7 @@ export default function AdminDashboardPage() {
                         })}
                       </span>
                     </div>
-                    <p className="text-sm font-medium text-gray-700 truncate">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">
                       {msg.subject}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">{msg.email}</p>

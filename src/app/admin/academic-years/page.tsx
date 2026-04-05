@@ -189,7 +189,7 @@ export default function AdminAcademicYearsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Academic Years
         </h1>
         <Button
@@ -207,10 +207,10 @@ export default function AdminAcademicYearsPage() {
       <div className="erp-table-container p-6">
         {loading ? (
           <div className="flex justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+            <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
           </div>
         ) : years.length === 0 ? (
-          <p className="text-center py-12 text-gray-500">
+          <p className="text-center py-12 text-gray-500 dark:text-gray-400">
             No academic years found. Add one to get started.
           </p>
         ) : (
@@ -228,10 +228,10 @@ export default function AdminAcademicYearsPage() {
               {years.map((year) => (
                 <TableRow key={year.id}>
                   <TableCell className="font-medium">{year.name}</TableCell>
-                  <TableCell className="text-gray-600">
+                  <TableCell className="text-gray-600 dark:text-gray-300">
                     {new Date(year.start_date).toLocaleDateString()}
                   </TableCell>
-                  <TableCell className="text-gray-600">
+                  <TableCell className="text-gray-600 dark:text-gray-300">
                     {new Date(year.end_date).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
@@ -243,7 +243,7 @@ export default function AdminAcademicYearsPage() {
                         Current
                       </Badge>
                     ) : (
-                      <span className="text-gray-400 text-sm">—</span>
+                      <span className="text-gray-400 dark:text-gray-500 text-sm">—</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right">
@@ -263,7 +263,7 @@ export default function AdminAcademicYearsPage() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => openEdit(year)}
-                        className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                        className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -271,7 +271,7 @@ export default function AdminAcademicYearsPage() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => handleDelete(year.id)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

@@ -94,7 +94,7 @@ export default function StudentFeesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-navy-900" />
+        <Loader2 className="h-8 w-8 animate-spin text-navy-900 dark:text-white" />
       </div>
     );
   }
@@ -116,10 +116,10 @@ export default function StudentFeesPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           My Fees
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           View your fee structure and payment history.
         </p>
       </div>
@@ -128,13 +128,13 @@ export default function StudentFeesPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="erp-card">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-navy-900">
+            <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white">
               <CreditCard className="h-5 w-5 text-gold-500" />
               Total Fees
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-navy-900">
+            <p className="text-3xl font-bold text-navy-900 dark:text-white">
               {formatCurrency(totalFees)}
             </p>
           </CardContent>
@@ -142,7 +142,7 @@ export default function StudentFeesPage() {
 
         <Card className="erp-card">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-navy-900">
+            <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white">
               <CheckCircle className="h-5 w-5 text-green-500" />
               Paid
             </CardTitle>
@@ -156,7 +156,7 @@ export default function StudentFeesPage() {
 
         <Card className="erp-card">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-navy-900">
+            <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white">
               <AlertCircle className="h-5 w-5 text-red-500" />
               Pending
             </CardTitle>
@@ -170,13 +170,13 @@ export default function StudentFeesPage() {
       </div>
 
       {/* Fee Breakdown */}
-      <Card className="bg-white rounded-2xl shadow-sm">
+      <Card className="bg-white dark:bg-card rounded-2xl shadow-sm">
         <CardHeader>
-          <CardTitle className="text-navy-900">Fee Breakdown</CardTitle>
+          <CardTitle className="text-navy-900 dark:text-white">Fee Breakdown</CardTitle>
         </CardHeader>
         <CardContent>
           {feeStructures.length === 0 ? (
-            <p className="text-center py-8 text-gray-400 text-sm">
+            <p className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
               No fee structures found for your class.
             </p>
           ) : (
@@ -201,7 +201,7 @@ export default function StudentFeesPage() {
                     </TableCell>
                     <TableCell>
                       {paidStructureIds.has(fs.id) ? (
-                        <Badge className="bg-green-100 text-green-700 border-green-200">
+                        <Badge className="bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800">
                           Paid
                         </Badge>
                       ) : (
@@ -217,13 +217,13 @@ export default function StudentFeesPage() {
       </Card>
 
       {/* Payment History */}
-      <Card className="bg-white rounded-2xl shadow-sm">
+      <Card className="bg-white dark:bg-card rounded-2xl shadow-sm">
         <CardHeader>
-          <CardTitle className="text-navy-900">Payment History</CardTitle>
+          <CardTitle className="text-navy-900 dark:text-white">Payment History</CardTitle>
         </CardHeader>
         <CardContent>
           {payments.length === 0 ? (
-            <p className="text-center py-8 text-gray-400 text-sm">
+            <p className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
               No payments recorded yet.
             </p>
           ) : (

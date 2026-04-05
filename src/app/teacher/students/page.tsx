@@ -120,7 +120,7 @@ export default function TeacherStudentsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-navy-900" />
+        <Loader2 className="h-8 w-8 animate-spin text-navy-900 dark:text-white" />
       </div>
     );
   }
@@ -128,24 +128,24 @@ export default function TeacherStudentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Class Rosters
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           View students in your assigned classes.
         </p>
       </div>
 
-      <Card className="bg-white rounded-2xl shadow-sm">
+      <Card className="bg-white dark:bg-card rounded-2xl shadow-sm">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-navy-900">
+          <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white">
             <Users className="h-5 w-5 text-gold-500" />
             Students
           </CardTitle>
         </CardHeader>
         <CardContent>
           {classes.length === 0 ? (
-            <p className="text-center py-12 text-gray-400 text-sm">
+            <p className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
               No classes assigned to you yet.
             </p>
           ) : (
@@ -154,7 +154,7 @@ export default function TeacherStudentsPage() {
                 <select
                   value={selectedClassId}
                   onChange={(e) => setSelectedClassId(e.target.value)}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm dark:bg-card dark:text-white"
                 >
                   {classes.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -164,7 +164,7 @@ export default function TeacherStudentsPage() {
                 </select>
 
                 <div className="relative flex-1 w-full sm:w-auto">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
                   <Input
                     placeholder="Search by name..."
                     value={searchQuery}
@@ -176,10 +176,10 @@ export default function TeacherStudentsPage() {
 
               {studentsLoading ? (
                 <div className="flex justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-navy-900" />
+                  <Loader2 className="h-5 w-5 animate-spin text-navy-900 dark:text-white" />
                 </div>
               ) : filteredStudents.length === 0 ? (
-                <p className="text-center py-8 text-gray-400 text-sm">
+                <p className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
                   No students found.
                 </p>
               ) : (
@@ -199,10 +199,10 @@ export default function TeacherStudentsPage() {
                           {s.roll_number ?? "--"}
                         </TableCell>
                         <TableCell>{s.student?.full_name ?? "--"}</TableCell>
-                        <TableCell className="text-gray-500">
+                        <TableCell className="text-gray-500 dark:text-gray-400">
                           {s.student?.email ?? "--"}
                         </TableCell>
-                        <TableCell className="text-gray-500">
+                        <TableCell className="text-gray-500 dark:text-gray-400">
                           {s.student?.phone ?? "--"}
                         </TableCell>
                       </TableRow>

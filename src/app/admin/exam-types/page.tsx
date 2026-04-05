@@ -182,7 +182,7 @@ export default function AdminExamTypesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-navy-900" />
+        <Loader2 className="h-8 w-8 animate-spin text-navy-900 dark:text-white" />
       </div>
     );
   }
@@ -190,7 +190,7 @@ export default function AdminExamTypesPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Exam Types
         </h1>
         <Button
@@ -207,10 +207,10 @@ export default function AdminExamTypesPage() {
 
       <div className="erp-table-container p-6">
         {examTypes.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-12 text-gray-400 dark:text-gray-500">
             <ClipboardList className="h-10 w-10 mx-auto mb-3 opacity-50" />
             <p className="text-sm">No exam types created yet</p>
-            <p className="text-xs text-gray-300 mt-1">
+            <p className="text-xs text-gray-300 dark:text-gray-600 mt-1">
               Add exam types so teachers can enter results
             </p>
           </div>
@@ -230,7 +230,7 @@ export default function AdminExamTypesPage() {
               {examTypes.map((et) => (
                 <TableRow key={et.id}>
                   <TableCell className="font-medium">{et.name}</TableCell>
-                  <TableCell className="text-gray-600">
+                  <TableCell className="text-gray-600 dark:text-gray-300">
                     {et.academic_year_name}
                   </TableCell>
                   <TableCell>{et.max_marks}</TableCell>
@@ -244,7 +244,7 @@ export default function AdminExamTypesPage() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => openEdit(et)}
-                        className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                        className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -252,7 +252,7 @@ export default function AdminExamTypesPage() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => handleDelete(et.id)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

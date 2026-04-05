@@ -37,9 +37,9 @@ import type { Profile, UserRole } from "@/types";
 const ROLES: UserRole[] = ["admin", "teacher", "student"];
 
 const roleBadgeColors: Record<UserRole, string> = {
-  admin: "bg-red-100 text-red-700",
-  teacher: "bg-blue-100 text-blue-700",
-  student: "bg-green-100 text-green-700",
+  admin: "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400",
+  teacher: "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
+  student: "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400",
 };
 
 export default function AdminUsersPage() {
@@ -203,12 +203,12 @@ export default function AdminUsersPage() {
       <div className="erp-table-container p-6">
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
             <Input
               placeholder="Search by name or email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 h-10 border-gray-200 focus:border-navy-900 focus:ring-navy-900/20"
+              className="pl-10 h-10 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900/20"
             />
           </div>
         </div>
@@ -233,10 +233,10 @@ export default function AdminUsersPage() {
             <TabsContent key={tab} value={tab}>
               {loading ? (
                 <div className="flex justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
                 </div>
               ) : filteredProfiles.length === 0 ? (
-                <p className="text-center py-12 text-gray-500">
+                <p className="text-center py-12 text-gray-500 dark:text-gray-400">
                   No users found.
                 </p>
               ) : (
@@ -257,7 +257,7 @@ export default function AdminUsersPage() {
                         <TableCell className="font-medium">
                           {profile.full_name}
                         </TableCell>
-                        <TableCell className="text-gray-600">
+                        <TableCell className="text-gray-600 dark:text-gray-300">
                           {profile.email}
                         </TableCell>
                         <TableCell>
@@ -273,14 +273,14 @@ export default function AdminUsersPage() {
                             variant="secondary"
                             className={
                               profile.is_active
-                                ? "bg-green-100 text-green-700"
-                                : "bg-gray-100 text-gray-500"
+                                ? "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400"
+                                : "bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400"
                             }
                           >
                             {profile.is_active ? "Active" : "Inactive"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-gray-500">
+                        <TableCell className="text-gray-500 dark:text-gray-400">
                           {new Date(profile.created_at).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-right">
@@ -296,7 +296,7 @@ export default function AdminUsersPage() {
                               variant="ghost"
                               size="icon-sm"
                               onClick={() => handleDelete(profile)}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -319,19 +319,19 @@ export default function AdminUsersPage() {
             <>
               <DialogHeader>
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-green-100 flex items-center justify-center">
+                  <div className="h-10 w-10 rounded-xl bg-green-100 dark:bg-green-950/30 flex items-center justify-center">
                     <ShieldCheck className="h-5 w-5 text-green-600" />
                   </div>
                   <div>
                     <DialogTitle>User Created Successfully</DialogTitle>
-                    <p className="text-sm text-gray-500 mt-0.5">Save the temporary password below</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Save the temporary password below</p>
                   </div>
                 </div>
               </DialogHeader>
 
               <div className="space-y-4">
-                <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200/60 p-4">
-                  <code className="flex-1 text-sm font-mono font-semibold text-navy-900">
+                <div className="flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 p-4">
+                  <code className="flex-1 text-sm font-mono font-semibold text-navy-900 dark:text-white">
                     {generatedPassword}
                   </code>
                   <Button
@@ -346,7 +346,7 @@ export default function AdminUsersPage() {
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 dark:text-gray-500">
                   The user will be asked to set their own password on first login.
                 </p>
                 <DialogFooter>
@@ -371,7 +371,7 @@ export default function AdminUsersPage() {
                   </div>
                   <div>
                     <DialogTitle>Add New User</DialogTitle>
-                    <p className="text-sm text-gray-500 mt-0.5">Create a new account for the ERP portal</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Create a new account for the ERP portal</p>
                   </div>
                 </div>
               </DialogHeader>

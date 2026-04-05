@@ -595,16 +595,16 @@ export default function AdminStudentsPage() {
             </Select>
           </div>
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
             <Input
               placeholder="Search by name or admission number..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 h-10 border-gray-200 focus:border-navy-900 focus:ring-navy-900/20"
+              className="pl-10 h-10 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900/20"
             />
           </div>
           <div className="flex items-center">
-            <Badge variant="secondary" className="bg-blue-50 text-blue-700">
+            <Badge variant="secondary" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300">
               <Users className="h-3 w-3 mr-1" />
               {filteredStudents.length} student
               {filteredStudents.length === 1 ? "" : "s"}
@@ -614,13 +614,13 @@ export default function AdminStudentsPage() {
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+            <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
           </div>
         ) : filteredStudents.length === 0 ? (
           <div className="text-center py-12">
-            <Users className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500 mb-2">No students found.</p>
-            <p className="text-sm text-gray-400">
+            <Users className="h-12 w-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+            <p className="text-gray-500 dark:text-gray-400 mb-2">No students found.</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">
               Upload an Excel file or add students individually.
             </p>
           </div>
@@ -648,22 +648,22 @@ export default function AdminStudentsPage() {
                     </TableCell>
                     <TableCell>{student.full_name}</TableCell>
                     {!selectedClassId && (
-                      <TableCell className="text-gray-600">
+                      <TableCell className="text-gray-600 dark:text-gray-300">
                         {student.class_name
                           ? `${student.class_name}-${student.class_section ?? ""}`
                           : "—"}
                       </TableCell>
                     )}
-                    <TableCell className="text-gray-600">
+                    <TableCell className="text-gray-600 dark:text-gray-300">
                       {student.father_name || "—"}
                     </TableCell>
-                    <TableCell className="text-gray-600">
+                    <TableCell className="text-gray-600 dark:text-gray-300">
                       {student.roll_number ?? "—"}
                     </TableCell>
-                    <TableCell className="text-gray-600 capitalize">
+                    <TableCell className="text-gray-600 dark:text-gray-300 capitalize">
                       {student.gender || "—"}
                     </TableCell>
-                    <TableCell className="text-gray-600">
+                    <TableCell className="text-gray-600 dark:text-gray-300">
                       {student.phone || "—"}
                     </TableCell>
                     <TableCell>
@@ -671,8 +671,8 @@ export default function AdminStudentsPage() {
                         variant="secondary"
                         className={
                           student.is_active
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-500"
+                            ? "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400"
+                            : "bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400"
                         }
                       >
                         {student.is_active ? "Active" : "Inactive"}
@@ -684,7 +684,7 @@ export default function AdminStudentsPage() {
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => openEditDialog(student)}
-                          className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                          className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -692,7 +692,7 @@ export default function AdminStudentsPage() {
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => handleDelete(student)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

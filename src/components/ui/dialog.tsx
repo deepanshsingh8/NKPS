@@ -57,7 +57,7 @@ function DialogContent({
         <DialogPrimitive.Popup
           data-slot="dialog-content"
           className={cn(
-            "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-2xl bg-white p-6 text-sm text-popover-foreground shadow-xl shadow-navy-900/10 ring-1 ring-navy-900/5 duration-200 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-closed:slide-out-to-bottom-2",
+            "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-2xl bg-white dark:bg-card p-6 text-sm text-popover-foreground shadow-xl shadow-navy-900/10 ring-1 ring-navy-900/5 dark:ring-border duration-200 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-closed:slide-out-to-bottom-2",
             className
           )}
           {...props}
@@ -69,7 +69,7 @@ function DialogContent({
               render={
                 <Button
                   variant="ghost"
-                  className="absolute top-4 right-4 text-gray-400 hover:text-navy-900 hover:bg-gray-100 transition-colors"
+                  className="absolute top-4 right-4 text-gray-400 dark:text-gray-500 hover:text-navy-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-muted transition-colors"
                   size="icon-sm"
                 />
               }
@@ -106,7 +106,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-2xl border-t border-gray-100 bg-gray-50/80 px-6 py-4 sm:flex-row sm:justify-end",
+        "-mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-2xl border-t border-gray-100 dark:border-border bg-gray-50/80 dark:bg-muted/50 px-6 py-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}
@@ -126,7 +126,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "font-heading text-lg leading-tight font-semibold text-navy-900",
+        "font-heading text-lg leading-tight font-semibold text-navy-900 dark:text-white",
         className
       )}
       {...props}
@@ -142,7 +142,7 @@ function DialogDescription({
     <DialogPrimitive.Description
       data-slot="dialog-description"
       className={cn(
-        "text-sm text-gray-500 leading-relaxed *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
+        "text-sm text-gray-500 dark:text-gray-400 leading-relaxed *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
         className
       )}
       {...props}

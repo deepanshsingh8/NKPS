@@ -47,7 +47,7 @@ const EVENT_TYPE_COLORS: Record<CalendarEventType, string> = {
   holiday: "bg-green-100 text-green-700 border-green-200",
   event: "bg-amber-100 text-amber-700 border-amber-200",
   pta_meeting: "bg-purple-100 text-purple-700 border-purple-200",
-  other: "bg-gray-100 text-gray-700 border-gray-200",
+  other: "bg-gray-100 dark:bg-muted text-gray-700 dark:text-gray-300 border-gray-200 dark:border-border",
 };
 
 interface ClassOption {
@@ -255,7 +255,7 @@ export default function AdminCalendarPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Calendar Management
         </h1>
         <Button
@@ -274,7 +274,7 @@ export default function AdminCalendarPage() {
           className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
             activeFilter === "all"
               ? "bg-navy-900 text-white"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              : "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-muted"
           }`}
         >
           All
@@ -286,7 +286,7 @@ export default function AdminCalendarPage() {
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
               activeFilter === type
                 ? "bg-navy-900 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                : "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-muted"
             }`}
           >
             {EVENT_TYPE_LABELS[type]}
@@ -294,14 +294,14 @@ export default function AdminCalendarPage() {
         ))}
       </div>
 
-      <Card className="bg-white rounded-2xl shadow-sm">
+      <Card className="bg-white dark:bg-card rounded-2xl shadow-sm">
         <CardContent>
           {loading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-navy-900" />
             </div>
           ) : events.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
+            <div className="text-center py-12 text-gray-400 dark:text-gray-500">
               <CalendarDays className="h-10 w-10 mx-auto mb-3 opacity-50" />
               <p className="text-sm">No events found.</p>
             </div>
@@ -337,7 +337,7 @@ export default function AdminCalendarPage() {
                     <TableCell>
                       {evt.end_date ? formatDate(evt.end_date) : "--"}
                     </TableCell>
-                    <TableCell className="max-w-[200px] truncate text-gray-500">
+                    <TableCell className="max-w-[200px] truncate text-gray-500 dark:text-gray-400">
                       {evt.description || "--"}
                     </TableCell>
                     <TableCell>
@@ -401,7 +401,7 @@ export default function AdminCalendarPage() {
                     event_type: e.target.value as CalendarEventType,
                   })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
               >
                 {EVENT_TYPES.map((type) => (
                   <option key={type} value={type}>
@@ -437,7 +437,7 @@ export default function AdminCalendarPage() {
                 onChange={(e) =>
                   setNewEvent({ ...newEvent, class_id: e.target.value })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
               >
                 <option value="">All Classes</option>
                 {classes.map((c) => (
@@ -502,7 +502,7 @@ export default function AdminCalendarPage() {
                     event_type: e.target.value as CalendarEventType,
                   })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
               >
                 {EVENT_TYPES.map((type) => (
                   <option key={type} value={type}>
@@ -538,7 +538,7 @@ export default function AdminCalendarPage() {
                 onChange={(e) =>
                   setEditData({ ...editData, class_id: e.target.value })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
               >
                 <option value="">All Classes</option>
                 {classes.map((c) => (

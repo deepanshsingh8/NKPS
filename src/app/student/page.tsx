@@ -141,11 +141,11 @@ export default function StudentDashboard() {
     <div className="space-y-8">
       {/* Welcome */}
       <div>
-        <p className="text-sm text-gray-400 mb-1">{greeting}</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">{greeting}</p>
         <h1 className="erp-page-title">
           Welcome back, {firstName}!
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Here is a summary of your academic progress.
         </p>
       </div>
@@ -157,17 +157,17 @@ export default function StudentDashboard() {
           <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-blue-500/8 to-transparent rounded-bl-full" />
           <div className="relative">
             <div className="flex items-center gap-3 mb-3">
-              <div className="h-10 w-10 rounded-xl bg-blue-100 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                 <ClipboardCheck className="h-5 w-5 text-blue-600" />
               </div>
-              <span className="text-sm font-medium text-gray-500">Attendance</span>
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Attendance</span>
             </div>
-            <p className="text-3xl font-bold text-navy-900 tracking-tight">
+            <p className="text-3xl font-bold text-navy-900 dark:text-white tracking-tight">
               {stats.attendancePercent !== null
                 ? `${stats.attendancePercent}%`
                 : "--"}
             </p>
-            <p className="text-xs text-gray-400 mt-1">Overall attendance</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Overall attendance</p>
           </div>
         </div>
 
@@ -176,15 +176,15 @@ export default function StudentDashboard() {
           <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-violet-500/8 to-transparent rounded-bl-full" />
           <div className="relative">
             <div className="flex items-center gap-3 mb-3">
-              <div className="h-10 w-10 rounded-xl bg-violet-100 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
                 <BarChart3 className="h-5 w-5 text-violet-600" />
               </div>
-              <span className="text-sm font-medium text-gray-500">Latest Result</span>
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Latest Result</span>
             </div>
-            <p className="text-3xl font-bold text-navy-900 tracking-tight">
+            <p className="text-3xl font-bold text-navy-900 dark:text-white tracking-tight">
               {stats.latestResult ?? "--"}
             </p>
-            <p className="text-xs text-gray-400 mt-1">Most recent exam</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Most recent exam</p>
           </div>
         </div>
 
@@ -203,9 +203,9 @@ export default function StudentDashboard() {
             <div className="flex items-center gap-3 mb-3">
               <div className={cn(
                 "h-10 w-10 rounded-xl flex items-center justify-center",
-                stats.feeStatus === "paid" ? "bg-green-100"
-                  : stats.feeStatus === "pending" ? "bg-amber-100"
-                  : "bg-gray-100"
+                stats.feeStatus === "paid" ? "bg-green-100 dark:bg-green-950/30"
+                  : stats.feeStatus === "pending" ? "bg-amber-100 dark:bg-amber-900/30"
+                  : "bg-gray-100 dark:bg-muted"
               )}>
                 <CreditCard className={cn(
                   "h-5 w-5",
@@ -214,14 +214,14 @@ export default function StudentDashboard() {
                     : "text-gray-400"
                 )} />
               </div>
-              <span className="text-sm font-medium text-gray-500">Fee Status</span>
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Fee Status</span>
             </div>
             {stats.feeStatus === "paid" ? (
-              <Badge className="bg-green-100 text-green-700 text-xs font-semibold">
+              <Badge className="bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-xs font-semibold">
                 Paid
               </Badge>
             ) : stats.feeStatus === "pending" ? (
-              <Badge className="bg-amber-100 text-amber-700 text-xs font-semibold">
+              <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-semibold">
                 Pending
               </Badge>
             ) : (
@@ -229,7 +229,7 @@ export default function StudentDashboard() {
                 No Records
               </Badge>
             )}
-            <p className="text-xs text-gray-400 mt-2">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
               {stats.feeStatus === "paid"
                 ? "All fees up to date"
                 : stats.feeStatus === "pending"
@@ -247,8 +247,8 @@ export default function StudentDashboard() {
           {[
             { href: "/student/attendance", icon: ClipboardCheck, label: "View Attendance", color: "bg-navy-900 text-white hover:bg-navy-800" },
             { href: "/student/results", icon: BarChart3, label: "View Results", color: "bg-gold-500 text-navy-900 hover:bg-gold-400" },
-            { href: "/student/fees", icon: CreditCard, label: "Check Fees", color: "bg-white text-navy-900 border border-gray-200 hover:bg-gray-50" },
-            { href: "/student/timetable", icon: Clock, label: "Timetable", color: "bg-white text-navy-900 border border-gray-200 hover:bg-gray-50" },
+            { href: "/student/fees", icon: CreditCard, label: "Check Fees", color: "bg-white dark:bg-card text-navy-900 dark:text-white border border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted" },
+            { href: "/student/timetable", icon: Clock, label: "Timetable", color: "bg-white dark:bg-card text-navy-900 dark:text-white border border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted" },
           ].map(({ href, icon: Icon, label, color }) => (
             <Link
               key={href}
@@ -271,7 +271,7 @@ export default function StudentDashboard() {
       {/* Upcoming Events */}
       <div>
         <div className="flex items-center gap-2 mb-4">
-          <CalendarDays className="h-5 w-5 text-gray-400" />
+          <CalendarDays className="h-5 w-5 text-gray-400 dark:text-gray-500" />
           <h2 className="erp-section-title">Upcoming Events</h2>
         </div>
         <UpcomingEvents limit={5} />

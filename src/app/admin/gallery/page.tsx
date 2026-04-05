@@ -141,7 +141,7 @@ export default function AdminGalleryPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Gallery Management
         </h1>
 
@@ -169,7 +169,7 @@ export default function AdminGalleryPage() {
               </div>
               <div>
                 <DialogTitle>Upload Gallery Images</DialogTitle>
-                <p className="text-xs text-gray-500 mt-0.5">Add photos to the school gallery</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Add photos to the school gallery</p>
               </div>
             </div>
           </DialogHeader>
@@ -206,7 +206,7 @@ export default function AdminGalleryPage() {
                   id="category"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-gray-200 px-3 text-sm bg-white focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
                 >
                   {CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>
@@ -221,7 +221,7 @@ export default function AdminGalleryPage() {
                   id="event"
                   value={eventId}
                   onChange={(e) => setEventId(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-gray-200 px-3 text-sm bg-white focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
                 >
                   <option value="">No event</option>
                   {galleryEvents.map((evt) => (
@@ -259,18 +259,18 @@ export default function AdminGalleryPage() {
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 animate-pulse"
+              className="bg-white dark:bg-card rounded-2xl overflow-hidden shadow-sm border border-gray-200 dark:border-border animate-pulse"
             >
-              <div className="aspect-[4/3] bg-gray-200" />
+              <div className="aspect-[4/3] bg-gray-200 dark:bg-muted" />
               <div className="p-4 space-y-2">
-                <div className="h-4 bg-gray-200 rounded w-3/4" />
-                <div className="h-3 bg-gray-200 rounded w-1/2" />
+                <div className="h-4 bg-gray-200 dark:bg-muted rounded w-3/4" />
+                <div className="h-3 bg-gray-200 dark:bg-muted rounded w-1/2" />
               </div>
             </div>
           ))}
         </div>
       ) : images.length === 0 ? (
-        <div className="text-center py-20 text-gray-500">
+        <div className="text-center py-20 text-gray-500 dark:text-gray-400">
           <p className="text-lg">No gallery images yet.</p>
           <p className="text-sm mt-1">Click &quot;Add Images&quot; to get started.</p>
         </div>
@@ -279,7 +279,7 @@ export default function AdminGalleryPage() {
           {images.map((image) => (
             <div
               key={image.id}
-              className="relative group bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200"
+              className="relative group bg-white dark:bg-card rounded-2xl overflow-hidden shadow-sm border border-gray-200 dark:border-border"
             >
               <div className="aspect-[4/3] bg-navy-100 flex items-center justify-center">
                 {image.src ? (
@@ -289,12 +289,12 @@ export default function AdminGalleryPage() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <span className="text-gray-400">{image.alt}</span>
+                  <span className="text-gray-400 dark:text-gray-500">{image.alt}</span>
                 )}
               </div>
               <div className="p-4">
                 <p className="text-sm font-medium truncate">{image.alt}</p>
-                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
                   {image.category}
                 </span>
               </div>

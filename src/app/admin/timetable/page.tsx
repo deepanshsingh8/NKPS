@@ -254,7 +254,7 @@ export default function AdminTimetablePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-navy-900" />
+        <Loader2 className="h-8 w-8 animate-spin text-navy-900 dark:text-white" />
       </div>
     );
   }
@@ -262,7 +262,7 @@ export default function AdminTimetablePage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Timetable
         </h1>
       </div>
@@ -288,7 +288,7 @@ export default function AdminTimetablePage() {
 
       {!selectedClassId ? (
         <div className="erp-table-container p-6">
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-12 text-gray-400 dark:text-gray-500">
             <Clock className="h-10 w-10 mx-auto mb-3 opacity-50" />
             <p className="text-sm">Select a class to manage its timetable</p>
           </div>
@@ -301,14 +301,14 @@ export default function AdminTimetablePage() {
         <div className="erp-table-container overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50">
-                <th className="px-3 py-3 text-left font-medium text-gray-500 border-b">
+              <tr className="bg-gray-50 dark:bg-muted">
+                <th className="px-3 py-3 text-left font-medium text-gray-500 dark:text-gray-400 border-b dark:border-border">
                   Period
                 </th>
                 {DAYS.map((d) => (
                   <th
                     key={d.value}
-                    className="px-3 py-3 text-center font-medium text-gray-500 border-b"
+                    className="px-3 py-3 text-center font-medium text-gray-500 dark:text-gray-400 border-b dark:border-border"
                   >
                     {d.label}
                   </th>
@@ -317,10 +317,10 @@ export default function AdminTimetablePage() {
             </thead>
             <tbody>
               {DEFAULT_PERIODS.map((dp) => (
-                <tr key={dp.num} className="border-b border-gray-100">
-                  <td className="px-3 py-2 text-gray-600">
+                <tr key={dp.num} className="border-b border-gray-100 dark:border-border">
+                  <td className="px-3 py-2 text-gray-600 dark:text-gray-300">
                     <div className="font-medium">P{dp.num}</div>
-                    <div className="text-xs text-gray-400">
+                    <div className="text-xs text-gray-400 dark:text-gray-500">
                       {dp.start}-{dp.end}
                     </div>
                   </td>
@@ -332,28 +332,28 @@ export default function AdminTimetablePage() {
                           onClick={() => openDialog(d.value, dp.num)}
                           className={`w-full rounded-lg px-2 py-2 text-xs text-left transition-colors min-h-[56px] ${
                             cell
-                              ? "bg-blue-50 border border-blue-200 hover:bg-blue-100"
-                              : "bg-gray-50 border border-dashed border-gray-200 hover:bg-gray-100 hover:border-gray-300"
+                              ? "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                              : "bg-gray-50 dark:bg-muted border border-dashed border-gray-200 dark:border-border hover:bg-gray-100 dark:hover:bg-muted hover:border-gray-300 dark:hover:border-gray-600"
                           }`}
                         >
                           {cell ? (
                             <>
-                              <div className="font-medium text-navy-900 truncate">
+                              <div className="font-medium text-navy-900 dark:text-white truncate">
                                 {cell.subject_name}
                               </div>
                               {cell.teacher_name && (
-                                <div className="text-gray-500 truncate">
+                                <div className="text-gray-500 dark:text-gray-400 truncate">
                                   {cell.teacher_name}
                                 </div>
                               )}
                               {cell.room && (
-                                <div className="text-gray-400 truncate">
+                                <div className="text-gray-400 dark:text-gray-500 truncate">
                                   {cell.room}
                                 </div>
                               )}
                             </>
                           ) : (
-                            <div className="text-gray-300 text-center">
+                            <div className="text-gray-300 dark:text-gray-600 text-center">
                               <Plus className="h-3 w-3 mx-auto" />
                             </div>
                           )}
@@ -383,7 +383,7 @@ export default function AdminTimetablePage() {
                 <select
                   value={formData.day_of_week}
                   disabled
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50"
+                  className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-gray-50 dark:bg-muted dark:text-gray-300"
                 >
                   {DAYS.map((d) => (
                     <option key={d.value} value={d.value}>

@@ -49,9 +49,9 @@ interface StudentRow {
 }
 
 const STATUS_OPTIONS: { value: AttendanceStatus; label: string; color: string }[] = [
-  { value: "present", label: "Present", color: "bg-green-100 text-green-700 hover:bg-green-200" },
-  { value: "absent", label: "Absent", color: "bg-red-100 text-red-700 hover:bg-red-200" },
-  { value: "late", label: "Late", color: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200" },
+  { value: "present", label: "Present", color: "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/40" },
+  { value: "absent", label: "Absent", color: "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40" },
+  { value: "late", label: "Late", color: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/40" },
 ];
 
 export default function TeacherAttendancePage() {
@@ -232,10 +232,10 @@ export default function TeacherAttendancePage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Mark Attendance
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           Select a class and date to mark or update attendance.
         </p>
       </div>
@@ -245,7 +245,7 @@ export default function TeacherAttendancePage() {
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Class
               </label>
               <Select
@@ -265,7 +265,7 @@ export default function TeacherAttendancePage() {
               </Select>
             </div>
             <div className="sm:w-48">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Date
               </label>
               <Input
@@ -281,7 +281,7 @@ export default function TeacherAttendancePage() {
 
       {/* Already marked indicator */}
       {alreadyMarked && selectedClassId && (
-        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm">
+        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-border text-blue-700 dark:text-blue-400 text-sm">
           <CheckCircle2 className="h-4 w-4" />
           Attendance already marked for this date. You can edit and resubmit.
         </div>
@@ -291,7 +291,7 @@ export default function TeacherAttendancePage() {
       {selectedClassId && !loadingStudents && students.length > 0 && (
         <Card className="erp-card">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-navy-900">
+            <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white">
               <Users className="h-5 w-5 text-gold-500" />
               Student Roster ({students.length})
             </CardTitle>
@@ -299,7 +299,7 @@ export default function TeacherAttendancePage() {
               variant="outline"
               size="sm"
               onClick={markAllPresent}
-              className="text-green-700 border-green-300 hover:bg-green-50"
+              className="text-green-700 dark:text-green-400 border-green-300 hover:bg-green-50 dark:hover:bg-green-950/30"
             >
               <CheckCircle2 className="h-4 w-4 mr-1" />
               Mark All Present
@@ -308,13 +308,13 @@ export default function TeacherAttendancePage() {
           <CardContent>
             {/* Summary badges */}
             <div className="flex gap-3 mb-4">
-              <Badge className="bg-green-100 text-green-700">
+              <Badge className="bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400">
                 Present: {presentCount}
               </Badge>
-              <Badge className="bg-red-100 text-red-700">
+              <Badge className="bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400">
                 Absent: {absentCount}
               </Badge>
-              <Badge className="bg-yellow-100 text-yellow-700">
+              <Badge className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
                 Late: {lateCount}
               </Badge>
             </div>
@@ -330,7 +330,7 @@ export default function TeacherAttendancePage() {
               <TableBody>
                 {students.map((student) => (
                   <TableRow key={student.student_id}>
-                    <TableCell className="font-medium text-gray-600">
+                    <TableCell className="font-medium text-gray-600 dark:text-gray-300">
                       {student.roll_number ?? "-"}
                     </TableCell>
                     <TableCell className="font-medium">
@@ -348,7 +348,7 @@ export default function TeacherAttendancePage() {
                             className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                               student.status === opt.value
                                 ? opt.color + " ring-2 ring-offset-1 ring-current"
-                                : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                                : "bg-gray-100 dark:bg-muted text-gray-400 hover:bg-gray-200 dark:hover:bg-muted"
                             }`}
                           >
                             {opt.label}
@@ -383,7 +383,7 @@ export default function TeacherAttendancePage() {
       {selectedClassId && !loadingStudents && students.length === 0 && (
         <Card className="erp-card">
           <CardContent className="flex items-center justify-center py-12">
-            <div className="text-center text-gray-400">
+            <div className="text-center text-gray-400 dark:text-gray-500">
               <Users className="h-10 w-10 mx-auto mb-3 opacity-50" />
               <p className="text-sm">No students enrolled in this class</p>
             </div>
@@ -394,7 +394,7 @@ export default function TeacherAttendancePage() {
       {!selectedClassId && (
         <Card className="erp-card">
           <CardContent className="flex items-center justify-center py-12">
-            <div className="text-center text-gray-400">
+            <div className="text-center text-gray-400 dark:text-gray-500">
               <ClipboardCheck className="h-10 w-10 mx-auto mb-3 opacity-50" />
               <p className="text-sm">Select a class to begin marking attendance</p>
             </div>
@@ -404,17 +404,17 @@ export default function TeacherAttendancePage() {
 
       {loadingStudents && (
         <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
         </div>
       )}
 
       {classes.length === 0 && (
         <Card className="erp-card">
           <CardContent className="flex items-center justify-center py-12">
-            <div className="text-center text-gray-400">
+            <div className="text-center text-gray-400 dark:text-gray-500">
               <ClipboardCheck className="h-10 w-10 mx-auto mb-3 opacity-50" />
               <p className="text-sm">No classes assigned to you yet</p>
-              <p className="text-xs text-gray-300 mt-1">
+              <p className="text-xs text-gray-300 dark:text-gray-500 mt-1">
                 Contact the administrator to assign classes
               </p>
             </div>

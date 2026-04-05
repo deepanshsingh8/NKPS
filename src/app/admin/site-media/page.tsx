@@ -115,10 +115,10 @@ function SlotCard({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div className="bg-white dark:bg-card rounded-xl border border-gray-200 dark:border-border shadow-sm overflow-hidden">
       <div className="flex items-start gap-4 p-4">
         {/* Thumbnail */}
-        <div className="w-32 h-24 rounded-lg overflow-hidden bg-gray-100 shrink-0 relative">
+        <div className="w-32 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-muted shrink-0 relative">
           <img
             src={item.current_url}
             alt={item.alt_text || item.label}
@@ -131,10 +131,10 @@ function SlotCard({
 
         {/* Info + Actions */}
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-navy-900 text-sm truncate">
+          <p className="font-medium text-navy-900 dark:text-white text-sm truncate">
             {item.label}
           </p>
-          <p className="text-xs text-gray-400 mt-0.5 font-mono">{item.slot}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 font-mono">{item.slot}</p>
 
           <div className="flex gap-2 mt-3">
             <input
@@ -229,10 +229,10 @@ export default function AdminSiteMediaPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-navy-900">
+          <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
             Site Media
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Manage images across all website pages.{" "}
             {customizedCount > 0 && (
               <span className="inline-flex items-center gap-1 text-green-600">
@@ -249,12 +249,12 @@ export default function AdminSiteMediaPage() {
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="bg-white rounded-xl border border-gray-200 animate-pulse h-28"
+              className="bg-white dark:bg-card rounded-xl border border-gray-200 dark:border-border animate-pulse h-28"
             />
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-20 text-gray-500">
+        <div className="text-center py-20 text-gray-500 dark:text-gray-400">
           <p className="text-lg">No site media slots found.</p>
           <p className="text-sm mt-1">
             Run the seed script to populate image slots.
@@ -271,14 +271,14 @@ export default function AdminSiteMediaPage() {
             return (
               <div
                 key={page}
-                className="border border-gray-200 rounded-2xl overflow-hidden"
+                className="border border-gray-200 dark:border-border rounded-2xl overflow-hidden"
               >
                 <button
                   onClick={() => togglePage(page)}
-                  className="w-full flex items-center justify-between p-5 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  className="w-full flex items-center justify-between p-5 bg-gray-50 dark:bg-muted hover:bg-gray-100 dark:hover:bg-muted transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <h2 className="font-heading text-lg font-semibold text-navy-900">
+                    <h2 className="font-heading text-lg font-semibold text-navy-900 dark:text-white">
                       {PAGE_LABELS[page] || page}
                     </h2>
                     {pageCustomized > 0 && (
@@ -289,7 +289,7 @@ export default function AdminSiteMediaPage() {
                   </div>
                   <ChevronDown
                     className={cn(
-                      "h-5 w-5 text-gray-400 transition-transform duration-200",
+                      "h-5 w-5 text-gray-400 dark:text-gray-500 transition-transform duration-200",
                       isExpanded && "rotate-180"
                     )}
                   />
@@ -299,7 +299,7 @@ export default function AdminSiteMediaPage() {
                   <div className="p-5 space-y-6">
                     {sections.map(({ section, items: sectionItems }) => (
                       <div key={section}>
-                        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
                           {SECTION_LABELS[section] || section}
                         </h3>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">

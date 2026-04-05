@@ -46,13 +46,13 @@ interface ClassSummary {
 }
 
 const GRADE_COLORS: Record<string, string> = {
-  "A+": "bg-green-100 text-green-700 border-green-200",
-  A: "bg-green-50 text-green-600 border-green-200",
-  "B+": "bg-blue-100 text-blue-700 border-blue-200",
-  B: "bg-blue-50 text-blue-600 border-blue-200",
-  C: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  D: "bg-orange-100 text-orange-700 border-orange-200",
-  F: "bg-red-100 text-red-700 border-red-200",
+  "A+": "bg-green-100 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800",
+  A: "bg-green-50 text-green-600 border-green-200 dark:bg-green-950/20 dark:text-green-400 dark:border-green-800",
+  "B+": "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800",
+  B: "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-800",
+  C: "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-950/30 dark:text-yellow-400 dark:border-yellow-800",
+  D: "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800",
+  F: "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800",
 };
 
 function getGradeFromPct(pct: number): string {
@@ -269,7 +269,7 @@ export default function AdminResultsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900 dark:border-white border-t-transparent" />
       </div>
     );
   }
@@ -277,20 +277,20 @@ export default function AdminResultsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Results Overview
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           View class-wise performance summary and subject breakdown.
         </p>
       </div>
 
       {/* Filters */}
-      <Card className="bg-white rounded-2xl">
+      <Card className="bg-white dark:bg-card rounded-2xl">
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-navy-900">Class</label>
+              <label className="text-sm font-medium text-navy-900 dark:text-white">Class</label>
               <Select
                 value={selectedClassId}
                 onValueChange={(val) => val && setSelectedClassId(val)}
@@ -309,7 +309,7 @@ export default function AdminResultsPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-navy-900">
+              <label className="text-sm font-medium text-navy-900 dark:text-white">
                 Exam Type
               </label>
               <Select
@@ -335,7 +335,7 @@ export default function AdminResultsPage() {
       {/* Loading / Empty state */}
       {loadingData && (
         <div className="flex items-center justify-center py-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900 border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900 dark:border-white border-t-transparent" />
         </div>
       )}
 
@@ -343,9 +343,9 @@ export default function AdminResultsPage() {
         selectedClassId &&
         selectedExamTypeId &&
         !summary && (
-          <Card className="bg-white rounded-2xl">
+          <Card className="bg-white dark:bg-card rounded-2xl">
             <CardContent className="flex items-center justify-center py-16">
-              <div className="text-center text-gray-400">
+              <div className="text-center text-gray-400 dark:text-gray-500">
                 <BarChart3 className="h-10 w-10 mx-auto mb-3 opacity-50" />
                 <p className="text-sm">
                   No results found for this combination
@@ -359,15 +359,15 @@ export default function AdminResultsPage() {
       {summary && !loadingData && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="bg-white rounded-2xl">
+            <Card className="bg-white dark:bg-card rounded-2xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-navy-900 text-base">
+                <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white text-base">
                   <TrendingUp className="h-5 w-5 text-gold-500" />
                   Average Performance
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold text-navy-900">
+                <p className="text-3xl font-bold text-navy-900 dark:text-white">
                   {summary.avg_percentage}%
                 </p>
                 <Badge
@@ -378,26 +378,26 @@ export default function AdminResultsPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-white rounded-2xl">
+            <Card className="bg-white dark:bg-card rounded-2xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-navy-900 text-base">
+                <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white text-base">
                   <Users className="h-5 w-5 text-gold-500" />
                   Pass Rate
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold text-navy-900">
+                <p className="text-3xl font-bold text-navy-900 dark:text-white">
                   {summary.pass_percentage}%
                 </p>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   {summary.total_students} students evaluated
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="bg-white rounded-2xl">
+            <Card className="bg-white dark:bg-card rounded-2xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-navy-900 text-base">
+                <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white text-base">
                   <Award className="h-5 w-5 text-gold-500" />
                   Top Performers
                 </CardTitle>
@@ -409,7 +409,7 @@ export default function AdminResultsPage() {
                       key={i}
                       className="flex items-center justify-between text-sm"
                     >
-                      <span className="text-navy-900 truncate mr-2">
+                      <span className="text-navy-900 dark:text-white truncate mr-2">
                         {i + 1}. {tp.name}
                       </span>
                       <Badge
@@ -420,7 +420,7 @@ export default function AdminResultsPage() {
                     </div>
                   ))}
                   {summary.top_performers.length === 0 && (
-                    <p className="text-sm text-gray-400">No data</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500">No data</p>
                   )}
                 </div>
               </CardContent>
@@ -428,15 +428,15 @@ export default function AdminResultsPage() {
           </div>
 
           {/* Subject Breakdown */}
-          <Card className="bg-white rounded-2xl">
+          <Card className="bg-white dark:bg-card rounded-2xl">
             <CardHeader>
-              <CardTitle className="text-navy-900">
+              <CardTitle className="text-navy-900 dark:text-white">
                 Subject-wise Breakdown
               </CardTitle>
             </CardHeader>
             <CardContent>
               {subjectBreakdown.length === 0 ? (
-                <p className="text-center text-gray-400 py-8">
+                <p className="text-center text-gray-400 dark:text-gray-500 py-8">
                   No subject data available
                 </p>
               ) : (

@@ -204,7 +204,7 @@ export default function AdminClassSubjectsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Class Subjects
         </h1>
         {selectedClassId && (
@@ -243,19 +243,19 @@ export default function AdminClassSubjectsPage() {
 
       <div className="erp-table-container p-6">
         {!selectedClassId ? (
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-12 text-gray-400 dark:text-gray-500">
             <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-50" />
             <p className="text-sm">Select a class to manage its subjects</p>
           </div>
         ) : csLoading ? (
           <div className="flex justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+            <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
           </div>
         ) : classSubjects.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-12 text-gray-400 dark:text-gray-500">
             <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-50" />
             <p className="text-sm">No subjects assigned to this class yet</p>
-            <p className="text-xs text-gray-300 mt-1">
+            <p className="text-xs text-gray-300 dark:text-gray-600 mt-1">
               Click &quot;Assign Subject&quot; to add subjects and assign
               teachers
             </p>
@@ -276,10 +276,10 @@ export default function AdminClassSubjectsPage() {
                   <TableCell className="font-medium">
                     {cs.subject_name}
                   </TableCell>
-                  <TableCell className="text-gray-500">
+                  <TableCell className="text-gray-500 dark:text-gray-400">
                     {cs.subject_code ?? "—"}
                   </TableCell>
-                  <TableCell className="text-gray-600">
+                  <TableCell className="text-gray-600 dark:text-gray-300">
                     {cs.teacher_name ?? "Not assigned"}
                   </TableCell>
                   <TableCell className="text-right">
@@ -287,7 +287,7 @@ export default function AdminClassSubjectsPage() {
                       variant="ghost"
                       size="icon-sm"
                       onClick={() => handleRemove(cs.id)}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

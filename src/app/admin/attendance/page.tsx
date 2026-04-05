@@ -200,10 +200,10 @@ export default function AdminAttendancePage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Attendance Reports
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           Overview of attendance across all classes.
         </p>
       </div>
@@ -213,29 +213,29 @@ export default function AdminAttendancePage() {
         <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <Users className="h-5 w-5 text-gold-500 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-navy-900">{totalStudents}</p>
-            <p className="text-xs text-gray-500">Total Students</p>
+            <p className="text-2xl font-bold text-navy-900 dark:text-white">{totalStudents}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Total Students</p>
           </CardContent>
         </Card>
         <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <BarChart3 className="h-5 w-5 text-gold-500 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-navy-900">{avgAttendance}%</p>
-            <p className="text-xs text-gray-500">Avg Attendance</p>
+            <p className="text-2xl font-bold text-navy-900 dark:text-white">{avgAttendance}%</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Avg Attendance</p>
           </CardContent>
         </Card>
         <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <CheckCircle2 className="h-5 w-5 text-green-500 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-green-700">{presentToday}</p>
-            <p className="text-xs text-gray-500">Present Today</p>
+            <p className="text-2xl font-bold text-green-700 dark:text-green-400">{presentToday}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Present Today</p>
           </CardContent>
         </Card>
         <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <XCircle className="h-5 w-5 text-red-500 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-red-700">{absentToday}</p>
-            <p className="text-xs text-gray-500">Absent Today</p>
+            <p className="text-2xl font-bold text-red-700 dark:text-red-400">{absentToday}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Absent Today</p>
           </CardContent>
         </Card>
       </div>
@@ -245,7 +245,7 @@ export default function AdminAttendancePage() {
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Class
               </label>
               <Select
@@ -266,7 +266,7 @@ export default function AdminAttendancePage() {
               </Select>
             </div>
             <div className="sm:w-44">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 From
               </label>
               <Input
@@ -276,7 +276,7 @@ export default function AdminAttendancePage() {
               />
             </div>
             <div className="sm:w-44">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 To
               </label>
               <Input
@@ -292,7 +292,7 @@ export default function AdminAttendancePage() {
       {/* Class-wise Table */}
       <Card className="erp-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-navy-900">
+          <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white">
             <ClipboardCheck className="h-5 w-5 text-gold-500" />
             Class-wise Attendance
           </CardTitle>
@@ -300,10 +300,10 @@ export default function AdminAttendancePage() {
         <CardContent>
           {loadingStats ? (
             <div className="flex justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
             </div>
           ) : classStats.length === 0 ? (
-            <p className="text-center py-12 text-gray-500">
+            <p className="text-center py-12 text-gray-500 dark:text-gray-400">
               No classes found.
             </p>
           ) : (
@@ -328,27 +328,27 @@ export default function AdminAttendancePage() {
                     <TableCell className="text-center">
                       {stat.totalStudents}
                     </TableCell>
-                    <TableCell className="text-center text-gray-500">
+                    <TableCell className="text-center text-gray-500 dark:text-gray-400">
                       {stat.totalRecords}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge className="bg-green-100 text-green-700 text-xs">
+                      <Badge className="bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-xs">
                         {stat.presentCount}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge className="bg-red-100 text-red-700 text-xs">
+                      <Badge className="bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 text-xs">
                         {stat.absentCount}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge className="bg-yellow-100 text-yellow-700 text-xs">
+                      <Badge className="bg-yellow-100 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-400 text-xs">
                         {stat.lateCount}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-2">
-                        <div className="w-16 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="w-16 h-2 bg-gray-100 dark:bg-muted rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all ${
                               stat.attendancePercent >= 75
@@ -365,10 +365,10 @@ export default function AdminAttendancePage() {
                         <span
                           className={`text-sm font-medium ${
                             stat.attendancePercent >= 75
-                              ? "text-green-700"
+                              ? "text-green-700 dark:text-green-400"
                               : stat.attendancePercent >= 50
-                                ? "text-yellow-700"
-                                : "text-red-700"
+                                ? "text-yellow-700 dark:text-yellow-400"
+                                : "text-red-700 dark:text-red-400"
                           }`}
                         >
                           {stat.attendancePercent}%

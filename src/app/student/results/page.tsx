@@ -43,13 +43,13 @@ interface ExamGroup {
 }
 
 const GRADE_COLORS: Record<string, string> = {
-  "A+": "bg-green-100 text-green-700 border-green-200",
-  A: "bg-green-50 text-green-600 border-green-200",
-  "B+": "bg-blue-100 text-blue-700 border-blue-200",
-  B: "bg-blue-50 text-blue-600 border-blue-200",
-  C: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  D: "bg-orange-100 text-orange-700 border-orange-200",
-  F: "bg-red-100 text-red-700 border-red-200",
+  "A+": "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800",
+  A: "bg-green-50 dark:bg-green-950/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800",
+  "B+": "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+  B: "bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+  C: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
+  D: "bg-orange-100 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800",
+  F: "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
 };
 
 export default function StudentResultsPage() {
@@ -119,10 +119,10 @@ export default function StudentResultsPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-navy-900">
+          <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
             My Results
           </h1>
-          <p className="text-gray-500 mt-1">
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
             {studentName && `${studentName}`}
             {className && ` | ${className}`}
             {rollNumber !== null && ` | Roll No: ${rollNumber}`}
@@ -130,7 +130,7 @@ export default function StudentResultsPage() {
         </div>
         <Button
           variant="outline"
-          className="border-navy-900 text-navy-900 hover:bg-navy-900/5"
+          className="border-navy-900 dark:border-white text-navy-900 dark:text-white hover:bg-navy-900/5 dark:hover:bg-white/5"
           onClick={() =>
             toast.info("Report card download coming soon")
           }
@@ -141,12 +141,12 @@ export default function StudentResultsPage() {
       </div>
 
       {exams.length === 0 ? (
-        <Card className="bg-white rounded-2xl">
+        <Card className="bg-white dark:bg-card rounded-2xl">
           <CardContent className="flex items-center justify-center py-16">
-            <div className="text-center text-gray-400">
+            <div className="text-center text-gray-400 dark:text-gray-500">
               <BarChart3 className="h-10 w-10 mx-auto mb-3 opacity-50" />
               <p className="text-sm">No results available yet</p>
-              <p className="text-xs text-gray-300 mt-1">
+              <p className="text-xs text-gray-300 dark:text-gray-500 mt-1">
                 Results will appear here once published
               </p>
             </div>
@@ -164,9 +164,9 @@ export default function StudentResultsPage() {
 
           {exams.map((exam) => (
             <TabsContent key={exam.exam_type_id} value={exam.exam_type_id}>
-              <Card className="bg-white rounded-2xl">
+              <Card className="bg-white dark:bg-card rounded-2xl">
                 <CardHeader>
-                  <CardTitle className="text-navy-900 flex items-center justify-between">
+                  <CardTitle className="text-navy-900 dark:text-white flex items-center justify-between">
                     <span>{exam.exam_type_name}</span>
                     <div className="flex items-center gap-3">
                       <Badge
@@ -174,7 +174,7 @@ export default function StudentResultsPage() {
                       >
                         {exam.overall_grade}
                       </Badge>
-                      <span className="text-sm font-normal text-gray-500">
+                      <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
                         {exam.percentage}%
                       </span>
                     </div>
@@ -211,7 +211,7 @@ export default function StudentResultsPage() {
                               <TableCell className="font-medium">
                                 {sub.subject_name}
                                 {sub.subject_code && (
-                                  <span className="text-gray-400 text-xs ml-1">
+                                  <span className="text-gray-400 dark:text-gray-500 text-xs ml-1">
                                     ({sub.subject_code})
                                   </span>
                                 )}
@@ -237,7 +237,7 @@ export default function StudentResultsPage() {
                         })}
 
                         {/* Summary Row */}
-                        <TableRow className="bg-gray-50 font-semibold">
+                        <TableRow className="bg-gray-50 dark:bg-muted font-semibold">
                           <TableCell>Total</TableCell>
                           <TableCell className="text-center">
                             {exam.total_obtained}

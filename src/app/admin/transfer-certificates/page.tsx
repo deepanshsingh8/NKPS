@@ -175,7 +175,7 @@ export default function AdminTransferCertificatesPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Transfer Certificates
         </h1>
 
@@ -195,7 +195,7 @@ export default function AdminTransferCertificatesPage() {
               </div>
               <div>
                 <DialogTitle>Upload Transfer Certificate</DialogTitle>
-                <p className="text-xs text-gray-500 mt-0.5">Add a new TC to the school records</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Add a new TC to the school records</p>
               </div>
             </div>
           </DialogHeader>
@@ -215,15 +215,15 @@ export default function AdminTransferCertificatesPage() {
             <div className="space-y-2">
               <Label className="text-sm font-medium">Link to Student</Label>
               {selectedStudent ? (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-green-50 border border-green-200">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
                     <UserCheck className="h-4 w-4 text-green-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-green-800 truncate">
+                    <p className="text-sm font-medium text-green-800 dark:text-green-300 truncate">
                       {selectedStudent.full_name}
                     </p>
-                    <p className="text-xs text-green-600">
+                    <p className="text-xs text-green-600 dark:text-green-400">
                       {selectedStudent.admission_no}
                       {selectedStudent.father_name && ` \u00B7 ${selectedStudent.father_name}`}
                     </p>
@@ -254,18 +254,18 @@ export default function AdminTransferCertificatesPage() {
                     <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
                   )}
                   {studentResults.length > 0 && (
-                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                    <div className="absolute z-10 mt-1 w-full bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl shadow-lg max-h-48 overflow-y-auto">
                       {studentResults.map((s) => (
                         <button
                           key={s.id}
                           type="button"
                           onClick={() => selectStudent(s)}
-                          className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm border-b border-gray-100 last:border-0 transition-colors"
+                          className="w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-muted text-sm border-b border-gray-100 dark:border-border last:border-0 transition-colors"
                         >
                           <span className="font-medium">{s.full_name}</span>
-                          <span className="text-gray-500 ml-2">({s.admission_no})</span>
+                          <span className="text-gray-500 dark:text-gray-400 ml-2">({s.admission_no})</span>
                           {s.father_name && (
-                            <span className="text-gray-400 ml-1 text-xs">\u00B7 {s.father_name}</span>
+                            <span className="text-gray-400 dark:text-gray-500 ml-1 text-xs">\u00B7 {s.father_name}</span>
                           )}
                         </button>
                       ))}
@@ -273,7 +273,7 @@ export default function AdminTransferCertificatesPage() {
                   )}
                 </div>
               )}
-              <p className="text-[11px] text-gray-400">
+              <p className="text-[11px] text-gray-400 dark:text-gray-500">
                 Or fill in manually below if the student is not in the system
               </p>
             </div>
@@ -350,11 +350,11 @@ export default function AdminTransferCertificatesPage() {
         {loading ? (
           <div className="p-8 space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
+              <div key={i} className="h-12 bg-gray-100 dark:bg-muted rounded animate-pulse" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-gray-500 dark:text-gray-400">
             {searchQuery
               ? "No certificates match your search."
               : "No transfer certificates uploaded yet."}
@@ -376,7 +376,7 @@ export default function AdminTransferCertificatesPage() {
                   <TableCell className="font-medium">
                     {tc.student_name}
                   </TableCell>
-                  <TableCell className="text-gray-600">
+                  <TableCell className="text-gray-600 dark:text-gray-400">
                     {tc.admission_no || "—"}
                   </TableCell>
                   <TableCell>{tc.academic_year}</TableCell>
@@ -389,7 +389,7 @@ export default function AdminTransferCertificatesPage() {
                         href={tc.file_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 transition-colors"
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 dark:hover:bg-muted transition-colors"
                       >
                         <Download className="h-4 w-4" />
                       </a>

@@ -129,7 +129,7 @@ export default function AdminSubjectsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Subjects
         </h1>
         <Button
@@ -147,10 +147,10 @@ export default function AdminSubjectsPage() {
       <div className="erp-table-container p-6">
         {loading ? (
           <div className="flex justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+            <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
           </div>
         ) : subjects.length === 0 ? (
-          <p className="text-center py-12 text-gray-500">
+          <p className="text-center py-12 text-gray-500 dark:text-gray-400">
             No subjects found. Add one to get started.
           </p>
         ) : (
@@ -168,7 +168,7 @@ export default function AdminSubjectsPage() {
               {subjects.map((subject) => (
                 <TableRow key={subject.id}>
                   <TableCell className="font-medium">{subject.name}</TableCell>
-                  <TableCell className="text-gray-600">
+                  <TableCell className="text-gray-600 dark:text-gray-300">
                     {subject.code || "—"}
                   </TableCell>
                   <TableCell>
@@ -176,14 +176,14 @@ export default function AdminSubjectsPage() {
                       variant="secondary"
                       className={
                         subject.is_active
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-500"
+                          ? "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400"
+                          : "bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400"
                       }
                     >
                       {subject.is_active ? "Active" : "Inactive"}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-gray-500">
+                  <TableCell className="text-gray-500 dark:text-gray-400">
                     {new Date(subject.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell className="text-right">
@@ -199,7 +199,7 @@ export default function AdminSubjectsPage() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => handleDelete(subject.id)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

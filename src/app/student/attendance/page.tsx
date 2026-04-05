@@ -44,9 +44,9 @@ const MONTH_NAMES = [
 ];
 
 const CALENDAR_COLORS: Record<string, string> = {
-  present: "bg-green-100 text-green-700 border-green-200",
-  absent: "bg-red-100 text-red-700 border-red-200",
-  late: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  present: "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800",
+  absent: "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
+  late: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
 };
 
 export default function StudentAttendancePage() {
@@ -180,10 +180,10 @@ export default function StudentAttendancePage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           My Attendance
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           Track your attendance across the academic year.
         </p>
       </div>
@@ -193,36 +193,36 @@ export default function StudentAttendancePage() {
         <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <CalendarDays className="h-5 w-5 text-gold-500 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-navy-900">{totalDays}</p>
-            <p className="text-xs text-gray-500">Total Days</p>
+            <p className="text-2xl font-bold text-navy-900 dark:text-white">{totalDays}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Total Days</p>
           </CardContent>
         </Card>
         <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <CheckCircle2 className="h-5 w-5 text-green-500 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-green-700">{presentDays}</p>
-            <p className="text-xs text-gray-500">Present</p>
+            <p className="text-2xl font-bold text-green-700 dark:text-green-400">{presentDays}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Present</p>
           </CardContent>
         </Card>
         <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <XCircle className="h-5 w-5 text-red-500 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-red-700">{absentDays}</p>
-            <p className="text-xs text-gray-500">Absent</p>
+            <p className="text-2xl font-bold text-red-700 dark:text-red-400">{absentDays}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Absent</p>
           </CardContent>
         </Card>
         <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <Clock className="h-5 w-5 text-yellow-500 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-yellow-700">{lateDays}</p>
-            <p className="text-xs text-gray-500">Late</p>
+            <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{lateDays}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Late</p>
           </CardContent>
         </Card>
         <Card className="erp-card col-span-2 md:col-span-1">
           <CardContent className="p-4 text-center">
             <TrendingUp className="h-5 w-5 text-gold-500 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-navy-900">{attendancePercent}%</p>
-            <p className="text-xs text-gray-500">Attendance</p>
+            <p className="text-2xl font-bold text-navy-900 dark:text-white">{attendancePercent}%</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Attendance</p>
           </CardContent>
         </Card>
       </div>
@@ -240,20 +240,20 @@ export default function StudentAttendancePage() {
       {/* Calendar View */}
       <Card className="erp-card">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-navy-900">
+          <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white">
             <CalendarDays className="h-5 w-5 text-gold-500" />
             {MONTH_NAMES[calendarMonth]} {calendarYear}
           </CardTitle>
           <div className="flex gap-2">
             <button
               onClick={() => navigateMonth(-1)}
-              className="px-3 py-1 rounded-md text-sm bg-gray-100 hover:bg-gray-200 text-gray-700"
+              className="px-3 py-1 rounded-md text-sm bg-gray-100 dark:bg-muted hover:bg-gray-200 dark:hover:bg-muted text-gray-700 dark:text-gray-200"
             >
               Prev
             </button>
             <button
               onClick={() => navigateMonth(1)}
-              className="px-3 py-1 rounded-md text-sm bg-gray-100 hover:bg-gray-200 text-gray-700"
+              className="px-3 py-1 rounded-md text-sm bg-gray-100 dark:bg-muted hover:bg-gray-200 dark:hover:bg-muted text-gray-700 dark:text-gray-200"
             >
               Next
             </button>
@@ -263,19 +263,19 @@ export default function StudentAttendancePage() {
           {/* Legend */}
           <div className="flex gap-4 mb-4 text-xs">
             <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-sm bg-green-100 border border-green-200" />
+              <span className="w-3 h-3 rounded-sm bg-green-100 dark:bg-green-950/30 border border-green-200 dark:border-border" />
               Present
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-sm bg-red-100 border border-red-200" />
+              <span className="w-3 h-3 rounded-sm bg-red-100 dark:bg-red-950/30 border border-red-200 dark:border-border" />
               Absent
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-sm bg-yellow-100 border border-yellow-200" />
+              <span className="w-3 h-3 rounded-sm bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-200 dark:border-border" />
               Late
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-sm bg-gray-100 border border-gray-200" />
+              <span className="w-3 h-3 rounded-sm bg-gray-100 dark:bg-muted border border-gray-200 dark:border-border" />
               No Data
             </span>
           </div>
@@ -283,7 +283,7 @@ export default function StudentAttendancePage() {
           {/* Day headers */}
           <div className="grid grid-cols-7 gap-1 mb-1">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-              <div key={d} className="text-center text-xs font-medium text-gray-500 py-1">
+              <div key={d} className="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-1">
                 {d}
               </div>
             ))}
@@ -302,7 +302,7 @@ export default function StudentAttendancePage() {
               const status = attendanceMap.get(dateStr);
               const colorClass = status
                 ? CALENDAR_COLORS[status]
-                : "bg-gray-50 text-gray-400 border-gray-100";
+                : "bg-gray-50 dark:bg-muted text-gray-400 dark:text-gray-500 border-gray-100 dark:border-border";
 
               return (
                 <div
@@ -321,7 +321,7 @@ export default function StudentAttendancePage() {
       {monthlyData.length > 0 && (
         <Card className="erp-card">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-navy-900">
+            <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white">
               <ClipboardCheck className="h-5 w-5 text-gold-500" />
               Monthly Breakdown
             </CardTitle>
@@ -336,30 +336,30 @@ export default function StudentAttendancePage() {
                 return (
                   <div
                     key={m.month}
-                    className="flex items-center gap-4 py-2 border-b border-gray-100 last:border-0"
+                    className="flex items-center gap-4 py-2 border-b border-gray-100 dark:border-border last:border-0"
                   >
-                    <span className="w-36 text-sm font-medium text-navy-900">
+                    <span className="w-36 text-sm font-medium text-navy-900 dark:text-white">
                       {m.label}
                     </span>
                     <div className="flex-1 flex items-center gap-2">
-                      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="flex-1 h-2 bg-gray-100 dark:bg-muted rounded-full overflow-hidden">
                         <div
                           className="h-full bg-green-500 rounded-full transition-all"
                           style={{ width: `${monthPercent}%` }}
                         />
                       </div>
-                      <span className="text-xs font-medium text-gray-600 w-10 text-right">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-300 w-10 text-right">
                         {monthPercent}%
                       </span>
                     </div>
                     <div className="flex gap-2">
-                      <Badge className="bg-green-100 text-green-700 text-xs">
+                      <Badge className="bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-xs">
                         P:{m.present}
                       </Badge>
-                      <Badge className="bg-red-100 text-red-700 text-xs">
+                      <Badge className="bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 text-xs">
                         A:{m.absent}
                       </Badge>
-                      <Badge className="bg-yellow-100 text-yellow-700 text-xs">
+                      <Badge className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs">
                         L:{m.late}
                       </Badge>
                     </div>
@@ -374,10 +374,10 @@ export default function StudentAttendancePage() {
       {totalDays === 0 && (
         <Card className="erp-card">
           <CardContent className="flex items-center justify-center py-12">
-            <div className="text-center text-gray-400">
+            <div className="text-center text-gray-400 dark:text-gray-500">
               <ClipboardCheck className="h-10 w-10 mx-auto mb-3 opacity-50" />
               <p className="text-sm">No attendance records found</p>
-              <p className="text-xs text-gray-300 mt-1">
+              <p className="text-xs text-gray-300 dark:text-gray-500 mt-1">
                 Records will appear here once your teacher marks attendance
               </p>
             </div>
