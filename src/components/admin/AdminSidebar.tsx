@@ -2,15 +2,13 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Image as ImageIcon,
   FileText,
   MessageSquare,
   Layers,
-  LogOut,
   Users,
   UserCheck,
   GraduationCap,
@@ -20,14 +18,13 @@ import {
   CheckSquare,
   BarChart3,
   CalendarDays,
-  ExternalLink,
   Library,
   ClipboardList,
   Clock,
   FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import { SidebarProfileMenu } from "@/components/portal/SidebarProfileMenu";
 
 const contentLinks = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/admin" },
@@ -67,14 +64,6 @@ const erpLinks = [
 
 export function AdminSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
-
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    toast.success("Logged out");
-    router.push("/admin/login");
-  };
 
   const renderLink = ({ icon: Icon, label, href }: (typeof contentLinks)[0]) => {
     const isActive =
@@ -140,22 +129,7 @@ export function AdminSidebar() {
         </div>
       </nav>
 
-      <div className="p-3 border-t border-white/10 space-y-1">
-        <Link
-          href="/"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/60 hover:bg-white/5 hover:text-white w-full transition-colors"
-        >
-          <ExternalLink className="h-5 w-5 shrink-0" />
-          Back to Website
-        </Link>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/60 hover:bg-white/5 hover:text-white w-full transition-colors"
-        >
-          <LogOut className="h-5 w-5 shrink-0" />
-          Logout
-        </button>
-      </div>
+      <SidebarProfileMenu settingsHref="/portal/settings" />
     </aside>
   );
 }

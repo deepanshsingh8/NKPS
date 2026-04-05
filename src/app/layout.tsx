@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { LayoutShell } from "@/components/layout/LayoutShell";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -46,12 +47,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
+    <html lang="en" className={`${inter.variable} ${playfair.variable}`} suppressHydrationWarning>
       <body className="min-h-screen flex flex-col antialiased">
-        <LayoutShell>
-          <main className="flex-1">{children}</main>
-        </LayoutShell>
-        <Toaster position="top-right" richColors />
+        <ThemeProvider>
+          <LayoutShell>
+            <main className="flex-1">{children}</main>
+          </LayoutShell>
+          <Toaster position="top-right" richColors />
+        </ThemeProvider>
       </body>
     </html>
   );

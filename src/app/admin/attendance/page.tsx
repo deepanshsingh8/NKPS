@@ -210,28 +210,28 @@ export default function AdminAttendancePage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <Users className="h-5 w-5 text-gold-500 mx-auto mb-1" />
             <p className="text-2xl font-bold text-navy-900">{totalStudents}</p>
             <p className="text-xs text-gray-500">Total Students</p>
           </CardContent>
         </Card>
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <BarChart3 className="h-5 w-5 text-gold-500 mx-auto mb-1" />
             <p className="text-2xl font-bold text-navy-900">{avgAttendance}%</p>
             <p className="text-xs text-gray-500">Avg Attendance</p>
           </CardContent>
         </Card>
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <CheckCircle2 className="h-5 w-5 text-green-500 mx-auto mb-1" />
             <p className="text-2xl font-bold text-green-700">{presentToday}</p>
             <p className="text-xs text-gray-500">Present Today</p>
           </CardContent>
         </Card>
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <XCircle className="h-5 w-5 text-red-500 mx-auto mb-1" />
             <p className="text-2xl font-bold text-red-700">{absentToday}</p>
@@ -241,7 +241,7 @@ export default function AdminAttendancePage() {
       </div>
 
       {/* Filter Bar */}
-      <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+      <Card className="erp-card">
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
@@ -290,7 +290,7 @@ export default function AdminAttendancePage() {
       </Card>
 
       {/* Class-wise Table */}
-      <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+      <Card className="erp-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-navy-900">
             <ClipboardCheck className="h-5 w-5 text-gold-500" />

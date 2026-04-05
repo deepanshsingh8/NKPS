@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Search, Copy } from "lucide-react";
+import { Plus, Trash2, Loader2, Search, Copy, UserPlus, ShieldCheck, Users } from "lucide-react";
 import { adminFetch } from "@/lib/admin-api";
 import type { Profile, UserRole } from "@/types";
 
@@ -177,24 +177,30 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
-          Users
-        </h1>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-xl bg-navy-900 flex items-center justify-center">
+            <Users className="h-4.5 w-4.5 text-gold-400" />
+          </div>
+          <div>
+            <h1 className="erp-page-title">Users</h1>
+            <p className="erp-page-subtitle">Manage admin, teacher, and student accounts</p>
+          </div>
+        </div>
         <Button
           onClick={() => {
             resetForm();
             setDialogOpen(true);
           }}
-          className="bg-navy-900 hover:bg-navy-800 text-white"
+          className="bg-navy-900 hover:bg-navy-800 text-white shadow-sm"
         >
           <Plus className="h-4 w-4 mr-2" />
           Add User
         </Button>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+      <div className="erp-table-container p-6">
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -202,7 +208,7 @@ export default function AdminUsersPage() {
               placeholder="Search by name or email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
+              className="pl-10 h-10 border-gray-200 focus:border-navy-900 focus:ring-navy-900/20"
             />
           </div>
         </div>
@@ -308,122 +314,156 @@ export default function AdminUsersPage() {
 
       {/* Add User Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
-          </DialogHeader>
-
+        <DialogContent className="sm:max-w-lg">
           {generatedPassword ? (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                User created successfully. Save the password below — it will not be shown again.
-              </p>
-              <div className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 border border-gray-200">
-                <code className="flex-1 text-sm font-mono">
-                  {generatedPassword}
-                </code>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(generatedPassword);
-                    toast.success("Password copied");
-                  }}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-              <DialogFooter>
-                <Button
-                  onClick={() => {
-                    resetForm();
-                    setDialogOpen(false);
-                  }}
-                >
-                  Done
-                </Button>
-              </DialogFooter>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Enter full name"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="user@example.com"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="phone">Phone (optional)</Label>
-                <Input
-                  id="phone"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Phone number"
-                />
-              </div>
-              <div>
-                <Label htmlFor="password">
-                  Password (leave blank to auto-generate)
-                </Label>
-                <Input
-                  id="password"
-                  type="text"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Auto-generated if empty"
-                />
-              </div>
-              <div>
-                <Label>Role</Label>
-                <Select value={role} onValueChange={(val) => val && setRole(val as UserRole)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROLES.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {r.charAt(0).toUpperCase() + r.slice(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-green-100 flex items-center justify-center">
+                    <ShieldCheck className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <DialogTitle>User Created Successfully</DialogTitle>
+                    <p className="text-sm text-gray-500 mt-0.5">Save the temporary password below</p>
+                  </div>
+                </div>
+              </DialogHeader>
 
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={submitting}
-                  className="bg-navy-900 hover:bg-navy-800 text-white"
-                >
-                  {submitting && (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  )}
-                  Create User
-                </Button>
-              </DialogFooter>
-            </form>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200/60 p-4">
+                  <code className="flex-1 text-sm font-mono font-semibold text-navy-900">
+                    {generatedPassword}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedPassword);
+                      toast.success("Password copied");
+                    }}
+                    className="text-amber-700 hover:bg-amber-100"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-400">
+                  The user will be asked to set their own password on first login.
+                </p>
+                <DialogFooter>
+                  <Button
+                    onClick={() => {
+                      resetForm();
+                      setDialogOpen(false);
+                    }}
+                    className="bg-navy-900 hover:bg-navy-800 text-white"
+                  >
+                    Done
+                  </Button>
+                </DialogFooter>
+              </div>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-navy-900 flex items-center justify-center">
+                    <UserPlus className="h-5 w-5 text-gold-400" />
+                  </div>
+                  <div>
+                    <DialogTitle>Add New User</DialogTitle>
+                    <p className="text-sm text-gray-500 mt-0.5">Create a new account for the ERP portal</p>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="erp-form-group">
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <Input
+                      id="fullName"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Enter full name"
+                      required
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="erp-form-group">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="user@example.com"
+                      required
+                      className="h-10"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="erp-form-group">
+                    <Label htmlFor="phone">Phone (optional)</Label>
+                    <Input
+                      id="phone"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="Phone number"
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="erp-form-group">
+                    <Label>Role</Label>
+                    <Select value={role} onValueChange={(val) => val && setRole(val as UserRole)}>
+                      <SelectTrigger className="w-full h-10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ROLES.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {r.charAt(0).toUpperCase() + r.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="erp-form-group">
+                  <Label htmlFor="password">
+                    Password (leave blank to auto-generate)
+                  </Label>
+                  <Input
+                    id="password"
+                    type="text"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Auto-generated if empty"
+                    className="h-10"
+                  />
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={submitting}
+                    className="bg-navy-900 hover:bg-navy-800 text-white"
+                  >
+                    {submitting && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    )}
+                    Create User
+                  </Button>
+                </DialogFooter>
+              </form>
+            </>
           )}
         </DialogContent>
       </Dialog>

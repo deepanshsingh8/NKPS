@@ -6,6 +6,7 @@ import { Footer } from "@/components/layout/Footer";
 import { TopBar } from "@/components/layout/TopBar";
 import { ScrollToTop } from "@/components/layout/ScrollToTop";
 import { ChatBot } from "@/components/shared/ChatBot";
+import { WhatsAppButton } from "@/components/shared/WhatsAppButton";
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -26,6 +27,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       {children}
       <Footer />
       <ScrollToTop />
+      <WhatsAppButton />
       <ChatBot />
     </>
   );

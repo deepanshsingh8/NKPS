@@ -126,7 +126,7 @@ export default function StudentFeesPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-white rounded-xl">
+        <Card className="erp-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-navy-900">
               <CreditCard className="h-5 w-5 text-gold-500" />
@@ -140,7 +140,7 @@ export default function StudentFeesPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white rounded-xl">
+        <Card className="erp-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-navy-900">
               <CheckCircle className="h-5 w-5 text-green-500" />
@@ -154,7 +154,7 @@ export default function StudentFeesPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white rounded-xl">
+        <Card className="erp-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-navy-900">
               <AlertCircle className="h-5 w-5 text-red-500" />

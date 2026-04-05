@@ -3,6 +3,7 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+@custom-selector :--dark .dark;
 
 @theme inline {
   --color-background: var(--background);
@@ -110,6 +111,40 @@
   --sidebar-ring: oklch(0.55 0.15 260);
 }
 
+.dark {
+  --background: oklch(0.13 0.02 260);
+  --foreground: oklch(0.93 0.005 90);
+  --card: oklch(0.17 0.02 260);
+  --card-foreground: oklch(0.93 0.005 90);
+  --popover: oklch(0.17 0.02 260);
+  --popover-foreground: oklch(0.93 0 0);
+  --primary: oklch(0.75 0.12 85);
+  --primary-foreground: oklch(0.15 0.02 260);
+  --secondary: oklch(0.22 0.02 260);
+  --secondary-foreground: oklch(0.9 0 0);
+  --muted: oklch(0.22 0.015 260);
+  --muted-foreground: oklch(0.6 0 0);
+  --accent: oklch(0.75 0.12 85);
+  --accent-foreground: oklch(0.15 0.02 260);
+  --destructive: oklch(0.65 0.2 25);
+  --border: oklch(0.27 0.015 260);
+  --input: oklch(0.27 0.015 260);
+  --ring: oklch(0.65 0.12 85);
+  --chart-1: oklch(0.65 0.15 260);
+  --chart-2: oklch(0.75 0.12 85);
+  --chart-3: oklch(0.65 0.1 150);
+  --chart-4: oklch(0.7 0.15 30);
+  --chart-5: oklch(0.7 0.12 300);
+  --sidebar: oklch(0.15 0.02 260);
+  --sidebar-foreground: oklch(0.93 0 0);
+  --sidebar-primary: oklch(0.75 0.12 85);
+  --sidebar-primary-foreground: oklch(0.15 0.02 260);
+  --sidebar-accent: oklch(0.22 0.02 260);
+  --sidebar-accent-foreground: oklch(0.9 0 0);
+  --sidebar-border: oklch(0.27 0.015 260);
+  --sidebar-ring: oklch(0.65 0.12 85);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -144,6 +179,47 @@
   .gold-underline::after {
     content: "";
     @apply absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-gold-500 rounded-full;
+  }
+
+  /* ── ERP Portal Utilities ── */
+
+  .erp-page-header {
+    @apply mb-8 flex flex-col gap-1;
+  }
+  .erp-page-title {
+    @apply font-heading text-2xl font-bold text-navy-900 tracking-tight;
+  }
+  .erp-page-subtitle {
+    @apply text-sm text-gray-500;
+  }
+
+  .erp-card {
+    @apply bg-white dark:bg-card rounded-2xl border border-gray-200/80 dark:border-border shadow-sm
+           transition-all duration-200 hover:shadow-md hover:border-gray-300/80 dark:hover:border-border;
+  }
+
+  .erp-stat-card {
+    @apply bg-white dark:bg-card rounded-2xl border border-gray-200/80 dark:border-border p-6 shadow-sm
+           transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
+  }
+
+  .erp-table-container {
+    @apply bg-white dark:bg-card rounded-2xl border border-gray-200/80 dark:border-border shadow-sm overflow-hidden;
+  }
+
+  .erp-section-title {
+    @apply font-heading text-lg font-semibold text-navy-900 tracking-tight;
+  }
+
+  .erp-empty-state {
+    @apply flex flex-col items-center justify-center py-16 text-center;
+  }
+
+  .erp-form-group {
+    @apply space-y-2;
+  }
+  .erp-form-group label {
+    @apply text-sm font-medium text-navy-900;
   }
 }
 

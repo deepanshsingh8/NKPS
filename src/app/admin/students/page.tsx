@@ -544,11 +544,17 @@ export default function AdminStudentsPage() {
   );
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
-          Students
-        </h1>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-xl bg-navy-900 flex items-center justify-center">
+            <Users className="h-4.5 w-4.5 text-gold-400" />
+          </div>
+          <div>
+            <h1 className="erp-page-title">Students</h1>
+            <p className="erp-page-subtitle">Manage student records and enrollments</p>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -563,7 +569,7 @@ export default function AdminStudentsPage() {
               resetForm();
               setAddDialogOpen(true);
             }}
-            className="bg-navy-900 hover:bg-navy-800 text-white"
+            className="bg-navy-900 hover:bg-navy-800 text-white shadow-sm"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Student
@@ -571,11 +577,11 @@ export default function AdminStudentsPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+      <div className="erp-table-container p-6">
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="w-full sm:w-64">
             <Select value={selectedClassId || "all"} onValueChange={(val) => setSelectedClassId(!val || val === "all" ? "" : val)}>
-              <SelectTrigger>
+              <SelectTrigger className="h-10">
                 <SelectValue placeholder="All Classes" />
               </SelectTrigger>
               <SelectContent>
@@ -594,7 +600,7 @@ export default function AdminStudentsPage() {
               placeholder="Search by name or admission number..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
+              className="pl-10 h-10 border-gray-200 focus:border-navy-900 focus:ring-navy-900/20"
             />
           </div>
           <div className="flex items-center">

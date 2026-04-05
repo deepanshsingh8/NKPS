@@ -144,7 +144,7 @@ export default function AdminSubjectsPage() {
         </Button>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+      <div className="erp-table-container p-6">
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />

@@ -323,7 +323,7 @@ export default function AdminTransferCertificatesPage() {
         />
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="erp-table-container overflow-hidden">
         {loading ? (
           <div className="p-8 space-y-3">
             {[1, 2, 3].map((i) => (

@@ -190,35 +190,35 @@ export default function StudentAttendancePage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <CalendarDays className="h-5 w-5 text-gold-500 mx-auto mb-1" />
             <p className="text-2xl font-bold text-navy-900">{totalDays}</p>
             <p className="text-xs text-gray-500">Total Days</p>
           </CardContent>
         </Card>
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <CheckCircle2 className="h-5 w-5 text-green-500 mx-auto mb-1" />
             <p className="text-2xl font-bold text-green-700">{presentDays}</p>
             <p className="text-xs text-gray-500">Present</p>
           </CardContent>
         </Card>
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <XCircle className="h-5 w-5 text-red-500 mx-auto mb-1" />
             <p className="text-2xl font-bold text-red-700">{absentDays}</p>
             <p className="text-xs text-gray-500">Absent</p>
           </CardContent>
         </Card>
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardContent className="p-4 text-center">
             <Clock className="h-5 w-5 text-yellow-500 mx-auto mb-1" />
             <p className="text-2xl font-bold text-yellow-700">{lateDays}</p>
             <p className="text-xs text-gray-500">Late</p>
           </CardContent>
         </Card>
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200 col-span-2 md:col-span-1">
+        <Card className="erp-card col-span-2 md:col-span-1">
           <CardContent className="p-4 text-center">
             <TrendingUp className="h-5 w-5 text-gold-500 mx-auto mb-1" />
             <p className="text-2xl font-bold text-navy-900">{attendancePercent}%</p>
@@ -228,7 +228,7 @@ export default function StudentAttendancePage() {
       </div>
 
       {/* Attendance Progress Bar */}
-      <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+      <Card className="erp-card">
         <CardContent className="p-6">
           <Progress value={attendancePercent}>
             <ProgressLabel>Overall Attendance</ProgressLabel>
@@ -238,7 +238,7 @@ export default function StudentAttendancePage() {
       </Card>
 
       {/* Calendar View */}
-      <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+      <Card className="erp-card">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-navy-900">
             <CalendarDays className="h-5 w-5 text-gold-500" />
@@ -319,7 +319,7 @@ export default function StudentAttendancePage() {
 
       {/* Monthly Breakdown */}
       {monthlyData.length > 0 && (
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-navy-900">
               <ClipboardCheck className="h-5 w-5 text-gold-500" />
@@ -372,7 +372,7 @@ export default function StudentAttendancePage() {
       )}
 
       {totalDays === 0 && (
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardContent className="flex items-center justify-center py-12">
             <div className="text-center text-gray-400">
               <ClipboardCheck className="h-10 w-10 mx-auto mb-3 opacity-50" />

@@ -3,18 +3,16 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   ClipboardCheck,
   BarChart3,
   CreditCard,
+  CalendarDays,
+  ArrowRight,
+  Clock,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { UpcomingEvents } from "@/components/shared/UpcomingEvents";
 import type { Profile } from "@/types";
 
@@ -131,126 +129,151 @@ export default function StudentDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900/20 border-t-navy-900" />
       </div>
     );
   }
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "Student";
+  const greeting = new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening";
 
   return (
     <div className="space-y-8">
       {/* Welcome */}
       <div>
-        <h1 className="font-heading text-2xl font-bold text-navy-900">
+        <p className="text-sm text-gray-400 mb-1">{greeting}</p>
+        <h1 className="erp-page-title">
           Welcome back, {firstName}!
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-sm text-gray-500 mt-1">
           Here is a summary of your academic progress.
         </p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-white rounded-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-navy-900">
-              <ClipboardCheck className="h-5 w-5 text-gold-500" />
-              Attendance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-navy-900">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {/* Attendance */}
+        <div className="erp-stat-card relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-blue-500/8 to-transparent rounded-bl-full" />
+          <div className="relative">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                <ClipboardCheck className="h-5 w-5 text-blue-600" />
+              </div>
+              <span className="text-sm font-medium text-gray-500">Attendance</span>
+            </div>
+            <p className="text-3xl font-bold text-navy-900 tracking-tight">
               {stats.attendancePercent !== null
                 ? `${stats.attendancePercent}%`
                 : "--"}
             </p>
-            <p className="text-sm text-gray-500 mt-1">Overall attendance</p>
-          </CardContent>
-        </Card>
+            <p className="text-xs text-gray-400 mt-1">Overall attendance</p>
+          </div>
+        </div>
 
-        <Card className="bg-white rounded-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-navy-900">
-              <BarChart3 className="h-5 w-5 text-gold-500" />
-              Latest Result
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-navy-900">
+        {/* Latest Result */}
+        <div className="erp-stat-card relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-violet-500/8 to-transparent rounded-bl-full" />
+          <div className="relative">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-xl bg-violet-100 flex items-center justify-center">
+                <BarChart3 className="h-5 w-5 text-violet-600" />
+              </div>
+              <span className="text-sm font-medium text-gray-500">Latest Result</span>
+            </div>
+            <p className="text-3xl font-bold text-navy-900 tracking-tight">
               {stats.latestResult ?? "--"}
             </p>
-            <p className="text-sm text-gray-500 mt-1">Most recent exam</p>
-          </CardContent>
-        </Card>
+            <p className="text-xs text-gray-400 mt-1">Most recent exam</p>
+          </div>
+        </div>
 
-        <Card className="bg-white rounded-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-navy-900">
-              <CreditCard className="h-5 w-5 text-gold-500" />
-              Fee Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        {/* Fee Status */}
+        <div className={cn(
+          "erp-stat-card relative overflow-hidden group",
+          stats.feeStatus === "pending" && "ring-1 ring-amber-200"
+        )}>
+          <div className={cn(
+            "absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl rounded-bl-full",
+            stats.feeStatus === "paid" ? "from-green-500/8 to-transparent"
+              : stats.feeStatus === "pending" ? "from-amber-500/10 to-transparent"
+              : "from-gray-500/5 to-transparent"
+          )} />
+          <div className="relative">
+            <div className="flex items-center gap-3 mb-3">
+              <div className={cn(
+                "h-10 w-10 rounded-xl flex items-center justify-center",
+                stats.feeStatus === "paid" ? "bg-green-100"
+                  : stats.feeStatus === "pending" ? "bg-amber-100"
+                  : "bg-gray-100"
+              )}>
+                <CreditCard className={cn(
+                  "h-5 w-5",
+                  stats.feeStatus === "paid" ? "text-green-600"
+                    : stats.feeStatus === "pending" ? "text-amber-600"
+                    : "text-gray-400"
+                )} />
+              </div>
+              <span className="text-sm font-medium text-gray-500">Fee Status</span>
+            </div>
             {stats.feeStatus === "paid" ? (
-              <Badge className="bg-green-100 text-green-700 text-xs">
+              <Badge className="bg-green-100 text-green-700 text-xs font-semibold">
                 Paid
               </Badge>
             ) : stats.feeStatus === "pending" ? (
-              <Badge variant="destructive" className="text-xs">
+              <Badge className="bg-amber-100 text-amber-700 text-xs font-semibold">
                 Pending
               </Badge>
             ) : (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-xs font-semibold">
                 No Records
               </Badge>
             )}
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-xs text-gray-400 mt-2">
               {stats.feeStatus === "paid"
                 ? "All fees up to date"
                 : stats.feeStatus === "pending"
                   ? "Payment due"
                   : "No fee records found"}
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Quick Links */}
       <div>
-        <h2 className="font-heading text-lg font-semibold text-navy-900 mb-4">
-          Quick Links
-        </h2>
-        <div className="flex flex-wrap gap-4">
-          <Link
-            href="/student/attendance"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-900/90 transition-colors"
-          >
-            <ClipboardCheck className="h-4 w-4" />
-            View Attendance
-          </Link>
-          <Link
-            href="/student/results"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gold-500 text-navy-900 rounded-lg text-sm font-medium hover:bg-gold-500/90 transition-colors"
-          >
-            <BarChart3 className="h-4 w-4" />
-            View Results
-          </Link>
-          <Link
-            href="/student/fees"
-            className="inline-flex items-center gap-2 px-5 py-2.5 border border-navy-900 text-navy-900 rounded-lg text-sm font-medium hover:bg-navy-900/5 transition-colors"
-          >
-            <CreditCard className="h-4 w-4" />
-            Check Fees
-          </Link>
+        <h2 className="erp-section-title mb-4">Quick Links</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { href: "/student/attendance", icon: ClipboardCheck, label: "View Attendance", color: "bg-navy-900 text-white hover:bg-navy-800" },
+            { href: "/student/results", icon: BarChart3, label: "View Results", color: "bg-gold-500 text-navy-900 hover:bg-gold-400" },
+            { href: "/student/fees", icon: CreditCard, label: "Check Fees", color: "bg-white text-navy-900 border border-gray-200 hover:bg-gray-50" },
+            { href: "/student/timetable", icon: Clock, label: "Timetable", color: "bg-white text-navy-900 border border-gray-200 hover:bg-gray-50" },
+          ].map(({ href, icon: Icon, label, color }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group",
+                color
+              )}
+            >
+              <div className="flex items-center gap-2.5">
+                <Icon className="h-4 w-4" />
+                {label}
+              </div>
+              <ArrowRight className="h-3.5 w-3.5 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+            </Link>
+          ))}
         </div>
       </div>
 
       {/* Upcoming Events */}
       <div>
-        <h2 className="font-heading text-lg font-semibold text-navy-900 mb-4">
-          Upcoming Events
-        </h2>
+        <div className="flex items-center gap-2 mb-4">
+          <CalendarDays className="h-5 w-5 text-gray-400" />
+          <h2 className="erp-section-title">Upcoming Events</h2>
+        </div>
         <UpcomingEvents limit={5} />
       </div>
     </div>

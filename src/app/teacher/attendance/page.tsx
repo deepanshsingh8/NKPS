@@ -241,7 +241,7 @@ export default function TeacherAttendancePage() {
       </div>
 
       {/* Filters */}
-      <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+      <Card className="erp-card">
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
@@ -289,7 +289,7 @@ export default function TeacherAttendancePage() {
 
       {/* Student Roster */}
       {selectedClassId && !loadingStudents && students.length > 0 && (
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-navy-900">
               <Users className="h-5 w-5 text-gold-500" />
@@ -381,7 +381,7 @@ export default function TeacherAttendancePage() {
 
       {/* Empty states */}
       {selectedClassId && !loadingStudents && students.length === 0 && (
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardContent className="flex items-center justify-center py-12">
             <div className="text-center text-gray-400">
               <Users className="h-10 w-10 mx-auto mb-3 opacity-50" />
@@ -392,7 +392,7 @@ export default function TeacherAttendancePage() {
       )}
 
       {!selectedClassId && (
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardContent className="flex items-center justify-center py-12">
             <div className="text-center text-gray-400">
               <ClipboardCheck className="h-10 w-10 mx-auto mb-3 opacity-50" />
@@ -409,7 +409,7 @@ export default function TeacherAttendancePage() {
       )}
 
       {classes.length === 0 && (
-        <Card className="bg-white rounded-2xl shadow-sm border border-gray-200">
+        <Card className="erp-card">
           <CardContent className="flex items-center justify-center py-12">
             <div className="text-center text-gray-400">
               <ClipboardCheck className="h-10 w-10 mx-auto mb-3 opacity-50" />

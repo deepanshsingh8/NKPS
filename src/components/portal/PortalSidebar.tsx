@@ -2,11 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { LogOut, ExternalLink } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import { SidebarProfileMenu } from "./SidebarProfileMenu";
 
 interface PortalSidebarProps {
   title: string;
@@ -16,17 +14,8 @@ interface PortalSidebarProps {
 
 export function PortalSidebar({ title, role, navLinks }: PortalSidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
 
   const basePath = navLinks[0]?.href ?? "/";
-
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    document.cookie = "x-user-role=; path=/; max-age=0";
-    toast.success("Logged out");
-    router.push("/portal/login");
-  };
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-navy-900 flex flex-col z-40">
@@ -47,7 +36,7 @@ export function PortalSidebar({ title, role, navLinks }: PortalSidebarProps) {
         <div className="mt-2 h-0.5 w-12 bg-gold-500 rounded-full" />
       </div>
 
-      <nav className="flex-1 px-3 space-y-1">
+      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
         {navLinks.map(({ icon, label, href }) => {
           const isActive =
             href === basePath
@@ -72,22 +61,7 @@ export function PortalSidebar({ title, role, navLinks }: PortalSidebarProps) {
         })}
       </nav>
 
-      <div className="p-3 border-t border-white/10 space-y-1">
-        <Link
-          href="/"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/60 hover:bg-white/5 hover:text-white w-full transition-colors"
-        >
-          <ExternalLink className="h-5 w-5 shrink-0" />
-          Back to Website
-        </Link>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/60 hover:bg-white/5 hover:text-white w-full transition-colors"
-        >
-          <LogOut className="h-5 w-5 shrink-0" />
-          Logout
-        </button>
-      </div>
+      <SidebarProfileMenu settingsHref="/portal/settings" />
     </aside>
   );
 }

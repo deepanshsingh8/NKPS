@@ -241,7 +241,7 @@ export default function AdminClassSubjectsPage() {
         </Select>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+      <div className="erp-table-container p-6">
         {!selectedClassId ? (
           <div className="text-center py-12 text-gray-400">
             <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-50" />

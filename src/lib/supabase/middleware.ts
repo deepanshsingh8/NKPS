@@ -83,8 +83,8 @@ export async function updateSession(request: NextRequest) {
 
     const dashboard = getDashboardPath(role);
 
-    // Force password change — redirect everywhere except the change-password page itself
-    if (mustChangePassword && pathname !== "/portal/change-password") {
+    // Force password change — redirect everywhere except change-password and settings
+    if (mustChangePassword && pathname !== "/portal/change-password" && pathname !== "/portal/settings") {
       const url = request.nextUrl.clone();
       url.pathname = "/portal/change-password";
       return NextResponse.redirect(url);

@@ -287,7 +287,7 @@ export default function AdminTimetablePage() {
       </div>
 
       {!selectedClassId ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <div className="erp-table-container p-6">
           <div className="text-center py-12 text-gray-400">
             <Clock className="h-10 w-10 mx-auto mb-3 opacity-50" />
             <p className="text-sm">Select a class to manage its timetable</p>
@@ -298,7 +298,7 @@ export default function AdminTimetablePage() {
           <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-x-auto">
+        <div className="erp-table-container overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50">
