@@ -293,7 +293,7 @@ export default function AdminClassesPage() {
 
       {/* Edit Class Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
@@ -306,67 +306,71 @@ export default function AdminClassesPage() {
             </div>
           </DialogHeader>
 
-          <form onSubmit={handleEditSubmit} className="space-y-4">
-            <div>
-              <Label>Class Name</Label>
-              <Select value={className} onValueChange={(val) => val && setClassName(val)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CLASS_NAMES.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <form onSubmit={handleEditSubmit} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Class Name</Label>
+                <Select value={className} onValueChange={(val) => val && setClassName(val)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CLASS_NAMES.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Section</Label>
+                <Select value={section} onValueChange={(val) => val && setSection(val)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SECTIONS.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div>
-              <Label>Section</Label>
-              <Select value={section} onValueChange={(val) => val && setSection(val)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SECTIONS.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Academic Year</Label>
-              <Select value={academicYearId} onValueChange={(val) => val && setAcademicYearId(val)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select academic year" />
-                </SelectTrigger>
-                <SelectContent>
-                  {academicYears.map((ay) => (
-                    <SelectItem key={ay.id} value={ay.id} label={ay.name}>
-                      {ay.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Class Teacher (optional)</Label>
-              <Select value={classTeacherId} onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select teacher" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.email})`}>
-                      {t.full_name} ({t.email})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Academic Year</Label>
+                <Select value={academicYearId} onValueChange={(val) => val && setAcademicYearId(val)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select academic year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {academicYears.map((ay) => (
+                      <SelectItem key={ay.id} value={ay.id} label={ay.name}>
+                        {ay.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Class Teacher (optional)</Label>
+                <Select value={classTeacherId} onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select teacher" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {teachers.map((t) => (
+                      <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.email})`}>
+                        {t.full_name} ({t.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
@@ -383,7 +387,7 @@ export default function AdminClassesPage() {
 
       {/* Add Class Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10">
@@ -396,70 +400,71 @@ export default function AdminClassesPage() {
             </div>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label>Class Name</Label>
-              <Select value={className} onValueChange={(val) => val && setClassName(val)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CLASS_NAMES.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Class Name</Label>
+                <Select value={className} onValueChange={(val) => val && setClassName(val)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CLASS_NAMES.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Section</Label>
+                <Select value={section} onValueChange={(val) => val && setSection(val)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SECTIONS.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-
-            <div>
-              <Label>Section</Label>
-              <Select value={section} onValueChange={(val) => val && setSection(val)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SECTIONS.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Academic Year</Label>
-              <Select value={academicYearId} onValueChange={(val) => val && setAcademicYearId(val)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select academic year" />
-                </SelectTrigger>
-                <SelectContent>
-                  {academicYears.map((ay) => (
-                    <SelectItem key={ay.id} value={ay.id} label={ay.name}>
-                      {ay.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Class Teacher (optional)</Label>
-              <Select value={classTeacherId} onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select teacher" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.email})`}>
-                      {t.full_name} ({t.email})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Academic Year</Label>
+                <Select value={academicYearId} onValueChange={(val) => val && setAcademicYearId(val)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select academic year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {academicYears.map((ay) => (
+                      <SelectItem key={ay.id} value={ay.id} label={ay.name}>
+                        {ay.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Class Teacher (optional)</Label>
+                <Select value={classTeacherId} onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select teacher" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {teachers.map((t) => (
+                      <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.email})`}>
+                        {t.full_name} ({t.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <DialogFooter>

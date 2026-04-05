@@ -349,10 +349,10 @@ export default function AdminStudentsPage() {
     onSubmit: (e: React.FormEvent) => void,
     isEdit: boolean
   ) => (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-3">
       {!isEdit && (
         <div>
-          <Label>Class *</Label>
+          <Label className="text-xs font-medium">Class *</Label>
           <Select
             value={formData.class_id}
             onValueChange={(val) => val && updateField("class_id", val)}
@@ -370,11 +370,12 @@ export default function AdminStudentsPage() {
           </Select>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label htmlFor="admission_no">Admission No *</Label>
+          <Label htmlFor="admission_no" className="text-xs font-medium">Admission No *</Label>
           <Input
             id="admission_no"
+            className="h-9"
             value={formData.admission_no}
             onChange={(e) => updateField("admission_no", e.target.value)}
             placeholder="e.g. 1001"
@@ -382,9 +383,10 @@ export default function AdminStudentsPage() {
           />
         </div>
         <div>
-          <Label htmlFor="full_name">Full Name *</Label>
+          <Label htmlFor="full_name" className="text-xs font-medium">Full Name *</Label>
           <Input
             id="full_name"
+            className="h-9"
             value={formData.full_name}
             onChange={(e) => updateField("full_name", e.target.value)}
             placeholder="Student's full name"
@@ -392,34 +394,37 @@ export default function AdminStudentsPage() {
           />
         </div>
         <div>
-          <Label htmlFor="father_name">Father&apos;s Name</Label>
+          <Label htmlFor="father_name" className="text-xs font-medium">Father&apos;s Name</Label>
           <Input
             id="father_name"
+            className="h-9"
             value={formData.father_name}
             onChange={(e) => updateField("father_name", e.target.value)}
             placeholder="Father's name"
           />
         </div>
         <div>
-          <Label htmlFor="mother_name">Mother&apos;s Name</Label>
+          <Label htmlFor="mother_name" className="text-xs font-medium">Mother&apos;s Name</Label>
           <Input
             id="mother_name"
+            className="h-9"
             value={formData.mother_name}
             onChange={(e) => updateField("mother_name", e.target.value)}
             placeholder="Mother's name"
           />
         </div>
         <div>
-          <Label htmlFor="date_of_birth">Date of Birth</Label>
+          <Label htmlFor="date_of_birth" className="text-xs font-medium">Date of Birth</Label>
           <Input
             id="date_of_birth"
+            className="h-9"
             type="date"
             value={formData.date_of_birth}
             onChange={(e) => updateField("date_of_birth", e.target.value)}
           />
         </div>
         <div>
-          <Label>Gender</Label>
+          <Label className="text-xs font-medium">Gender</Label>
           <Select
             value={formData.gender}
             onValueChange={(val) => val && updateField("gender", val)}
@@ -437,18 +442,20 @@ export default function AdminStudentsPage() {
           </Select>
         </div>
         <div>
-          <Label htmlFor="phone">Phone</Label>
+          <Label htmlFor="phone" className="text-xs font-medium">Phone</Label>
           <Input
             id="phone"
+            className="h-9"
             value={formData.phone}
             onChange={(e) => updateField("phone", e.target.value)}
             placeholder="Phone number"
           />
         </div>
         <div>
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email" className="text-xs font-medium">Email</Label>
           <Input
             id="email"
+            className="h-9"
             type="email"
             value={formData.email}
             onChange={(e) => updateField("email", e.target.value)}
@@ -456,7 +463,7 @@ export default function AdminStudentsPage() {
           />
         </div>
         <div>
-          <Label>Blood Group</Label>
+          <Label className="text-xs font-medium">Blood Group</Label>
           <Select
             value={formData.blood_group}
             onValueChange={(val) => val && updateField("blood_group", val)}
@@ -474,9 +481,10 @@ export default function AdminStudentsPage() {
           </Select>
         </div>
         <div>
-          <Label htmlFor="roll_number">Roll Number</Label>
+          <Label htmlFor="roll_number" className="text-xs font-medium">Roll Number</Label>
           <Input
             id="roll_number"
+            className="h-9"
             type="number"
             value={formData.roll_number}
             onChange={(e) => updateField("roll_number", e.target.value)}
@@ -484,37 +492,41 @@ export default function AdminStudentsPage() {
           />
         </div>
         <div>
-          <Label htmlFor="category">Category</Label>
+          <Label htmlFor="category" className="text-xs font-medium">Category</Label>
           <Input
             id="category"
+            className="h-9"
             value={formData.category}
             onChange={(e) => updateField("category", e.target.value)}
             placeholder="e.g. General, OBC, SC, ST"
           />
         </div>
         <div>
-          <Label htmlFor="aadhar_number">Aadhar Number</Label>
+          <Label htmlFor="aadhar_number" className="text-xs font-medium">Aadhar Number</Label>
           <Input
             id="aadhar_number"
+            className="h-9"
             value={formData.aadhar_number}
             onChange={(e) => updateField("aadhar_number", e.target.value)}
             placeholder="12-digit Aadhar number"
           />
         </div>
       </div>
-      <div>
-        <Label htmlFor="address">Address</Label>
+      <div className="space-y-1">
+        <Label htmlFor="address" className="text-xs font-medium">Address</Label>
         <Input
           id="address"
+          className="h-9"
           value={formData.address}
           onChange={(e) => updateField("address", e.target.value)}
           placeholder="Full address"
         />
       </div>
-      <div>
-        <Label htmlFor="previous_school">Previous School</Label>
+      <div className="space-y-1">
+        <Label htmlFor="previous_school" className="text-xs font-medium">Previous School</Label>
         <Input
           id="previous_school"
+          className="h-9"
           value={formData.previous_school}
           onChange={(e) => updateField("previous_school", e.target.value)}
           placeholder="Name of previous school"

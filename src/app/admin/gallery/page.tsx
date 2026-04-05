@@ -457,7 +457,7 @@ export default function AdminGalleryPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="category" className="text-xs font-medium">Category</Label>
                     <select
@@ -514,16 +514,16 @@ export default function AdminGalleryPage() {
 
           {/* Images Grid */}
           {imagesLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-3">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                 <div
                   key={i}
-                  className="bg-white dark:bg-card rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-border animate-pulse"
+                  className="bg-white dark:bg-card rounded-lg overflow-hidden shadow-sm border border-gray-200 dark:border-border animate-pulse"
                 >
                   <div className="aspect-square bg-gray-200 dark:bg-muted" />
-                  <div className="p-4 space-y-2">
-                    <div className="h-4 bg-gray-200 dark:bg-muted rounded w-3/4" />
-                    <div className="h-3 bg-gray-200 dark:bg-muted rounded w-1/2" />
+                  <div className="p-2 space-y-1.5">
+                    <div className="h-3 bg-gray-200 dark:bg-muted rounded w-3/4" />
+                    <div className="h-2.5 bg-gray-200 dark:bg-muted rounded w-1/2" />
                   </div>
                 </div>
               ))}
@@ -534,11 +534,11 @@ export default function AdminGalleryPage() {
               <p className="text-sm mt-1">Click &quot;Add Images&quot; to get started.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-3">
               {images.map((image) => (
                 <div
                   key={image.id}
-                  className="relative group bg-white dark:bg-card rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-border"
+                  className="relative group bg-white dark:bg-card rounded-lg overflow-hidden shadow-sm border border-gray-200 dark:border-border"
                 >
                   <div className="aspect-square bg-navy-100 flex items-center justify-center">
                     {image.src ? (
@@ -548,20 +548,20 @@ export default function AdminGalleryPage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span className="text-gray-400 dark:text-gray-500">{image.alt}</span>
+                      <span className="text-gray-400 dark:text-gray-500 text-[10px]">{image.alt}</span>
                     )}
                   </div>
-                  <div className="p-2.5">
-                    <p className="text-xs font-medium truncate">{image.alt}</p>
-                    <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 px-1.5 py-0.5 rounded-full">
+                  <div className="p-1.5">
+                    <p className="text-[10px] font-medium truncate">{image.alt}</p>
+                    <span className="text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 px-1 py-0.5 rounded-full">
                       {image.category}
                     </span>
                   </div>
                   <button
                     onClick={() => handleImageDelete(image)}
-                    className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3 w-3" />
                   </button>
                 </div>
               ))}
@@ -587,9 +587,9 @@ export default function AdminGalleryPage() {
                   </div>
                 </div>
               </DialogHeader>
-              <form onSubmit={handleEventSubmit} className="space-y-4">
-                <div>
-                  <Label>Title</Label>
+              <form onSubmit={handleEventSubmit} className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Title</Label>
                   <Input
                     placeholder="e.g. Annual Day 2025"
                     value={eventForm.title}
@@ -597,21 +597,23 @@ export default function AdminGalleryPage() {
                       setEventForm({ ...eventForm, title: e.target.value })
                     }
                     required
+                    className="h-9"
                   />
                 </div>
-                <div>
-                  <Label>Description (optional)</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Description (optional)</Label>
                   <Input
                     placeholder="Brief description of the event"
                     value={eventForm.description}
                     onChange={(e) =>
                       setEventForm({ ...eventForm, description: e.target.value })
                     }
+                    className="h-9"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Event Date</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Event Date</Label>
                     <Input
                       type="date"
                       value={eventForm.event_date}
@@ -619,16 +621,18 @@ export default function AdminGalleryPage() {
                         setEventForm({ ...eventForm, event_date: e.target.value })
                       }
                       required
+                      className="h-9"
                     />
                   </div>
-                  <div>
-                    <Label>Academic Year</Label>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Academic Year</Label>
                     <Input
                       placeholder="e.g. 2024-25"
                       value={eventForm.academic_year}
                       onChange={(e) =>
                         setEventForm({ ...eventForm, academic_year: e.target.value })
                       }
+                      className="h-9"
                     />
                   </div>
                 </div>
@@ -642,7 +646,7 @@ export default function AdminGalleryPage() {
                     }
                     className="rounded border-gray-300 dark:border-gray-600"
                   />
-                  <Label htmlFor="is_public" className="mb-0">
+                  <Label htmlFor="is_public" className="mb-0 text-xs font-medium">
                     Visible on public gallery
                   </Label>
                 </div>
@@ -717,7 +721,7 @@ export default function AdminGalleryPage() {
                     id="event-upload-category"
                     value={eventUploadCategory}
                     onChange={(e) => setEventUploadCategory(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-gray-200 px-3 text-sm bg-white focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                    className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
                   >
                     {CATEGORIES.map((cat) => (
                       <option key={cat} value={cat}>

@@ -576,72 +576,78 @@ export default function AdminFeesPage() {
               </div>
             </div>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label>Class</Label>
-              <select
-                value={newStructure.class_name}
-                onChange={(e) =>
-                  setNewStructure({ ...newStructure, class_name: e.target.value })
-                }
-                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
-              >
-                {CLASS_NAMES.map((cn) => (
-                  <option key={cn} value={cn}>
-                    {cn}
-                  </option>
-                ))}
-              </select>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Class</Label>
+                <select
+                  value={newStructure.class_name}
+                  onChange={(e) =>
+                    setNewStructure({ ...newStructure, class_name: e.target.value })
+                  }
+                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                >
+                  {CLASS_NAMES.map((cn) => (
+                    <option key={cn} value={cn}>
+                      {cn}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Fee Type</Label>
+                <select
+                  value={newStructure.fee_type}
+                  onChange={(e) =>
+                    setNewStructure({ ...newStructure, fee_type: e.target.value })
+                  }
+                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                >
+                  {FEE_TYPES.map((ft) => (
+                    <option key={ft} value={ft}>
+                      {ft}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Fee Type</Label>
-              <select
-                value={newStructure.fee_type}
-                onChange={(e) =>
-                  setNewStructure({ ...newStructure, fee_type: e.target.value })
-                }
-                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
-              >
-                {FEE_TYPES.map((ft) => (
-                  <option key={ft} value={ft}>
-                    {ft}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Amount</Label>
+                <Input
+                  className="h-9"
+                  type="number"
+                  placeholder="Enter amount"
+                  value={newStructure.amount}
+                  onChange={(e) =>
+                    setNewStructure({ ...newStructure, amount: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Frequency</Label>
+                <select
+                  value={newStructure.frequency}
+                  onChange={(e) =>
+                    setNewStructure({
+                      ...newStructure,
+                      frequency: e.target.value as (typeof FREQUENCIES)[number],
+                    })
+                  }
+                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                >
+                  {FREQUENCIES.map((f) => (
+                    <option key={f} value={f}>
+                      {f.charAt(0).toUpperCase() + f.slice(1).replace("_", " ")}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Amount</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Due Date (optional)</Label>
               <Input
-                type="number"
-                placeholder="Enter amount"
-                value={newStructure.amount}
-                onChange={(e) =>
-                  setNewStructure({ ...newStructure, amount: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Frequency</Label>
-              <select
-                value={newStructure.frequency}
-                onChange={(e) =>
-                  setNewStructure({
-                    ...newStructure,
-                    frequency: e.target.value as (typeof FREQUENCIES)[number],
-                  })
-                }
-                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
-              >
-                {FREQUENCIES.map((f) => (
-                  <option key={f} value={f}>
-                    {f.charAt(0).toUpperCase() + f.slice(1).replace("_", " ")}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>Due Date (optional)</Label>
-              <Input
+                className="h-9"
                 type="date"
                 value={newStructure.due_date}
                 onChange={(e) =>
@@ -652,7 +658,7 @@ export default function AdminFeesPage() {
             <Button
               onClick={handleAddStructure}
               disabled={structureSubmitting}
-              className="w-full bg-navy-900 hover:bg-navy-800 text-white"
+              className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white"
             >
               {structureSubmitting ? (
                 <>
@@ -681,9 +687,9 @@ export default function AdminFeesPage() {
               </div>
             </div>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label>Fee Structure</Label>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Fee Structure</Label>
               <select
                 value={newPayment.fee_structure_id}
                 onChange={(e) =>
@@ -692,7 +698,7 @@ export default function AdminFeesPage() {
                     fee_structure_id: e.target.value,
                   })
                 }
-                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
+                className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
               >
                 <option value="">Select fee type</option>
                 {studentFeeStructures.map((fs) => (
@@ -707,39 +713,43 @@ export default function AdminFeesPage() {
                 ))}
               </select>
             </div>
-            <div className="space-y-2">
-              <Label>Amount</Label>
-              <Input
-                type="number"
-                placeholder="Enter amount"
-                value={newPayment.amount_paid}
-                onChange={(e) =>
-                  setNewPayment({ ...newPayment, amount_paid: e.target.value })
-                }
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Amount</Label>
+                <Input
+                  className="h-9"
+                  type="number"
+                  placeholder="Enter amount"
+                  value={newPayment.amount_paid}
+                  onChange={(e) =>
+                    setNewPayment({ ...newPayment, amount_paid: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Payment Method</Label>
+                <select
+                  value={newPayment.payment_method}
+                  onChange={(e) =>
+                    setNewPayment({
+                      ...newPayment,
+                      payment_method: e.target.value as (typeof PAYMENT_METHODS)[number],
+                    })
+                  }
+                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                >
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>
+                      {m.charAt(0).toUpperCase() + m.slice(1).replace("_", " ")}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Payment Method</Label>
-              <select
-                value={newPayment.payment_method}
-                onChange={(e) =>
-                  setNewPayment({
-                    ...newPayment,
-                    payment_method: e.target.value as (typeof PAYMENT_METHODS)[number],
-                  })
-                }
-                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
-              >
-                {PAYMENT_METHODS.map((m) => (
-                  <option key={m} value={m}>
-                    {m.charAt(0).toUpperCase() + m.slice(1).replace("_", " ")}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>Month (optional)</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Month (optional)</Label>
               <Input
+                className="h-9"
                 type="month"
                 value={newPayment.month}
                 onChange={(e) =>
@@ -750,7 +760,7 @@ export default function AdminFeesPage() {
             <Button
               onClick={handleRecordPayment}
               disabled={paymentSubmitting}
-              className="w-full bg-navy-900 hover:bg-navy-800 text-white"
+              className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white"
             >
               {paymentSubmitting ? (
                 <>

@@ -582,25 +582,29 @@ export default function AdminSubjectsPage() {
             </div>
           </DialogHeader>
 
-          <form onSubmit={handleCreateSubject} className="space-y-4">
-            <div>
-              <Label htmlFor="subjectName">Subject Name</Label>
-              <Input
-                id="subjectName"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Mathematics"
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="subjectCode">Code (optional)</Label>
-              <Input
-                id="subjectCode"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="e.g. MATH"
-              />
+          <form onSubmit={handleCreateSubject} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="subjectName" className="text-xs font-medium">Subject Name</Label>
+                <Input
+                  id="subjectName"
+                  className="h-9"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Mathematics"
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="subjectCode" className="text-xs font-medium">Code (optional)</Label>
+                <Input
+                  id="subjectCode"
+                  className="h-9"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="e.g. MATH"
+                />
+              </div>
             </div>
 
             <DialogFooter>
@@ -641,25 +645,29 @@ export default function AdminSubjectsPage() {
             </div>
           </DialogHeader>
 
-          <form onSubmit={handleEditSubject} className="space-y-4">
-            <div>
-              <Label htmlFor="editSubjectName">Subject Name</Label>
-              <Input
-                id="editSubjectName"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                placeholder="e.g. Mathematics"
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="editSubjectCode">Code (optional)</Label>
-              <Input
-                id="editSubjectCode"
-                value={editCode}
-                onChange={(e) => setEditCode(e.target.value)}
-                placeholder="e.g. MATH"
-              />
+          <form onSubmit={handleEditSubject} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="editSubjectName" className="text-xs font-medium">Subject Name</Label>
+                <Input
+                  id="editSubjectName"
+                  className="h-9"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="e.g. Mathematics"
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="editSubjectCode" className="text-xs font-medium">Code (optional)</Label>
+                <Input
+                  id="editSubjectCode"
+                  className="h-9"
+                  value={editCode}
+                  onChange={(e) => setEditCode(e.target.value)}
+                  placeholder="e.g. MATH"
+                />
+              </div>
             </div>
 
             <DialogFooter>
@@ -699,14 +707,14 @@ export default function AdminSubjectsPage() {
               </div>
             </div>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div>
-              <Label>Subject</Label>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Subject</Label>
               <Select
                 value={newSubjectId}
                 onValueChange={(val) => val && setNewSubjectId(val)}
               >
-                <SelectTrigger className="w-full mt-1">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a subject..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -719,15 +727,15 @@ export default function AdminSubjectsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Teacher (optional)</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Teacher (optional)</Label>
               <Select
                 value={newTeacherId}
                 onValueChange={(val) =>
                   setNewTeacherId(!val || val === "none" ? "" : val)
                 }
               >
-                <SelectTrigger className="w-full mt-1">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a teacher..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -741,7 +749,7 @@ export default function AdminSubjectsPage() {
               </Select>
             </div>
           </div>
-          <DialogFooter className="mt-4">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
               Cancel
             </Button>

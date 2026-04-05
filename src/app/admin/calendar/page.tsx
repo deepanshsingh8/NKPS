@@ -378,10 +378,11 @@ export default function AdminCalendarPage() {
               </div>
             </div>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label>Title</Label>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Title</Label>
               <Input
+                className="h-9"
                 placeholder="Event title"
                 value={newEvent.title}
                 onChange={(e) =>
@@ -389,9 +390,10 @@ export default function AdminCalendarPage() {
                 }
               />
             </div>
-            <div className="space-y-2">
-              <Label>Description (optional)</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Description (optional)</Label>
               <Input
+                className="h-9"
                 placeholder="Brief description"
                 value={newEvent.description}
                 onChange={(e) =>
@@ -399,66 +401,72 @@ export default function AdminCalendarPage() {
                 }
               />
             </div>
-            <div className="space-y-2">
-              <Label>Event Type</Label>
-              <select
-                value={newEvent.event_type}
-                onChange={(e) =>
-                  setNewEvent({
-                    ...newEvent,
-                    event_type: e.target.value as CalendarEventType,
-                  })
-                }
-                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
-              >
-                {EVENT_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {EVENT_TYPE_LABELS[type]}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Event Type</Label>
+                <select
+                  value={newEvent.event_type}
+                  onChange={(e) =>
+                    setNewEvent({
+                      ...newEvent,
+                      event_type: e.target.value as CalendarEventType,
+                    })
+                  }
+                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                >
+                  {EVENT_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {EVENT_TYPE_LABELS[type]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Class (optional)</Label>
+                <select
+                  value={newEvent.class_id}
+                  onChange={(e) =>
+                    setNewEvent({ ...newEvent, class_id: e.target.value })
+                  }
+                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                >
+                  <option value="">All Classes</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}-{c.section}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Start Date</Label>
-              <Input
-                type="date"
-                value={newEvent.start_date}
-                onChange={(e) =>
-                  setNewEvent({ ...newEvent, start_date: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>End Date (optional)</Label>
-              <Input
-                type="date"
-                value={newEvent.end_date}
-                onChange={(e) =>
-                  setNewEvent({ ...newEvent, end_date: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Class (optional, leave blank for all)</Label>
-              <select
-                value={newEvent.class_id}
-                onChange={(e) =>
-                  setNewEvent({ ...newEvent, class_id: e.target.value })
-                }
-                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
-              >
-                <option value="">All Classes</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}-{c.section}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Start Date</Label>
+                <Input
+                  className="h-9"
+                  type="date"
+                  value={newEvent.start_date}
+                  onChange={(e) =>
+                    setNewEvent({ ...newEvent, start_date: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">End Date (optional)</Label>
+                <Input
+                  className="h-9"
+                  type="date"
+                  value={newEvent.end_date}
+                  onChange={(e) =>
+                    setNewEvent({ ...newEvent, end_date: e.target.value })
+                  }
+                />
+              </div>
             </div>
             <Button
               onClick={handleAddEvent}
               disabled={submitting}
-              className="w-full bg-navy-900 hover:bg-navy-800 text-white"
+              className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white"
             >
               {submitting ? (
                 <>
@@ -487,10 +495,11 @@ export default function AdminCalendarPage() {
               </div>
             </div>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label>Title</Label>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Title</Label>
               <Input
+                className="h-9"
                 placeholder="Event title"
                 value={editData.title}
                 onChange={(e) =>
@@ -498,9 +507,10 @@ export default function AdminCalendarPage() {
                 }
               />
             </div>
-            <div className="space-y-2">
-              <Label>Description (optional)</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Description (optional)</Label>
               <Input
+                className="h-9"
                 placeholder="Brief description"
                 value={editData.description}
                 onChange={(e) =>
@@ -508,66 +518,72 @@ export default function AdminCalendarPage() {
                 }
               />
             </div>
-            <div className="space-y-2">
-              <Label>Event Type</Label>
-              <select
-                value={editData.event_type}
-                onChange={(e) =>
-                  setEditData({
-                    ...editData,
-                    event_type: e.target.value as CalendarEventType,
-                  })
-                }
-                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
-              >
-                {EVENT_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {EVENT_TYPE_LABELS[type]}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Event Type</Label>
+                <select
+                  value={editData.event_type}
+                  onChange={(e) =>
+                    setEditData({
+                      ...editData,
+                      event_type: e.target.value as CalendarEventType,
+                    })
+                  }
+                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                >
+                  {EVENT_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {EVENT_TYPE_LABELS[type]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Class (optional)</Label>
+                <select
+                  value={editData.class_id}
+                  onChange={(e) =>
+                    setEditData({ ...editData, class_id: e.target.value })
+                  }
+                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                >
+                  <option value="">All Classes</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}-{c.section}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Start Date</Label>
-              <Input
-                type="date"
-                value={editData.start_date}
-                onChange={(e) =>
-                  setEditData({ ...editData, start_date: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>End Date (optional)</Label>
-              <Input
-                type="date"
-                value={editData.end_date}
-                onChange={(e) =>
-                  setEditData({ ...editData, end_date: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Class (optional, leave blank for all)</Label>
-              <select
-                value={editData.class_id}
-                onChange={(e) =>
-                  setEditData({ ...editData, class_id: e.target.value })
-                }
-                className="w-full rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
-              >
-                <option value="">All Classes</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}-{c.section}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Start Date</Label>
+                <Input
+                  className="h-9"
+                  type="date"
+                  value={editData.start_date}
+                  onChange={(e) =>
+                    setEditData({ ...editData, start_date: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">End Date (optional)</Label>
+                <Input
+                  className="h-9"
+                  type="date"
+                  value={editData.end_date}
+                  onChange={(e) =>
+                    setEditData({ ...editData, end_date: e.target.value })
+                  }
+                />
+              </div>
             </div>
             <Button
               onClick={handleEditEvent}
               disabled={submitting}
-              className="w-full bg-navy-900 hover:bg-navy-800 text-white"
+              className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white"
             >
               {submitting ? (
                 <>

@@ -279,43 +279,47 @@ export default function AdminExamTypesPage() {
               </div>
             </div>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label>Name</Label>
-              <Input
-                placeholder="e.g. Mid-Term, Final, Unit Test 1"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                required
-              />
-            </div>
-            <div>
-              <Label>Academic Year</Label>
-              <Select
-                value={formData.academic_year_id}
-                onValueChange={(val) =>
-                  val &&
-                  setFormData({ ...formData, academic_year_id: val })
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select year" />
-                </SelectTrigger>
-                <SelectContent>
-                  {academicYears.map((ay) => (
-                    <SelectItem key={ay.id} value={ay.id} label={ay.name}>
-                      {ay.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label>Max Marks</Label>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Name</Label>
                 <Input
+                  className="h-9"
+                  placeholder="e.g. Mid-Term, Final, Unit Test 1"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Academic Year</Label>
+                <Select
+                  value={formData.academic_year_id}
+                  onValueChange={(val) =>
+                    val &&
+                    setFormData({ ...formData, academic_year_id: val })
+                  }
+                >
+                  <SelectTrigger className="w-full h-9">
+                    <SelectValue placeholder="Select year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {academicYears.map((ay) => (
+                      <SelectItem key={ay.id} value={ay.id} label={ay.name}>
+                        {ay.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Max Marks</Label>
+                <Input
+                  className="h-9"
                   type="number"
                   value={formData.max_marks}
                   onChange={(e) =>
@@ -323,9 +327,10 @@ export default function AdminExamTypesPage() {
                   }
                 />
               </div>
-              <div>
-                <Label>Weightage %</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Weightage %</Label>
                 <Input
+                  className="h-9"
                   type="number"
                   placeholder="Optional"
                   value={formData.weightage}
@@ -334,9 +339,10 @@ export default function AdminExamTypesPage() {
                   }
                 />
               </div>
-              <div>
-                <Label>Sort Order</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Sort Order</Label>
                 <Input
+                  className="h-9"
                   type="number"
                   value={formData.sort_order}
                   onChange={(e) =>

@@ -299,36 +299,41 @@ export default function AdminAcademicYearsPage() {
             </div>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="yearName">Name</Label>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="yearName" className="text-xs font-medium">Name</Label>
               <Input
                 id="yearName"
+                className="h-9"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. 2025-26"
                 required
               />
             </div>
-            <div>
-              <Label htmlFor="startDate">Start Date</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="endDate">End Date</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                required
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="startDate" className="text-xs font-medium">Start Date</Label>
+                <Input
+                  id="startDate"
+                  className="h-9"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="endDate" className="text-xs font-medium">End Date</Label>
+                <Input
+                  id="endDate"
+                  className="h-9"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  required
+                />
+              </div>
             </div>
 
             <DialogFooter>
@@ -368,36 +373,41 @@ export default function AdminAcademicYearsPage() {
             </div>
           </DialogHeader>
 
-          <form onSubmit={handleEditSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="editYearName">Name</Label>
+          <form onSubmit={handleEditSubmit} className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="editYearName" className="text-xs font-medium">Name</Label>
               <Input
                 id="editYearName"
+                className="h-9"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. 2025-26"
                 required
               />
             </div>
-            <div>
-              <Label htmlFor="editStartDate">Start Date</Label>
-              <Input
-                id="editStartDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="editEndDate">End Date</Label>
-              <Input
-                id="editEndDate"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                required
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="editStartDate" className="text-xs font-medium">Start Date</Label>
+                <Input
+                  id="editStartDate"
+                  className="h-9"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="editEndDate" className="text-xs font-medium">End Date</Label>
+                <Input
+                  id="editEndDate"
+                  className="h-9"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  required
+                />
+              </div>
             </div>
 
             <DialogFooter>

@@ -382,14 +382,14 @@ export default function AdminTimetablePage() {
               </div>
             </div>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Day</Label>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Day</Label>
                 <select
                   value={formData.day_of_week}
                   disabled
-                  className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-gray-50 dark:bg-muted dark:text-gray-300"
+                  className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-gray-50 dark:bg-muted dark:text-gray-300 h-9"
                 >
                   {DAYS.map((d) => (
                     <option key={d.value} value={d.value}>
@@ -398,24 +398,24 @@ export default function AdminTimetablePage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <Label>Period</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Period</Label>
                 <Input
                   value={`Period ${formData.period_number}`}
                   disabled
-                  className="bg-gray-50"
+                  className="bg-gray-50 h-9"
                 />
               </div>
             </div>
-            <div>
-              <Label>Subject</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Subject</Label>
               <Select
                 value={formData.subject_id}
                 onValueChange={(val) =>
                   val && setFormData({ ...formData, subject_id: val })
                 }
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full h-9">
                   <SelectValue placeholder="Select subject" />
                 </SelectTrigger>
                 <SelectContent>
@@ -428,8 +428,8 @@ export default function AdminTimetablePage() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Teacher (optional)</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Teacher (optional)</Label>
               <Select
                 value={formData.teacher_id}
                 onValueChange={(val) =>
@@ -439,7 +439,7 @@ export default function AdminTimetablePage() {
                   })
                 }
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full h-9">
                   <SelectValue placeholder="Select teacher" />
                 </SelectTrigger>
                 <SelectContent>
@@ -452,10 +452,11 @@ export default function AdminTimetablePage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Start Time</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Start Time</Label>
                 <Input
+                  className="h-9"
                   type="time"
                   value={formData.start_time}
                   onChange={(e) =>
@@ -463,9 +464,10 @@ export default function AdminTimetablePage() {
                   }
                 />
               </div>
-              <div>
-                <Label>End Time</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">End Time</Label>
                 <Input
+                  className="h-9"
                   type="time"
                   value={formData.end_time}
                   onChange={(e) =>
@@ -474,9 +476,10 @@ export default function AdminTimetablePage() {
                 />
               </div>
             </div>
-            <div>
-              <Label>Room (optional)</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Room (optional)</Label>
               <Input
+                className="h-9"
                 placeholder="e.g. Room 101"
                 value={formData.room}
                 onChange={(e) =>
