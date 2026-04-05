@@ -13,6 +13,7 @@ const ALLOWED_TABLES = [
   "fee_payments",
   "exam_types",
   "calendar_events",
+  "gallery_events",
   "timetable_periods",
   "attendance",
   "results",
