@@ -22,29 +22,20 @@ import {
   ClipboardList,
   Clock,
   FolderOpen,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SidebarProfileMenu } from "@/components/portal/SidebarProfileMenu";
+import { useSidebar } from "@/components/providers/SidebarProvider";
 
 const contentLinks = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/admin" },
   { icon: ImageIcon, label: "Gallery", href: "/admin/gallery" },
   { icon: FolderOpen, label: "Gallery Events", href: "/admin/gallery/events" },
-  {
-    icon: FileText,
-    label: "Transfer Certificates",
-    href: "/admin/transfer-certificates",
-  },
-  {
-    icon: MessageSquare,
-    label: "Contact Messages",
-    href: "/admin/contact",
-  },
-  {
-    icon: Layers,
-    label: "Site Media",
-    href: "/admin/site-media",
-  },
+  { icon: FileText, label: "Transfer Certificates", href: "/admin/transfer-certificates" },
+  { icon: MessageSquare, label: "Contact Messages", href: "/admin/contact" },
+  { icon: Layers, label: "Site Media", href: "/admin/site-media" },
 ];
 
 const erpLinks = [
@@ -64,6 +55,7 @@ const erpLinks = [
 
 export function AdminSidebar() {
   const pathname = usePathname();
+  const { collapsed, toggle } = useSidebar();
 
   const renderLink = ({ icon: Icon, label, href }: (typeof contentLinks)[0]) => {
     const isActive =
@@ -72,64 +64,117 @@ export function AdminSidebar() {
         : pathname.startsWith(href);
 
     return (
-      <Link
-        key={href}
-        href={href}
-        className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
-          isActive
-            ? "bg-white/10 text-white font-semibold border-l-[3px] border-gold-500"
-            : "text-white/60 hover:bg-white/5 hover:text-white"
+      <div key={href} className="relative group">
+        <Link
+          href={href}
+          className={cn(
+            "flex items-center gap-3 rounded-lg text-sm transition-all duration-200",
+            collapsed ? "px-2.5 py-2.5 justify-center" : "px-3 py-2.5",
+            isActive
+              ? "bg-white/10 text-white font-semibold border-l-[3px] border-gold-500"
+              : "text-white/60 hover:bg-white/5 hover:text-white hover:translate-x-0.5"
+          )}
+        >
+          <Icon className="h-5 w-5 shrink-0" />
+          {!collapsed && <span className="truncate">{label}</span>}
+        </Link>
+        {/* Floating tooltip when collapsed */}
+        {collapsed && (
+          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-navy-800 text-white text-xs font-medium rounded-lg shadow-xl border border-white/10 whitespace-nowrap opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50">
+            {label}
+            <div className="absolute top-1/2 -translate-y-1/2 -left-1 w-2 h-2 bg-navy-800 border-l border-b border-white/10 rotate-45" />
+          </div>
         )}
-      >
-        <Icon className="h-5 w-5 shrink-0" />
-        {label}
-      </Link>
+      </div>
     );
   };
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-navy-900 flex flex-col z-40">
-      <div className="p-6">
-        <div className="flex items-center gap-3">
+    <aside
+      className={cn(
+        "fixed left-0 top-0 h-screen bg-navy-900 flex flex-col z-40 transition-all duration-300 ease-in-out",
+        collapsed ? "w-[72px]" : "w-64"
+      )}
+    >
+      {/* Header */}
+      <div className={cn("p-4 flex items-center", collapsed ? "justify-center" : "gap-3 px-6")}>
+        {!collapsed && (
+          <>
+            <Image
+              src="/images/logo.png"
+              alt="NKPS Logo"
+              width={36}
+              height={36}
+              className="rounded-full shrink-0"
+            />
+            <div className="min-w-0">
+              <h1 className="font-heading text-xl font-bold text-white truncate">
+                NKPS ERP
+              </h1>
+              <p className="text-sm text-gold-500 mt-0.5">Admin</p>
+            </div>
+          </>
+        )}
+        {collapsed && (
           <Image
             src="/images/logo.png"
             alt="NKPS Logo"
-            width={36}
-            height={36}
+            width={32}
+            height={32}
             className="rounded-full"
           />
-          <div>
-            <h1 className="font-heading text-xl font-bold text-white">
-              NKPS ERP
-            </h1>
-            <p className="text-sm text-gold-500 mt-0.5">Admin</p>
-          </div>
-        </div>
-        <div className="mt-2 h-0.5 w-12 bg-gold-500 rounded-full" />
+        )}
       </div>
 
-      <nav className="flex-1 px-3 overflow-y-auto">
+      {!collapsed && (
+        <div className="px-6 mb-2">
+          <div className="h-0.5 w-12 bg-gold-500 rounded-full" />
+        </div>
+      )}
+
+      {/* Toggle button */}
+      <div className={cn("px-3 mb-2", collapsed && "flex justify-center")}>
+        <button
+          onClick={toggle}
+          className="flex items-center justify-center h-8 w-8 rounded-lg text-white/40 hover:bg-white/5 hover:text-white transition-colors"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="h-4 w-4" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4" />
+          )}
+        </button>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 px-2 overflow-y-auto">
         <div className="mb-1">
-          <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
-            Content
-          </p>
-          <div className="space-y-1">
+          {!collapsed && (
+            <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+              Content
+            </p>
+          )}
+          {collapsed && <div className="h-px bg-white/10 mx-2 mb-2" />}
+          <div className="space-y-0.5">
             {contentLinks.map(renderLink)}
           </div>
         </div>
 
         <div className="mt-4">
-          <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
-            ERP
-          </p>
-          <div className="space-y-1">
+          {!collapsed && (
+            <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+              ERP
+            </p>
+          )}
+          {collapsed && <div className="h-px bg-white/10 mx-2 mb-2 mt-3" />}
+          <div className="space-y-0.5">
             {erpLinks.map(renderLink)}
           </div>
         </div>
       </nav>
 
-      <SidebarProfileMenu settingsHref="/portal/settings" />
+      <SidebarProfileMenu settingsHref="/portal/settings" collapsed={collapsed} />
     </aside>
   );
 }

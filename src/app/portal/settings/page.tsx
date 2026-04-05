@@ -22,6 +22,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+function SettingsWrapper({ children }: { children: React.ReactNode }) {
+  const { resolvedTheme } = useTheme();
+  return (
+    <div className={cn(resolvedTheme === "dark" && "dark")}>
+      {children}
+    </div>
+  );
+}
+
 interface ProfileData {
   id: string;
   full_name: string;
@@ -202,13 +211,16 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50 dark:bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900/20 border-t-navy-900 dark:border-gold-500/20 dark:border-t-gold-500" />
-      </div>
+      <SettingsWrapper>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50 dark:bg-background">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900/20 border-t-navy-900 dark:border-gold-500/20 dark:border-t-gold-500" />
+        </div>
+      </SettingsWrapper>
     );
   }
 
   return (
+    <SettingsWrapper>
     <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-50 dark:bg-background">
       <div className="mx-auto max-w-2xl px-6 py-10">
         {/* Header */}
@@ -447,5 +459,6 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+    </SettingsWrapper>
   );
 }

@@ -13,8 +13,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, FolderOpen } from "lucide-react";
+import { Plus, Trash2, Loader2, FolderOpen, Image as LucideImage, Upload } from "lucide-react";
 import { adminUpload, adminDelete } from "@/lib/admin-api";
+import { FileDropZone } from "@/components/shared/FileDropZone";
 import type { GalleryImage, GalleryEvent } from "@/types";
 
 const CATEGORIES = ["academics", "sports", "cultural", "campus", "events"];
@@ -160,37 +161,52 @@ export default function AdminGalleryPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Upload Gallery Images</DialogTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
+                <LucideImage className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <DialogTitle>Upload Gallery Images</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Add photos to the school gallery</p>
+              </div>
+            </div>
           </DialogHeader>
-            <div className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label htmlFor="files">Images</Label>
-                <Input
-                  id="files"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => setFiles(e.target.files)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="alt">Alt Text</Label>
-                <Input
-                  id="alt"
-                  placeholder="Describe the image(s)"
-                  value={altText}
-                  onChange={(e) => setAltText(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
+
+          <div className="space-y-5">
+            {/* Image Upload Zone */}
+            <FileDropZone
+              accept="image/*"
+              multiple
+              icon="image"
+              onChange={(fileList) => setFiles(fileList)}
+              value={files}
+              label="Drop images here or click to browse"
+              hint="JPEG, PNG, WebP — max 10MB each"
+            />
+
+            {/* Alt Text */}
+            <div className="space-y-1.5">
+              <Label htmlFor="alt" className="text-xs font-medium">Description *</Label>
+              <Input
+                id="alt"
+                placeholder="Describe the image(s) for accessibility"
+                value={altText}
+                onChange={(e) => setAltText(e.target.value)}
+                className="h-9"
+              />
+            </div>
+
+            {/* Category & Event in a row */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="category" className="text-xs font-medium">Category</Label>
                 <select
                   id="category"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  className="w-full h-9 rounded-lg border border-gray-200 px-3 text-sm bg-white focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
                 >
                   {CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>
@@ -199,13 +215,13 @@ export default function AdminGalleryPage() {
                   ))}
                 </select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="event">Gallery Event (optional)</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="event" className="text-xs font-medium">Event (optional)</Label>
                 <select
                   id="event"
                   value={eventId}
                   onChange={(e) => setEventId(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  className="w-full h-9 rounded-lg border border-gray-200 px-3 text-sm bg-white focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
                 >
                   <option value="">No event</option>
                   {galleryEvents.map((evt) => (
@@ -215,21 +231,26 @@ export default function AdminGalleryPage() {
                   ))}
                 </select>
               </div>
-              <Button
-                onClick={handleUpload}
-                disabled={uploading}
-                className="w-full bg-navy-900 hover:bg-navy-800 text-white"
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  "Upload"
-                )}
-              </Button>
             </div>
+
+            <Button
+              onClick={handleUpload}
+              disabled={uploading || !files || files.length === 0}
+              className="w-full bg-navy-900 hover:bg-navy-800 text-white h-11 rounded-xl font-medium"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload {files && files.length > 1 ? `${files.length} Images` : "Image"}
+                </>
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

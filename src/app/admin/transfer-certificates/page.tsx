@@ -20,8 +20,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Download, Trash2, Loader2, Search, UserCheck } from "lucide-react";
+import { Plus, Download, Trash2, Loader2, Search, UserCheck, FileText, Upload } from "lucide-react";
 import { adminUpload, adminDelete } from "@/lib/admin-api";
+import { FileDropZone } from "@/components/shared/FileDropZone";
 import type { TransferCertificate, Student } from "@/types";
 
 export default function AdminTransferCertificatesPage() {
@@ -188,128 +189,150 @@ export default function AdminTransferCertificatesPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Upload Transfer Certificate</DialogTitle>
-          </DialogHeader>
-            <div className="space-y-4 mt-4">
-              {/* Student Search */}
-              <div className="space-y-2">
-                <Label>Link to Student (search by name or admission no)</Label>
-                {selectedStudent ? (
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200">
-                    <UserCheck className="h-4 w-4 text-green-600 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-green-800 truncate">
-                        {selectedStudent.full_name}
-                      </p>
-                      <p className="text-xs text-green-600">
-                        Adm No: {selectedStudent.admission_no}
-                        {selectedStudent.father_name && ` | Father: ${selectedStudent.father_name}`}
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearSelectedStudent}
-                      className="text-green-600 hover:text-red-600 h-7 px-2"
-                    >
-                      Change
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <Input
-                      placeholder="Type student name or admission no..."
-                      value={studentSearch}
-                      onChange={(e) => {
-                        setStudentSearch(e.target.value);
-                        searchStudents(e.target.value);
-                      }}
-                    />
-                    {searchingStudents && (
-                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
-                    )}
-                    {studentResults.length > 0 && (
-                      <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {studentResults.map((s) => (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => selectStudent(s)}
-                            className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-100 last:border-0"
-                          >
-                            <span className="font-medium">{s.full_name}</span>
-                            <span className="text-gray-500 ml-2">({s.admission_no})</span>
-                            {s.father_name && (
-                              <span className="text-gray-400 ml-1 text-xs">- {s.father_name}</span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-                <p className="text-xs text-gray-400">
-                  Or fill in manually below if the student is not in the system
-                </p>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold-500/10">
+                <FileText className="h-5 w-5 text-gold-600" />
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="student-name">Student Name *</Label>
-                  <Input
-                    id="student-name"
-                    placeholder="Enter student name"
-                    value={studentName}
-                    onChange={(e) => setStudentName(e.target.value)}
-                    disabled={!!selectedStudent}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="admission-no">Admission No</Label>
-                  <Input
-                    id="admission-no"
-                    placeholder="e.g., 1001"
-                    value={admissionNo}
-                    onChange={(e) => setAdmissionNo(e.target.value)}
-                    disabled={!!selectedStudent}
-                  />
-                </div>
+              <div>
+                <DialogTitle>Upload Transfer Certificate</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">Add a new TC to the school records</p>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="academic-year">Academic Year *</Label>
-                <Input
-                  id="academic-year"
-                  placeholder="e.g., 2024-25"
-                  value={academicYear}
-                  onChange={(e) => setAcademicYear(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tc-file">PDF File *</Label>
-                <Input
-                  id="tc-file"
-                  type="file"
-                  accept=".pdf"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                />
-              </div>
-              <Button
-                onClick={handleUpload}
-                disabled={uploading}
-                className="w-full bg-navy-900 hover:bg-navy-800 text-white"
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  "Upload"
-                )}
-              </Button>
             </div>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            {/* File Upload Zone */}
+            <FileDropZone
+              accept=".pdf"
+              icon="pdf"
+              onChange={(files) => setFile(files?.[0] ?? null)}
+              value={file}
+              label="Drop your PDF here or click to browse"
+              hint="PDF files only, max 10MB"
+            />
+
+            {/* Student Search */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Link to Student</Label>
+              {selectedStudent ? (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-green-50 border border-green-200">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100">
+                    <UserCheck className="h-4 w-4 text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-green-800 truncate">
+                      {selectedStudent.full_name}
+                    </p>
+                    <p className="text-xs text-green-600">
+                      {selectedStudent.admission_no}
+                      {selectedStudent.father_name && ` \u00B7 ${selectedStudent.father_name}`}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearSelectedStudent}
+                    className="text-green-600 hover:text-red-600 h-7 px-2 text-xs"
+                  >
+                    Change
+                  </Button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search by name or admission number..."
+                    value={studentSearch}
+                    onChange={(e) => {
+                      setStudentSearch(e.target.value);
+                      searchStudents(e.target.value);
+                    }}
+                    className="pl-9"
+                  />
+                  {searchingStudents && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
+                  )}
+                  {studentResults.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                      {studentResults.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => selectStudent(s)}
+                          className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm border-b border-gray-100 last:border-0 transition-colors"
+                        >
+                          <span className="font-medium">{s.full_name}</span>
+                          <span className="text-gray-500 ml-2">({s.admission_no})</span>
+                          {s.father_name && (
+                            <span className="text-gray-400 ml-1 text-xs">\u00B7 {s.father_name}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <p className="text-[11px] text-gray-400">
+                Or fill in manually below if the student is not in the system
+              </p>
+            </div>
+
+            {/* Manual Fields */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="student-name" className="text-xs font-medium">Student Name *</Label>
+                <Input
+                  id="student-name"
+                  placeholder="Full name"
+                  value={studentName}
+                  onChange={(e) => setStudentName(e.target.value)}
+                  disabled={!!selectedStudent}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="admission-no" className="text-xs font-medium">Admission No</Label>
+                <Input
+                  id="admission-no"
+                  placeholder="e.g., 1001"
+                  value={admissionNo}
+                  onChange={(e) => setAdmissionNo(e.target.value)}
+                  disabled={!!selectedStudent}
+                  className="h-9"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="academic-year" className="text-xs font-medium">Academic Year *</Label>
+              <Input
+                id="academic-year"
+                placeholder="e.g., 2024-25"
+                value={academicYear}
+                onChange={(e) => setAcademicYear(e.target.value)}
+                className="h-9"
+              />
+            </div>
+
+            <Button
+              onClick={handleUpload}
+              disabled={uploading || !file}
+              className="w-full bg-navy-900 hover:bg-navy-800 text-white h-11 rounded-xl font-medium"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload Certificate
+                </>
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

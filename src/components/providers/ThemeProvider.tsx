@@ -27,8 +27,13 @@ function getSystemTheme(): "light" | "dark" {
     : "light";
 }
 
+/**
+ * ThemeProvider manages theme state only.
+ * It does NOT apply .dark to <html> — that would affect the public website.
+ * ERP layouts read `resolvedTheme` and apply .dark to their own wrapper.
+ */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("system");
+  const [theme, setThemeState] = useState<Theme>("light");
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
 
   // Initialize from localStorage
@@ -39,17 +44,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Apply theme to document
+  // Resolve theme (but don't touch document.documentElement)
   useEffect(() => {
-    const root = document.documentElement;
     const resolved = theme === "system" ? getSystemTheme() : theme;
     setResolvedTheme(resolved);
-
-    if (resolved === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
   }, [theme]);
 
   // Listen for system theme changes when in "system" mode
@@ -57,13 +55,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (theme !== "system") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => {
-      const resolved = getSystemTheme();
-      setResolvedTheme(resolved);
-      if (resolved === "dark") {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
+      setResolvedTheme(getSystemTheme());
     };
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
