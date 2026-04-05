@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { Plus, Download, Trash2, Loader2, Search, UserCheck, FileText, Upload } from "lucide-react";
 import { adminUpload, adminDelete } from "@/lib/admin-api";
 import { FileDropZone } from "@/components/shared/FileDropZone";
+import { AcademicYearSelect } from "@/components/shared/AcademicYearSelect";
 import type { TransferCertificate, Student } from "@/types";
 
 export default function AdminTransferCertificatesPage() {
@@ -306,12 +307,11 @@ export default function AdminTransferCertificatesPage() {
 
             <div className="space-y-1.5">
               <Label htmlFor="academic-year" className="text-xs font-medium">Academic Year *</Label>
-              <Input
+              <AcademicYearSelect
                 id="academic-year"
-                placeholder="e.g., 2024-25"
                 value={academicYear}
-                onChange={(e) => setAcademicYear(e.target.value)}
-                className="h-9"
+                onChange={setAcademicYear}
+                required
               />
             </div>
 

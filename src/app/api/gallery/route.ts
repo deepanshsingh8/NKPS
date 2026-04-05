@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdmin } from "@/lib/verify-admin";
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB per file
+
 export async function POST(request: NextRequest) {
   const admin = await verifyAdmin();
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  let formData: FormData;
   try {
-    const formData = await request.formData();
+    formData = await request.formData();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json(
+      { error: `Failed to parse upload: ${msg}. Try uploading fewer or smaller images.` },
+      { status: 400 }
+    );
+  }
+
+  try {
     const files = formData.getAll("files") as File[];
     const altText = formData.get("alt") as string;
     const category = formData.get("category") as string;
@@ -26,13 +38,40 @@ export async function POST(request: NextRequest) {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const fileExt = file.name.split(".").pop();
+
+      // Skip files that are too large
+      if (file.size > MAX_FILE_SIZE) {
+        results.push({
+          name: file.name,
+          success: false,
+          error: `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 10MB.`,
+        });
+        continue;
+      }
+
+      const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
       const fileName = `${Date.now()}-${i}.${fileExt}`;
+
+      // Convert File to ArrayBuffer for reliable upload
+      let fileBuffer: ArrayBuffer;
+      try {
+        fileBuffer = await file.arrayBuffer();
+      } catch {
+        results.push({
+          name: file.name,
+          success: false,
+          error: "Failed to read file data",
+        });
+        continue;
+      }
 
       // Upload to storage using admin client
       const { error: uploadError } = await admin.storage
         .from("gallery")
-        .upload(fileName, file);
+        .upload(fileName, fileBuffer, {
+          contentType: file.type || "image/jpeg",
+          upsert: false,
+        });
 
       if (uploadError) {
         results.push({
@@ -75,9 +114,11 @@ export async function POST(request: NextRequest) {
       { results, success: allSucceeded },
       { status: allSucceeded ? 200 : 207 }
     );
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[Gallery Upload Error]", msg);
     return NextResponse.json(
-      { error: "An unexpected error occurred" },
+      { error: `Upload failed: ${msg}` },
       { status: 500 }
     );
   }

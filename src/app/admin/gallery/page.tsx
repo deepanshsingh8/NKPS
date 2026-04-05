@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,9 +31,12 @@ import {
   Upload,
   FolderOpen,
   ImageIcon,
+  ChevronRight,
+  X,
 } from "lucide-react";
 import { adminUpload, adminDelete, adminApi } from "@/lib/admin-api";
 import { FileDropZone } from "@/components/shared/FileDropZone";
+import { AcademicYearSelect } from "@/components/shared/AcademicYearSelect";
 import { cn } from "@/lib/utils";
 import type { GalleryImage, GalleryEvent } from "@/types";
 
@@ -61,13 +64,16 @@ export default function AdminGalleryPage() {
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [imageCounts, setImageCounts] = useState<Record<string, number>>({});
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const [eventImages, setEventImages] = useState<Record<string, GalleryImage[]>>({});
+  const [eventImagesLoading, setEventImagesLoading] = useState<string | null>(null);
 
   // ── Event upload state ──
   const [eventUploadOpen, setEventUploadOpen] = useState(false);
   const [uploadEventId, setUploadEventId] = useState<string>("");
   const [eventUploadFiles, setEventUploadFiles] = useState<FileList | null>(null);
   const [eventUploadAlt, setEventUploadAlt] = useState("");
-  const [eventUploadCategory, setEventUploadCategory] = useState(CATEGORIES[0]);
+  const [eventUploadCategory, setEventUploadCategory] = useState("events");
   const [eventUploading, setEventUploading] = useState(false);
   const [eventForm, setEventForm] = useState({
     title: "",
@@ -150,47 +156,50 @@ export default function AdminGalleryPage() {
 
     setUploading(true);
 
-    try {
-      const formData = new FormData();
-      for (let i = 0; i < files.length; i++) {
+    let succeeded = 0;
+    let failed = 0;
+
+    // Upload one file at a time to avoid body size limits
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const formData = new FormData();
         formData.append("files", files[i]);
-      }
-      formData.append("alt", altText.trim());
-      formData.append("category", category);
-      formData.append("currentCount", String(images.length));
-      if (eventId) {
-        formData.append("gallery_event_id", eventId);
-      }
-
-      const res = await adminUpload("/api/gallery", formData);
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.error || "Upload failed");
-      } else if (data.results) {
-        const failed = data.results.filter((r: { success: boolean }) => !r.success);
-        if (failed.length > 0) {
-          failed.forEach((r: { name: string; error: string }) =>
-            toast.error(`Failed: ${r.name} — ${r.error}`)
-          );
+        formData.append("alt", files.length > 1 ? `${altText.trim()} ${i + 1}` : altText.trim());
+        formData.append("category", category);
+        formData.append("currentCount", String(images.length + succeeded));
+        if (eventId) {
+          formData.append("gallery_event_id", eventId);
         }
-        const succeeded = data.results.filter((r: { success: boolean }) => r.success);
-        if (succeeded.length > 0) {
-          toast.success(`${succeeded.length} image(s) uploaded successfully`);
-        }
-      }
 
-      setImageDialogOpen(false);
-      setAltText("");
-      setCategory(CATEGORIES[0]);
-      setEventId("");
-      setFiles(null);
-      fetchImages();
-    } catch {
-      toast.error("An unexpected error occurred");
-    } finally {
-      setUploading(false);
+        const res = await adminUpload("/api/gallery", formData);
+        const data = await res.json();
+
+        if (!res.ok) {
+          toast.error(`${files[i].name}: ${data.error || "Upload failed"}`);
+          failed++;
+        } else if (data.results?.[0]?.success) {
+          succeeded++;
+        } else {
+          toast.error(`${files[i].name}: ${data.results?.[0]?.error || "Upload failed"}`);
+          failed++;
+        }
+      } catch {
+        toast.error(`${files[i].name}: Upload failed`);
+        failed++;
+      }
     }
+
+    if (succeeded > 0) {
+      toast.success(`${succeeded} image(s) uploaded successfully${failed > 0 ? `, ${failed} failed` : ""}`);
+    }
+
+    setImageDialogOpen(false);
+    setAltText("");
+    setCategory(CATEGORIES[0]);
+    setEventId("");
+    setFiles(null);
+    fetchImages();
+    setUploading(false);
   };
 
   const handleImageDelete = async (image: GalleryImage) => {
@@ -217,7 +226,7 @@ export default function AdminGalleryPage() {
     setUploadEventId(evtId);
     setEventUploadFiles(null);
     setEventUploadAlt("");
-    setEventUploadCategory(CATEGORIES[0]);
+    setEventUploadCategory("events");
     setEventUploadOpen(true);
   };
 
@@ -233,42 +242,56 @@ export default function AdminGalleryPage() {
 
     setEventUploading(true);
 
-    try {
-      const formData = new FormData();
-      for (let i = 0; i < eventUploadFiles.length; i++) {
+    let succeeded = 0;
+    let failed = 0;
+
+    // Upload one file at a time to avoid body size limits
+    for (let i = 0; i < eventUploadFiles.length; i++) {
+      try {
+        const formData = new FormData();
         formData.append("files", eventUploadFiles[i]);
-      }
-      formData.append("alt", eventUploadAlt.trim());
-      formData.append("category", eventUploadCategory);
-      formData.append("currentCount", String(images.length));
-      formData.append("gallery_event_id", uploadEventId);
+        formData.append("alt", eventUploadFiles.length > 1 ? `${eventUploadAlt.trim()} ${i + 1}` : eventUploadAlt.trim());
+        formData.append("category", eventUploadCategory);
+        formData.append("currentCount", String(images.length + succeeded));
+        formData.append("gallery_event_id", uploadEventId);
 
-      const res = await adminUpload("/api/gallery", formData);
-      const data = await res.json();
+        const res = await adminUpload("/api/gallery", formData);
+        const data = await res.json();
 
-      if (!res.ok) {
-        toast.error(data.error || "Upload failed");
-      } else if (data.results) {
-        const failed = data.results.filter((r: { success: boolean }) => !r.success);
-        if (failed.length > 0) {
-          failed.forEach((r: { name: string; error: string }) =>
-            toast.error(`Failed: ${r.name} — ${r.error}`)
-          );
+        if (!res.ok) {
+          toast.error(`${eventUploadFiles[i].name}: ${data.error || "Upload failed"}`);
+          failed++;
+        } else if (data.results?.[0]?.success) {
+          succeeded++;
+        } else {
+          toast.error(`${eventUploadFiles[i].name}: ${data.results?.[0]?.error || "Upload failed"}`);
+          failed++;
         }
-        const succeeded = data.results.filter((r: { success: boolean }) => r.success);
-        if (succeeded.length > 0) {
-          toast.success(`${succeeded.length} image(s) uploaded to event`);
-        }
+      } catch {
+        toast.error(`${eventUploadFiles[i].name}: Upload failed`);
+        failed++;
       }
-
-      setEventUploadOpen(false);
-      fetchImages();
-      fetchEvents();
-    } catch {
-      toast.error("An unexpected error occurred");
-    } finally {
-      setEventUploading(false);
     }
+
+    if (succeeded > 0) {
+      toast.success(`${succeeded} image(s) uploaded to event${failed > 0 ? `, ${failed} failed` : ""}`);
+    }
+
+    setEventUploadOpen(false);
+    // Clear cached images for this event so they refresh on next expand
+    setEventImages((prev) => {
+      const next = { ...prev };
+      delete next[uploadEventId];
+      return next;
+    });
+    // Re-expand to show updated photos
+    if (expandedEventId === uploadEventId) {
+      setExpandedEventId(null);
+      setTimeout(() => toggleEventExpand(uploadEventId), 100);
+    }
+    fetchImages();
+    fetchEvents();
+    setEventUploading(false);
   };
 
   // ── Event handlers ──
@@ -352,6 +375,63 @@ export default function AdminGalleryPage() {
 
     toast.success("Event deleted");
     await fetchEvents();
+  };
+
+  // ── Expand event to show photos ──
+  const toggleEventExpand = async (eventId: string) => {
+    if (expandedEventId === eventId) {
+      setExpandedEventId(null);
+      return;
+    }
+
+    setExpandedEventId(eventId);
+
+    // Fetch images for this event if not already cached
+    if (!eventImages[eventId]) {
+      setEventImagesLoading(eventId);
+      const { data, error } = await supabase
+        .from("gallery_images")
+        .select("*")
+        .eq("gallery_event_id", eventId)
+        .order("sort_order", { ascending: true });
+
+      if (!error) {
+        setEventImages((prev) => ({ ...prev, [eventId]: (data as GalleryImage[]) ?? [] }));
+      }
+      setEventImagesLoading(null);
+    }
+  };
+
+  const handleEventImageDelete = async (image: GalleryImage) => {
+    if (!confirm(`Remove this photo?`)) return;
+
+    try {
+      const res = await adminDelete("/api/gallery", { id: image.id, src: image.src });
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Delete failed");
+        return;
+      }
+
+      toast.success("Photo removed");
+
+      // Update cached event images
+      if (image.gallery_event_id) {
+        setEventImages((prev) => ({
+          ...prev,
+          [image.gallery_event_id!]: (prev[image.gallery_event_id!] ?? []).filter((img) => img.id !== image.id),
+        }));
+        setImageCounts((prev) => ({
+          ...prev,
+          [image.gallery_event_id!]: Math.max(0, (prev[image.gallery_event_id!] || 0) - 1),
+        }));
+      }
+
+      fetchImages();
+    } catch {
+      toast.error("Failed to delete photo");
+    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -626,13 +706,11 @@ export default function AdminGalleryPage() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs font-medium">Academic Year</Label>
-                    <Input
-                      placeholder="e.g. 2024-25"
+                    <AcademicYearSelect
                       value={eventForm.academic_year}
-                      onChange={(e) =>
-                        setEventForm({ ...eventForm, academic_year: e.target.value })
+                      onChange={(val) =>
+                        setEventForm({ ...eventForm, academic_year: val })
                       }
-                      className="h-9"
                     />
                   </div>
                 </div>
@@ -771,6 +849,7 @@ export default function AdminGalleryPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-8" />
                       <TableHead>Title</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Year</TableHead>
@@ -780,62 +859,136 @@ export default function AdminGalleryPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {events.map((evt) => (
-                      <TableRow key={evt.id}>
-                        <TableCell className="font-medium">{evt.title}</TableCell>
-                        <TableCell className="text-gray-600 dark:text-gray-300">
-                          {formatDate(evt.event_date)}
-                        </TableCell>
-                        <TableCell className="text-gray-600 dark:text-gray-300">
-                          {evt.academic_year || "—"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
-                            {imageCounts[evt.id] || 0} photos
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {evt.is_public ? (
-                            <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                              Public
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400">
-                              Hidden
-                            </Badge>
+                    {events.map((evt) => {
+                      const isExpanded = expandedEventId === evt.id;
+                      const photos = eventImages[evt.id] ?? [];
+                      const isLoadingPhotos = eventImagesLoading === evt.id;
+
+                      return (
+                        <React.Fragment key={evt.id}>
+                          <TableRow
+                            className={cn("cursor-pointer", isExpanded && "bg-gray-50/50 dark:bg-muted/30")}
+                            onClick={() => toggleEventExpand(evt.id)}
+                          >
+                            <TableCell className="w-8 pr-0">
+                              <ChevronRight
+                                className={cn(
+                                  "h-4 w-4 text-gray-400 transition-transform duration-200",
+                                  isExpanded && "rotate-90"
+                                )}
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">{evt.title}</TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-300">
+                              {formatDate(evt.event_date)}
+                            </TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-300">
+                              {evt.academic_year || "—"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                                {imageCounts[evt.id] || 0} photos
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {evt.is_public ? (
+                                <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                                  Public
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400">
+                                  Hidden
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => openEventUpload(evt.id)}
+                                  className="text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                  title="Upload photos to this event"
+                                >
+                                  <Upload className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => openEditEvent(evt)}
+                                  className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => handleEventDelete(evt.id)}
+                                  className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+
+                          {/* Expanded photo strip */}
+                          {isExpanded && (
+                            <tr>
+                              <td colSpan={7} className="p-0">
+                                <div className="bg-gray-50/80 dark:bg-muted/20 border-t border-b border-gray-100 dark:border-border px-6 py-4">
+                                  {isLoadingPhotos ? (
+                                    <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500 text-sm py-2">
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      Loading photos...
+                                    </div>
+                                  ) : photos.length === 0 ? (
+                                    <div className="flex items-center gap-3 text-gray-400 dark:text-gray-500 text-sm py-2">
+                                      <ImageIcon className="h-4 w-4" />
+                                      No photos in this event yet.
+                                      <button
+                                        onClick={() => openEventUpload(evt.id)}
+                                        className="text-emerald-600 hover:text-emerald-700 font-medium underline underline-offset-2"
+                                      >
+                                        Upload photos
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+                                      {photos.map((img) => (
+                                        <div
+                                          key={img.id}
+                                          className="relative group shrink-0 w-24 h-24 rounded-lg overflow-hidden border border-gray-200 dark:border-border bg-white dark:bg-card"
+                                        >
+                                          <img
+                                            src={img.src}
+                                            alt={img.alt}
+                                            className="w-full h-full object-cover"
+                                          />
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleEventImageDelete(img);
+                                            }}
+                                            className="absolute top-1 right-1 bg-red-500 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                                            title="Remove photo"
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </button>
+                                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/50 to-transparent px-1.5 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <p className="text-[9px] text-white truncate">{img.alt}</p>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
                           )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => openEventUpload(evt.id)}
-                              className="text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50"
-                              title="Upload photos to this event"
-                            >
-                              <Upload className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => openEditEvent(evt)}
-                              className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => handleEventDelete(evt.id)}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                        </React.Fragment>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
