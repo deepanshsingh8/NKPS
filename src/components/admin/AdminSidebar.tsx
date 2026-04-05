@@ -19,6 +19,7 @@ import {
   BarChart3,
   CalendarDays,
   ClipboardList,
+  ClipboardCheck,
   Clock,
   ChevronLeft,
 } from "lucide-react";
@@ -26,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { SidebarProfileMenu } from "@/components/portal/SidebarProfileMenu";
 import { SidebarTooltip } from "@/components/portal/SidebarTooltip";
 import { useSidebar } from "@/components/providers/SidebarProvider";
+import { useUnreadCount } from "@/hooks/useUnreadCount";
 
 const contentLinks = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/admin" },
@@ -37,6 +39,7 @@ const contentLinks = [
 
 const erpLinks = [
   { icon: Users, label: "Users", href: "/admin/users" },
+  { icon: ClipboardCheck, label: "Registrations", href: "/admin/registrations" },
   { icon: UserCheck, label: "Students", href: "/admin/students" },
   { icon: GraduationCap, label: "Classes", href: "/admin/classes" },
   { icon: BookOpen, label: "Subjects", href: "/admin/subjects" },
@@ -52,6 +55,7 @@ const erpLinks = [
 export function AdminSidebar() {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebar();
+  const { unreadCount } = useUnreadCount();
 
   const renderLink = ({ icon: Icon, label, href }: (typeof contentLinks)[0]) => {
     const isActive =
@@ -59,25 +63,43 @@ export function AdminSidebar() {
         ? pathname === "/admin"
         : pathname.startsWith(href);
 
+    const showBadge = href === "/admin/contact" && unreadCount > 0;
+
     const linkContent = (
       <Link
         href={href}
         className={cn(
-          "flex items-center gap-3 rounded-lg text-sm transition-all duration-200",
+          "flex items-center gap-3 rounded-lg text-sm transition-all duration-200 relative",
           collapsed ? "px-2.5 py-2.5 justify-center" : "px-3 py-2.5",
           isActive
             ? "bg-white/10 text-white font-semibold border-l-[3px] border-gold-500"
             : "text-white/60 hover:bg-white/5 hover:text-white hover:translate-x-0.5"
         )}
       >
-        <Icon className="h-5 w-5 shrink-0" />
-        {!collapsed && <span className="truncate">{label}</span>}
+        <span className="relative">
+          <Icon className="h-5 w-5 shrink-0" />
+          {showBadge && collapsed && (
+            <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full h-4 min-w-4 px-1">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </span>
+        {!collapsed && (
+          <>
+            <span className="truncate">{label}</span>
+            {showBadge && (
+              <span className="ml-auto flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-5 px-1.5">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </>
+        )}
       </Link>
     );
 
     if (collapsed) {
       return (
-        <SidebarTooltip key={href} label={label}>
+        <SidebarTooltip key={href} label={showBadge ? `${label} (${unreadCount})` : label}>
           {linkContent}
         </SidebarTooltip>
       );

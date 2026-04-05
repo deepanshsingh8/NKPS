@@ -24,6 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, CalendarDays } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
+import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/lib/constants/calendar";
 import type { CalendarEvent, CalendarEventType } from "@/types";
 
 const EVENT_TYPES: CalendarEventType[] = [
@@ -33,22 +34,6 @@ const EVENT_TYPES: CalendarEventType[] = [
   "pta_meeting",
   "other",
 ];
-
-const EVENT_TYPE_LABELS: Record<CalendarEventType, string> = {
-  exam: "Exam",
-  holiday: "Holiday",
-  event: "Event",
-  pta_meeting: "PTA Meeting",
-  other: "Other",
-};
-
-const EVENT_TYPE_COLORS: Record<CalendarEventType, string> = {
-  exam: "bg-blue-100 text-blue-700 border-blue-200",
-  holiday: "bg-green-100 text-green-700 border-green-200",
-  event: "bg-amber-100 text-amber-700 border-amber-200",
-  pta_meeting: "bg-purple-100 text-purple-700 border-purple-200",
-  other: "bg-gray-100 dark:bg-muted text-gray-700 dark:text-gray-300 border-gray-200 dark:border-border",
-};
 
 interface ClassOption {
   id: string;

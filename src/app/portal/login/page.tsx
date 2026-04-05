@@ -214,8 +214,18 @@ export default function PortalLoginPage() {
             </form>
           </div>
 
+          {/* Register link */}
+          <div className="mt-4 text-center">
+            <Link
+              href="/portal/register"
+              className="text-sm text-gold-600 hover:text-gold-500 font-medium transition-colors"
+            >
+              Don&apos;t have an account? Register here
+            </Link>
+          </div>
+
           {/* Back to website link */}
-          <div className="mt-6 text-center">
+          <div className="mt-3 text-center">
             <Link
               href="/"
               className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-navy-900 transition-colors"

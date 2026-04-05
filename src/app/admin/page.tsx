@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Image as ImageIcon,
   FileText,
@@ -8,12 +9,16 @@ import {
   Users,
   GraduationCap,
   TrendingUp,
-  Mail,
+  Calendar,
+  ArrowRight,
+  ClipboardCheck,
 } from "lucide-react";
 import { adminFetch } from "@/lib/admin-api";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import type { ContactSubmission } from "@/types";
+import { DashboardAnalytics } from "@/components/admin/DashboardAnalytics";
+import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/lib/constants/calendar";
+import type { CalendarEventType } from "@/types";
 
 interface Stats {
   galleryCount: number;
@@ -22,6 +27,16 @@ interface Stats {
   totalUsers: number;
   totalStudents: number;
   totalTeachers: number;
+  pendingRegistrations: number;
+}
+
+interface UpcomingEvent {
+  id: string;
+  title: string;
+  description: string | null;
+  event_type: CalendarEventType;
+  start_date: string;
+  end_date: string | null;
 }
 
 const statCardConfig = [
@@ -73,11 +88,19 @@ const statCardConfig = [
     iconColor: "text-rose-600",
     accent: "from-rose-500/10 to-transparent",
   },
+  {
+    key: "pendingRegistrations",
+    label: "Pending Registrations",
+    icon: ClipboardCheck,
+    iconBg: "bg-orange-100 dark:bg-orange-900/30",
+    iconColor: "text-orange-600",
+    accent: "from-orange-500/10 to-transparent",
+  },
 ] as const;
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [recentMessages, setRecentMessages] = useState<ContactSubmission[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -88,7 +111,7 @@ export default function AdminDashboardPage() {
 
         if (res.ok) {
           setStats(data.stats);
-          setRecentMessages(data.recentMessages ?? []);
+          setUpcomingEvents(data.upcomingEvents ?? []);
         }
       } catch {
         // Silently fail — dashboard will show empty state
@@ -99,6 +122,14 @@ export default function AdminDashboardPage() {
 
     fetchData();
   }, []);
+
+  const formatEventDate = (dateStr: string) => {
+    const d = new Date(dateStr + "T00:00:00");
+    return {
+      day: d.getDate(),
+      month: d.toLocaleDateString("en-IN", { month: "short" }),
+    };
+  };
 
   return (
     <div className="space-y-8">
@@ -122,7 +153,6 @@ export default function AdminDashboardPage() {
             key={key}
             className="erp-stat-card relative overflow-hidden group"
           >
-            {/* Subtle gradient accent */}
             <div className={cn("absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl rounded-bl-full opacity-60", accent)} />
             <div className="relative flex items-center gap-4">
               <div
@@ -148,11 +178,29 @@ export default function AdminDashboardPage() {
         ))}
       </div>
 
-      {/* Recent Messages */}
+      {/* Analytics */}
       <div>
         <div className="flex items-center gap-2 mb-4">
-          <Mail className="h-5 w-5 text-gray-400" />
-          <h2 className="erp-section-title">Recent Contact Messages</h2>
+          <TrendingUp className="h-5 w-5 text-gray-400" />
+          <h2 className="erp-section-title">Analytics</h2>
+        </div>
+        <DashboardAnalytics />
+      </div>
+
+      {/* Upcoming Events */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-gray-400" />
+            <h2 className="erp-section-title">Upcoming Events</h2>
+          </div>
+          <Link
+            href="/admin/calendar"
+            className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+          >
+            View All
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
 
         {loading ? (
@@ -160,72 +208,68 @@ export default function AdminDashboardPage() {
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="bg-white dark:bg-card rounded-xl border border-gray-200/80 dark:border-border p-5 animate-pulse"
+                className="bg-white dark:bg-card rounded-xl border border-gray-200/80 dark:border-border p-4 animate-pulse"
               >
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 bg-gray-100 dark:bg-muted rounded-full" />
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 bg-gray-100 dark:bg-muted rounded-xl" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-4 w-32 bg-gray-100 dark:bg-muted rounded" />
-                    <div className="h-3 w-48 bg-gray-50 dark:bg-muted rounded" />
+                    <div className="h-4 w-40 bg-gray-100 dark:bg-muted rounded" />
+                    <div className="h-3 w-24 bg-gray-50 dark:bg-muted rounded" />
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        ) : recentMessages.length === 0 ? (
+        ) : upcomingEvents.length === 0 ? (
           <div className="erp-empty-state bg-white dark:bg-card rounded-2xl border border-gray-200/80 dark:border-border">
-            <MessageSquare className="h-10 w-10 text-gray-300 mb-3" />
-            <p className="text-sm text-gray-400">No contact messages yet</p>
+            <Calendar className="h-10 w-10 text-gray-300 mb-3" />
+            <p className="text-sm text-gray-400">No upcoming events scheduled</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {recentMessages.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn(
-                  "bg-white dark:bg-card rounded-xl border p-5 transition-all duration-200 hover:shadow-sm cursor-default",
-                  !msg.is_read
-                    ? "border-blue-200/80 bg-blue-50/30 dark:bg-blue-950/30 dark:border-border"
-                    : "border-gray-200/80 dark:border-border"
-                )}
-              >
-                <div className="flex items-start gap-4">
-                  {/* Avatar circle */}
-                  <div className={cn(
-                    "h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0",
-                    !msg.is_read
-                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
-                      : "bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400"
-                  )}>
-                    {msg.full_name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-navy-900 dark:text-white text-sm">
-                          {msg.full_name}
-                        </p>
-                        {!msg.is_read && (
-                          <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[10px] px-1.5 py-0">
-                            New
-                          </Badge>
-                        )}
-                      </div>
-                      <span className="text-xs text-gray-400 shrink-0 ml-2">
-                        {new Date(msg.created_at).toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                        })}
+            {upcomingEvents.map((evt) => {
+              const { day, month } = formatEventDate(evt.start_date);
+              return (
+                <div
+                  key={evt.id}
+                  className="bg-white dark:bg-card rounded-xl border border-gray-200/80 dark:border-border p-4 transition-all duration-200 hover:shadow-sm"
+                >
+                  <div className="flex items-center gap-4">
+                    {/* Date block */}
+                    <div className="h-12 w-12 rounded-xl bg-navy-900/5 dark:bg-white/5 flex flex-col items-center justify-center shrink-0">
+                      <span className="text-lg font-bold leading-none text-navy-900 dark:text-white">
+                        {day}
+                      </span>
+                      <span className="text-[10px] font-medium uppercase text-gray-500 dark:text-gray-400 mt-0.5">
+                        {month}
                       </span>
                     </div>
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">
-                      {msg.subject}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">{msg.email}</p>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="font-semibold text-navy-900 dark:text-white text-sm truncate">
+                          {evt.title}
+                        </p>
+                        <Badge
+                          className={cn(
+                            "text-[10px] px-1.5 py-0 shrink-0",
+                            EVENT_TYPE_COLORS[evt.event_type] ?? EVENT_TYPE_COLORS.other
+                          )}
+                        >
+                          {EVENT_TYPE_LABELS[evt.event_type] ?? evt.event_type}
+                        </Badge>
+                      </div>
+                      {evt.description && (
+                        <p className="text-xs text-gray-400 truncate">
+                          {evt.description}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

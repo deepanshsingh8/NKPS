@@ -7,11 +7,9 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Optimized: 5 parallel queries instead of 7
-  // - Students counted from students table (the source of truth)
-  // - Teachers counted from profiles (they still need auth accounts)
-  // - Recent messages selects only needed columns
-  const [galleryRes, tcRes, unreadRes, messagesRes, studentsRes, teachersRes] =
+  const today = new Date().toISOString().split("T")[0];
+
+  const [galleryRes, tcRes, unreadRes, studentsRes, teachersRes, eventsRes, pendingRegsRes] =
     await Promise.all([
       admin
         .from("gallery_images")
@@ -24,11 +22,6 @@ export async function GET() {
         .select("*", { count: "exact", head: true })
         .eq("is_read", false),
       admin
-        .from("contact_submissions")
-        .select("id, full_name, email, subject, is_read, created_at")
-        .order("created_at", { ascending: false })
-        .limit(5),
-      admin
         .from("students")
         .select("*", { count: "exact", head: true })
         .eq("is_active", true),
@@ -36,6 +29,16 @@ export async function GET() {
         .from("profiles")
         .select("*", { count: "exact", head: true })
         .eq("role", "teacher"),
+      admin
+        .from("calendar_events")
+        .select("id, title, description, event_type, start_date, end_date")
+        .gte("start_date", today)
+        .order("start_date", { ascending: true })
+        .limit(8),
+      admin
+        .from("registration_requests")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending"),
     ]);
 
   const totalUsers =
@@ -49,7 +52,8 @@ export async function GET() {
       totalUsers,
       totalStudents: studentsRes.count ?? 0,
       totalTeachers: teachersRes.count ?? 0,
+      pendingRegistrations: pendingRegsRes.count ?? 0,
     },
-    recentMessages: messagesRes.data ?? [],
+    upcomingEvents: eventsRes.data ?? [],
   });
 }

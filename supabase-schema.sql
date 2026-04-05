@@ -715,3 +715,50 @@ create policy "Admins can delete students"
 -- See scripts/migration-001-student-fk.sql for the migration to run
 -- on existing databases.
 -- =============================================================
+
+-- =============================================================
+-- Registration Requests (self-registration with admin approval)
+-- =============================================================
+
+create table if not exists registration_requests (
+  id uuid default gen_random_uuid() primary key,
+  full_name text not null,
+  email text not null,
+  phone text,
+  role text not null check (role in ('teacher', 'student')),
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  rejection_reason text,
+  reviewed_by uuid references profiles(id),
+  reviewed_at timestamptz,
+  created_at timestamptz default now()
+);
+
+-- Allow only one pending registration per email (rejected users can re-register)
+create unique index idx_registration_requests_pending_email
+  on registration_requests(email) where status = 'pending';
+
+-- Index for admin queries
+create index idx_registration_requests_status
+  on registration_requests(status, created_at desc);
+
+alter table registration_requests enable row level security;
+
+-- Anyone can submit a registration (public insert)
+create policy "Anyone can submit registration"
+  on registration_requests for insert
+  with check (true);
+
+-- Only admins can read registrations
+create policy "Admins can read all registrations"
+  on registration_requests for select
+  using (public.get_user_role() = 'admin');
+
+-- Only admins can update registrations (approve/reject)
+create policy "Admins can update registrations"
+  on registration_requests for update
+  using (public.get_user_role() = 'admin');
+
+-- Only admins can delete registrations
+create policy "Admins can delete registrations"
+  on registration_requests for delete
+  using (public.get_user_role() = 'admin');

@@ -215,6 +215,29 @@ export interface CalendarEvent {
 // Student Records (standalone, no auth required)
 // =============================================================
 
+// =============================================================
+// Registration Requests
+// =============================================================
+
+export type RegistrationStatus = 'pending' | 'approved' | 'rejected';
+
+export interface RegistrationRequest {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  role: 'teacher' | 'student';
+  status: RegistrationStatus;
+  rejection_reason: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+// =============================================================
+// Student Records (standalone, no auth required)
+// =============================================================
+
 export type Gender = 'male' | 'female' | 'other';
 export type BloodGroup = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
 

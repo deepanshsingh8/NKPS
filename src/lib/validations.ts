@@ -138,6 +138,21 @@ export const calendarEventSchema = z.object({
 export type CalendarEventData = z.infer<typeof calendarEventSchema>;
 
 // =============================================================
+// Registration Requests
+// =============================================================
+
+export const registrationRequestSchema = z.object({
+  full_name: z.string().min(2, "Full name must be at least 2 characters"),
+  email: z.string().email("Please enter a valid email"),
+  phone: z.string().min(10, "Please enter a valid phone number").optional().or(z.literal("")),
+  role: z.enum(["teacher", "student"], {
+    message: "Please select a role",
+  }),
+});
+
+export type RegistrationRequestData = z.infer<typeof registrationRequestSchema>;
+
+// =============================================================
 // Student Records
 // =============================================================
 

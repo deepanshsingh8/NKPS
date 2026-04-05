@@ -96,6 +96,22 @@ export async function POST(request: Request) {
       }
     }
 
+    // Send welcome email with credentials (non-blocking)
+    try {
+      const { sendEmail, buildWelcomeEmail } = await import("@/lib/email");
+      const loginUrl = `${request.headers.get("origin") || process.env.NEXT_PUBLIC_SITE_URL || ""}/portal/login`;
+      const html = buildWelcomeEmail({
+        fullName: full_name,
+        email,
+        password,
+        loginUrl,
+        role,
+      });
+      await sendEmail(email, "Your NKPS Portal Account", html);
+    } catch (emailError) {
+      console.error("Failed to send welcome email:", emailError);
+    }
+
     return NextResponse.json({
       success: true,
       user: newUser.user,
