@@ -321,7 +321,7 @@ export default function TeacherResultsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {classes.map((cls) => (
-                    <SelectItem key={cls.id} value={cls.id}>
+                    <SelectItem key={cls.id} value={cls.id} label={`${cls.name} - ${cls.section}`}>
                       {cls.name} - {cls.section}
                     </SelectItem>
                   ))}
@@ -342,7 +342,7 @@ export default function TeacherResultsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {subjects.map((sub) => (
-                    <SelectItem key={sub.id} value={sub.id}>
+                    <SelectItem key={sub.id} value={sub.id} label={sub.name + (sub.code ? ` (${sub.code})` : "")}>
                       {sub.name}
                       {sub.code ? ` (${sub.code})` : ""}
                     </SelectItem>
@@ -364,7 +364,7 @@ export default function TeacherResultsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {examTypes.map((et) => (
-                    <SelectItem key={et.id} value={et.id}>
+                    <SelectItem key={et.id} value={et.id} label={`${et.name} (Max: ${et.max_marks})`}>
                       {et.name} (Max: {et.max_marks})
                     </SelectItem>
                   ))}

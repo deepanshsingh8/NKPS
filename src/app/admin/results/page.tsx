@@ -300,7 +300,7 @@ export default function AdminResultsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {classes.map((cls) => (
-                    <SelectItem key={cls.id} value={cls.id}>
+                    <SelectItem key={cls.id} value={cls.id} label={`${cls.name} - ${cls.section}`}>
                       {cls.name} - {cls.section}
                     </SelectItem>
                   ))}
@@ -321,7 +321,7 @@ export default function AdminResultsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {examTypes.map((et) => (
-                    <SelectItem key={et.id} value={et.id}>
+                    <SelectItem key={et.id} value={et.id} label={et.name}>
                       {et.name}
                     </SelectItem>
                   ))}

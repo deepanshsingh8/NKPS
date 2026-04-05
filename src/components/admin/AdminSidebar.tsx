@@ -18,21 +18,19 @@ import {
   CheckSquare,
   BarChart3,
   CalendarDays,
-  Library,
   ClipboardList,
   Clock,
-  FolderOpen,
-  PanelLeftClose,
-  PanelLeftOpen,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SidebarProfileMenu } from "@/components/portal/SidebarProfileMenu";
+import { SidebarTooltip } from "@/components/portal/SidebarTooltip";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 
 const contentLinks = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/admin" },
   { icon: ImageIcon, label: "Gallery", href: "/admin/gallery" },
-  { icon: FolderOpen, label: "Gallery Events", href: "/admin/gallery/events" },
   { icon: FileText, label: "Transfer Certificates", href: "/admin/transfer-certificates" },
   { icon: MessageSquare, label: "Contact Messages", href: "/admin/contact" },
   { icon: Layers, label: "Site Media", href: "/admin/site-media" },
@@ -43,7 +41,6 @@ const erpLinks = [
   { icon: UserCheck, label: "Students", href: "/admin/students" },
   { icon: GraduationCap, label: "Classes", href: "/admin/classes" },
   { icon: BookOpen, label: "Subjects", href: "/admin/subjects" },
-  { icon: Library, label: "Class Subjects", href: "/admin/class-subjects" },
   { icon: CalendarDays, label: "Academic Years", href: "/admin/academic-years" },
   { icon: ClipboardList, label: "Exam Types", href: "/admin/exam-types" },
   { icon: CreditCard, label: "Fees", href: "/admin/fees" },
@@ -107,22 +104,35 @@ export function AdminSidebar() {
               height={36}
               className="rounded-full shrink-0"
             />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h1 className="font-heading text-xl font-bold text-white truncate">
                 NKPS ERP
               </h1>
               <p className="text-sm text-gold-500 mt-0.5">Admin</p>
             </div>
+            <button
+              onClick={toggle}
+              className="flex items-center justify-center h-7 w-7 rounded-lg text-white/40 hover:bg-white/5 hover:text-white transition-colors shrink-0"
+              title="Collapse sidebar"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
           </>
         )}
         {collapsed && (
-          <Image
-            src="/images/logo.png"
-            alt="NKPS Logo"
-            width={32}
-            height={32}
-            className="rounded-full"
-          />
+          <button
+            onClick={toggle}
+            className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-white/5 transition-colors"
+            title="Expand sidebar"
+          >
+            <Image
+              src="/images/logo.png"
+              alt="NKPS Logo"
+              width={32}
+              height={32}
+              className="rounded-full"
+            />
+          </button>
         )}
       </div>
 
@@ -132,23 +142,8 @@ export function AdminSidebar() {
         </div>
       )}
 
-      {/* Toggle button */}
-      <div className={cn("px-3 mb-2", collapsed && "flex justify-center")}>
-        <button
-          onClick={toggle}
-          className="flex items-center justify-center h-8 w-8 rounded-lg text-white/40 hover:bg-white/5 hover:text-white transition-colors"
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="h-4 w-4" />
-          ) : (
-            <PanelLeftClose className="h-4 w-4" />
-          )}
-        </button>
-      </div>
-
       {/* Navigation */}
-      <nav className="flex-1 px-2 overflow-y-auto">
+      <nav className="flex-1 min-h-0 px-2 overflow-y-auto">
         <div className="mb-1">
           {!collapsed && (
             <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
@@ -161,7 +156,7 @@ export function AdminSidebar() {
           </div>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-4 pb-2">
           {!collapsed && (
             <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
               ERP

@@ -258,7 +258,7 @@ export default function AdminAttendancePage() {
                 <SelectContent>
                   <SelectItem value="all">All Classes</SelectItem>
                   {classes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
+                    <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
                       {c.name} - {c.section}
                     </SelectItem>
                   ))}

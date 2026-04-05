@@ -299,7 +299,7 @@ export default function AdminExamTypesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {academicYears.map((ay) => (
-                    <SelectItem key={ay.id} value={ay.id}>
+                    <SelectItem key={ay.id} value={ay.id} label={ay.name}>
                       {ay.name}
                     </SelectItem>
                   ))}

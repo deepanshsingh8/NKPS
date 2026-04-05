@@ -361,7 +361,7 @@ export default function AdminStudentsPage() {
             </SelectTrigger>
             <SelectContent>
               {classes.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
+                <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
                   {c.name} - {c.section}
                 </SelectItem>
               ))}
@@ -587,7 +587,7 @@ export default function AdminStudentsPage() {
               <SelectContent>
                 <SelectItem value="all">All Classes</SelectItem>
                 {classes.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
+                  <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
                     {c.name} - {c.section}
                   </SelectItem>
                 ))}

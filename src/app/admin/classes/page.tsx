@@ -337,7 +337,7 @@ export default function AdminClassesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {academicYears.map((ay) => (
-                    <SelectItem key={ay.id} value={ay.id}>
+                    <SelectItem key={ay.id} value={ay.id} label={ay.name}>
                       {ay.name}
                     </SelectItem>
                   ))}
@@ -353,7 +353,7 @@ export default function AdminClassesPage() {
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
                   {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
+                    <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.email})`}>
                       {t.full_name} ({t.email})
                     </SelectItem>
                   ))}
@@ -421,7 +421,7 @@ export default function AdminClassesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {academicYears.map((ay) => (
-                    <SelectItem key={ay.id} value={ay.id}>
+                    <SelectItem key={ay.id} value={ay.id} label={ay.name}>
                       {ay.name}
                     </SelectItem>
                   ))}
@@ -438,7 +438,7 @@ export default function AdminClassesPage() {
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
                   {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
+                    <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.email})`}>
                       {t.full_name} ({t.email})
                     </SelectItem>
                   ))}

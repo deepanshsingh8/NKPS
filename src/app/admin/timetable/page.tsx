@@ -278,7 +278,7 @@ export default function AdminTimetablePage() {
           </SelectTrigger>
           <SelectContent>
             {classes.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
+              <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
                 {c.name} - {c.section}
               </SelectItem>
             ))}
@@ -414,7 +414,7 @@ export default function AdminTimetablePage() {
                 </SelectTrigger>
                 <SelectContent>
                   {subjects.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
+                    <SelectItem key={s.id} value={s.id} label={s.name + (s.code ? ` (${s.code})` : "")}>
                       {s.name}
                       {s.code ? ` (${s.code})` : ""}
                     </SelectItem>
@@ -439,7 +439,7 @@ export default function AdminTimetablePage() {
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
                   {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
+                    <SelectItem key={t.id} value={t.id} label={t.full_name}>
                       {t.full_name}
                     </SelectItem>
                   ))}
