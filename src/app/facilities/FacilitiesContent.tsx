@@ -20,6 +20,7 @@ import { SectionHeading } from "@/components/shared/SectionHeading";
 import { FACILITIES } from "@/lib/constants";
 import { staggerContainer, fadeUp } from "@/lib/animations";
 import { cn } from "@/lib/utils";
+import type { SectionCard } from "@/types";
 
 const iconComponents = [
   Monitor,
@@ -62,9 +63,24 @@ const highlights = [
 interface FacilitiesContentProps {
   facilityImages: string[];
   heroImage: string;
+  cards?: SectionCard[];
 }
 
-export function FacilitiesContent({ facilityImages, heroImage }: FacilitiesContentProps) {
+export function FacilitiesContent({ facilityImages, heroImage, cards }: FacilitiesContentProps) {
+  // When DB cards exist, use them; otherwise fall back to FACILITIES constant
+  const facilities = cards && cards.length > 0
+    ? cards.map((c, i) => ({
+        title: c.title || FACILITIES[i]?.title || "",
+        description: c.description || FACILITIES[i]?.description || "",
+        icon: c.icon || FACILITIES[i]?.icon || "Monitor",
+        image: c.image_url || facilityImages[i] || "",
+      }))
+    : FACILITIES.map((f, i) => ({
+        title: f.title,
+        description: f.description,
+        icon: f.icon,
+        image: facilityImages[i] || "",
+      }));
   return (
     <PageTransition>
       <PageHeader
@@ -109,9 +125,9 @@ export function FacilitiesContent({ facilityImages, heroImage }: FacilitiesConte
             viewport={{ once: true, margin: "-100px" }}
             className="mt-14 grid grid-cols-1 gap-8 lg:grid-cols-2"
           >
-            {FACILITIES.map((facility, index) => {
-              const Icon = iconComponents[index];
-              const image = facilityImages[index];
+            {facilities.map((facility, index) => {
+              const Icon = iconComponents[index] || Monitor;
+              const image = facility.image;
               return (
                 <motion.div
                   key={facility.title}

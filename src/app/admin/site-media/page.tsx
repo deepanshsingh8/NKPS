@@ -24,21 +24,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { FileDropZone } from "@/components/shared/FileDropZone";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { SiteMedia, SectionCard, SectionCardType } from "@/types";
 
-/* ─── Image Slots Tab (existing) ─── */
+/* ─── Constants ─── */
 
 const PAGE_LABELS: Record<string, string> = {
   home: "Home Page",
@@ -61,6 +53,93 @@ const SECTION_LABELS: Record<string, string> = {
   campus_facilities: "Campus Facilities",
   testimonials: "Testimonials",
 };
+
+// Sections that support dynamic cards
+const CARD_ENABLED_SECTIONS: SectionCardType[] = [
+  "hero_slider",
+  "testimonials",
+  "latest_updates",
+  "facilities_preview",
+];
+
+const SECTION_FIELD_MAP: Record<SectionCardType, { required: string[]; optional: string[] }> = {
+  hero_slider: {
+    required: ["title", "subtitle"],
+    optional: ["cta_text", "cta_link"],
+  },
+  testimonials: {
+    required: ["quote", "name", "role"],
+    optional: [],
+  },
+  latest_updates: {
+    required: ["title", "description", "date"],
+    optional: ["link"],
+  },
+  facilities_preview: {
+    required: ["title", "description"],
+    optional: ["icon"],
+  },
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  title: "Title",
+  subtitle: "Subtitle",
+  description: "Description",
+  quote: "Quote",
+  name: "Name",
+  role: "Role",
+  date: "Date",
+  cta_text: "CTA Text",
+  cta_link: "CTA Link",
+  icon: "Icon",
+  link: "Link",
+};
+
+const FIELD_PLACEHOLDERS: Record<string, string> = {
+  title: "Card title",
+  subtitle: "Card subtitle",
+  description: "Brief description",
+  quote: "Testimonial quote text",
+  name: "Person's name",
+  role: "e.g., Parent of Class VIII student",
+  date: "e.g., March 2026",
+  cta_text: "e.g., Learn More",
+  cta_link: "e.g., /admissions",
+  icon: "e.g., Monitor, FlaskConical, Laptop, BookOpen",
+  link: "e.g., /news/article-slug",
+};
+
+interface CardForm {
+  title: string;
+  subtitle: string;
+  description: string;
+  quote: string;
+  name: string;
+  role: string;
+  date: string;
+  cta_text: string;
+  cta_link: string;
+  icon: string;
+  link: string;
+  sort_order: string;
+}
+
+const emptyForm: CardForm = {
+  title: "",
+  subtitle: "",
+  description: "",
+  quote: "",
+  name: "",
+  role: "",
+  date: "",
+  cta_text: "",
+  cta_link: "",
+  icon: "",
+  link: "",
+  sort_order: "0",
+};
+
+/* ─── Helpers ─── */
 
 interface GroupedMedia {
   page: string;
@@ -94,6 +173,30 @@ function groupMedia(items: SiteMedia[]): GroupedMedia[] {
       };
     });
 }
+
+function getCardPrimaryText(card: SectionCard): string {
+  if (card.section === "testimonials") {
+    return card.quote ? `"${card.quote.slice(0, 60)}${card.quote.length > 60 ? "..." : ""}"` : "—";
+  }
+  return card.title || "—";
+}
+
+function getCardSecondaryText(card: SectionCard): string {
+  switch (card.section) {
+    case "hero_slider":
+      return card.subtitle || "";
+    case "testimonials":
+      return card.name ? `— ${card.name}${card.role ? `, ${card.role}` : ""}` : "";
+    case "latest_updates":
+      return card.date || "";
+    case "facilities_preview":
+      return card.description?.slice(0, 60) || "";
+    default:
+      return "";
+  }
+}
+
+/* ─── SlotCard (image slots) ─── */
 
 function SlotCard({
   item,
@@ -221,160 +324,142 @@ function SlotCard({
   );
 }
 
-/* ─── Section Cards Tab ─── */
+/* ─── SectionCardItem (inline card in section) ─── */
 
-const CARD_SECTIONS: { value: SectionCardType; label: string }[] = [
-  { value: "hero_slider", label: "Hero Slider" },
-  { value: "testimonials", label: "Testimonials" },
-  { value: "latest_updates", label: "Latest Updates" },
-  { value: "facilities_preview", label: "Facilities Preview" },
-];
+function SectionCardItem({
+  card,
+  onEdit,
+  onDelete,
+  onToggle,
+}: {
+  card: SectionCard;
+  onEdit: () => void;
+  onDelete: () => void;
+  onToggle: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 p-3 rounded-xl border shadow-sm transition-all",
+        card.is_active
+          ? "bg-white dark:bg-card border-gray-200 dark:border-border"
+          : "bg-gray-50 dark:bg-card/50 border-gray-200 dark:border-border opacity-60"
+      )}
+    >
+      {/* Thumbnail */}
+      {card.image_url ? (
+        <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-muted shrink-0 relative">
+          <Image src={card.image_url} alt={card.title || "Card"} fill className="object-cover" sizes="48px" />
+        </div>
+      ) : (
+        <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-muted shrink-0 flex items-center justify-center">
+          {card.section === "testimonials" && card.initials ? (
+            <span className="text-sm font-semibold text-navy-900 dark:text-white">{card.initials}</span>
+          ) : (
+            <ImageIcon className="h-4 w-4 text-gray-300" />
+          )}
+        </div>
+      )}
 
-const SECTION_FIELD_MAP: Record<SectionCardType, { required: string[]; optional: string[] }> = {
-  hero_slider: {
-    required: ["title", "subtitle"],
-    optional: ["cta_text", "cta_link"],
-  },
-  testimonials: {
-    required: ["quote", "name", "role"],
-    optional: [],
-  },
-  latest_updates: {
-    required: ["title", "description", "date"],
-    optional: ["link"],
-  },
-  facilities_preview: {
-    required: ["title", "description"],
-    optional: ["icon"],
-  },
-};
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="font-medium text-navy-900 dark:text-white text-xs truncate">
+            {getCardPrimaryText(card)}
+          </p>
+          {!card.is_active && (
+            <Badge variant="outline" className="text-[9px] px-1 py-0 text-gray-400 border-gray-300">
+              Off
+            </Badge>
+          )}
+        </div>
+        <p className="text-[11px] text-gray-500 truncate">{getCardSecondaryText(card)}</p>
+      </div>
 
-const FIELD_LABELS: Record<string, string> = {
-  title: "Title",
-  subtitle: "Subtitle",
-  description: "Description",
-  quote: "Quote",
-  name: "Name",
-  role: "Role",
-  date: "Date",
-  cta_text: "CTA Text",
-  cta_link: "CTA Link",
-  icon: "Icon",
-  link: "Link",
-};
-
-const FIELD_PLACEHOLDERS: Record<string, string> = {
-  title: "Card title",
-  subtitle: "Card subtitle",
-  description: "Brief description",
-  quote: "Testimonial quote text",
-  name: "Person's name",
-  role: "e.g., Parent of Class VIII student",
-  date: "e.g., March 2026",
-  cta_text: "e.g., Learn More",
-  cta_link: "e.g., /admissions",
-  icon: "e.g., Monitor, FlaskConical, Laptop, BookOpen",
-  link: "e.g., /news/article-slug",
-};
-
-interface CardForm {
-  title: string;
-  subtitle: string;
-  description: string;
-  quote: string;
-  name: string;
-  role: string;
-  date: string;
-  cta_text: string;
-  cta_link: string;
-  icon: string;
-  link: string;
-  sort_order: string;
+      {/* Actions */}
+      <div className="flex items-center gap-0.5 shrink-0">
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-navy-900" onClick={onToggle} title={card.is_active ? "Deactivate" : "Activate"}>
+          <Check className={cn("h-3.5 w-3.5", card.is_active ? "text-green-500" : "text-gray-300")} />
+        </Button>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600" onClick={onEdit}>
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-red-600" onClick={onDelete}>
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
 }
 
-const emptyForm: CardForm = {
-  title: "",
-  subtitle: "",
-  description: "",
-  quote: "",
-  name: "",
-  role: "",
-  date: "",
-  cta_text: "",
-  cta_link: "",
-  icon: "",
-  link: "",
-  sort_order: "0",
-};
+/* ─── Main Page ─── */
 
-function getCardPrimaryText(card: SectionCard): string {
-  switch (card.section) {
-    case "testimonials":
-      return card.quote ? `"${card.quote.slice(0, 60)}${card.quote.length > 60 ? "..." : ""}"` : "—";
-    default:
-      return card.title || "—";
-  }
-}
-
-function getCardSecondaryText(card: SectionCard): string {
-  switch (card.section) {
-    case "hero_slider":
-      return card.subtitle || "";
-    case "testimonials":
-      return card.name ? `— ${card.name}${card.role ? `, ${card.role}` : ""}` : "";
-    case "latest_updates":
-      return card.date || "";
-    case "facilities_preview":
-      return card.description?.slice(0, 60) || "";
-    default:
-      return "";
-  }
-}
-
-function SectionCardsManager() {
+export default function AdminSiteMediaPage() {
+  const [items, setItems] = useState<SiteMedia[]>([]);
   const [cards, setCards] = useState<SectionCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedPages, setExpandedPages] = useState<Set<string>>(
+    new Set(["home"])
+  );
+
+  // Card dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editing, setEditing] = useState<SectionCard | null>(null);
-  const [selectedSection, setSelectedSection] = useState<SectionCardType>("hero_slider");
-  const [filterSection, setFilterSection] = useState<string>("all");
+  const [dialogSection, setDialogSection] = useState<SectionCardType>("hero_slider");
   const [file, setFile] = useState<FileList | null>(null);
   const [form, setForm] = useState<CardForm>(emptyForm);
 
-  const fetchCards = useCallback(async () => {
+  const fetchMedia = useCallback(async () => {
     try {
-      const res = await adminFetch("/api/admin/section-cards");
-      const data = await res.json();
-      if (res.ok) {
-        setCards(data.data ?? []);
-      }
+      const [mediaRes, cardsRes] = await Promise.all([
+        adminFetch("/api/admin/site-media"),
+        adminFetch("/api/admin/section-cards"),
+      ]);
+      const mediaData = await mediaRes.json();
+      const cardsData = await cardsRes.json();
+      if (mediaRes.ok) setItems(mediaData.data ?? []);
+      if (cardsRes.ok) setCards(cardsData.data ?? []);
     } catch {
-      toast.error("Failed to load section cards");
+      toast.error("Failed to load site media");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchCards();
-  }, [fetchCards]);
+    fetchMedia();
+  }, [fetchMedia]);
+
+  const togglePage = (page: string) => {
+    setExpandedPages((prev) => {
+      const next = new Set(prev);
+      if (next.has(page)) next.delete(page);
+      else next.add(page);
+      return next;
+    });
+  };
+
+  /* ─── Card CRUD ─── */
 
   const resetForm = () => {
     setForm(emptyForm);
     setFile(null);
     setEditing(null);
-    setSelectedSection("hero_slider");
   };
 
-  const openCreate = () => {
+  const openAddCard = (section: SectionCardType) => {
     resetForm();
+    setDialogSection(section);
+    // Pre-fill sort_order to next available
+    const sectionCards = cards.filter((c) => c.section === section);
+    setForm({ ...emptyForm, sort_order: String(sectionCards.length) });
     setDialogOpen(true);
   };
 
-  const openEdit = (card: SectionCard) => {
+  const openEditCard = (card: SectionCard) => {
     setEditing(card);
-    setSelectedSection(card.section);
+    setDialogSection(card.section);
     setForm({
       title: card.title || "",
       subtitle: card.subtitle || "",
@@ -393,11 +478,10 @@ function SectionCardsManager() {
     setDialogOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate required fields
-    const fieldMap = SECTION_FIELD_MAP[selectedSection];
+    const fieldMap = SECTION_FIELD_MAP[dialogSection];
     for (const field of fieldMap.required) {
       if (!form[field as keyof CardForm]?.trim()) {
         toast.error(`${FIELD_LABELS[field]} is required`);
@@ -405,8 +489,7 @@ function SectionCardsManager() {
       }
     }
 
-    // Require image for non-testimonials when creating
-    if (!editing && selectedSection !== "testimonials" && (!file || file.length === 0)) {
+    if (!editing && dialogSection !== "testimonials" && (!file || file.length === 0)) {
       toast.error("Image is required");
       return;
     }
@@ -418,9 +501,8 @@ function SectionCardsManager() {
       if (file && file.length > 0) {
         formData.append("file", file[0]);
       }
-      formData.append("section", selectedSection);
+      formData.append("section", dialogSection);
 
-      // Append all text fields
       const allFields = [...fieldMap.required, ...fieldMap.optional, "sort_order"];
       for (const field of allFields) {
         formData.append(field, form[field as keyof CardForm] || "");
@@ -428,7 +510,7 @@ function SectionCardsManager() {
 
       if (editing) {
         formData.append("id", editing.id);
-        const res = await adminUpload("/api/admin/section-cards?method=PATCH", formData, "PATCH");
+        const res = await adminUpload("/api/admin/section-cards", formData, "PATCH");
         if (!res.ok) {
           const data = await res.json();
           toast.error(data.error || "Update failed");
@@ -447,7 +529,7 @@ function SectionCardsManager() {
 
       setDialogOpen(false);
       resetForm();
-      await fetchCards();
+      await fetchMedia();
     } catch {
       toast.error("An error occurred");
     } finally {
@@ -455,8 +537,8 @@ function SectionCardsManager() {
     }
   };
 
-  const handleDelete = async (card: SectionCard) => {
-    if (!confirm(`Delete this ${SECTION_LABELS[card.section] || card.section} card? This cannot be undone.`)) return;
+  const handleDeleteCard = async (card: SectionCard) => {
+    if (!confirm(`Delete this card? This cannot be undone.`)) return;
 
     try {
       const res = await adminDelete("/api/admin/section-cards", { id: card.id });
@@ -466,13 +548,13 @@ function SectionCardsManager() {
         return;
       }
       toast.success("Card deleted");
-      await fetchCards();
+      await fetchMedia();
     } catch {
       toast.error("An unexpected error occurred");
     }
   };
 
-  const handleToggleActive = async (card: SectionCard) => {
+  const handleToggleCard = async (card: SectionCard) => {
     try {
       const res = await adminPatch("/api/admin/section-cards", {
         id: card.id,
@@ -480,7 +562,7 @@ function SectionCardsManager() {
       });
       if (res.ok) {
         toast.success(card.is_active ? "Card deactivated" : "Card activated");
-        await fetchCards();
+        await fetchMedia();
       } else {
         toast.error("Failed to update");
       }
@@ -489,197 +571,171 @@ function SectionCardsManager() {
     }
   };
 
-  const filteredCards = filterSection === "all"
-    ? cards
-    : cards.filter((c) => c.section === filterSection);
+  const grouped = groupMedia(items);
+  const customizedCount = items.filter(
+    (i) => i.current_url !== i.default_url
+  ).length;
 
-  // Group by section
-  const groupedCards = CARD_SECTIONS.reduce<{ section: SectionCardType; label: string; items: SectionCard[] }[]>(
-    (acc, sec) => {
-      const sectionCards = filteredCards.filter((c) => c.section === sec.value);
-      if (sectionCards.length > 0) {
-        acc.push({ section: sec.value, label: sec.label, items: sectionCards });
-      }
-      return acc;
-    },
-    []
-  );
-
-  const visibleFields = [...SECTION_FIELD_MAP[selectedSection].required, ...SECTION_FIELD_MAP[selectedSection].optional];
-  const isImageRequired = !editing && selectedSection !== "testimonials";
+  const visibleFields = dialogSection
+    ? [...SECTION_FIELD_MAP[dialogSection].required, ...SECTION_FIELD_MAP[dialogSection].optional]
+    : [];
+  const isImageRequired = !editing && dialogSection !== "testimonials";
 
   return (
-    <div className="mt-6">
-      {/* Header bar */}
-      <div className="flex items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-3">
-          <Select value={filterSection} onValueChange={(val) => val && setFilterSection(val)}>
-            <SelectTrigger className="w-48 h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Sections</SelectItem>
-              {CARD_SECTIONS.map((s) => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-sm text-gray-500">{filteredCards.length} card{filteredCards.length !== 1 ? "s" : ""}</span>
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
+            Site Media
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Manage images and section content across the website.{" "}
+            {customizedCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-green-600">
+                <Check className="h-3.5 w-3.5" />
+                {customizedCount} customized
+              </span>
+            )}
+          </p>
         </div>
-
-        <Button
-          className="bg-navy-900 hover:bg-navy-800 text-white"
-          onClick={openCreate}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Card
-        </Button>
       </div>
 
-      {/* Card list */}
       {loading ? (
         <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white dark:bg-card rounded-xl border border-gray-200 dark:border-border animate-pulse h-24" />
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="bg-white dark:bg-card rounded-xl border border-gray-200 dark:border-border animate-pulse h-28"
+            />
           ))}
         </div>
-      ) : filteredCards.length === 0 ? (
-        <div className="text-center py-16 text-gray-500 dark:text-gray-400">
-          <ImageIcon className="h-10 w-10 mx-auto mb-3 text-gray-300" />
-          <p className="text-lg">No section cards yet</p>
-          <p className="text-sm mt-1">Click &ldquo;Add Card&rdquo; to create content for your website sections.</p>
+      ) : items.length === 0 ? (
+        <div className="text-center py-20 text-gray-500 dark:text-gray-400">
+          <p className="text-lg">No site media slots found.</p>
+          <p className="text-sm mt-1">
+            Run the seed script to populate image slots.
+          </p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {groupedCards.map(({ section, label, items }) => (
-            <div key={section}>
-              <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                {label}
-                <span className="ml-2 text-xs font-normal normal-case text-gray-400">({items.length})</span>
-              </h3>
-              <div className="space-y-2">
-                {items.map((card) => (
-                  <div
-                    key={card.id}
-                    className={cn(
-                      "bg-white dark:bg-card rounded-xl border shadow-sm overflow-hidden transition-all",
-                      card.is_active
-                        ? "border-gray-200 dark:border-border"
-                        : "border-gray-200 dark:border-border opacity-60"
+        <div className="space-y-4">
+          {grouped.map(({ page, sections }) => {
+            const isExpanded = expandedPages.has(page);
+            const pageCustomized = sections
+              .flatMap((s) => s.items)
+              .filter((i) => i.current_url !== i.default_url).length;
+
+            return (
+              <div
+                key={page}
+                className="border border-gray-200 dark:border-border rounded-2xl overflow-hidden"
+              >
+                <button
+                  onClick={() => togglePage(page)}
+                  className="w-full flex items-center justify-between p-5 bg-gray-50 dark:bg-muted hover:bg-gray-100 dark:hover:bg-muted transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <h2 className="font-heading text-lg font-semibold text-navy-900 dark:text-white">
+                      {PAGE_LABELS[page] || page}
+                    </h2>
+                    {pageCustomized > 0 && (
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                        {pageCustomized} customized
+                      </span>
                     )}
-                  >
-                    <div className="flex items-center gap-4 p-4">
-                      {/* Thumbnail */}
-                      {card.image_url ? (
-                        <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-muted shrink-0 relative">
-                          <Image
-                            src={card.image_url}
-                            alt={card.title || "Card image"}
-                            fill
-                            className="object-cover"
-                            sizes="64px"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-muted shrink-0 flex items-center justify-center">
-                          {card.section === "testimonials" && card.initials ? (
-                            <span className="text-lg font-semibold text-navy-900 dark:text-white">{card.initials}</span>
-                          ) : (
-                            <ImageIcon className="h-5 w-5 text-gray-300" />
-                          )}
-                        </div>
-                      )}
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-navy-900 dark:text-white text-sm truncate">
-                            {getCardPrimaryText(card)}
-                          </p>
-                          {!card.is_active && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-gray-400 border-gray-300">
-                              Inactive
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500 mt-0.5 truncate">
-                          {getCardSecondaryText(card)}
-                        </p>
-                        <p className="text-[10px] text-gray-400 mt-1 font-mono">
-                          Order: {card.sort_order}
-                        </p>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-gray-400 hover:text-navy-900"
-                          onClick={() => handleToggleActive(card)}
-                          title={card.is_active ? "Deactivate" : "Activate"}
-                        >
-                          <Check className={cn("h-4 w-4", card.is_active ? "text-green-500" : "text-gray-300")} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-gray-400 hover:text-blue-600"
-                          onClick={() => openEdit(card)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-gray-400 hover:text-red-600"
-                          onClick={() => handleDelete(card)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
                   </div>
-                ))}
+                  <ChevronDown
+                    className={cn(
+                      "h-5 w-5 text-gray-400 dark:text-gray-500 transition-transform duration-200",
+                      isExpanded && "rotate-180"
+                    )}
+                  />
+                </button>
+
+                {isExpanded && (
+                  <div className="p-5 space-y-6">
+                    {sections.map(({ section, items: sectionItems }) => {
+                      const isCardEnabled = CARD_ENABLED_SECTIONS.includes(section as SectionCardType);
+                      const sectionCards = isCardEnabled
+                        ? cards.filter((c) => c.section === section)
+                        : [];
+
+                      return (
+                        <div key={section}>
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              {SECTION_LABELS[section] || section}
+                            </h3>
+                            {isCardEnabled && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs h-7 gap-1.5"
+                                onClick={() => openAddCard(section as SectionCardType)}
+                              >
+                                <Plus className="h-3 w-3" />
+                                Add Card
+                              </Button>
+                            )}
+                          </div>
+
+                          {/* Image slots */}
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                            {sectionItems.map((item) => (
+                              <SlotCard
+                                key={item.id}
+                                item={item}
+                                onUpdated={fetchMedia}
+                              />
+                            ))}
+                          </div>
+
+                          {/* Section cards (inline) */}
+                          {isCardEnabled && sectionCards.length > 0 && (
+                            <div className="mt-3 space-y-2">
+                              <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">
+                                Content Cards ({sectionCards.length})
+                              </p>
+                              <div className="space-y-1.5">
+                                {sectionCards.map((card) => (
+                                  <SectionCardItem
+                                    key={card.id}
+                                    card={card}
+                                    onEdit={() => openEditCard(card)}
+                                    onDelete={() => handleDeleteCard(card)}
+                                    onToggle={() => handleToggleCard(card)}
+                                  />
+                                ))}
+                              </div>
+                              <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
+                                When cards exist, they replace the default content for this section on the website.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Add / Edit Dialog */}
+      {/* ─── Add / Edit Card Dialog ─── */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); resetForm(); } else { setDialogOpen(true); } }}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Card" : "Add Card"}</DialogTitle>
+            <DialogTitle>
+              {editing ? "Edit Card" : "Add Card"} — {SECTION_LABELS[dialogSection] || dialogSection}
+            </DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Section selector */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Section</Label>
-              {editing ? (
-                <div className="h-9 flex items-center px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-600">
-                  {CARD_SECTIONS.find((s) => s.value === selectedSection)?.label}
-                </div>
-              ) : (
-                <Select value={selectedSection} onValueChange={(val) => val && setSelectedSection(val as SectionCardType)}>
-                  <SelectTrigger className="w-full h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CARD_SECTIONS.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-
+          <form onSubmit={handleCardSubmit} className="space-y-4">
             {/* Image upload */}
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">
-                {selectedSection === "testimonials" ? "Profile Photo (optional)" : "Image"}{" "}
+                {dialogSection === "testimonials" ? "Profile Photo (optional)" : "Image"}{" "}
                 {isImageRequired && <span className="text-red-500">*</span>}
               </Label>
               {editing?.image_url && !file && (
@@ -694,14 +750,14 @@ function SectionCardsManager() {
                 accept="image/*"
                 onChange={(fileList) => setFile(fileList)}
                 value={file}
-                label={selectedSection === "testimonials" ? "Drop profile photo or click to browse" : "Drop image here or click to browse"}
+                label={dialogSection === "testimonials" ? "Drop profile photo or click to browse" : "Drop image here or click to browse"}
                 icon="image"
               />
             </div>
 
             {/* Dynamic fields */}
             {visibleFields.map((field) => {
-              const isRequired = SECTION_FIELD_MAP[selectedSection].required.includes(field);
+              const isRequired = SECTION_FIELD_MAP[dialogSection].required.includes(field);
               const isLongText = field === "quote" || field === "description";
               return (
                 <div key={field} className="space-y-1.5">
@@ -754,163 +810,6 @@ function SectionCardsManager() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-/* ─── Main Page ─── */
-
-export default function AdminSiteMediaPage() {
-  const [items, setItems] = useState<SiteMedia[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [expandedPages, setExpandedPages] = useState<Set<string>>(
-    new Set(["home"])
-  );
-
-  const fetchMedia = async () => {
-    try {
-      const res = await adminFetch("/api/admin/site-media");
-      const data = await res.json();
-      if (res.ok) {
-        setItems(data.data ?? []);
-      }
-    } catch {
-      toast.error("Failed to load site media");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchMedia();
-  }, []);
-
-  const togglePage = (page: string) => {
-    setExpandedPages((prev) => {
-      const next = new Set(prev);
-      if (next.has(page)) next.delete(page);
-      else next.add(page);
-      return next;
-    });
-  };
-
-  const grouped = groupMedia(items);
-  const customizedCount = items.filter(
-    (i) => i.current_url !== i.default_url
-  ).length;
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
-            Site Media
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Manage images and section content across the website.
-          </p>
-        </div>
-      </div>
-
-      <Tabs defaultValue="image-slots">
-        <TabsList>
-          <TabsTrigger value="image-slots">
-            Image Slots
-            {customizedCount > 0 && (
-              <span className="ml-1.5 inline-flex items-center gap-1 text-green-600 text-[10px]">
-                <Check className="h-3 w-3" />
-                {customizedCount}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="section-cards">Section Cards</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="image-slots">
-          <div className="mt-6">
-            {loading ? (
-              <div className="space-y-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="bg-white dark:bg-card rounded-xl border border-gray-200 dark:border-border animate-pulse h-28"
-                  />
-                ))}
-              </div>
-            ) : items.length === 0 ? (
-              <div className="text-center py-20 text-gray-500 dark:text-gray-400">
-                <p className="text-lg">No site media slots found.</p>
-                <p className="text-sm mt-1">
-                  Run the seed script to populate image slots.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {grouped.map(({ page, sections }) => {
-                  const isExpanded = expandedPages.has(page);
-                  const pageCustomized = sections
-                    .flatMap((s) => s.items)
-                    .filter((i) => i.current_url !== i.default_url).length;
-
-                  return (
-                    <div
-                      key={page}
-                      className="border border-gray-200 dark:border-border rounded-2xl overflow-hidden"
-                    >
-                      <button
-                        onClick={() => togglePage(page)}
-                        className="w-full flex items-center justify-between p-5 bg-gray-50 dark:bg-muted hover:bg-gray-100 dark:hover:bg-muted transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <h2 className="font-heading text-lg font-semibold text-navy-900 dark:text-white">
-                            {PAGE_LABELS[page] || page}
-                          </h2>
-                          {pageCustomized > 0 && (
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                              {pageCustomized} customized
-                            </span>
-                          )}
-                        </div>
-                        <ChevronDown
-                          className={cn(
-                            "h-5 w-5 text-gray-400 dark:text-gray-500 transition-transform duration-200",
-                            isExpanded && "rotate-180"
-                          )}
-                        />
-                      </button>
-
-                      {isExpanded && (
-                        <div className="p-5 space-y-6">
-                          {sections.map(({ section, items: sectionItems }) => (
-                            <div key={section}>
-                              <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                                {SECTION_LABELS[section] || section}
-                              </h3>
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                                {sectionItems.map((item) => (
-                                  <SlotCard
-                                    key={item.id}
-                                    item={item}
-                                    onUpdated={fetchMedia}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="section-cards">
-          <SectionCardsManager />
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }

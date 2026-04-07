@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { FacilitiesContent } from "./FacilitiesContent";
-import { getPageMedia, mediaUrl } from "@/lib/site-media";
+import { getPageMedia, mediaUrl, getSectionCards } from "@/lib/site-media";
 
 export const metadata: Metadata = {
   title: "Our Facilities",
@@ -9,8 +9,11 @@ export const metadata: Metadata = {
 export const revalidate = 60;
 
 export default async function FacilitiesPage() {
-  const homeMedia = await getPageMedia("home");
-  const facilitiesMedia = await getPageMedia("facilities");
+  const [homeMedia, facilitiesMedia, facilityCards] = await Promise.all([
+    getPageMedia("home"),
+    getPageMedia("facilities"),
+    getSectionCards("facilities_preview"),
+  ]);
 
   const facilityImages = [
     // First 4 reuse home page facilities_preview slots
@@ -27,5 +30,5 @@ export default async function FacilitiesPage() {
 
   const heroImage = mediaUrl(facilitiesMedia, "facilities_hero", "/images/hero/campus-1.jpg");
 
-  return <FacilitiesContent facilityImages={facilityImages} heroImage={heroImage} />;
+  return <FacilitiesContent facilityImages={facilityImages} heroImage={heroImage} cards={facilityCards} />;
 }
