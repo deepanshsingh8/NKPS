@@ -63,7 +63,8 @@ export function SidebarProfileMenu({
     await supabase.auth.signOut();
     document.cookie = "x-user-role=; path=/; max-age=0";
     toast.success("Logged out");
-    router.push("/portal/login");
+    // Hard navigation ensures middleware runs fresh with cleared session
+    window.location.href = "/portal/login";
   };
 
   const initials = profile?.full_name
