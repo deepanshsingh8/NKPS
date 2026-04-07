@@ -2,6 +2,7 @@
 
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { SectionHeading } from "@/components/shared/SectionHeading";
+import type { SectionCard } from "@/types";
 
 const milestones = [
   {
@@ -36,7 +37,18 @@ const milestones = [
   },
 ];
 
-export function LegacyTimeline() {
+interface LegacyTimelineProps {
+  cards?: SectionCard[];
+}
+
+export function LegacyTimeline({ cards }: LegacyTimelineProps = {}) {
+  // Default milestones + DB cards appended
+  const dbMilestones = (cards ?? []).map((c) => ({
+    year: c.year || "",
+    title: c.title || "",
+    description: c.description || "",
+  }));
+  const allMilestones = [...milestones, ...dbMilestones];
   return (
     <section className="section-padding bg-cream-50">
       <div className="page-container">
@@ -46,7 +58,7 @@ export function LegacyTimeline() {
           {/* Vertical line */}
           <div className="absolute left-4 md:left-6 top-0 bottom-0 w-0.5 bg-gold-500/30" />
 
-          {milestones.map((milestone, index) => (
+          {allMilestones.map((milestone, index) => (
             <AnimatedSection key={milestone.year}>
               <div
                 className="relative pl-14 md:pl-20 pb-12 last:pb-0"

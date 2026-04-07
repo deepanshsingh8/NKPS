@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { StudentLifeContent } from "./StudentLifeContent";
-import { getPageMedia, mediaUrl } from "@/lib/site-media";
+import { getPageMedia, mediaUrl, getSectionCards } from "@/lib/site-media";
 
 export const metadata: Metadata = {
   title: "Student Life",
@@ -9,7 +9,11 @@ export const metadata: Metadata = {
 export const revalidate = 60;
 
 export default async function StudentLifePage() {
-  const media = await getPageMedia("student-life");
+  const [media, activityCards, eventCards] = await Promise.all([
+    getPageMedia("student-life"),
+    getSectionCards("activities"),
+    getSectionCards("annual_events"),
+  ]);
 
   const activityImages = [
     mediaUrl(media, "student_life_music_dance", "/images/gallery/st1.jpg"),
@@ -20,5 +24,5 @@ export default async function StudentLifePage() {
     mediaUrl(media, "student_life_science", "/images/gallery/st6.jpg"),
   ];
 
-  return <StudentLifeContent activityImages={activityImages} />;
+  return <StudentLifeContent activityImages={activityImages} activityCards={activityCards} eventCards={eventCards} />;
 }

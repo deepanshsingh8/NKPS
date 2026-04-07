@@ -661,7 +661,7 @@ create policy "Authenticated users can insert site_media"
 
 create table if not exists section_cards (
   id uuid default uuid_generate_v4() primary key,
-  section text not null check (section in ('hero_slider', 'testimonials', 'latest_updates', 'facilities_preview')),
+  section text not null check (section in ('hero_slider', 'testimonials', 'latest_updates', 'facilities_preview', 'leadership', 'legacy_timeline', 'why_choose_us', 'activities', 'annual_events', 'campus_facilities')),
   title text,
   subtitle text,
   description text,
@@ -675,6 +675,10 @@ create table if not exists section_cards (
   icon text,
   link text,
   image_url text,
+  designation text,
+  message text,
+  year text,
+  season text,
   sort_order integer default 0,
   is_active boolean default true,
   created_at timestamptz default now(),

@@ -45,7 +45,7 @@ export interface SiteMedia {
   created_at: string;
 }
 
-export type SectionCardType = 'hero_slider' | 'testimonials' | 'latest_updates' | 'facilities_preview';
+export type SectionCardType = 'hero_slider' | 'testimonials' | 'latest_updates' | 'facilities_preview' | 'leadership' | 'legacy_timeline' | 'why_choose_us' | 'activities' | 'annual_events' | 'campus_facilities';
 
 export interface SectionCard {
   id: string;
@@ -63,6 +63,10 @@ export interface SectionCard {
   icon: string | null;
   link: string | null;
   image_url: string | null;
+  designation: string | null;
+  message: string | null;
+  year: string | null;
+  season: string | null;
   sort_order: number;
   is_active: boolean;
   created_at: string;

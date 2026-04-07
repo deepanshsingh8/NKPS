@@ -60,6 +60,12 @@ const CARD_ENABLED_SECTIONS: SectionCardType[] = [
   "testimonials",
   "latest_updates",
   "facilities_preview",
+  "leadership",
+  "legacy_timeline",
+  "why_choose_us",
+  "activities",
+  "annual_events",
+  "campus_facilities",
 ];
 
 const SECTION_FIELD_MAP: Record<SectionCardType, { required: string[]; optional: string[] }> = {
@@ -79,6 +85,30 @@ const SECTION_FIELD_MAP: Record<SectionCardType, { required: string[]; optional:
     required: ["title", "description"],
     optional: ["icon"],
   },
+  leadership: {
+    required: ["name", "designation"],
+    optional: ["message"],
+  },
+  legacy_timeline: {
+    required: ["year", "title", "description"],
+    optional: [],
+  },
+  why_choose_us: {
+    required: ["title", "description"],
+    optional: ["icon"],
+  },
+  activities: {
+    required: ["title", "description"],
+    optional: ["icon"],
+  },
+  annual_events: {
+    required: ["title", "description"],
+    optional: ["season"],
+  },
+  campus_facilities: {
+    required: ["title", "description"],
+    optional: ["icon"],
+  },
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -93,6 +123,10 @@ const FIELD_LABELS: Record<string, string> = {
   cta_link: "CTA Link",
   icon: "Icon",
   link: "Link",
+  designation: "Designation",
+  message: "Message / Quote",
+  year: "Year",
+  season: "Season",
 };
 
 const FIELD_PLACEHOLDERS: Record<string, string> = {
@@ -107,6 +141,10 @@ const FIELD_PLACEHOLDERS: Record<string, string> = {
   cta_link: "e.g., /admissions",
   icon: "e.g., Monitor, FlaskConical, Laptop, BookOpen",
   link: "e.g., /news/article-slug",
+  designation: "e.g., Managing Director",
+  message: "Inspirational message or quote",
+  year: "e.g., 2024",
+  season: "e.g., Winter, Spring, Monsoon, Autumn",
 };
 
 interface CardForm {
@@ -121,6 +159,10 @@ interface CardForm {
   cta_link: string;
   icon: string;
   link: string;
+  designation: string;
+  message: string;
+  year: string;
+  season: string;
   sort_order: string;
 }
 
@@ -136,6 +178,10 @@ const emptyForm: CardForm = {
   cta_link: "",
   icon: "",
   link: "",
+  designation: "",
+  message: "",
+  year: "",
+  season: "",
   sort_order: "0",
 };
 
@@ -178,6 +224,12 @@ function getCardPrimaryText(card: SectionCard): string {
   if (card.section === "testimonials") {
     return card.quote ? `"${card.quote.slice(0, 60)}${card.quote.length > 60 ? "..." : ""}"` : "—";
   }
+  if (card.section === "leadership") {
+    return card.name || "—";
+  }
+  if (card.section === "legacy_timeline") {
+    return card.year ? `${card.year} — ${card.title || ""}` : card.title || "—";
+  }
   return card.title || "—";
 }
 
@@ -189,10 +241,14 @@ function getCardSecondaryText(card: SectionCard): string {
       return card.name ? `— ${card.name}${card.role ? `, ${card.role}` : ""}` : "";
     case "latest_updates":
       return card.date || "";
-    case "facilities_preview":
+    case "leadership":
+      return card.designation || "";
+    case "legacy_timeline":
       return card.description?.slice(0, 60) || "";
+    case "annual_events":
+      return card.season ? `${card.season} — ${card.description?.slice(0, 50) || ""}` : card.description?.slice(0, 60) || "";
     default:
-      return "";
+      return card.description?.slice(0, 60) || "";
   }
 }
 
@@ -472,6 +528,10 @@ export default function AdminSiteMediaPage() {
       cta_link: card.cta_link || "",
       icon: card.icon || "",
       link: card.link || "",
+      designation: card.designation || "",
+      message: card.message || "",
+      year: card.year || "",
+      season: card.season || "",
       sort_order: String(card.sort_order),
     });
     setFile(null);
@@ -489,7 +549,7 @@ export default function AdminSiteMediaPage() {
       }
     }
 
-    if (!editing && dialogSection !== "testimonials" && (!file || file.length === 0)) {
+    if (isImageRequired && (!file || file.length === 0)) {
       toast.error("Image is required");
       return;
     }
@@ -571,7 +631,37 @@ export default function AdminSiteMediaPage() {
     }
   };
 
+  // Map of which page each card-enabled section belongs to
+  const SECTION_PAGE_MAP: Record<string, string> = {
+    hero_slider: "home",
+    testimonials: "home",
+    latest_updates: "home",
+    facilities_preview: "home",
+    leadership: "about",
+    legacy_timeline: "about",
+    why_choose_us: "about",
+    activities: "student-life",
+    annual_events: "student-life",
+    campus_facilities: "facilities",
+  };
+
   const grouped = groupMedia(items);
+
+  // Inject virtual sections for card-enabled sections that don't have image slots
+  for (const section of CARD_ENABLED_SECTIONS) {
+    const page = SECTION_PAGE_MAP[section];
+    if (!page) continue;
+    let pageGroup = grouped.find((g) => g.page === page);
+    if (!pageGroup) {
+      pageGroup = { page, sections: [] };
+      grouped.push(pageGroup);
+    }
+    const hasSection = pageGroup.sections.some((s) => s.section === section);
+    if (!hasSection) {
+      pageGroup.sections.push({ section, items: [] });
+    }
+  }
+
   const customizedCount = items.filter(
     (i) => i.current_url !== i.default_url
   ).length;
@@ -579,7 +669,9 @@ export default function AdminSiteMediaPage() {
   const visibleFields = dialogSection
     ? [...SECTION_FIELD_MAP[dialogSection].required, ...SECTION_FIELD_MAP[dialogSection].optional]
     : [];
-  const isImageRequired = !editing && dialogSection !== "testimonials";
+  // Sections where image is optional
+  const imageOptionalSections: SectionCardType[] = ["testimonials", "leadership", "legacy_timeline", "why_choose_us", "annual_events"];
+  const isImageRequired = !editing && !imageOptionalSections.includes(dialogSection);
 
   return (
     <div>
@@ -706,8 +798,8 @@ export default function AdminSiteMediaPage() {
                                   />
                                 ))}
                               </div>
-                              <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
-                                When cards exist, they replace the default content for this section on the website.
+                              <p className="text-[10px] text-green-600 dark:text-green-400 mt-1">
+                                Cards added here appear alongside the default content on the website.
                               </p>
                             </div>
                           )}

@@ -23,6 +23,7 @@ import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { staggerContainer, fadeUp } from "@/lib/animations";
 import { cn } from "@/lib/utils";
+import type { SectionCard } from "@/types";
 
 const defaultActivities = [
   {
@@ -73,8 +74,19 @@ const defaultActivities = [
   },
 ];
 
+const activityIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  Music,
+  Palette,
+  MessageSquare,
+  Brain,
+  BookOpen,
+  Cpu,
+};
+
 interface StudentLifePageProps {
   activityImages?: string[];
+  activityCards?: SectionCard[];
+  eventCards?: SectionCard[];
 }
 
 const sports = [
@@ -115,11 +127,30 @@ const events = [
 
 export function StudentLifeContent({
   activityImages,
+  activityCards,
+  eventCards,
 }: StudentLifePageProps = {}) {
-  const activities = defaultActivities.map((a, i) => ({
+  // Default activities with optional image overrides + DB cards appended
+  const baseActivities = defaultActivities.map((a, i) => ({
     ...a,
     image: activityImages?.[i] || a.image,
   }));
+  const dbActivities = (activityCards ?? []).map((c) => ({
+    icon: activityIconMap[c.icon || ""] || Cpu,
+    title: c.title || "",
+    description: c.description || "",
+    image: c.image_url || "/images/gallery/st1.jpg",
+    span: false,
+  }));
+  const activities = [...baseActivities, ...dbActivities];
+
+  // Default events + DB cards appended
+  const dbEvents = (eventCards ?? []).map((c) => ({
+    season: c.season || "",
+    title: c.title || "",
+    description: c.description || "",
+  }));
+  const allEvents = [...events, ...dbEvents];
 
   return (
     <PageTransition>
@@ -232,7 +263,7 @@ export function StudentLifeContent({
           </AnimatedSection>
 
           <div className="mt-14 space-y-6">
-            {events.map((event, index) => (
+            {allEvents.map((event, index) => (
               <AnimatedSection key={event.title} delay={index * 0.12}>
                 <div className="group flex flex-col gap-5 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-all duration-300 hover:border-gold-300 hover:shadow-lg sm:flex-row sm:items-start">
                   {/* Season Badge */}

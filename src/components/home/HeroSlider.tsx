@@ -144,18 +144,22 @@ interface HeroSliderProps {
 }
 
 export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
-  const slides = cards && cards.length > 0
-    ? cards.map((c, i) => ({
-        title: c.title || defaultSlides[i]?.title || "",
-        subtitle: c.subtitle || defaultSlides[i]?.subtitle || "",
-        cta: c.cta_text || defaultSlides[i]?.cta || "Learn More",
-        href: c.cta_link || defaultSlides[i]?.href || "/",
-        image: c.image_url || images?.[i] || defaultSlides[i]?.image || "",
-      }))
-    : defaultSlides.map((slide, i) => ({
-        ...slide,
-        image: images?.[i] || slide.image,
-      }));
+  // Default slides with optional image overrides
+  const baseSlides = defaultSlides.map((slide, i) => ({
+    ...slide,
+    image: images?.[i] || slide.image,
+  }));
+
+  // DB cards are appended to defaults
+  const dbSlides = (cards ?? []).map((c) => ({
+    title: c.title || "",
+    subtitle: c.subtitle || "",
+    cta: c.cta_text || "Learn More",
+    href: c.cta_link || "/",
+    image: c.image_url || "",
+  }));
+
+  const slides = [...baseSlides, ...dbSlides];
 
   const [current, setCurrent] = useState(0);
   const [progress, setProgress] = useState(0);

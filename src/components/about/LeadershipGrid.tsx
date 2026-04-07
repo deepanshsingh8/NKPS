@@ -6,6 +6,7 @@ import { SectionHeading } from "@/components/shared/SectionHeading";
 import { GlassCard } from "@/components/shared/GlassCard";
 import { SCHOOL } from "@/lib/constants";
 import { staggerContainer, fadeUp } from "@/lib/animations";
+import type { SectionCard } from "@/types";
 
 const defaultLeaderPhotos: Record<string, string> = {
   "Dr. N.C. Lunayach": "/images/staff/managing-director.jpg",
@@ -15,6 +16,7 @@ const defaultLeaderPhotos: Record<string, string> = {
 
 interface LeadershipGridProps {
   photos?: Record<string, string>;
+  cards?: SectionCard[];
 }
 
 function getInitials(name: string): string {
@@ -28,8 +30,24 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-export function LeadershipGrid({ photos }: LeadershipGridProps = {}) {
+export function LeadershipGrid({ photos, cards }: LeadershipGridProps = {}) {
   const leaderPhotos = { ...defaultLeaderPhotos, ...photos };
+
+  // Default leaders + DB cards appended
+  const baseLeaders = SCHOOL.leadership.map((l) => ({
+    name: l.name,
+    designation: l.designation,
+    message: l.message,
+    photo: leaderPhotos[l.name] || null,
+  }));
+  const dbLeaders = (cards ?? []).map((c) => ({
+    name: c.name || "",
+    designation: c.designation || "",
+    message: c.message || "",
+    photo: c.image_url || null,
+  }));
+  const allLeaders = [...baseLeaders, ...dbLeaders];
+
   return (
     <section className="section-padding">
       <div className="page-container">
@@ -42,8 +60,8 @@ export function LeadershipGrid({ photos }: LeadershipGridProps = {}) {
           viewport={{ once: true }}
           className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12"
         >
-          {SCHOOL.leadership.map((leader) => {
-            const photo = leaderPhotos[leader.name];
+          {allLeaders.map((leader) => {
+            const photo = leader.photo;
             return (
               <motion.div key={leader.name} variants={fadeUp}>
                 <GlassCard className="p-8 text-center" hover>
@@ -72,9 +90,11 @@ export function LeadershipGrid({ photos }: LeadershipGridProps = {}) {
                   <p className="text-gold-600 text-sm uppercase tracking-wider mt-1">
                     {leader.designation}
                   </p>
-                  <p className="text-gray-600 italic mt-4 text-sm">
-                    &ldquo;{leader.message}&rdquo;
-                  </p>
+                  {leader.message && (
+                    <p className="text-gray-600 italic mt-4 text-sm">
+                      &ldquo;{leader.message}&rdquo;
+                    </p>
+                  )}
                 </GlassCard>
               </motion.div>
             );

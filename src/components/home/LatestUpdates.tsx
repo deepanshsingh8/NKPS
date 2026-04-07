@@ -37,19 +37,20 @@ interface LatestUpdatesProps {
 }
 
 export function LatestUpdates({ images, cards }: LatestUpdatesProps = {}) {
-  const updates = cards && cards.length > 0
-    ? cards.map((c, i) => ({
-        date: c.date || defaultUpdates[i]?.date || "",
-        title: c.title || defaultUpdates[i]?.title || "",
-        description: c.description || defaultUpdates[i]?.description || "",
-        image: c.image_url || images?.[i] || defaultUpdates[i]?.image || "",
-        link: c.link || null,
-      }))
-    : defaultUpdates.map((u, i) => ({
-        ...u,
-        image: images?.[i] || u.image,
-        link: null as string | null,
-      }));
+  // Default updates with optional image overrides + DB cards appended
+  const baseUpdates = defaultUpdates.map((u, i) => ({
+    ...u,
+    image: images?.[i] || u.image,
+    link: null as string | null,
+  }));
+  const dbUpdates = (cards ?? []).map((c) => ({
+    date: c.date || "",
+    title: c.title || "",
+    description: c.description || "",
+    image: c.image_url || "",
+    link: c.link || null,
+  }));
+  const updates = [...baseUpdates, ...dbUpdates];
   return (
     <section className="section-padding relative overflow-hidden">
       <div className="page-container relative z-10">

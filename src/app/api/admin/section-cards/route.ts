@@ -80,6 +80,10 @@ export async function POST(request: NextRequest) {
       cta_link: (formData.get("cta_link") as string)?.trim() || null,
       icon: (formData.get("icon") as string)?.trim() || null,
       link: (formData.get("link") as string)?.trim() || null,
+      designation: (formData.get("designation") as string)?.trim() || null,
+      message: (formData.get("message") as string)?.trim() || null,
+      year: (formData.get("year") as string)?.trim() || null,
+      season: (formData.get("season") as string)?.trim() || null,
       image_url: imageUrl,
       sort_order: parseInt(formData.get("sort_order") as string) || 0,
       is_active: formData.get("is_active") !== "false",
@@ -123,7 +127,7 @@ export async function PATCH(request: NextRequest) {
       id = formData.get("id") as string;
       newFile = formData.get("file") as File | null;
 
-      const fields = ["title", "subtitle", "description", "quote", "name", "role", "date", "cta_text", "cta_link", "icon", "link", "sort_order", "is_active"];
+      const fields = ["title", "subtitle", "description", "quote", "name", "role", "date", "cta_text", "cta_link", "icon", "link", "designation", "message", "year", "season", "sort_order", "is_active"];
       for (const field of fields) {
         const val = formData.get(field);
         if (val !== null) {

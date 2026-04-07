@@ -37,15 +37,16 @@ interface TestimonialsProps {
 }
 
 export function Testimonials({ cards }: TestimonialsProps = {}) {
-  const activeTestimonials = cards && cards.length > 0
-    ? cards.map((c) => ({
-        quote: c.quote || "",
-        name: c.name || "",
-        role: c.role || "",
-        initials: c.initials || (c.name?.[0] ?? ""),
-        image: c.image_url || null,
-      }))
-    : testimonials.map((t) => ({ ...t, image: null as string | null }));
+  // Default testimonials + DB cards appended
+  const baseTestimonials = testimonials.map((t) => ({ ...t, image: null as string | null }));
+  const dbTestimonials = (cards ?? []).map((c) => ({
+    quote: c.quote || "",
+    name: c.name || "",
+    role: c.role || "",
+    initials: c.initials || (c.name?.[0] ?? ""),
+    image: c.image_url || null,
+  }));
+  const activeTestimonials = [...baseTestimonials, ...dbTestimonials];
 
   const [active, setActive] = useState(0);
 

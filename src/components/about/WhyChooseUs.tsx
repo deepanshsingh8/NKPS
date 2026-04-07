@@ -5,6 +5,7 @@ import { Award, BookOpen, Monitor, Trophy } from "lucide-react";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { GlassCard } from "@/components/shared/GlassCard";
 import { staggerContainer, fadeUp } from "@/lib/animations";
+import type { SectionCard } from "@/types";
 
 const features = [
   {
@@ -29,7 +30,30 @@ const features = [
   },
 ];
 
-export function WhyChooseUs() {
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  Award,
+  BookOpen,
+  Monitor,
+  Trophy,
+};
+
+interface WhyChooseUsProps {
+  cards?: SectionCard[];
+}
+
+export function WhyChooseUs({ cards }: WhyChooseUsProps = {}) {
+  // Default features + DB cards appended
+  const baseFeatures = features.map((f) => ({
+    icon: f.icon,
+    title: f.title,
+    desc: f.desc,
+  }));
+  const dbFeatures = (cards ?? []).map((c) => ({
+    icon: iconMap[c.icon || ""] || Award,
+    title: c.title || "",
+    desc: c.description || "",
+  }));
+  const allFeatures = [...baseFeatures, ...dbFeatures];
   return (
     <section className="section-padding bg-cream-50">
       <div className="page-container">
@@ -45,7 +69,7 @@ export function WhyChooseUs() {
           viewport={{ once: true }}
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-12"
         >
-          {features.map((feature) => (
+          {allFeatures.map((feature) => (
             <motion.div key={feature.title} variants={fadeUp}>
               <GlassCard className="p-8 text-center" hover>
                 <div className="bg-blue-600/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto">

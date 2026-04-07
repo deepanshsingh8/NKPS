@@ -8,7 +8,7 @@ import { WhyChooseUs } from "@/components/about/WhyChooseUs";
 import { AchievementsCounter } from "@/components/about/AchievementsCounter";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { SectionDivider } from "@/components/shared/SectionDivider";
-import { getPageMedia, mediaUrl } from "@/lib/site-media";
+import { getPageMedia, mediaUrl, getSectionCards } from "@/lib/site-media";
 
 export const metadata: Metadata = {
   title: "About Us",
@@ -17,7 +17,12 @@ export const metadata: Metadata = {
 export const revalidate = 60;
 
 export default async function AboutPage() {
-  const media = await getPageMedia("about");
+  const [media, leadershipCards, timelineCards, whyChooseCards] = await Promise.all([
+    getPageMedia("about"),
+    getSectionCards("leadership"),
+    getSectionCards("legacy_timeline"),
+    getSectionCards("why_choose_us"),
+  ]);
 
   const aboutHeroImage = mediaUrl(media, "about_hero", "/images/gallery/g10.jpg");
   const founderPhoto = mediaUrl(media, "founder_photo", "/images/about/rk-choudhary.png");
@@ -57,13 +62,13 @@ export default async function AboutPage() {
 
       <SectionDivider color="fill-white" />
 
-      <LegacyTimeline />
+      <LegacyTimeline cards={timelineCards} />
       <FounderTribute photoUrl={founderPhoto} />
 
       <SectionDivider color="fill-cream-50" />
 
-      <LeadershipGrid photos={leaderPhotos} />
-      <WhyChooseUs />
+      <LeadershipGrid photos={leaderPhotos} cards={leadershipCards} />
+      <WhyChooseUs cards={whyChooseCards} />
 
       <SectionDivider flip color="fill-navy-900" />
 

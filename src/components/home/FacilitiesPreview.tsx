@@ -33,17 +33,18 @@ export function FacilitiesPreview({ images, cards }: FacilitiesPreviewProps = {}
     ? images
     : defaultFacilityImages;
 
-  const preview = cards && cards.length > 0
-    ? cards.map((c, i) => ({
-        title: c.title || FACILITIES[i]?.title || "",
-        description: c.description || FACILITIES[i]?.description || "",
-        icon: c.icon || FACILITIES[i]?.icon || "Monitor",
-        image: c.image_url || facilityImages[i] || defaultFacilityImages[i] || "",
-      }))
-    : FACILITIES.slice(0, 4).map((f, i) => ({
-        ...f,
-        image: facilityImages[i],
-      }));
+  // Default 4 facilities + DB cards appended
+  const baseFacilities = FACILITIES.slice(0, 4).map((f, i) => ({
+    ...f,
+    image: facilityImages[i],
+  }));
+  const dbFacilities = (cards ?? []).map((c) => ({
+    title: c.title || "",
+    description: c.description || "",
+    icon: c.icon || "Monitor",
+    image: c.image_url || "",
+  }));
+  const preview = [...baseFacilities, ...dbFacilities];
 
   return (
     <section className="section-padding overflow-hidden">

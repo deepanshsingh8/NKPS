@@ -67,20 +67,20 @@ interface FacilitiesContentProps {
 }
 
 export function FacilitiesContent({ facilityImages, heroImage, cards }: FacilitiesContentProps) {
-  // When DB cards exist, use them; otherwise fall back to FACILITIES constant
-  const facilities = cards && cards.length > 0
-    ? cards.map((c, i) => ({
-        title: c.title || FACILITIES[i]?.title || "",
-        description: c.description || FACILITIES[i]?.description || "",
-        icon: c.icon || FACILITIES[i]?.icon || "Monitor",
-        image: c.image_url || facilityImages[i] || "",
-      }))
-    : FACILITIES.map((f, i) => ({
-        title: f.title,
-        description: f.description,
-        icon: f.icon,
-        image: facilityImages[i] || "",
-      }));
+  // Default 8 facilities + DB cards appended
+  const baseFacilities = FACILITIES.map((f, i) => ({
+    title: f.title,
+    description: f.description,
+    icon: f.icon,
+    image: facilityImages[i] || "",
+  }));
+  const dbFacilities = (cards ?? []).map((c) => ({
+    title: c.title || "",
+    description: c.description || "",
+    icon: c.icon || "Monitor",
+    image: c.image_url || "",
+  }));
+  const facilities = [...baseFacilities, ...dbFacilities];
   return (
     <PageTransition>
       <PageHeader
