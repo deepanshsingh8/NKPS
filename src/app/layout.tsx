@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     template: "%s | NK Public School",
   },
   description:
-    "NK Public School, CBSE affiliated, is a premier educational institution in Jaipur offering holistic education from Nursery to Class XII. Founded in 1985 with 10000+ students.",
+    "NK Public School, CBSE affiliated, is a premier educational institution in Jaipur offering holistic education from Nursery to Class XII. Founded in 1985 with 20000+ students.",
   keywords: [
     "NK Public School",
     "NKPS",

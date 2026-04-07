@@ -30,7 +30,7 @@ const milestones = [
   },
   {
     year: "2024",
-    title: "10000+ Students",
+    title: "20000+ Students",
     description:
       "Grown into one of Jaipur's leading institutions with 6 educational institutes.",
   },

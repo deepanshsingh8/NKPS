@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useState, useEffect, useCallback } from "react";
+import { AnimatePresence, motion, useTransform } from "framer-motion";
 import { ArrowRight, Users, CalendarDays, GraduationCap, Building2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { useMouseMotion } from "@/hooks/useMousePosition";
 
 /* ─── Slide data ─── */
 const defaultSlides = [
@@ -19,7 +20,7 @@ const defaultSlides = [
   {
     title: "Excellence in\nEducation",
     subtitle:
-      "CBSE affiliated institution nurturing 10,000+ students across Jaipur",
+      "CBSE affiliated institution nurturing 20,000+ students across Jaipur",
     cta: "Learn More",
     href: "/about",
     image: "/images/hero/campus-2.avif",
@@ -35,14 +36,14 @@ const defaultSlides = [
 ];
 
 const stats = [
-  { number: "10,000+", label: "Students", icon: Users },
+  { number: "20,000+", label: "Students", icon: Users },
   { number: "40+", label: "Years", icon: CalendarDays },
-  { number: "200+", label: "Faculty", icon: GraduationCap },
+  { number: "300+", label: "Faculty", icon: GraduationCap },
   { number: "6", label: "Institutes", icon: Building2 },
 ];
 
 const INTERVAL = 7000;
-const CHAR_DELAY = 28; // ms between each character
+const CHAR_DELAY = 28;
 
 /* ─── FadeIn wrapper ─── */
 function FadeIn({
@@ -154,6 +155,25 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
     setProgress(0);
   }, []);
 
+  /* Mouse parallax — multiple depth layers */
+  const { x: mouseX, y: mouseY } = useMouseMotion(40, 18);
+
+  // Background image layer — subtle, slow movement (depth: far)
+  const bgX = useTransform(mouseX, (v) => v * -15);
+  const bgY = useTransform(mouseY, (v) => v * -10);
+
+  // Floating orb layer — moderate movement (depth: mid)
+  const orbX = useTransform(mouseX, (v) => v * 25);
+  const orbY = useTransform(mouseY, (v) => v * 20);
+
+  // Text content layer — slight counter-movement (depth: near)
+  const contentX = useTransform(mouseX, (v) => v * 5);
+  const contentY = useTransform(mouseY, (v) => v * 3);
+
+  // Floating accent — inverted, fast (depth: foreground)
+  const accentX = useTransform(mouseX, (v) => v * -35);
+  const accentY = useTransform(mouseY, (v) => v * -25);
+
   /* Auto-advance with progress bar */
   useEffect(() => {
     const start = performance.now();
@@ -176,43 +196,90 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
     return () => cancelAnimationFrame(raf);
   }, [current, slides.length]);
 
-  /* Derive per-slide animation delays */
+  /* Per-slide animation delays */
   const titleCharCount = slides[current].title.replace(/\n/g, "").length;
   const subtitleDelay = 200 + titleCharCount * CHAR_DELAY + 200;
   const ctaDelay = subtitleDelay + 400;
   const tagDelay = ctaDelay + 200;
 
   return (
-    <section className="relative h-screen w-full overflow-hidden">
-      {/* ─── Background images with slow Ken Burns zoom ─── */}
+    <section className="relative h-screen w-full overflow-hidden bg-navy-950">
+      {/* ═══ LAYER 1: Background image with mouse parallax ═══ */}
       <AnimatePresence mode="wait">
         <motion.div
           key={current}
-          className="absolute inset-0"
+          className="absolute -inset-6"
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1, scale: [1, 1.08] }}
+          animate={{ opacity: 1, scale: [1, 1.06] }}
           exit={{ opacity: 0 }}
           transition={{
             opacity: { duration: 1.2, ease: "easeInOut" },
             scale: { duration: INTERVAL / 1000, ease: "linear" },
           }}
+          style={{ x: bgX, y: bgY }}
         >
           <Image
             src={slides[current].image}
             alt={slides[current].title.replace("\n", " ")}
             fill
-            className="object-cover"
+            className="object-cover scale-110"
             priority={current === 0}
             sizes="100vw"
           />
         </motion.div>
       </AnimatePresence>
 
-      {/* ─── Minimal vignette — NO heavy dark overlay ─── */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-black/40" />
+      {/* ═══ LAYER 2: Translucent overlay for readability ═══ */}
+      <div className="absolute inset-0 bg-gradient-to-t from-navy-950/80 via-navy-950/40 to-navy-950/50" />
+      <div className="absolute inset-0 bg-gradient-to-r from-navy-950/50 via-transparent to-transparent" />
 
-      {/* ─── Hero content — pinned to bottom ─── */}
-      <div className="relative z-10 flex h-full flex-col px-6 md:px-12 lg:px-16">
+      {/* ═══ LAYER 3: Floating parallax orbs (mid-depth) ═══ */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none z-[2]"
+        style={{ x: orbX, y: orbY }}
+      >
+        {/* Large ring — top right */}
+        <motion.div
+          className="absolute top-[12%] right-[15%] w-52 h-52 rounded-full border border-gold-400/20"
+          animate={{ rotate: [0, 360] }}
+          transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+        />
+        {/* Small filled orb — bottom left */}
+        <div className="absolute bottom-[30%] left-[10%] w-4 h-4 rounded-full bg-gold-400/30" />
+        {/* Medium ring — center right */}
+        <div className="absolute top-[45%] right-[8%] w-20 h-20 rounded-full border border-white/10" />
+      </motion.div>
+
+      {/* ═══ LAYER 4: Inverted parallax accent (foreground depth) ═══ */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none z-[3]"
+        style={{ x: accentX, y: accentY }}
+      >
+        {/* Soft gold glow — top left */}
+        <div className="absolute top-[20%] left-[20%] w-72 h-72 rounded-full bg-gold-500/5 blur-3xl" />
+        {/* Small square accent — bottom right */}
+        <motion.div
+          className="absolute bottom-[25%] right-[20%] w-12 h-12 rounded-lg border border-gold-400/15 rotate-12"
+          animate={{ rotate: [12, -12, 12] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </motion.div>
+
+      {/* ═══ LAYER 5: Dot pattern texture ═══ */}
+      <div
+        className="absolute inset-0 opacity-[0.025] z-[4]"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
+
+      {/* ═══ LAYER 6: Content with subtle parallax ═══ */}
+      <motion.div
+        className="relative z-10 flex h-full flex-col px-6 md:px-12 lg:px-16"
+        style={{ x: contentX, y: contentY }}
+      >
         {/* Spacer pushes content down */}
         <div className="flex-1" />
 
@@ -270,16 +337,16 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
               >
                 <div className="liquid-glass border border-white/20 px-6 py-3 rounded-xl">
                   <p className="text-lg md:text-xl lg:text-2xl font-light text-white tracking-tight">
-                    CBSE Affiliated&ensp;·&ensp;Est. 1985&ensp;·&ensp;6 Campuses
+                    CBSE Affiliated&ensp;&middot;&ensp;Est. 1985&ensp;&middot;&ensp;6 Campuses
                   </p>
                 </div>
               </FadeIn>
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* ─── Stats bar — liquid glass floating at bottom ─── */}
+      {/* ═══ Stats bar — liquid glass ═══ */}
       <div className="absolute bottom-6 left-0 right-0 z-20 px-4 md:px-12 lg:px-16">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -313,7 +380,7 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
         </motion.div>
       </div>
 
-      {/* ─── Slide indicators — vertical pills right side ─── */}
+      {/* ═══ Slide indicators ═══ */}
       <div className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2.5">
         {slides.map((_, index) => (
           <button
@@ -334,7 +401,7 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
         ))}
       </div>
 
-      {/* ─── Progress bar — very bottom ─── */}
+      {/* ═══ Progress bar ═══ */}
       <div className="absolute bottom-0 left-0 right-0 z-30 h-[2px] bg-white/10">
         <motion.div
           className="h-full bg-gold-400"

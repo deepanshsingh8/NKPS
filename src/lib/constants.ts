@@ -3,7 +3,7 @@ export const SCHOOL = {
   shortName: "NKPS",
   tagline: "Empowering Young Minds Since 1985",
   description:
-    "NK Public School, affiliated to CBSE, is a premier educational institution in Jaipur offering holistic education from Nursery to Class XII. Founded in 1985, we nurture over 10000 students with academic excellence and character building.",
+    "NK Public School, affiliated to CBSE, is a premier educational institution in Jaipur offering holistic education from Nursery to Class XII. Founded in 1985, we nurture over 20000 students with academic excellence and character building.",
   founded: 1985,
   founder: {
     name: "Late Shri R.K. Choudhary",
@@ -50,9 +50,9 @@ export const SCHOOL = {
     },
   ],
   stats: [
-    { label: "Students", value: 10000, suffix: "+" },
+    { label: "Students", value: 20000, suffix: "+" },
     { label: "Years of Excellence", value: 40, suffix: "+" },
-    { label: "Dedicated Faculty", value: 200, suffix: "+" },
+    { label: "Dedicated Faculty", value: 300, suffix: "+" },
     { label: "Institutes", value: 6, suffix: "" },
   ],
   achievementStats: [

@@ -46,7 +46,7 @@ export default async function HomePage() {
         items={[
           "CBSE Affiliated",
           "Established 1985",
-          "10000+ Students",
+          "20000+ Students",
           "Holistic Education",
           "Sports Excellence",
           "Smart Classrooms",
