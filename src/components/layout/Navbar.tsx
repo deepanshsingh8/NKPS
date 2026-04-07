@@ -162,7 +162,7 @@ export function Navbar() {
 
             <div className="flex h-full flex-col items-center justify-center px-8">
               {/* Nav Links - stagger in from right */}
-              <nav className="flex flex-col items-center gap-6">
+              <nav className="flex flex-col items-center gap-4 sm:gap-6">
                 {NAV_LINKS.map((link, i) => {
                   const isActive = pathname === link.href;
                   return (
@@ -181,7 +181,7 @@ export function Navbar() {
                         href={link.href}
                         onClick={() => setMobileOpen(false)}
                         className={cn(
-                          "text-2xl font-heading font-semibold transition-colors duration-200",
+                          "text-xl sm:text-2xl font-heading font-semibold transition-colors duration-200",
                           isActive
                             ? "text-gold-400"
                             : "text-white/70 hover:text-white"
@@ -220,7 +220,7 @@ export function Navbar() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.5 }}
-                className="absolute bottom-12 left-0 right-0 flex flex-col items-center gap-4"
+                className="absolute bottom-8 sm:bottom-12 left-0 right-0 flex flex-col items-center gap-3 sm:gap-4"
               >
                 <div className="flex flex-col items-center gap-2 text-sm text-white/50">
                   <a

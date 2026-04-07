@@ -135,7 +135,7 @@ export function ChatBot() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50">
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -147,7 +147,7 @@ export function ChatBot() {
               "absolute bottom-16 right-0 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-navy-900/10 transition-all duration-300",
               isExpanded
                 ? "w-[90vw] md:w-[600px] h-[80vh] md:h-[700px]"
-                : "w-80 md:w-96 h-[500px]"
+                : "w-[calc(100vw-2rem)] sm:w-80 md:w-96 h-[70vh] sm:h-[500px]"
             )}
           >
             {/* Header */}

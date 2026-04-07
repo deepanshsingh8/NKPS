@@ -51,7 +51,7 @@ export function StatsCounter({ backgroundImage }: StatsCounterProps = {}) {
                 key={stat.label}
                 variants={fadeUp}
                 whileHover={{ y: -4, transition: { duration: 0.3 } }}
-                className="group relative rounded-2xl bg-white/[0.04] border border-white/[0.08] backdrop-blur-sm p-6 text-center transition-all duration-500 hover:bg-white/[0.08] hover:border-gold-500/20 cursor-default"
+                className="group relative rounded-2xl bg-white/[0.04] border border-white/[0.08] backdrop-blur-sm p-4 sm:p-6 text-center transition-all duration-500 hover:bg-white/[0.08] hover:border-gold-500/20 cursor-default"
               >
                 {/* Glow effect on hover */}
                 <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
@@ -59,7 +59,7 @@ export function StatsCounter({ backgroundImage }: StatsCounterProps = {}) {
                 />
 
                 <div className="relative">
-                  <div className="w-12 h-12 mx-auto rounded-xl bg-gold-500/10 flex items-center justify-center mb-4 group-hover:bg-gold-500/20 transition-colors duration-500">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto rounded-xl bg-gold-500/10 flex items-center justify-center mb-3 sm:mb-4 group-hover:bg-gold-500/20 transition-colors duration-500">
                     <Icon className="w-5 h-5 text-gold-400 transition-transform duration-500 group-hover:scale-110" />
                   </div>
                   <CounterAnimation

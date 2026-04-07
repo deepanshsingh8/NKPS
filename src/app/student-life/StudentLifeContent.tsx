@@ -140,7 +140,7 @@ export function StudentLifeContent({
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-100px" }}
-            className="mt-14 grid auto-rows-[200px] grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3"
+            className="mt-14 grid auto-rows-[250px] sm:auto-rows-[200px] grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3"
           >
             {activities.map((activity) => (
               <motion.div

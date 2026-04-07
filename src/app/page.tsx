@@ -8,13 +8,19 @@ import { SchoolEvents } from "@/components/home/SchoolEvents";
 import { SectionDivider } from "@/components/shared/SectionDivider";
 import { MarqueeStrip } from "@/components/shared/MarqueeStrip";
 import { PageTransition } from "@/components/shared/PageTransition";
-import { getPageMedia, mediaUrl } from "@/lib/site-media";
+import { getPageMedia, mediaUrl, getSectionCards } from "@/lib/site-media";
 
 // ISR: revalidate every 60s, plus on-demand via revalidatePath from admin
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const media = await getPageMedia("home");
+  const [media, heroCards, testimonialCards, updateCards, facilityCards] = await Promise.all([
+    getPageMedia("home"),
+    getSectionCards("hero_slider"),
+    getSectionCards("testimonials"),
+    getSectionCards("latest_updates"),
+    getSectionCards("facilities_preview"),
+  ]);
 
   const heroImages = [
     mediaUrl(media, "hero_slide_1", "/images/hero/campus-1.jpg"),
@@ -39,7 +45,7 @@ export default async function HomePage() {
 
   return (
     <PageTransition>
-      <HeroSlider images={heroImages} />
+      <HeroSlider images={heroImages} cards={heroCards} />
 
       <MarqueeStrip
         className="bg-navy-900 text-white/70 py-3"
@@ -57,15 +63,15 @@ export default async function HomePage() {
 
       <QuickLinks />
 
-      <FacilitiesPreview images={facilityImages} />
+      <FacilitiesPreview images={facilityImages} cards={facilityCards} />
 
       <StatsCounter backgroundImage={statsBackground} />
 
-      <LatestUpdates images={updateImages} />
+      <LatestUpdates images={updateImages} cards={updateCards} />
 
       <SchoolEvents />
 
-      <Testimonials />
+      <Testimonials cards={testimonialCards} />
     </PageTransition>
   );
 }

@@ -656,6 +656,50 @@ create policy "Authenticated users can insert site_media"
 --   - DELETE: Allow authenticated users
 
 -- =============================================================
+-- Section Cards (dynamic content cards for website sections)
+-- =============================================================
+
+create table if not exists section_cards (
+  id uuid default uuid_generate_v4() primary key,
+  section text not null check (section in ('hero_slider', 'testimonials', 'latest_updates', 'facilities_preview')),
+  title text,
+  subtitle text,
+  description text,
+  quote text,
+  name text,
+  role text,
+  initials text,
+  date text,
+  cta_text text,
+  cta_link text,
+  icon text,
+  link text,
+  image_url text,
+  sort_order integer default 0,
+  is_active boolean default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table section_cards enable row level security;
+
+create policy "Public can read section_cards"
+  on section_cards for select
+  using (true);
+
+create policy "Authenticated users can insert section_cards"
+  on section_cards for insert
+  with check (auth.role() = 'authenticated');
+
+create policy "Authenticated users can update section_cards"
+  on section_cards for update
+  using (auth.role() = 'authenticated');
+
+create policy "Authenticated users can delete section_cards"
+  on section_cards for delete
+  using (auth.role() = 'authenticated');
+
+-- =============================================================
 -- Students Table (standalone student records, no auth required)
 -- =============================================================
 

@@ -7,6 +7,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useMouseMotion } from "@/hooks/useMousePosition";
+import type { SectionCard } from "@/types";
 
 /* ─── Slide data ─── */
 const defaultSlides = [
@@ -139,13 +140,22 @@ function AnimatedHeading({
 /* ─── Main Hero Component ─── */
 interface HeroSliderProps {
   images?: string[];
+  cards?: SectionCard[];
 }
 
-export function HeroSlider({ images }: HeroSliderProps = {}) {
-  const slides = defaultSlides.map((slide, i) => ({
-    ...slide,
-    image: images?.[i] || slide.image,
-  }));
+export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
+  const slides = cards && cards.length > 0
+    ? cards.map((c, i) => ({
+        title: c.title || defaultSlides[i]?.title || "",
+        subtitle: c.subtitle || defaultSlides[i]?.subtitle || "",
+        cta: c.cta_text || defaultSlides[i]?.cta || "Learn More",
+        href: c.cta_link || defaultSlides[i]?.href || "/",
+        image: c.image_url || images?.[i] || defaultSlides[i]?.image || "",
+      }))
+    : defaultSlides.map((slide, i) => ({
+        ...slide,
+        image: images?.[i] || slide.image,
+      }));
 
   const [current, setCurrent] = useState(0);
   const [progress, setProgress] = useState(0);
@@ -329,7 +339,7 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
       >
         <div className="flex-1" />
 
-        <div className="pb-32 md:pb-36 lg:pb-28">
+        <div className="pb-40 md:pb-36 lg:pb-28">
           <div className="lg:grid lg:grid-cols-2 lg:items-end lg:gap-12">
             {/* Left — Main content */}
             <div>
@@ -426,12 +436,12 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
       </div>
 
       {/* ═══ Slide indicators ═══ */}
-      <div className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2.5">
+      <div className="absolute right-2 sm:right-4 md:right-8 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2.5">
         {slides.map((_, index) => (
           <button
             key={index}
             onClick={() => goTo(index)}
-            className="group relative flex items-center justify-center cursor-pointer"
+            className="group relative flex items-center justify-center cursor-pointer p-2"
             aria-label={`Go to slide ${index + 1}`}
           >
             <span

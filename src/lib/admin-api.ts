@@ -65,10 +65,10 @@ export async function adminFetch(url: string, options?: RequestInit): Promise<Re
 /**
  * Fetch helper for admin POST endpoints with FormData. Includes auth token.
  */
-export async function adminUpload(url: string, formData: FormData): Promise<Response> {
+export async function adminUpload(url: string, formData: FormData, method: "POST" | "PATCH" = "POST"): Promise<Response> {
   const token = await getAccessToken();
   return fetch(url, {
-    method: "POST",
+    method,
     headers: token ? { "Authorization": `Bearer ${token}` } : {},
     body: formData,
   });

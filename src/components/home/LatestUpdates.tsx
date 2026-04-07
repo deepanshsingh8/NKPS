@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { staggerContainer, fadeUp } from "@/lib/animations";
 import { SectionHeading } from "@/components/shared/SectionHeading";
+import type { SectionCard } from "@/types";
 
 const defaultUpdates = [
   {
@@ -32,13 +33,23 @@ const defaultUpdates = [
 
 interface LatestUpdatesProps {
   images?: string[];
+  cards?: SectionCard[];
 }
 
-export function LatestUpdates({ images }: LatestUpdatesProps = {}) {
-  const updates = defaultUpdates.map((u, i) => ({
-    ...u,
-    image: images?.[i] || u.image,
-  }));
+export function LatestUpdates({ images, cards }: LatestUpdatesProps = {}) {
+  const updates = cards && cards.length > 0
+    ? cards.map((c, i) => ({
+        date: c.date || defaultUpdates[i]?.date || "",
+        title: c.title || defaultUpdates[i]?.title || "",
+        description: c.description || defaultUpdates[i]?.description || "",
+        image: c.image_url || images?.[i] || defaultUpdates[i]?.image || "",
+        link: c.link || null,
+      }))
+    : defaultUpdates.map((u, i) => ({
+        ...u,
+        image: images?.[i] || u.image,
+        link: null as string | null,
+      }));
   return (
     <section className="section-padding relative overflow-hidden">
       <div className="page-container relative z-10">

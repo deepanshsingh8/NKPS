@@ -107,8 +107,8 @@ export function CurriculumOverview() {
               exit={{ opacity: 0, y: -16 }}
               transition={{ duration: 0.35, ease: "easeInOut" }}
             >
-              <div className="bg-white rounded-3xl p-8 md:p-10 border border-gray-100 shadow-sm">
-                <div className="flex gap-6 md:gap-8">
+              <div className="bg-white rounded-3xl p-5 sm:p-8 md:p-10 border border-gray-100 shadow-sm">
+                <div className="flex gap-4 sm:gap-6 md:gap-8">
                   {/* Accent bar */}
                   <div
                     className={cn(

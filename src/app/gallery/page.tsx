@@ -219,7 +219,7 @@ export default function GalleryPage() {
                     key={category}
                     onClick={() => setActiveCategory(category)}
                     className={cn(
-                      "rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 flex items-center gap-2",
+                      "rounded-full px-4 py-2 sm:px-6 sm:py-2.5 text-xs sm:text-sm font-semibold transition-all duration-300 flex items-center gap-2",
                       activeCategory === category
                         ? "bg-gradient-to-r from-navy-900 to-navy-800 text-white shadow-lg shadow-navy-900/25 scale-105"
                         : "border-2 border-navy-900/10 bg-white text-navy-900 hover:border-navy-900/30 hover:bg-cream-50 hover:shadow-md"

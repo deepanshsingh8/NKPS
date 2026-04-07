@@ -178,7 +178,7 @@ export default function ContactPage() {
           <div className="mt-12 grid grid-cols-1 gap-0 overflow-hidden rounded-3xl shadow-2xl lg:grid-cols-5">
             {/* Left decorative panel */}
             <AnimatedSection className="lg:col-span-2">
-              <div className="flex h-full flex-col justify-between bg-navy-900 p-8 text-white lg:p-10">
+              <div className="flex h-full flex-col justify-between bg-navy-900 p-6 sm:p-8 text-white lg:p-10">
                 <div>
                   <div className="mb-2 flex items-center gap-2">
                     <MessageCircle className="h-5 w-5 text-gold-500" />
@@ -290,7 +290,7 @@ export default function ContactPage() {
 
             {/* Right form panel */}
             <AnimatedSection delay={0.2} className="lg:col-span-3">
-              <div className="h-full bg-white p-8 lg:p-10">
+              <div className="h-full bg-white p-6 sm:p-8 lg:p-10">
                 <form
                   onSubmit={handleSubmit(onSubmit)}
                   className="space-y-6"

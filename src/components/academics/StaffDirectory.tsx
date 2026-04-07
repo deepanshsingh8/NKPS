@@ -93,8 +93,8 @@ export function StaffDirectory() {
         />
 
         {/* Premium pill tabs with sliding indicator */}
-        <div className="flex justify-center mt-10">
-          <div className="relative inline-flex items-center gap-1 rounded-full bg-white p-1.5 shadow-sm border border-gray-200/80">
+        <div className="flex justify-center mt-10 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] px-4">
+          <div className="relative inline-flex items-center gap-1 rounded-full bg-white p-1.5 shadow-sm border border-gray-200/80 shrink-0">
             {/* Sliding indicator */}
             <motion.div
               className="absolute top-1.5 bottom-1.5 rounded-full bg-navy-900"
@@ -116,7 +116,7 @@ export function StaffDirectory() {
                   setSearch("");
                 }}
                 className={cn(
-                  "relative z-10 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200",
+                  "relative z-10 flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-colors duration-200",
                   activeTab === tab.key
                     ? "text-white"
                     : "text-navy-700 hover:text-navy-900"

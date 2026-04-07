@@ -26,7 +26,7 @@ export function SectionHeading({ title, subtitle, label, light, className }: Sec
       )}
       <h2
         className={cn(
-          "font-heading text-3xl md:text-4xl font-bold",
+          "font-heading text-2xl sm:text-3xl md:text-4xl font-bold",
           light ? "text-white" : "text-navy-900"
         )}
       >
@@ -42,7 +42,7 @@ export function SectionHeading({ title, subtitle, label, light, className }: Sec
       {subtitle && (
         <p
           className={cn(
-            "mt-4 max-w-2xl mx-auto text-lg",
+            "mt-4 max-w-2xl mx-auto text-base sm:text-lg",
             light ? "text-gray-300" : "text-gray-500"
           )}
         >

@@ -7,6 +7,7 @@ import { Monitor, FlaskConical, Laptop, BookOpen, ArrowRight } from "lucide-reac
 import { FACILITIES } from "@/lib/constants";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { fadeUp, staggerContainer } from "@/lib/animations";
+import type { SectionCard } from "@/types";
 
 const defaultFacilityImages = [
   "/images/news/n1.jpg",
@@ -17,6 +18,7 @@ const defaultFacilityImages = [
 
 interface FacilitiesPreviewProps {
   images?: string[];
+  cards?: SectionCard[];
 }
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -26,11 +28,22 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   BookOpen,
 };
 
-export function FacilitiesPreview({ images }: FacilitiesPreviewProps = {}) {
+export function FacilitiesPreview({ images, cards }: FacilitiesPreviewProps = {}) {
   const facilityImages = images?.length
     ? images
     : defaultFacilityImages;
-  const preview = FACILITIES.slice(0, 4);
+
+  const preview = cards && cards.length > 0
+    ? cards.map((c, i) => ({
+        title: c.title || FACILITIES[i]?.title || "",
+        description: c.description || FACILITIES[i]?.description || "",
+        icon: c.icon || FACILITIES[i]?.icon || "Monitor",
+        image: c.image_url || facilityImages[i] || defaultFacilityImages[i] || "",
+      }))
+    : FACILITIES.slice(0, 4).map((f, i) => ({
+        ...f,
+        image: facilityImages[i],
+      }));
 
   return (
     <section className="section-padding overflow-hidden">
@@ -58,7 +71,7 @@ export function FacilitiesPreview({ images }: FacilitiesPreviewProps = {}) {
                 <div className="group relative aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer shadow-lg shadow-black/10 hover:shadow-2xl hover:shadow-black/20 transition-shadow duration-700">
                   {/* Background image */}
                   <Image
-                    src={facilityImages[index]}
+                    src={facility.image}
                     alt={facility.title}
                     fill
                     className="object-cover transition-transform duration-[800ms] ease-out group-hover:scale-[1.12]"
@@ -68,13 +81,13 @@ export function FacilitiesPreview({ images }: FacilitiesPreviewProps = {}) {
                   <div className="absolute inset-0 bg-gradient-to-t from-navy-950/85 via-navy-950/20 to-transparent transition-all duration-700 group-hover:from-navy-950/95 group-hover:via-navy-950/40" />
 
                   {/* Icon badge — animated on hover */}
-                  <div className="absolute top-5 right-5 w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 transition-all duration-500 group-hover:bg-gold-500/20 group-hover:border-gold-400/30 group-hover:scale-110">
-                    <Icon className="w-5 h-5 text-white transition-colors duration-500 group-hover:text-gold-400" />
+                  <div className="absolute top-3 right-3 sm:top-5 sm:right-5 w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 transition-all duration-500 group-hover:bg-gold-500/20 group-hover:border-gold-400/30 group-hover:scale-110">
+                    <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white transition-colors duration-500 group-hover:text-gold-400" />
                   </div>
 
                   {/* Content at bottom */}
-                  <div className="absolute bottom-0 left-0 right-0 p-6 md:p-7">
-                    <h3 className="font-heading text-lg md:text-xl font-bold text-white">
+                  <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 md:p-7">
+                    <h3 className="font-heading text-base sm:text-lg md:text-xl font-bold text-white">
                       {facility.title}
                     </h3>
                     <p className="text-gray-300/90 text-sm mt-2 leading-relaxed line-clamp-2 opacity-0 translate-y-3 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 delay-100">

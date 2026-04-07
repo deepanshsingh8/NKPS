@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Quote, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SectionHeading } from "@/components/shared/SectionHeading";
+import Image from "next/image";
+import type { SectionCard } from "@/types";
 
 const testimonials = [
   {
@@ -30,12 +32,26 @@ const testimonials = [
   },
 ];
 
-export function Testimonials() {
+interface TestimonialsProps {
+  cards?: SectionCard[];
+}
+
+export function Testimonials({ cards }: TestimonialsProps = {}) {
+  const activeTestimonials = cards && cards.length > 0
+    ? cards.map((c) => ({
+        quote: c.quote || "",
+        name: c.name || "",
+        role: c.role || "",
+        initials: c.initials || (c.name?.[0] ?? ""),
+        image: c.image_url || null,
+      }))
+    : testimonials.map((t) => ({ ...t, image: null as string | null }));
+
   const [active, setActive] = useState(0);
 
   const next = useCallback(() => {
-    setActive((prev) => (prev + 1) % testimonials.length);
-  }, []);
+    setActive((prev) => (prev + 1) % activeTestimonials.length);
+  }, [activeTestimonials.length]);
 
   useEffect(() => {
     const timer = setInterval(next, 5000);
@@ -75,19 +91,29 @@ export function Testimonials() {
                 </div>
 
                 <p className="text-lg md:text-xl text-navy-800 leading-relaxed">
-                  &ldquo;{testimonials[active].quote}&rdquo;
+                  &ldquo;{activeTestimonials[active].quote}&rdquo;
                 </p>
 
                 <div className="mt-6 flex items-center gap-4">
-                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-navy-900 to-navy-700 flex items-center justify-center text-white font-semibold ring-2 ring-gold-500/20 ring-offset-2 ring-offset-cream-50">
-                    {testimonials[active].initials}
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-navy-900 to-navy-700 flex items-center justify-center text-white font-semibold ring-2 ring-gold-500/20 ring-offset-2 ring-offset-cream-50 overflow-hidden relative">
+                    {activeTestimonials[active].image ? (
+                      <Image
+                        src={activeTestimonials[active].image!}
+                        alt={activeTestimonials[active].name}
+                        fill
+                        className="object-cover"
+                        sizes="44px"
+                      />
+                    ) : (
+                      activeTestimonials[active].initials
+                    )}
                   </div>
                   <div>
                     <p className="font-semibold text-navy-900">
-                      {testimonials[active].name}
+                      {activeTestimonials[active].name}
                     </p>
                     <p className="text-gray-500 text-sm">
-                      {testimonials[active].role}
+                      {activeTestimonials[active].role}
                     </p>
                   </div>
                 </div>
@@ -97,7 +123,7 @@ export function Testimonials() {
 
           {/* Indicators */}
           <div className="flex items-center justify-center gap-3 mt-8">
-            {testimonials.map((t, i) => (
+            {activeTestimonials.map((t, i) => (
               <button
                 key={t.name}
                 onClick={() => setActive(i)}

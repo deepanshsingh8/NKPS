@@ -45,6 +45,30 @@ export interface SiteMedia {
   created_at: string;
 }
 
+export type SectionCardType = 'hero_slider' | 'testimonials' | 'latest_updates' | 'facilities_preview';
+
+export interface SectionCard {
+  id: string;
+  section: SectionCardType;
+  title: string | null;
+  subtitle: string | null;
+  description: string | null;
+  quote: string | null;
+  name: string | null;
+  role: string | null;
+  initials: string | null;
+  date: string | null;
+  cta_text: string | null;
+  cta_link: string | null;
+  icon: string | null;
+  link: string | null;
+  image_url: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ContactSubmission {
   id: string;
   full_name: string;

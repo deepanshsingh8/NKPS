@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { SiteMedia } from "@/types";
+import type { SiteMedia, SectionCard } from "@/types";
 
 /**
  * Fetch all site media for a given page, keyed by slot name.
@@ -20,6 +20,23 @@ export async function getPageMedia(
     map[item.slot] = item as SiteMedia;
   }
   return map;
+}
+
+/**
+ * Fetch active section cards for a given section, ordered by sort_order.
+ */
+export async function getSectionCards(
+  section: string
+): Promise<SectionCard[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("section_cards")
+    .select("*")
+    .eq("section", section)
+    .eq("is_active", true)
+    .order("sort_order");
+
+  return (data ?? []) as SectionCard[];
 }
 
 /**

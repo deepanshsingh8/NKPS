@@ -24,7 +24,7 @@ export function PageHeader({ title, subtitle }: PageHeaderProps) {
   }));
 
   return (
-    <section className="relative w-full bg-navy-900 bg-gradient-to-br from-navy-900 via-navy-800 to-navy-900 py-24 pt-32 overflow-hidden">
+    <section className="relative w-full bg-navy-900 bg-gradient-to-br from-navy-900 via-navy-800 to-navy-900 py-16 pt-24 sm:py-24 sm:pt-32 overflow-hidden">
       {/* Subtle dot pattern texture */}
       <div
         className="absolute inset-0 opacity-[0.03]"
