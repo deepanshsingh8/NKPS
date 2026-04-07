@@ -34,7 +34,6 @@ export default function TransferCertificatesPage() {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Failed to fetch transfer certificates:", error);
         setFetchError(true);
       } else if (data) {
         setTcs(data as TC[]);

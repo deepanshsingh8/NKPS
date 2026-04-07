@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { feePaymentSchema } from "@/lib/validations";
+import { generateReceiptNumber } from "@/lib/password";
 
 export async function POST(request: Request) {
   try {
@@ -39,10 +40,8 @@ export async function POST(request: Request) {
     const { student_id, fee_structure_id, amount_paid, payment_method, month } =
       result.data;
 
-    // Auto-generate receipt number: NKPS-{year}-{random 6 digits}
-    const year = new Date().getFullYear();
-    const randomDigits = Math.floor(100000 + Math.random() * 900000);
-    const receipt_number = `NKPS-${year}-${randomDigits}`;
+    // Auto-generate receipt number with cryptographically secure random digits
+    const receipt_number = generateReceiptNumber();
 
     const { data: payment, error } = await supabase
       .from("fee_payments")
@@ -63,7 +62,7 @@ export async function POST(request: Request) {
     if (error) {
       console.error("Fee payment insert error:", error);
       return NextResponse.json(
-        { error: error.message || "Failed to record payment" },
+        { error: "Failed to record payment" },
         { status: 500 }
       );
     }

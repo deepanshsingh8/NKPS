@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin, Phone, Mail, Clock } from "lucide-react";
+import { MapPin, Phone, Mail, Clock, ArrowRight, GraduationCap } from "lucide-react";
 import { FacebookIcon, InstagramIcon, YoutubeIcon } from "@/components/shared/SocialIcons";
 import { SCHOOL, NAV_LINKS } from "@/lib/constants";
 
@@ -16,16 +16,48 @@ export function Footer() {
 
   return (
     <footer className="bg-navy-900 text-white">
+      {/* CTA Banner */}
+      <div className="border-b border-white/10">
+        <div className="mx-auto max-w-7xl px-6 py-12">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="text-center md:text-left">
+              <h3 className="font-heading text-2xl md:text-3xl font-bold">
+                Ready to Enroll Your Child?
+              </h3>
+              <p className="mt-2 text-gray-400 text-sm md:text-base">
+                Admissions are open for the academic session 2026-27. Join 10,000+ students building their future.
+              </p>
+            </div>
+            <Link
+              href="/admissions"
+              className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-7 py-3.5 text-sm font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25 hover:scale-[1.02] shrink-0"
+            >
+              Start Application
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" />
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Footer */}
       <div className="mx-auto max-w-7xl px-6 py-16">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Column 1: School Info */}
           <div>
             <h3 className="font-heading text-2xl font-bold">NK Public School</h3>
+            <p className="mt-1 text-xs uppercase tracking-wider text-gold-500/80">
+              Nurturing Knowledge, Pursuing Success
+            </p>
             <p className="mt-4 text-sm leading-relaxed text-gray-300">
               A {SCHOOL.affiliation}-affiliated institution committed to academic excellence,
               holistic development, and nurturing future leaders.
             </p>
-            <div className="mt-6 flex items-center gap-4">
+            {/* CBSE Badge */}
+            <div className="mt-5 inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+              <GraduationCap className="w-4 h-4 text-gold-400" />
+              <span className="text-xs font-medium text-gray-300">CBSE Affiliated</span>
+            </div>
+            <div className="mt-5 flex items-center gap-4">
               <Link href={SCHOOL.social.facebook} target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="text-gray-400 hover:text-gold-400 transition-colors">
                 <FacebookIcon className="h-5 w-5" />
               </Link>
@@ -95,7 +127,7 @@ export function Footer() {
         </div>
 
         {/* Divider + Copyright */}
-        <div className="mt-12 border-t border-gold-500/30 pt-8 text-center">
+        <div className="mt-12 border-t border-gold-500/20 pt-8 text-center">
           <p className="text-sm text-gray-400">
             &copy; {year} NK Public School. All rights reserved.
           </p>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { createUserSchema } from "@/lib/validations";
+import { generateSecurePassword } from "@/lib/password";
 
 export async function POST(request: Request) {
   try {
@@ -40,9 +41,8 @@ export async function POST(request: Request) {
 
     const { full_name, email, phone, role } = result.data;
 
-    // Generate a default password
-    const password =
-      body.password || `NKPS@${Math.random().toString(36).slice(-8)}`;
+    // Generate a cryptographically secure default password
+    const password = body.password || generateSecurePassword();
 
     const supabase = createAdminClient();
 
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     if (error) {
       console.error("Create user error:", error);
       return NextResponse.json(
-        { error: error.message || "Failed to create user" },
+        { error: "Failed to create user" },
         { status: 500 }
       );
     }
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     // Send welcome email with credentials (non-blocking)
     try {
       const { sendEmail, buildWelcomeEmail } = await import("@/lib/email");
-      const loginUrl = `${request.headers.get("origin") || process.env.NEXT_PUBLIC_SITE_URL || ""}/portal/login`;
+      const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.nkpublicschool.com"}/portal/login`;
       const html = buildWelcomeEmail({
         fullName: full_name,
         email,
@@ -181,7 +181,8 @@ export async function DELETE(request: Request) {
     const { error } = await supabase.auth.admin.deleteUser(id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("Delete user error:", error);
+      return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     if (error) {
       console.error("Attendance upsert error:", error);
       return NextResponse.json(
-        { error: error.message || "Failed to save attendance" },
+        { error: "Failed to save attendance" },
         { status: 500 }
       );
     }

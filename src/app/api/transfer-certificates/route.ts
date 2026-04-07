@@ -28,8 +28,9 @@ export async function POST(request: NextRequest) {
       .upload(fileName, file);
 
     if (uploadError) {
+      console.error("TC storage upload error:", uploadError);
       return NextResponse.json(
-        { error: `Storage: ${uploadError.message}` },
+        { error: "Failed to upload certificate" },
         { status: 500 }
       );
     }
@@ -49,8 +50,9 @@ export async function POST(request: NextRequest) {
       });
 
     if (insertError) {
+      console.error("TC DB insert error:", insertError);
       return NextResponse.json(
-        { error: `Database: ${insertError.message}` },
+        { error: "Failed to save certificate record" },
         { status: 500 }
       );
     }
@@ -84,7 +86,8 @@ export async function DELETE(request: NextRequest) {
       .eq("id", id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("TC delete DB error:", error);
+      return NextResponse.json({ error: "Failed to delete certificate" }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

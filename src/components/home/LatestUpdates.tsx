@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { staggerContainer, fadeUp } from "@/lib/animations";
 import { SectionHeading } from "@/components/shared/SectionHeading";
-import { MouseParallax } from "@/components/shared/MouseParallax";
 
 const defaultUpdates = [
   {
@@ -42,16 +41,9 @@ export function LatestUpdates({ images }: LatestUpdatesProps = {}) {
   }));
   return (
     <section className="section-padding relative overflow-hidden">
-      {/* Mouse parallax decorative shapes */}
-      <MouseParallax strength={18} className="absolute top-20 left-[8%] pointer-events-none">
-        <div className="w-40 h-40 rounded-full border-2 border-gold-400/35 opacity-40" />
-      </MouseParallax>
-      <MouseParallax strength={25} invert className="absolute bottom-16 right-[12%] pointer-events-none">
-        <div className="w-20 h-20 rounded-full bg-gold-400/25 opacity-40" />
-      </MouseParallax>
-
       <div className="page-container relative z-10">
         <SectionHeading
+          label="News & Announcements"
           title="Latest Updates"
           subtitle="Stay informed with school news and announcements"
         />

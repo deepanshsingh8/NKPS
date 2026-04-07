@@ -74,10 +74,11 @@ export async function POST(request: NextRequest) {
         });
 
       if (uploadError) {
+        console.error("Gallery storage upload error:", uploadError);
         results.push({
           name: file.name,
           success: false,
-          error: `Storage: ${uploadError.message}`,
+          error: "Failed to upload image",
         });
         continue;
       }
@@ -98,10 +99,11 @@ export async function POST(request: NextRequest) {
         });
 
       if (insertError) {
+        console.error("Gallery DB insert error:", insertError);
         results.push({
           name: file.name,
           success: false,
-          error: `Database: ${insertError.message}`,
+          error: "Failed to save image record",
         });
         continue;
       }
@@ -115,10 +117,9 @@ export async function POST(request: NextRequest) {
       { status: allSucceeded ? 200 : 207 }
     );
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    console.error("[Gallery Upload Error]", msg);
+    console.error("[Gallery Upload Error]", err);
     return NextResponse.json(
-      { error: `Upload failed: ${msg}` },
+      { error: "Upload failed" },
       { status: 500 }
     );
   }
@@ -145,7 +146,8 @@ export async function DELETE(request: NextRequest) {
       .eq("id", id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("Gallery delete DB error:", error);
+      return NextResponse.json({ error: "Failed to delete image" }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

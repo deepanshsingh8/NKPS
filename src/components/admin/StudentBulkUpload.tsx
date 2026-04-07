@@ -293,8 +293,7 @@ export function StudentBulkUpload({
           setParsedRows(parsed);
           setStep("preview");
           toast.success(`Parsed ${parsed.length} rows from ${file.name}`);
-        } catch (err) {
-          console.error("File parse error:", err);
+        } catch {
           toast.error("Failed to parse file. Please ensure it is a valid Excel or CSV file.");
         }
       };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import Image from "next/image";
 import { Upload, RotateCcw, Loader2, Check, ChevronDown } from "lucide-react";
 import { adminFetch, adminUpload, adminPatch } from "@/lib/admin-api";
 import { Button } from "@/components/ui/button";
@@ -119,10 +120,13 @@ function SlotCard({
       <div className="flex items-start gap-4 p-4">
         {/* Thumbnail */}
         <div className="w-32 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-muted shrink-0 relative">
-          <img
+
+          <Image
             src={item.current_url}
             alt={item.alt_text || item.label}
-            className="w-full h-full object-cover"
+            fill
+            className="object-cover"
+            sizes="128px"
           />
           {isCustomized && (
             <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-green-500 border border-white" title="Custom image" />

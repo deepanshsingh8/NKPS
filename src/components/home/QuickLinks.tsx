@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { staggerContainer, fadeUp } from "@/lib/animations";
 import { SectionHeading } from "@/components/shared/SectionHeading";
-import { MouseParallax } from "@/components/shared/MouseParallax";
+import { cn } from "@/lib/utils";
 
 const links = [
   {
@@ -20,6 +20,7 @@ const links = [
     description: "Access academic records, results, and assignments online",
     href: "/portal/login",
     span: "md:col-span-2",
+    featured: true,
   },
   {
     icon: Users,
@@ -27,6 +28,7 @@ const links = [
     description: "Teacher & admin login",
     href: "/portal/login",
     span: "",
+    featured: false,
   },
   {
     icon: Download,
@@ -34,6 +36,7 @@ const links = [
     description: "Forms, circulars & more",
     href: "/transfer-certificates",
     span: "",
+    featured: false,
   },
   {
     icon: Calendar,
@@ -41,24 +44,18 @@ const links = [
     description: "View important dates, holidays, and exam schedules",
     href: "/academics",
     span: "md:col-span-2",
+    featured: false,
   },
 ];
 
 export function QuickLinks() {
   return (
     <section className="bg-cream-50 section-padding relative overflow-hidden">
-      {/* Mouse parallax decorative shapes */}
-      <MouseParallax strength={20} className="absolute top-10 right-[10%] pointer-events-none">
-        <div className="w-32 h-32 rounded-full border-2 border-gold-400/40 opacity-40" />
-      </MouseParallax>
-      <MouseParallax strength={15} invert className="absolute bottom-10 left-[5%] pointer-events-none">
-        <div className="w-24 h-24 rounded-lg border-2 border-navy-900/25 opacity-35" />
-      </MouseParallax>
-
       <div className="page-container relative z-10">
         <SectionHeading
-          title="Quick Links"
-          subtitle="Access important resources quickly"
+          label="Get Started"
+          title="Access Your Portal"
+          subtitle="Jump into academic resources, results, and school information"
         />
 
         <motion.div
@@ -78,25 +75,41 @@ export function QuickLinks() {
                 <motion.div
                   whileHover={{ y: -4 }}
                   transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  className="group relative bg-white rounded-3xl border border-gray-100 overflow-hidden p-7 h-full cursor-pointer transition-shadow duration-300 hover:shadow-xl hover:border-gold-500/20"
+                  className={cn(
+                    "group relative rounded-3xl overflow-hidden p-7 h-full cursor-pointer transition-all duration-300 hover:shadow-xl",
+                    link.featured
+                      ? "bg-gradient-to-br from-navy-900 to-navy-800 border border-gold-500/20 hover:border-gold-500/40"
+                      : "bg-white border border-gray-100 hover:border-gold-500/20"
+                  )}
                 >
-                  {/* Subtle gradient accent on hover */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-gold-500/0 to-gold-500/0 group-hover:from-gold-500/[0.02] group-hover:to-gold-500/[0.06] transition-all duration-500" />
-
                   <div className="relative flex items-start gap-5">
                     {/* Icon */}
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-navy-900 to-navy-700 flex items-center justify-center shrink-0 shadow-lg shadow-navy-900/20 group-hover:shadow-navy-900/30 transition-shadow duration-300">
-                      <link.icon className="w-6 h-6 text-white" />
+                    <div className={cn(
+                      "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg transition-shadow duration-300",
+                      link.featured
+                        ? "bg-gradient-to-br from-gold-500 to-gold-400 shadow-gold-500/25"
+                        : "bg-gradient-to-br from-navy-900 to-navy-700 shadow-navy-900/20 group-hover:shadow-navy-900/30"
+                    )}>
+                      <link.icon className={cn("w-6 h-6", link.featured ? "text-navy-900" : "text-white")} />
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-heading text-lg font-semibold text-navy-900">
+                        <h3 className={cn(
+                          "font-heading text-lg font-semibold",
+                          link.featured ? "text-white" : "text-navy-900"
+                        )}>
                           {link.title}
                         </h3>
-                        <ArrowRight className="w-4 h-4 text-gray-400 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
+                        <ArrowRight className={cn(
+                          "w-4 h-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300",
+                          link.featured ? "text-gold-400" : "text-gray-400"
+                        )} />
                       </div>
-                      <p className="text-gray-500 text-sm mt-1 leading-relaxed">
+                      <p className={cn(
+                        "text-sm mt-1 leading-relaxed",
+                        link.featured ? "text-gray-300" : "text-gray-500"
+                      )}>
                         {link.description}
                       </p>
                     </div>

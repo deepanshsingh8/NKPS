@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Quote, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SectionHeading } from "@/components/shared/SectionHeading";
-import { MouseParallax } from "@/components/shared/MouseParallax";
 
 const testimonials = [
   {
@@ -44,89 +44,74 @@ export function Testimonials() {
 
   return (
     <section className="bg-white section-padding relative overflow-hidden">
-      {/* Mouse parallax decorative shapes */}
-      <MouseParallax strength={20} className="absolute top-16 right-[15%] pointer-events-none">
-        <div className="w-36 h-36 rounded-full border-2 border-gold-400/35 opacity-40" />
-      </MouseParallax>
-      <MouseParallax strength={12} invert className="absolute bottom-20 left-[10%] pointer-events-none">
-        <div className="w-16 h-16 rounded-lg border-2 border-navy-900/20 opacity-35" />
-      </MouseParallax>
-
       <div className="page-container relative z-10">
         <SectionHeading
+          label="Testimonials"
           title="What Parents Say"
           subtitle="Hear from our school community"
         />
 
-        <div className="mt-12 md:mt-16 max-w-5xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-8 md:gap-12 items-center min-h-[280px]">
-            {/* Left: Decorative quote mark */}
-            <div className="hidden md:flex items-center justify-center">
-              <span className="text-[12rem] leading-none text-gold-500/10 font-serif select-none">
-                &ldquo;
-              </span>
+        <div className="mt-12 md:mt-16 max-w-3xl mx-auto">
+          {/* Quote card */}
+          <div className="relative bg-cream-50 rounded-3xl p-8 md:p-12 border border-gold-500/10">
+            {/* Quote icon */}
+            <div className="absolute -top-5 left-8 md:left-12 w-10 h-10 rounded-full bg-gradient-to-br from-gold-500 to-gold-400 flex items-center justify-center shadow-lg shadow-gold-500/25">
+              <Quote className="w-5 h-5 text-navy-900" />
             </div>
 
-            {/* Right: Quote content */}
-            <div className="relative">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={active}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.5, ease: "easeInOut" }}
-                >
-                  {/* Mobile quote mark */}
-                  <span className="md:hidden text-7xl leading-none text-gold-500/15 font-serif select-none block -mb-6">
-                    &ldquo;
-                  </span>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={active}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.4, ease: "easeInOut" }}
+              >
+                {/* Stars */}
+                <div className="flex items-center gap-1 mb-5">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-4 h-4 fill-gold-500 text-gold-500" />
+                  ))}
+                </div>
 
-                  <p className="text-xl md:text-2xl italic text-navy-800 font-medium leading-relaxed">
-                    {testimonials[active].quote}
-                  </p>
+                <p className="text-lg md:text-xl text-navy-800 leading-relaxed">
+                  &ldquo;{testimonials[active].quote}&rdquo;
+                </p>
 
-                  <div className="mt-8 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-navy-900 to-navy-700 flex items-center justify-center text-white font-semibold text-lg">
-                      {testimonials[active].initials}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-navy-900 text-lg">
-                        {testimonials[active].name}
-                      </p>
-                      <p className="text-gray-500 text-sm">
-                        {testimonials[active].role}
-                      </p>
-                    </div>
+                <div className="mt-6 flex items-center gap-4">
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-navy-900 to-navy-700 flex items-center justify-center text-white font-semibold">
+                    {testimonials[active].initials}
                   </div>
-                </motion.div>
-              </AnimatePresence>
-            </div>
+                  <div>
+                    <p className="font-semibold text-navy-900">
+                      {testimonials[active].name}
+                    </p>
+                    <p className="text-gray-500 text-sm">
+                      {testimonials[active].role}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
           </div>
 
           {/* Indicators */}
-          <div className="flex items-center justify-center gap-4 mt-12">
+          <div className="flex items-center justify-center gap-3 mt-8">
             {testimonials.map((t, i) => (
               <button
                 key={t.name}
                 onClick={() => setActive(i)}
-                className="relative focus:outline-none"
+                className="relative focus:outline-none cursor-pointer"
                 aria-label={`View testimonial from ${t.name}`}
               >
-                <motion.div
-                  animate={{
-                    scale: i === active ? 1.1 : 1,
-                  }}
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                <div
                   className={cn(
-                    "w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 cursor-pointer",
+                    "w-2.5 h-2.5 rounded-full transition-all duration-300",
                     i === active
-                      ? "bg-gradient-to-br from-navy-900 to-navy-700 text-white ring-2 ring-gold-500 ring-offset-2"
-                      : "bg-gray-100 text-navy-700 hover:bg-gray-200"
+                      ? "bg-gold-500 scale-125"
+                      : "bg-gray-300 hover:bg-gray-400"
                   )}
-                >
-                  {t.initials}
-                </motion.div>
+                />
               </button>
             ))}
           </div>

@@ -3,8 +3,7 @@ import { SCHOOL } from "@/lib/constants";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Use "onboarding@resend.dev" for testing, replace with verified domain in production
-const FROM_EMAIL = `${SCHOOL.name} <onboarding@resend.dev>`;
+const FROM_EMAIL = process.env.FROM_EMAIL || `${SCHOOL.name} <onboarding@resend.dev>`;
 
 export async function sendEmail(to: string, subject: string, html: string) {
   return resend.emails.send({
@@ -159,6 +158,57 @@ export function buildRegistrationRejectedEmail({ fullName, reason }: Registratio
       If you believe this was a mistake or have questions, please contact us at
       <a href="mailto:${SCHOOL.email[0]}" style="color:#d4a843;">${SCHOOL.email[0]}</a>
       or call <strong>${SCHOOL.phone[0]}</strong>.
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// Contact Form Notification (sent to admin)
+// ---------------------------------------------------------------------------
+
+interface ContactNotificationParams {
+  fullName: string;
+  email: string;
+  phone: string;
+  subject: string;
+  message: string;
+}
+
+export function buildContactNotificationEmail({
+  fullName,
+  email,
+  phone,
+  subject,
+  message,
+}: ContactNotificationParams): string {
+  return emailWrapper(`
+    <h2 style="margin:0 0 16px;font-size:20px;color:#1a2332;">New Contact Form Submission</h2>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td style="padding:8px 0;font-size:13px;color:#888;width:80px;vertical-align:top;">Name</td>
+        <td style="padding:8px 0;font-size:15px;color:#1a2332;font-weight:600;">${fullName}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;font-size:13px;color:#888;vertical-align:top;">Email</td>
+        <td style="padding:8px 0;font-size:15px;color:#1a2332;">
+          <a href="mailto:${email}" style="color:#d4a843;">${email}</a>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;font-size:13px;color:#888;vertical-align:top;">Phone</td>
+        <td style="padding:8px 0;font-size:15px;color:#1a2332;">${phone}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;font-size:13px;color:#888;vertical-align:top;">Subject</td>
+        <td style="padding:8px 0;font-size:15px;color:#1a2332;font-weight:600;">${subject}</td>
+      </tr>
+    </table>
+    <div style="background-color:#faf8f3;border:1px solid #e8e4d9;border-radius:8px;padding:20px 24px;margin-bottom:24px;">
+      <p style="margin:0 0 8px;font-size:13px;color:#888;">Message</p>
+      <p style="margin:0;font-size:14px;color:#1a2332;line-height:1.6;white-space:pre-wrap;">${message}</p>
+    </div>
+    <p style="margin:0;font-size:13px;color:#888;">
+      This submission has been saved to the admin dashboard. You can view and manage all messages from the Contact section.
     </p>
   `);
 }

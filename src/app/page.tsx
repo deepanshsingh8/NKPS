@@ -57,13 +57,9 @@ export default async function HomePage() {
 
       <QuickLinks />
 
-      <SectionDivider color="fill-white" />
-
       <FacilitiesPreview images={facilityImages} />
 
       <StatsCounter backgroundImage={statsBackground} />
-
-      <SectionDivider flip color="fill-cream-50" />
 
       <LatestUpdates images={updateImages} />
 

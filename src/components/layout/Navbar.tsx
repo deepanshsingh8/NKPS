@@ -46,7 +46,7 @@ export function Navbar() {
         "fixed left-0 right-0 top-0 z-50 transition-all duration-500",
         isTransparent
           ? "bg-navy-900/20 backdrop-blur-md border-b border-white/10"
-          : "bg-navy-900/95 backdrop-blur-xl border-b-2 border-gold-500/50 shadow-lg shadow-black/20"
+          : "bg-navy-900/95 backdrop-blur-xl border-b border-gold-500/30 shadow-lg shadow-black/15"
       )}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
@@ -87,7 +87,7 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "relative px-4 py-2 text-sm font-medium rounded-full transition-all duration-300",
+                  "group relative px-4 py-2 text-sm font-medium rounded-full transition-all duration-300",
                   isActive
                     ? "bg-white/20 text-white"
                     : "text-white/70 hover:text-white"
@@ -97,10 +97,7 @@ export function Navbar() {
                 {/* Underline grow from center on hover (non-active) */}
                 {!isActive && (
                   <span
-                    className={cn(
-                      "absolute bottom-1 left-1/2 -translate-x-1/2 h-px w-3/5 origin-center scale-x-0 transition-transform duration-300 group-hover:scale-x-100",
-                      "bg-white/60"
-                    )}
+                    className="absolute bottom-1 left-1/2 -translate-x-1/2 h-px w-3/5 origin-center scale-x-0 transition-transform duration-300 group-hover:scale-x-100 bg-gold-400/60"
                   />
                 )}
               </Link>

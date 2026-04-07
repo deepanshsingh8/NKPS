@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
         .order("full_name", { ascending: true });
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("Fetch all students error:", error);
+        return NextResponse.json({ error: "Failed to fetch students" }, { status: 500 });
       }
 
       if (!allStudents || allStudents.length === 0) {
@@ -54,7 +55,8 @@ export async function GET(request: NextRequest) {
       .eq("class_id", classId);
 
     if (enrollError) {
-      return NextResponse.json({ error: enrollError.message }, { status: 500 });
+      console.error("Fetch enrollments error:", enrollError);
+      return NextResponse.json({ error: "Failed to fetch enrollments" }, { status: 500 });
     }
 
     if (!enrollments || enrollments.length === 0) {
@@ -70,7 +72,8 @@ export async function GET(request: NextRequest) {
       .order("full_name", { ascending: true });
 
     if (studentError) {
-      return NextResponse.json({ error: studentError.message }, { status: 500 });
+      console.error("Fetch students by class error:", studentError);
+      return NextResponse.json({ error: "Failed to fetch students" }, { status: 500 });
     }
 
     const merged = (students ?? []).map((s) => {
@@ -132,7 +135,8 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (studentError) {
-      return NextResponse.json({ error: studentError.message }, { status: 500 });
+      console.error("Create student error:", studentError);
+      return NextResponse.json({ error: "Failed to create student" }, { status: 500 });
     }
 
     // Create enrollment if class_id provided
@@ -151,7 +155,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           data: student,
-          warning: "Student created but enrollment failed: " + enrollError.message,
+          warning: "Student created but enrollment failed",
         });
       }
     }
@@ -186,7 +190,8 @@ export async function PATCH(request: NextRequest) {
       .eq("id", id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("Update student error:", error);
+      return NextResponse.json({ error: "Failed to update student" }, { status: 500 });
     }
 
     // Update roll number if enrollment exists
@@ -225,7 +230,8 @@ export async function DELETE(request: NextRequest) {
     const { error } = await admin.from("students").delete().eq("id", id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("Delete student error:", error);
+      return NextResponse.json({ error: "Failed to delete student" }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

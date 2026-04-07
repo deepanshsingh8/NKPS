@@ -73,7 +73,7 @@ export async function GET(request: Request) {
     if (error) {
       console.error("Report card fetch error:", error);
       return NextResponse.json(
-        { error: error.message || "Failed to fetch results" },
+        { error: "Failed to fetch results" },
         { status: 500 }
       );
     }

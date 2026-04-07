@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -229,9 +230,11 @@ export default function SettingsPage() {
             <div className="flex items-center gap-5 mb-6">
               <div className="relative group">
                 {profile?.avatar_url ? (
-                  <img
+                  <Image
                     src={profile.avatar_url}
                     alt={profile.full_name}
+                    width={80}
+                    height={80}
                     className="h-20 w-20 rounded-full object-cover ring-4 ring-gray-100 dark:ring-border"
                   />
                 ) : (

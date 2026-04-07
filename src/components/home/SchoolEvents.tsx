@@ -10,11 +10,11 @@ import { staggerContainer, fadeUp } from "@/lib/animations";
 import type { CalendarEvent, CalendarEventType } from "@/types";
 
 const EVENT_TYPE_COLORS: Record<CalendarEventType, string> = {
-  exam: "bg-blue-500",
-  holiday: "bg-green-500",
-  event: "bg-amber-500",
-  pta_meeting: "bg-purple-500",
-  other: "bg-gray-500",
+  exam: "bg-navy-700",
+  holiday: "bg-gold-500",
+  event: "bg-gold-600",
+  pta_meeting: "bg-navy-900",
+  other: "bg-navy-600",
 };
 
 const EVENT_TYPE_LABELS: Record<CalendarEventType, string> = {
@@ -63,10 +63,11 @@ export function SchoolEvents() {
   };
 
   return (
-    <section className="py-20 px-6 bg-cream-50">
-      <div className="mx-auto max-w-6xl">
+    <section className="section-padding bg-cream-50">
+      <div className="page-container">
         <AnimatedSection>
           <SectionHeading
+            label="School Calendar"
             title="Upcoming Events"
             subtitle="Stay updated with the latest happenings at NKPS"
           />

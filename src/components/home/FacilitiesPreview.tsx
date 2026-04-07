@@ -36,6 +36,7 @@ export function FacilitiesPreview({ images }: FacilitiesPreviewProps = {}) {
     <section className="section-padding overflow-hidden">
       <div className="page-container">
         <SectionHeading
+          label="Our Campus"
           title="Explore Our Facilities"
           subtitle="State-of-the-art infrastructure for holistic development"
         />
@@ -45,7 +46,7 @@ export function FacilitiesPreview({ images }: FacilitiesPreviewProps = {}) {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-100px" }}
-          className="flex gap-6 overflow-x-auto snap-x snap-mandatory pb-4 mt-12 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mt-12"
         >
           {preview.map((facility, index) => {
             const Icon = iconMap[facility.icon] || Monitor;
@@ -53,7 +54,6 @@ export function FacilitiesPreview({ images }: FacilitiesPreviewProps = {}) {
               <motion.div
                 key={facility.title}
                 variants={fadeUp}
-                className="min-w-[300px] md:min-w-[350px] snap-center shrink-0"
               >
                 <div className="group relative aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer">
                   {/* Background image */}

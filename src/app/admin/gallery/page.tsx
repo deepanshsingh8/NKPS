@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -620,12 +621,14 @@ export default function AdminGalleryPage() {
                   key={image.id}
                   className="relative group bg-white dark:bg-card rounded-lg overflow-hidden shadow-sm border border-gray-200 dark:border-border"
                 >
-                  <div className="aspect-square bg-navy-100 flex items-center justify-center">
+                  <div className="aspect-square bg-navy-100 flex items-center justify-center relative">
                     {image.src ? (
-                      <img
+                      <Image
                         src={image.src}
                         alt={image.alt}
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 50vw, 20vw"
                       />
                     ) : (
                       <span className="text-gray-400 dark:text-gray-500 text-[10px]">{image.alt}</span>
@@ -960,10 +963,12 @@ export default function AdminGalleryPage() {
                                           key={img.id}
                                           className="relative group shrink-0 w-24 h-24 rounded-lg overflow-hidden border border-gray-200 dark:border-border bg-white dark:bg-card"
                                         >
-                                          <img
+                                          <Image
                                             src={img.src}
                                             alt={img.alt}
-                                            className="w-full h-full object-cover"
+                                            fill
+                                            className="object-cover"
+                                            sizes="96px"
                                           />
                                           <button
                                             onClick={(e) => {

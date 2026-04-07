@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { sendEmail, buildWelcomeEmail } from "@/lib/email";
+import { generateSecurePassword } from "@/lib/password";
 
 export async function POST(request: Request) {
   try {
@@ -59,8 +60,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate a temporary password
-    const password = `NKPS@${Math.random().toString(36).slice(-8)}`;
+    // Generate a cryptographically secure temporary password
+    const password = generateSecurePassword();
     const { full_name, email, phone, role } = registration;
 
     // Create the Supabase auth user
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
     if (createError) {
       console.error("Create user error:", createError);
       return NextResponse.json(
-        { error: createError.message || "Failed to create user account" },
+        { error: "Failed to create user account" },
         { status: 500 }
       );
     }
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
 
     // Send welcome email with credentials
     try {
-      const loginUrl = `${request.headers.get("origin") || process.env.NEXT_PUBLIC_SITE_URL || ""}/portal/login`;
+      const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.nkpublicschool.com"}/portal/login`;
       const html = buildWelcomeEmail({
         fullName: full_name,
         email,

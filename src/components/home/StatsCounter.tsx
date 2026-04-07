@@ -1,8 +1,12 @@
 "use client";
 
 import Image from "next/image";
+import { Users, CalendarDays, GraduationCap, Building2, Award, BookOpen } from "lucide-react";
 import { SCHOOL } from "@/lib/constants";
 import { CounterAnimation } from "@/components/shared/CounterAnimation";
+import { SectionHeading } from "@/components/shared/SectionHeading";
+
+const statIcons = [Users, CalendarDays, GraduationCap, Building2, Award, BookOpen];
 
 interface StatsCounterProps {
   backgroundImage?: string;
@@ -23,26 +27,31 @@ export function StatsCounter({ backgroundImage }: StatsCounterProps = {}) {
         <div className="absolute inset-0 bg-navy-950/85" />
       </div>
 
-      <div className="page-container relative z-10 py-24">
-        {/* Gold accent line */}
-        <div className="w-24 h-0.5 bg-gold-500 mx-auto mb-12" />
-
-        {/* Heading */}
-        <h2 className="text-white font-heading text-3xl font-bold text-center">
-          NK Public School in Numbers
-        </h2>
+      <div className="page-container relative z-10 py-24 px-4">
+        <SectionHeading
+          label="By the Numbers"
+          title="NK Public School in Numbers"
+          light
+        />
 
         {/* Stats grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-y-12 gap-x-8 mt-16">
-          {SCHOOL.stats.map((stat) => (
-            <CounterAnimation
-              key={stat.label}
-              end={stat.value}
-              suffix={stat.suffix}
-              label={stat.label}
-              light
-            />
-          ))}
+          {SCHOOL.stats.map((stat, i) => {
+            const Icon = statIcons[i] || Users;
+            return (
+              <div key={stat.label} className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gold-500/15 flex items-center justify-center">
+                  <Icon className="w-5 h-5 text-gold-400" />
+                </div>
+                <CounterAnimation
+                  end={stat.value}
+                  suffix={stat.suffix}
+                  label={stat.label}
+                  light
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>

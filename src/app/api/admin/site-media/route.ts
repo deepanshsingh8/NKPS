@@ -30,7 +30,8 @@ export async function GET() {
     .order("sort_order");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Fetch site media error:", error);
+    return NextResponse.json({ error: "Failed to fetch site media" }, { status: 500 });
   }
 
   return NextResponse.json({ data });
@@ -60,8 +61,9 @@ export async function POST(request: NextRequest) {
       .upload(fileName, file, { upsert: false });
 
     if (uploadError) {
+      console.error("Site media upload error:", uploadError);
       return NextResponse.json(
-        { error: `Upload failed: ${uploadError.message}` },
+        { error: "Upload failed" },
         { status: 500 }
       );
     }
@@ -79,8 +81,9 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (updateError) {
+      console.error("Site media DB update error:", updateError);
       return NextResponse.json(
-        { error: `DB update failed: ${updateError.message}` },
+        { error: "Failed to update media record" },
         { status: 500 }
       );
     }
@@ -132,7 +135,8 @@ export async function PATCH(request: NextRequest) {
     .eq("slot", slot);
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    console.error("Reset site media error:", updateError);
+    return NextResponse.json({ error: "Failed to reset media" }, { status: 500 });
   }
 
   revalidatePages(record.page);
