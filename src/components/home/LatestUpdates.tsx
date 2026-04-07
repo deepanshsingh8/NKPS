@@ -56,41 +56,37 @@ export function LatestUpdates({ images }: LatestUpdatesProps = {}) {
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7 mt-12"
         >
           {updates.map((item) => (
-            <motion.div key={item.title} variants={fadeUp}>
-              <div className="group rounded-3xl overflow-hidden bg-white border border-gray-100 shadow-sm cursor-pointer hover:shadow-xl hover:border-gold-500/20 transition-all duration-300">
+            <motion.div key={item.title} variants={fadeUp} whileHover={{ y: -6 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}>
+              <div className="group rounded-3xl overflow-hidden bg-white border border-gray-100/80 shadow-sm cursor-pointer hover:shadow-xl hover:shadow-gold-500/8 hover:border-gold-500/20 transition-all duration-500">
                 {/* Image */}
                 <div className="relative h-52 w-full overflow-hidden">
                   <Image
                     src={item.image}
                     alt={item.title}
                     fill
-                    className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                    className="object-cover transition-transform duration-[800ms] ease-out group-hover:scale-[1.08]"
                   />
-                  {/* Subtle overlay on hover */}
-                  <div className="absolute inset-0 bg-navy-900/0 group-hover:bg-navy-900/10 transition-all duration-500" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-navy-950/20 to-transparent group-hover:from-navy-950/30 transition-all duration-500" />
                 </div>
 
                 {/* Content */}
                 <div className="p-6">
-                  {/* Date badge */}
-                  <span className="inline-block bg-gold-500/10 text-gold-600 text-xs font-semibold px-3 py-1.5 rounded-full">
+                  {/* Date badge — animated border */}
+                  <span className="inline-block bg-gold-500/8 text-gold-600 text-xs font-semibold px-3.5 py-1.5 rounded-full border border-gold-500/15 group-hover:bg-gold-500/15 group-hover:border-gold-500/25 transition-all duration-300">
                     {item.date}
                   </span>
 
-                  {/* Title */}
                   <h3 className="font-heading text-lg font-semibold text-navy-900 mt-3 line-clamp-2 leading-snug">
                     {item.title}
                   </h3>
 
-                  {/* Description */}
                   <p className="text-gray-500 text-sm mt-2 leading-relaxed line-clamp-2">
                     {item.description}
                   </p>
 
-                  {/* Read more link */}
                   <div className="mt-4 flex items-center gap-1.5 text-navy-900 text-sm font-medium group-hover:text-gold-600 transition-colors duration-300">
                     Read more
-                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-300" />
+                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1.5 transition-transform duration-300" />
                   </div>
                 </div>
               </div>

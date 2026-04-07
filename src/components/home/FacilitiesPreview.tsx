@@ -55,31 +55,33 @@ export function FacilitiesPreview({ images }: FacilitiesPreviewProps = {}) {
                 key={facility.title}
                 variants={fadeUp}
               >
-                <div className="group relative aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer">
+                <div className="group relative aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer shadow-lg shadow-black/10 hover:shadow-2xl hover:shadow-black/20 transition-shadow duration-700">
                   {/* Background image */}
                   <Image
                     src={facilityImages[index]}
                     alt={facility.title}
                     fill
-                    className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+                    className="object-cover transition-transform duration-[800ms] ease-out group-hover:scale-[1.12]"
                   />
 
-                  {/* Gradient overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent transition-all duration-500 group-hover:from-black/90 group-hover:via-black/30" />
+                  {/* Gradient overlay — richer transition */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-navy-950/85 via-navy-950/20 to-transparent transition-all duration-700 group-hover:from-navy-950/95 group-hover:via-navy-950/40" />
 
-                  {/* Icon badge top-right */}
-                  <div className="absolute top-5 right-5 w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
-                    <Icon className="w-6 h-6 text-white" />
+                  {/* Icon badge — animated on hover */}
+                  <div className="absolute top-5 right-5 w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 transition-all duration-500 group-hover:bg-gold-500/20 group-hover:border-gold-400/30 group-hover:scale-110">
+                    <Icon className="w-5 h-5 text-white transition-colors duration-500 group-hover:text-gold-400" />
                   </div>
 
                   {/* Content at bottom */}
-                  <div className="absolute bottom-0 left-0 right-0 p-7">
-                    <h3 className="font-heading text-xl font-bold text-white">
+                  <div className="absolute bottom-0 left-0 right-0 p-6 md:p-7">
+                    <h3 className="font-heading text-lg md:text-xl font-bold text-white">
                       {facility.title}
                     </h3>
-                    <p className="text-gray-300 text-sm mt-2 leading-relaxed line-clamp-2 opacity-0 translate-y-3 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500">
+                    <p className="text-gray-300/90 text-sm mt-2 leading-relaxed line-clamp-2 opacity-0 translate-y-3 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 delay-100">
                       {facility.description}
                     </p>
+                    {/* Gold accent line */}
+                    <div className="w-0 h-0.5 bg-gold-400/60 rounded-full mt-3 group-hover:w-12 transition-all duration-500 delay-200" />
                   </div>
                 </div>
               </motion.div>

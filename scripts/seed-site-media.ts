@@ -53,6 +53,13 @@ const slots = [
   { slot: "student_life_literary", page: "student-life", section: "activities", label: "Student Life — Literary Club", default_url: "/images/gallery/st5.jpg", alt_text: "Literary Club", sort_order: 4 },
   { slot: "student_life_science", page: "student-life", section: "activities", label: "Student Life — Science Club", default_url: "/images/gallery/st6.jpg", alt_text: "Science Club", sort_order: 5 },
 
+  // Facilities Page — Campus Facilities (the first 4 reuse home facilities_preview slots)
+  { slot: "facilities_hero", page: "facilities", section: "campus_facilities", label: "Facilities — Hero Banner", default_url: "/images/hero/campus-1.jpg", alt_text: "NK Public School Campus", sort_order: 0 },
+  { slot: "facilities_sports", page: "facilities", section: "campus_facilities", label: "Facilities — Sports Grounds", default_url: "/images/news/n7.jpg", alt_text: "Sports Grounds", sort_order: 1 },
+  { slot: "facilities_auditorium", page: "facilities", section: "campus_facilities", label: "Facilities — Auditorium", default_url: "/images/news/n3.jpg", alt_text: "Auditorium", sort_order: 2 },
+  { slot: "facilities_indoor_games", page: "facilities", section: "campus_facilities", label: "Facilities — Indoor Games", default_url: "/images/news/n5.jpg", alt_text: "Indoor Games", sort_order: 3 },
+  { slot: "facilities_transport", page: "facilities", section: "campus_facilities", label: "Facilities — Transport", default_url: "/images/gallery/g10.jpg", alt_text: "School Transport", sort_order: 4 },
+
   // About — Leadership
   { slot: "leadership_managing_director", page: "about", section: "leadership", label: "Managing Director Photo", default_url: "/images/staff/managing-director.jpg", alt_text: "Dr. N.C. Lunayach", sort_order: 0 },
   { slot: "leadership_director", page: "about", section: "leadership", label: "Director Photo", default_url: "/images/staff/director.jpg", alt_text: "Mr. Kuldeep Singh", sort_order: 1 },

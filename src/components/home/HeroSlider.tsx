@@ -155,35 +155,37 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
     setProgress(0);
   }, []);
 
-  /* Mouse parallax — multiple depth layers */
-  const { x: mouseX, y: mouseY } = useMouseMotion(40, 18);
+  /* ═══ PARALLAX ENGINE — 5 depth layers ═══ */
+  const { x: mouseX, y: mouseY } = useMouseMotion(35, 16);
 
-  // Background image layer — subtle, slow movement (depth: far)
-  const bgX = useTransform(mouseX, (v) => v * -15);
-  const bgY = useTransform(mouseY, (v) => v * -10);
+  // Layer 1: Background (far) — moves opposite, slow
+  const bgX = useTransform(mouseX, (v) => v * -18);
+  const bgY = useTransform(mouseY, (v) => v * -12);
 
-  // Floating orb layer — moderate movement (depth: mid)
-  const orbX = useTransform(mouseX, (v) => v * 25);
-  const orbY = useTransform(mouseY, (v) => v * 20);
+  // Layer 2: Back orbs — slow drift
+  const orbBackX = useTransform(mouseX, (v) => v * 20);
+  const orbBackY = useTransform(mouseY, (v) => v * 15);
 
-  // Text content layer — slight counter-movement (depth: near)
-  const contentX = useTransform(mouseX, (v) => v * 5);
+  // Layer 3: Mid orbs — moderate
+  const orbMidX = useTransform(mouseX, (v) => v * -30);
+  const orbMidY = useTransform(mouseY, (v) => v * -22);
+
+  // Layer 4: Front accents — fast
+  const orbFrontX = useTransform(mouseX, (v) => v * 40);
+  const orbFrontY = useTransform(mouseY, (v) => v * 30);
+
+  // Layer 5: Content — subtle
+  const contentX = useTransform(mouseX, (v) => v * 4);
   const contentY = useTransform(mouseY, (v) => v * 3);
 
-  // Floating accent — inverted, fast (depth: foreground)
-  const accentX = useTransform(mouseX, (v) => v * -35);
-  const accentY = useTransform(mouseY, (v) => v * -25);
-
-  /* Auto-advance with progress bar */
+  /* Auto-advance */
   useEffect(() => {
     const start = performance.now();
     let raf: number;
-
     function tick(now: number) {
       const elapsed = now - start;
       const pct = Math.min(elapsed / INTERVAL, 1);
       setProgress(pct);
-
       if (pct < 1) {
         raf = requestAnimationFrame(tick);
       } else {
@@ -191,12 +193,11 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
         setProgress(0);
       }
     }
-
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [current, slides.length]);
 
-  /* Per-slide animation delays */
+  /* Animation delays */
   const titleCharCount = slides[current].title.replace(/\n/g, "").length;
   const subtitleDelay = 200 + titleCharCount * CHAR_DELAY + 200;
   const ctaDelay = subtitleDelay + 400;
@@ -204,11 +205,12 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
 
   return (
     <section className="relative h-screen w-full overflow-hidden bg-navy-950">
-      {/* ═══ LAYER 1: Background image with mouse parallax ═══ */}
+
+      {/* ═══ LAYER 1: Background image — parallax tracked ═══ */}
       <AnimatePresence mode="wait">
         <motion.div
           key={current}
-          className="absolute -inset-6"
+          className="absolute -inset-8"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, scale: [1, 1.06] }}
           exit={{ opacity: 0 }}
@@ -222,71 +224,114 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
             src={slides[current].image}
             alt={slides[current].title.replace("\n", " ")}
             fill
-            className="object-cover scale-110"
+            className="object-cover scale-[1.15]"
             priority={current === 0}
             sizes="100vw"
           />
         </motion.div>
       </AnimatePresence>
 
-      {/* ═══ LAYER 2: Translucent overlay for readability ═══ */}
-      <div className="absolute inset-0 bg-gradient-to-t from-navy-950/80 via-navy-950/40 to-navy-950/50" />
-      <div className="absolute inset-0 bg-gradient-to-r from-navy-950/50 via-transparent to-transparent" />
-
-      {/* ═══ LAYER 3: Floating parallax orbs (mid-depth) ═══ */}
-      <motion.div
-        className="absolute inset-0 pointer-events-none z-[2]"
-        style={{ x: orbX, y: orbY }}
-      >
-        {/* Large ring — top right */}
-        <motion.div
-          className="absolute top-[12%] right-[15%] w-52 h-52 rounded-full border border-gold-400/20"
-          animate={{ rotate: [0, 360] }}
-          transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
-        />
-        {/* Small filled orb — bottom left */}
-        <div className="absolute bottom-[30%] left-[10%] w-4 h-4 rounded-full bg-gold-400/30" />
-        {/* Medium ring — center right */}
-        <div className="absolute top-[45%] right-[8%] w-20 h-20 rounded-full border border-white/10" />
-      </motion.div>
-
-      {/* ═══ LAYER 4: Inverted parallax accent (foreground depth) ═══ */}
-      <motion.div
-        className="absolute inset-0 pointer-events-none z-[3]"
-        style={{ x: accentX, y: accentY }}
-      >
-        {/* Soft gold glow — top left */}
-        <div className="absolute top-[20%] left-[20%] w-72 h-72 rounded-full bg-gold-500/5 blur-3xl" />
-        {/* Small square accent — bottom right */}
-        <motion.div
-          className="absolute bottom-[25%] right-[20%] w-12 h-12 rounded-lg border border-gold-400/15 rotate-12"
-          animate={{ rotate: [12, -12, 12] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-        />
-      </motion.div>
-
-      {/* ═══ LAYER 5: Dot pattern texture ═══ */}
+      {/* ═══ LAYER 2: Rich translucent overlay ═══ */}
+      <div className="absolute inset-0 bg-gradient-to-t from-navy-950/85 via-navy-950/45 to-navy-950/60" />
+      <div className="absolute inset-0 bg-gradient-to-r from-navy-950/60 via-transparent to-navy-950/20" />
+      {/* Subtle noise texture */}
       <div
-        className="absolute inset-0 opacity-[0.025] z-[4]"
+        className="absolute inset-0 opacity-[0.03] mix-blend-overlay"
         style={{
-          backgroundImage:
-            "radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
+          backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px)",
+          backgroundSize: "20px 20px",
         }}
       />
 
-      {/* ═══ LAYER 6: Content with subtle parallax ═══ */}
+      {/* ═══ LAYER 3: Back parallax orbs (slow, large, diffuse) ═══ */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none z-[2]"
+        style={{ x: orbBackX, y: orbBackY }}
+      >
+        {/* Large gold ring — top right */}
+        <motion.div
+          className="absolute top-[8%] right-[12%] w-64 h-64 rounded-full border border-gold-400/15"
+          animate={{ rotate: [0, 360] }}
+          transition={{ duration: 50, repeat: Infinity, ease: "linear" }}
+        />
+        {/* Soft gold glow blob — center left */}
+        <div className="absolute top-[30%] left-[5%] w-80 h-80 rounded-full bg-gold-500/[0.04] blur-3xl" />
+        {/* Small white ring — bottom center */}
+        <div className="absolute bottom-[20%] left-[45%] w-16 h-16 rounded-full border border-white/8" />
+        {/* Tiny gold dot — top left */}
+        <div className="absolute top-[18%] left-[25%] w-2 h-2 rounded-full bg-gold-400/40" />
+      </motion.div>
+
+      {/* ═══ LAYER 4: Mid parallax orbs (inverted, medium, sharper) ═══ */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none z-[3]"
+        style={{ x: orbMidX, y: orbMidY }}
+      >
+        {/* Medium rotating square — top center */}
+        <motion.div
+          className="absolute top-[15%] left-[50%] w-20 h-20 rounded-xl border border-gold-400/12 rotate-45"
+          animate={{ rotate: [45, -45, 45] }}
+          transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+        />
+        {/* Gold circle — right middle */}
+        <motion.div
+          className="absolute top-[50%] right-[8%] w-28 h-28 rounded-full border border-white/10"
+          animate={{ scale: [1, 1.08, 1] }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        />
+        {/* Tiny floating dot */}
+        <motion.div
+          className="absolute bottom-[35%] left-[18%] w-3 h-3 rounded-full bg-gold-400/30"
+          animate={{ y: [0, -12, 0] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        />
+        {/* Diffuse navy glow — bottom right */}
+        <div className="absolute bottom-[10%] right-[15%] w-60 h-60 rounded-full bg-navy-600/10 blur-3xl" />
+      </motion.div>
+
+      {/* ═══ LAYER 5: Front parallax accents (fast, small, bright) ═══ */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none z-[4]"
+        style={{ x: orbFrontX, y: orbFrontY }}
+      >
+        {/* Small gold diamond — left */}
+        <motion.div
+          className="absolute top-[25%] left-[12%] w-6 h-6 rounded-sm border border-gold-400/25 rotate-45"
+          animate={{ rotate: [45, 135, 45] }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+        />
+        {/* Bright gold dot — right of center */}
+        <motion.div
+          className="absolute top-[40%] right-[30%] w-2.5 h-2.5 rounded-full bg-gold-400/50"
+          animate={{ opacity: [0.5, 0.2, 0.5], scale: [1, 1.3, 1] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        />
+        {/* Tiny white dot — bottom left */}
+        <div className="absolute bottom-[28%] left-[35%] w-1.5 h-1.5 rounded-full bg-white/20" />
+        {/* Gold dash accent — top right area */}
+        <motion.div
+          className="absolute top-[12%] right-[35%] w-8 h-px bg-gold-400/20"
+          animate={{ scaleX: [1, 1.5, 1], opacity: [0.2, 0.4, 0.2] }}
+          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+        />
+        {/* Small ring — bottom right */}
+        <motion.div
+          className="absolute bottom-[40%] right-[18%] w-10 h-10 rounded-full border border-gold-400/15"
+          animate={{ y: [0, -8, 0] }}
+          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+        />
+      </motion.div>
+
+      {/* ═══ LAYER 6: Content — subtle parallax ═══ */}
       <motion.div
         className="relative z-10 flex h-full flex-col px-6 md:px-12 lg:px-16"
         style={{ x: contentX, y: contentY }}
       >
-        {/* Spacer pushes content down */}
         <div className="flex-1" />
 
-        {/* Bottom content area */}
         <div className="pb-32 md:pb-36 lg:pb-28">
           <div className="lg:grid lg:grid-cols-2 lg:items-end lg:gap-12">
-            {/* Left column — Main content */}
+            {/* Left — Main content */}
             <div>
               <AnimatedHeading
                 text={slides[current].title}
@@ -299,7 +344,7 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
                 duration={800}
                 className="block"
               >
-                <p className="mt-5 text-base md:text-lg text-gray-300 max-w-xl">
+                <p className="mt-5 text-base md:text-lg text-gray-300/90 max-w-xl leading-relaxed">
                   {slides[current].subtitle}
                 </p>
               </FadeIn>
@@ -310,17 +355,17 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
                 duration={800}
                 className="block"
               >
-                <div className="mt-6 flex flex-wrap items-center gap-4">
+                <div className="mt-7 flex flex-wrap items-center gap-4">
                   <Link
                     href={slides[current].href}
-                    className="group liquid-glass border border-white/20 text-white px-8 py-3 rounded-lg font-medium transition-all duration-300 hover:bg-white hover:text-black inline-flex items-center gap-2"
+                    className="group liquid-glass border border-white/20 text-white px-8 py-3.5 rounded-xl font-medium transition-all duration-300 hover:bg-white hover:text-navy-900 inline-flex items-center gap-2.5 hover:shadow-lg hover:shadow-white/10"
                   >
                     {slides[current].cta}
                     <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </Link>
                   <Link
                     href="/contact"
-                    className="text-sm text-gray-400 hover:text-white transition-colors duration-300 font-medium"
+                    className="text-sm text-gray-400 hover:text-white transition-colors duration-300 font-medium px-2"
                   >
                     Contact Us &rarr;
                   </Link>
@@ -328,15 +373,15 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
               </FadeIn>
             </div>
 
-            {/* Right column — Tag card */}
+            {/* Right — Tag card */}
             <div className="hidden lg:flex items-end justify-end mt-8 lg:mt-0">
               <FadeIn
                 key={`tag-${current}`}
                 delay={tagDelay}
                 duration={800}
               >
-                <div className="liquid-glass border border-white/20 px-6 py-3 rounded-xl">
-                  <p className="text-lg md:text-xl lg:text-2xl font-light text-white tracking-tight">
+                <div className="liquid-glass border border-white/15 px-6 py-3.5 rounded-xl gold-glow-sm">
+                  <p className="text-lg md:text-xl lg:text-2xl font-light text-white/90 tracking-tight">
                     CBSE Affiliated&ensp;&middot;&ensp;Est. 1985&ensp;&middot;&ensp;6 Campuses
                   </p>
                 </div>
@@ -346,15 +391,15 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
         </div>
       </motion.div>
 
-      {/* ═══ Stats bar — liquid glass ═══ */}
+      {/* ═══ Stats bar ═══ */}
       <div className="absolute bottom-6 left-0 right-0 z-20 px-4 md:px-12 lg:px-16">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 1.5 }}
-          className="mx-auto max-w-5xl liquid-glass border border-white/15 rounded-2xl px-4 py-4 md:px-6 md:py-5"
+          className="mx-auto max-w-5xl liquid-glass border border-white/12 rounded-2xl px-4 py-4 md:px-6 md:py-5"
         >
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-0 md:divide-x md:divide-white/15">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-0 md:divide-x md:divide-white/12">
             {stats.map((stat, i) => {
               const Icon = stat.icon;
               return (
@@ -362,14 +407,14 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
                   key={i}
                   className="flex items-center justify-center gap-3 md:px-4"
                 >
-                  <div className="hidden md:flex w-9 h-9 rounded-lg bg-white/10 items-center justify-center shrink-0">
+                  <div className="hidden md:flex w-9 h-9 rounded-lg bg-white/8 items-center justify-center shrink-0">
                     <Icon className="h-4 w-4 text-gold-400" />
                   </div>
                   <div className="text-center md:text-left">
                     <span className="block text-lg md:text-2xl font-semibold text-white leading-tight">
                       {stat.number}
                     </span>
-                    <span className="block text-[10px] md:text-xs uppercase tracking-wider text-gray-400">
+                    <span className="block text-[10px] md:text-xs uppercase tracking-wider text-gray-400/80">
                       {stat.label}
                     </span>
                   </div>
@@ -393,8 +438,8 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
               className={cn(
                 "block w-1 rounded-full transition-all duration-500",
                 index === current
-                  ? "h-8 bg-gold-400"
-                  : "h-3 bg-white/30 group-hover:bg-white/60"
+                  ? "h-8 bg-gold-400 gold-glow-sm"
+                  : "h-3 bg-white/25 group-hover:bg-white/50"
               )}
             />
           </button>
@@ -402,9 +447,9 @@ export function HeroSlider({ images }: HeroSliderProps = {}) {
       </div>
 
       {/* ═══ Progress bar ═══ */}
-      <div className="absolute bottom-0 left-0 right-0 z-30 h-[2px] bg-white/10">
+      <div className="absolute bottom-0 left-0 right-0 z-30 h-[2px] bg-white/8">
         <motion.div
-          className="h-full bg-gold-400"
+          className="h-full bg-gradient-to-r from-gold-500 to-gold-400"
           style={{ width: `${progress * 100}%` }}
         />
       </div>

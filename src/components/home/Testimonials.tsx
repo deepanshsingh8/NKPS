@@ -52,10 +52,10 @@ export function Testimonials() {
         />
 
         <div className="mt-12 md:mt-16 max-w-3xl mx-auto">
-          {/* Quote card */}
-          <div className="relative bg-cream-50 rounded-3xl p-8 md:p-12 border border-gold-500/10">
-            {/* Quote icon */}
-            <div className="absolute -top-5 left-8 md:left-12 w-10 h-10 rounded-full bg-gradient-to-br from-gold-500 to-gold-400 flex items-center justify-center shadow-lg shadow-gold-500/25">
+          {/* Quote card — premium with glow border */}
+          <div className="relative bg-cream-50 rounded-3xl p-8 md:p-12 border border-gold-500/10 shadow-lg shadow-gold-500/[0.04] hover:shadow-xl hover:shadow-gold-500/[0.08] transition-shadow duration-700">
+            {/* Quote icon — with pulse glow */}
+            <div className="absolute -top-5 left-8 md:left-12 w-10 h-10 rounded-full bg-gradient-to-br from-gold-500 to-gold-400 flex items-center justify-center shadow-lg shadow-gold-500/30" style={{ animation: "pulse-gold 3s ease-in-out infinite" }}>
               <Quote className="w-5 h-5 text-navy-900" />
             </div>
 
@@ -79,7 +79,7 @@ export function Testimonials() {
                 </p>
 
                 <div className="mt-6 flex items-center gap-4">
-                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-navy-900 to-navy-700 flex items-center justify-center text-white font-semibold">
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-navy-900 to-navy-700 flex items-center justify-center text-white font-semibold ring-2 ring-gold-500/20 ring-offset-2 ring-offset-cream-50">
                     {testimonials[active].initials}
                   </div>
                   <div>

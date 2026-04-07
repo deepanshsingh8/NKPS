@@ -6,12 +6,20 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.FROM_EMAIL || `${SCHOOL.name} <onboarding@resend.dev>`;
 
 export async function sendEmail(to: string, subject: string, html: string) {
-  return resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from: FROM_EMAIL,
     to,
     subject,
     html,
   });
+
+  if (error) {
+    console.error("Resend API error:", JSON.stringify(error));
+    throw new Error(`Email send failed: ${error.message}`);
+  }
+
+  console.log("Email sent successfully:", data?.id);
+  return { data, error };
 }
 
 // ---------------------------------------------------------------------------

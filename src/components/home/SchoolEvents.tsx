@@ -86,11 +86,13 @@ export function SchoolEvents() {
               <motion.div
                 key={evt.id}
                 variants={fadeUp}
-                className="group bg-white rounded-2xl border border-navy-900/5 p-5 shadow-sm hover:shadow-lg hover:border-gold-500/20 transition-all duration-300 hover:-translate-y-0.5"
+                whileHover={{ y: -4 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                className="group bg-white rounded-2xl border border-gray-100/80 p-5 shadow-sm hover:shadow-xl hover:shadow-gold-500/6 hover:border-gold-500/20 transition-all duration-500 cursor-default"
               >
                 <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0 w-14 text-center bg-navy-900/5 rounded-xl py-2">
-                    <p className="text-xl font-bold text-navy-900">{date.day}</p>
+                  <div className="flex-shrink-0 w-14 text-center bg-navy-900/5 rounded-xl py-2.5 group-hover:bg-gold-500/10 transition-colors duration-500">
+                    <p className="text-xl font-bold text-navy-900 group-hover:text-gold-600 transition-colors duration-300">{date.day}</p>
                     <p className="text-xs text-gray-500 uppercase font-medium">
                       {date.month}
                     </p>

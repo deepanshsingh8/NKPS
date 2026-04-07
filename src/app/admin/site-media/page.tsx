@@ -12,6 +12,7 @@ import type { SiteMedia } from "@/types";
 const PAGE_LABELS: Record<string, string> = {
   home: "Home Page",
   about: "About Page",
+  facilities: "Facilities Page",
   "student-life": "Student Life Page",
   global: "Global (Site-wide)",
 };
@@ -26,6 +27,7 @@ const SECTION_LABELS: Record<string, string> = {
   founder_tribute: "Founder Tribute",
   hero: "Hero Section",
   branding: "Branding",
+  campus_facilities: "Campus Facilities",
 };
 
 interface GroupedMedia {
@@ -37,7 +39,7 @@ interface GroupedMedia {
 }
 
 function groupMedia(items: SiteMedia[]): GroupedMedia[] {
-  const pageOrder = ["home", "about", "student-life", "global"];
+  const pageOrder = ["home", "about", "facilities", "student-life", "global"];
   const pageMap = new Map<string, Map<string, SiteMedia[]>>();
 
   for (const item of items) {

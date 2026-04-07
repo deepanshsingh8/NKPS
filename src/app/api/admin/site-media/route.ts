@@ -3,10 +3,11 @@ import { revalidatePath } from "next/cache";
 import { verifyAdmin } from "@/lib/verify-admin";
 
 const PAGE_ROUTES: Record<string, string[]> = {
-  home: ["/"],
+  home: ["/", "/facilities"],
   about: ["/about"],
   "student-life": ["/student-life"],
-  global: ["/", "/about", "/student-life"],
+  facilities: ["/facilities"],
+  global: ["/", "/about", "/student-life", "/facilities"],
 };
 
 function revalidatePages(page: string) {

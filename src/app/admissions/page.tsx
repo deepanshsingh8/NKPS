@@ -59,6 +59,7 @@ export default function AdmissionsPage() {
         <div className="mx-auto max-w-6xl">
           <AnimatedSection>
             <SectionHeading
+              label="How to Apply"
               title="Admission Process"
               subtitle="A simple four-step journey to becoming part of our family"
             />
@@ -79,14 +80,14 @@ export default function AdmissionsPage() {
               <motion.div
                 key={step.number}
                 variants={fadeUp}
-                className="relative flex w-1/4 flex-col items-center text-center px-4"
+                className="group relative flex w-1/4 flex-col items-center text-center px-4"
               >
-                <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-gold-500 to-gold-400 shadow-lg shadow-gold-500/25">
+                <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-gold-500 to-gold-400 shadow-lg shadow-gold-500/25 transition-all duration-500 group-hover:shadow-xl group-hover:shadow-gold-500/30 group-hover:scale-110">
                   <span className="font-heading text-xl font-bold text-navy-900">
                     {step.number}
                   </span>
                 </div>
-                <step.icon className="mt-4 h-5 w-5 text-gold-600" />
+                <step.icon className="mt-4 h-5 w-5 text-gold-600 transition-transform duration-300 group-hover:scale-110" />
                 <h3 className="mt-2 font-heading text-lg font-semibold text-navy-900">
                   {step.title}
                 </h3>
@@ -139,6 +140,7 @@ export default function AdmissionsPage() {
         <div className="mx-auto max-w-5xl">
           <AnimatedSection>
             <SectionHeading
+              label="Requirements"
               title="Eligibility"
               subtitle="Age criteria and requirements for admission"
             />

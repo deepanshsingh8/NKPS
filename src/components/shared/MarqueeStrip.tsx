@@ -16,17 +16,17 @@ export function MarqueeStrip({
   const content = items.map((item) => item).join(" \u2022 ") + " \u2022 ";
 
   return (
-    <div className={cn("overflow-hidden whitespace-nowrap", className)}>
+    <div className={cn("group/marquee overflow-hidden whitespace-nowrap", className)}>
       <div
         className={cn(
-          "inline-flex animate-marquee",
+          "inline-flex animate-marquee group-hover/marquee:[animation-play-state:paused]",
           reverse && "[animation-direction:reverse]"
         )}
       >
-        <span className="inline-block text-sm font-medium uppercase tracking-[0.2em] px-4">
+        <span className="inline-block text-sm font-medium uppercase tracking-[0.2em] px-4 transition-opacity duration-300 group-hover/marquee:opacity-80">
           {content}
         </span>
-        <span className="inline-block text-sm font-medium uppercase tracking-[0.2em] px-4">
+        <span className="inline-block text-sm font-medium uppercase tracking-[0.2em] px-4 transition-opacity duration-300 group-hover/marquee:opacity-80">
           {content}
         </span>
       </div>
