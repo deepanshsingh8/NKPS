@@ -49,101 +49,104 @@ export function Navbar() {
           : "bg-navy-900/95 backdrop-blur-xl border-b border-gold-500/30 shadow-lg shadow-black/15"
       )}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-        {/* Logo */}
-        <Link
-          href="/"
-          className="group flex items-center gap-3 transition-transform duration-300 hover:scale-105"
-        >
-          <Image
-            src="/images/logo.png"
-            alt="NK Public School Logo"
-            width={40}
-            height={40}
-            className="rounded-full"
-          />
-          <span
-            className={cn(
-              "font-heading text-lg font-bold transition-colors duration-500 hidden sm:inline",
-              "text-white"
-            )}
-          >
-            NK Public School
-            <span className="inline-block ml-1 w-1.5 h-1.5 rounded-full bg-gold-500 align-middle" />
-          </span>
-        </Link>
-
-        {/* Desktop Nav Links - Pill Container */}
-        <div
-          className={cn(
-            "hidden lg:flex items-center gap-1 rounded-full px-2 py-1.5 transition-all duration-500",
-            "bg-white/10 backdrop-blur-md"
-          )}
-        >
-          {NAV_LINKS.map((link) => {
-            const isActive = pathname === link.href;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  "group relative px-4 py-2 text-sm font-medium rounded-full transition-all duration-300",
-                  isActive
-                    ? "bg-white/20 text-white"
-                    : "text-white/70 hover:text-white"
-                )}
-              >
-                {link.label}
-                {/* Underline grow from center on hover (non-active) */}
-                {!isActive && (
-                  <span
-                    className="absolute bottom-1 left-1/2 -translate-x-1/2 h-px w-3/5 origin-center scale-x-0 transition-transform duration-300 group-hover:scale-x-100 bg-gold-400/60"
-                  />
-                )}
-              </Link>
-            );
-          })}
-        </div>
-
-        {/* ERP Login + Mobile Hamburger */}
-        <div className="flex items-center gap-2">
-          {/* ERP Login - shimmer button */}
+      <div className="relative flex items-center px-4 py-3">
+        {/* Left section: Logo + Nav + ERP */}
+        <div className="mx-auto flex max-w-7xl flex-1 items-center justify-between">
+          {/* Logo */}
           <Link
-            href="/erp-login"
-            className="group relative hidden lg:inline-flex items-center gap-1.5 overflow-hidden rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-3.5 py-1.5 text-xs font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25 hover:scale-[1.02]"
+            href="/"
+            className="group flex items-center gap-3 transition-transform duration-300 hover:scale-105"
           >
-            {/* Shimmer effect */}
-            <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-            <span className="relative z-10">ERP Login</span>
+            <Image
+              src="/images/logo.png"
+              alt="NK Public School Logo"
+              width={40}
+              height={40}
+              className="rounded-full"
+            />
+            <span
+              className={cn(
+                "font-heading text-lg font-bold transition-colors duration-500 hidden sm:inline",
+                "text-white"
+              )}
+            >
+              NK Public School
+              <span className="inline-block ml-1 w-1.5 h-1.5 rounded-full bg-gold-500 align-middle" />
+            </span>
           </Link>
 
-          {/* Mobile Hamburger - morphs to X */}
-          <motion.button
-            onClick={() => setMobileOpen(!mobileOpen)}
+          {/* Desktop Nav Links - Pill Container */}
+          <div
             className={cn(
-              "lg:hidden relative z-50 p-2 rounded-full transition-colors duration-300",
-              "text-white"
+              "hidden lg:flex items-center gap-1 rounded-full px-2 py-1.5 transition-all duration-500",
+              "bg-white/10 backdrop-blur-md"
             )}
-            aria-label="Toggle menu"
-            whileTap={{ scale: 0.9 }}
           >
-            <motion.div
-              animate={{ rotate: mobileOpen ? 180 : 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
+            {NAV_LINKS.map((link) => {
+              const isActive = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={cn(
+                    "group relative px-4 py-2 text-sm font-medium rounded-full transition-all duration-300",
+                    isActive
+                      ? "bg-white/20 text-white"
+                      : "text-white/70 hover:text-white"
+                  )}
+                >
+                  {link.label}
+                  {/* Underline grow from center on hover (non-active) */}
+                  {!isActive && (
+                    <span
+                      className="absolute bottom-1 left-1/2 -translate-x-1/2 h-px w-3/5 origin-center scale-x-0 transition-transform duration-300 group-hover:scale-x-100 bg-gold-400/60"
+                    />
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* ERP Login + Mobile Hamburger */}
+          <div className="flex items-center gap-2">
+            {/* ERP Login - shimmer button */}
+            <Link
+              href="/erp-login"
+              className="group relative hidden lg:inline-flex items-center gap-1.5 overflow-hidden rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-3.5 py-1.5 text-xs font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25 hover:scale-[1.02]"
             >
-              {mobileOpen ? (
-                <X className="h-6 w-6" />
-              ) : (
-                <Menu className="h-6 w-6" />
+              {/* Shimmer effect */}
+              <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+              <span className="relative z-10">ERP Login</span>
+            </Link>
+
+            {/* Mobile Hamburger - morphs to X */}
+            <motion.button
+              onClick={() => setMobileOpen(!mobileOpen)}
+              className={cn(
+                "lg:hidden relative z-50 p-2 rounded-full transition-colors duration-300",
+                "text-white"
               )}
-            </motion.div>
-          </motion.button>
+              aria-label="Toggle menu"
+              whileTap={{ scale: 0.9 }}
+            >
+              <motion.div
+                animate={{ rotate: mobileOpen ? 180 : 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+              >
+                {mobileOpen ? (
+                  <X className="h-6 w-6" />
+                ) : (
+                  <Menu className="h-6 w-6" />
+                )}
+              </motion.div>
+            </motion.button>
+          </div>
         </div>
 
-        {/* Mandatory Public Disclosure - rightmost */}
+        {/* Mandatory Public Disclosure - pinned to right edge */}
         <Link
           href="/mandatory-public-disclosure"
-          className="group relative hidden lg:inline-flex items-center gap-1.5 overflow-hidden rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-3.5 py-1.5 text-xs font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25 hover:scale-[1.02]"
+          className="group relative hidden lg:inline-flex shrink-0 ml-4 items-center gap-1.5 overflow-hidden rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-3.5 py-1.5 text-xs font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25 hover:scale-[1.02]"
         >
           <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
           <FileText className="relative z-10 h-3.5 w-3.5" />
