@@ -106,25 +106,25 @@ export function Navbar() {
         </div>
 
         {/* ERP Login Button + Mobile Hamburger */}
-        <div className="flex items-center gap-3">
-          {/* Mandatory Public Disclosure - shimmer button */}
-          <Link
-            href="/mandatory-public-disclosure"
-            className="group relative hidden lg:inline-flex items-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-5 py-2.5 text-sm font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25 hover:scale-[1.02]"
-          >
-            <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-            <FileText className="relative z-10 h-4 w-4" />
-            <span className="relative z-10">Mandatory Disclosure</span>
-          </Link>
-
+        <div className="flex items-center gap-2">
           {/* ERP Login - shimmer button */}
           <Link
             href="/erp-login"
-            className="group relative hidden lg:inline-flex items-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-5 py-2.5 text-sm font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25 hover:scale-[1.02]"
+            className="group relative hidden lg:inline-flex items-center gap-1.5 overflow-hidden rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-3.5 py-1.5 text-xs font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25 hover:scale-[1.02]"
           >
             {/* Shimmer effect */}
             <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
             <span className="relative z-10">ERP Login</span>
+          </Link>
+
+          {/* Mandatory Public Disclosure - shimmer button (rightmost) */}
+          <Link
+            href="/mandatory-public-disclosure"
+            className="group relative hidden lg:inline-flex items-center gap-1.5 overflow-hidden rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-3.5 py-1.5 text-xs font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25 hover:scale-[1.02]"
+          >
+            <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+            <FileText className="relative z-10 h-3.5 w-3.5" />
+            <span className="relative z-10">Mandatory Disclosure</span>
           </Link>
 
           {/* Mobile Hamburger - morphs to X */}
