@@ -160,7 +160,7 @@ function TextItemsTab({
   onRefresh: () => Promise<void>;
 }) {
   const [editValues, setEditValues] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const vals: Record<string, string> = {};
@@ -170,72 +170,84 @@ function TextItemsTab({
     setEditValues(vals);
   }, [items]);
 
-  const handleSave = async (item: DisclosureItem) => {
-    const newValue = editValues[item.id];
-    if (newValue === item.value) return;
+  const hasChanges = items.some(
+    (item) => editValues[item.id] !== undefined && editValues[item.id] !== item.value
+  );
 
-    setSaving((prev) => ({ ...prev, [item.id]: true }));
-    const result = await adminApi({
-      action: "update",
-      table: "disclosure_items",
-      data: { value: newValue, updated_at: new Date().toISOString() },
-      match: { column: "id", value: item.id },
-    });
+  const handleSaveAll = async () => {
+    const changed = items.filter(
+      (item) => editValues[item.id] !== undefined && editValues[item.id] !== item.value
+    );
+    if (changed.length === 0) return;
 
-    if (result.success) {
-      toast.success(`Updated "${item.label}"`);
+    setSaving(true);
+    const now = new Date().toISOString();
+    const results = await Promise.all(
+      changed.map((item) =>
+        adminApi({
+          action: "update",
+          table: "disclosure_items",
+          data: { value: editValues[item.id], updated_at: now },
+          match: { column: "id", value: item.id },
+        })
+      )
+    );
+
+    const failed = results.filter((r) => !r.success);
+    if (failed.length === 0) {
+      toast.success(`Saved ${changed.length} field${changed.length > 1 ? "s" : ""}`);
       await onRefresh();
     } else {
-      toast.error(result.error || "Failed to update");
+      toast.error(`${failed.length} field(s) failed to save`);
     }
-    setSaving((prev) => ({ ...prev, [item.id]: false }));
+    setSaving(false);
   };
 
   return (
-    <div className="erp-table-container p-6 space-y-4">
-      {items.map((item) => (
-        <div
-          key={item.id}
-          className="flex items-start gap-4 pb-4 border-b border-gray-100 dark:border-gray-800 last:border-0 last:pb-0"
-        >
-          <div className="flex-1 space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-600 dark:text-gray-400">
-              {item.label}
-            </Label>
-            <Input
-              value={editValues[item.id] ?? ""}
-              onChange={(e) =>
-                setEditValues((prev) => ({
-                  ...prev,
-                  [item.id]: e.target.value,
-                }))
-              }
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSave(item);
-              }}
-              placeholder={`Enter ${item.label.toLowerCase()}`}
-            />
-          </div>
-          <Button
-            size="sm"
-            onClick={() => handleSave(item)}
-            disabled={
-              saving[item.id] || editValues[item.id] === item.value
-            }
-            className="mt-6 bg-navy-900 hover:bg-navy-800 text-white"
+    <div className="erp-table-container p-6">
+      <div className="space-y-4">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="pb-4 border-b border-gray-100 dark:border-gray-800 last:border-0 last:pb-0"
           >
-            {saving[item.id] ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      ))}
-      {items.length === 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+                {item.label}
+              </Label>
+              <Input
+                value={editValues[item.id] ?? ""}
+                onChange={(e) =>
+                  setEditValues((prev) => ({
+                    ...prev,
+                    [item.id]: e.target.value,
+                  }))
+                }
+                placeholder={`Enter ${item.label.toLowerCase()}`}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      {items.length === 0 ? (
         <p className="text-center py-8 text-gray-500">
           No items found for this section. Run the seed SQL to populate.
         </p>
+      ) : (
+        <div className="flex justify-end mt-6 pt-4 border-t border-gray-100 dark:border-gray-800">
+          <Button
+            onClick={handleSaveAll}
+            disabled={saving || !hasChanges}
+            className="bg-navy-900 hover:bg-navy-800 text-white"
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
+            Save Section
+          </Button>
+        </div>
       )}
     </div>
   );
