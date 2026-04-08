@@ -290,6 +290,46 @@ export interface Student {
   updated_at: string;
 }
 
+// =============================================================
+// Mandatory Public Disclosure
+// =============================================================
+
+export type DisclosureSection = 'general' | 'result_academics' | 'staff' | 'infrastructure';
+
+export interface DisclosureItem {
+  id: string;
+  section: DisclosureSection;
+  field_key: string;
+  label: string;
+  value: string;
+  sort_order: number;
+  updated_at: string;
+}
+
+export interface DisclosureDocument {
+  id: string;
+  doc_key: string;
+  label: string;
+  file_url: string | null;
+  file_name: string | null;
+  sort_order: number;
+  updated_at: string;
+}
+
+export type ExamClass = 'X' | 'XII';
+
+export interface DisclosureBoardResult {
+  id: string;
+  exam_class: ExamClass;
+  academic_year: string;
+  registered: number;
+  passed: number;
+  pass_percentage: number;
+  remarks: string | null;
+  sort_order: number;
+  updated_at: string;
+}
+
 export interface StudentWithClass extends Student {
   class_name?: string;
   section?: string;

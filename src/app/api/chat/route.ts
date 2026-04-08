@@ -5,7 +5,7 @@ const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-const SYSTEM_PROMPT = `You are the NK Public School (NKPS) virtual assistant. Answer questions from parents, students, and visitors about the school. Be helpful, friendly, and concise. If you don't know something specific, suggest contacting the school directly.
+const BASE_SYSTEM_PROMPT = `You are the NK Public School (NKPS) virtual assistant. Answer questions from parents, students, and visitors about the school. Be helpful, friendly, and concise. If you don't know something specific, suggest contacting the school directly.
 
 Here is everything about NK Public School:
 
@@ -156,7 +156,8 @@ Here is everything about NK Public School:
 - Use simple formatting — short paragraphs, no complex markdown
 - When asked about something you have information on, give a direct answer first, then offer to help with more details
 - Do NOT say "I don't have that information" for things covered above — answer confidently
-- If truly unknown, say "For the latest details on that, I'd recommend contacting the school office" rather than "I don't know"`;
+- If truly unknown, say "For the latest details on that, I'd recommend contacting the school office" rather than "I don't know"
+- For mandatory disclosure questions, use the Mandatory Public Disclosure data below and direct users to the /mandatory-public-disclosure page for full details`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -192,10 +193,66 @@ export async function POST(request: NextRequest) {
 
     messages.push({ role: "user", content: message });
 
+    // Build dynamic system prompt with disclosure data
+    let systemPrompt = BASE_SYSTEM_PROMPT;
+    try {
+      const { getDisclosureItems, getDisclosureDocuments, getDisclosureBoardResults } =
+        await import("@/lib/disclosure");
+      const [discItems, discDocs, discResults] = await Promise.all([
+        getDisclosureItems(),
+        getDisclosureDocuments(),
+        getDisclosureBoardResults(),
+      ]);
+
+      let disclosureSection = "\n\n## Mandatory Public Disclosure (CBSE)\n";
+      disclosureSection += "Full details at: /mandatory-public-disclosure\n";
+
+      const sectionLabels: Record<string, string> = {
+        general: "General Information",
+        staff: "Staff (Teaching)",
+        infrastructure: "School Infrastructure",
+        result_academics: "Result & Academics",
+      };
+
+      const grouped: Record<string, typeof discItems> = {};
+      discItems.forEach((item) => {
+        if (!grouped[item.section]) grouped[item.section] = [];
+        grouped[item.section].push(item);
+      });
+
+      for (const [section, label] of Object.entries(sectionLabels)) {
+        const sectionItems = grouped[section];
+        if (sectionItems?.length) {
+          disclosureSection += `\n### ${label}\n`;
+          sectionItems.forEach((item) => {
+            if (item.value) disclosureSection += `- ${item.label}: ${item.value}\n`;
+          });
+        }
+      }
+
+      if (discDocs.some((d) => d.file_url)) {
+        disclosureSection += "\n### Documents Available for Download\n";
+        discDocs.forEach((doc) => {
+          disclosureSection += `- ${doc.label}: ${doc.file_url ? "Available on website" : "Not yet uploaded"}\n`;
+        });
+      }
+
+      if (discResults.length > 0) {
+        disclosureSection += "\n### Board Examination Results\n";
+        discResults.forEach((r) => {
+          disclosureSection += `- Class ${r.exam_class} (${r.academic_year}): ${r.registered} registered, ${r.passed} passed, ${r.pass_percentage}% pass rate${r.remarks ? ` — ${r.remarks}` : ""}\n`;
+        });
+      }
+
+      systemPrompt += disclosureSection;
+    } catch (e) {
+      console.error("Failed to load disclosure data for chat:", e);
+    }
+
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 300,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages,
     });
 

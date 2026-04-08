@@ -781,6 +781,146 @@ create table if not exists registration_requests (
   created_at timestamptz default now()
 );
 
+-- =============================================================
+-- Mandatory Public Disclosure
+-- =============================================================
+
+-- 1. Disclosure Items (text key-value fields for sections A, C-text, D, E)
+create table if not exists disclosure_items (
+  id uuid default uuid_generate_v4() primary key,
+  section text not null check (section in ('general', 'result_academics', 'staff', 'infrastructure')),
+  field_key text not null unique,
+  label text not null,
+  value text not null default '',
+  sort_order integer default 0,
+  updated_at timestamptz default now()
+);
+
+alter table disclosure_items enable row level security;
+
+create policy "Public can read disclosure_items"
+  on disclosure_items for select using (true);
+
+create policy "Authenticated users can update disclosure_items"
+  on disclosure_items for update using (auth.role() = 'authenticated');
+
+create policy "Authenticated users can insert disclosure_items"
+  on disclosure_items for insert with check (auth.role() = 'authenticated');
+
+create policy "Authenticated users can delete disclosure_items"
+  on disclosure_items for delete using (auth.role() = 'authenticated');
+
+-- 2. Disclosure Documents (section B — uploadable PDFs)
+create table if not exists disclosure_documents (
+  id uuid default uuid_generate_v4() primary key,
+  doc_key text not null unique,
+  label text not null,
+  file_url text,
+  file_name text,
+  sort_order integer default 0,
+  updated_at timestamptz default now()
+);
+
+alter table disclosure_documents enable row level security;
+
+create policy "Public can read disclosure_documents"
+  on disclosure_documents for select using (true);
+
+create policy "Authenticated users can update disclosure_documents"
+  on disclosure_documents for update using (auth.role() = 'authenticated');
+
+create policy "Authenticated users can insert disclosure_documents"
+  on disclosure_documents for insert with check (auth.role() = 'authenticated');
+
+create policy "Authenticated users can delete disclosure_documents"
+  on disclosure_documents for delete using (auth.role() = 'authenticated');
+
+-- 3. Disclosure Board Results (section C — structured board exam data)
+create table if not exists disclosure_board_results (
+  id uuid default uuid_generate_v4() primary key,
+  exam_class text not null check (exam_class in ('X', 'XII')),
+  academic_year text not null,
+  registered integer not null default 0,
+  passed integer not null default 0,
+  pass_percentage numeric(5,2) not null default 0,
+  remarks text,
+  sort_order integer default 0,
+  updated_at timestamptz default now(),
+  unique(exam_class, academic_year)
+);
+
+alter table disclosure_board_results enable row level security;
+
+create policy "Public can read disclosure_board_results"
+  on disclosure_board_results for select using (true);
+
+create policy "Authenticated users can insert disclosure_board_results"
+  on disclosure_board_results for insert with check (auth.role() = 'authenticated');
+
+create policy "Authenticated users can update disclosure_board_results"
+  on disclosure_board_results for update using (auth.role() = 'authenticated');
+
+create policy "Authenticated users can delete disclosure_board_results"
+  on disclosure_board_results for delete using (auth.role() = 'authenticated');
+
+-- Seed: Section A — General Information
+insert into disclosure_items (section, field_key, label, value, sort_order) values
+  ('general', 'school_name', 'Name of the School', 'NK Public School', 0),
+  ('general', 'affiliation_no', 'Affiliation No.', '1730446', 1),
+  ('general', 'school_code', 'School Code', '14399', 2),
+  ('general', 'address', 'Complete Address with Pin Code', 'Grand Sikar Road, Rajawas, Jaipur, Rajasthan – 302013', 3),
+  ('general', 'principal_name', 'Principal Name & Qualification', 'Mrs. Prema Kavia', 4),
+  ('general', 'school_email', 'School Email ID', 'nkps.rajawas@gmail.com', 5),
+  ('general', 'contact_details', 'Contact Details (Landline/Mobile)', '+91-9785500046, +91-9785500048', 6)
+on conflict (field_key) do nothing;
+
+-- Seed: Section C — Result & Academics (text fields)
+insert into disclosure_items (section, field_key, label, value, sort_order) values
+  ('result_academics', 'fee_structure', 'Fee Structure of the School', '', 0),
+  ('result_academics', 'academic_calendar', 'Annual Academic Calendar', '', 1),
+  ('result_academics', 'smc_list', 'List of School Management Committee (SMC)', '', 2),
+  ('result_academics', 'pta_members', 'List of Parents Teachers Association (PTA) Members', '', 3)
+on conflict (field_key) do nothing;
+
+-- Seed: Section D — Staff (Teaching)
+insert into disclosure_items (section, field_key, label, value, sort_order) values
+  ('staff', 'principal', 'Principal', 'Mrs. Prema Kavia', 0),
+  ('staff', 'total_teachers', 'Total No. of Teachers (PGT / TGT / PRT)', '100+ (PGT: 25+, TGT: 35+, PRT: 40+)', 1),
+  ('staff', 'teacher_section_ratio', 'Teacher-Section Ratio', '1:1.5', 2),
+  ('staff', 'special_educator', 'Details of Special Educator', '', 3),
+  ('staff', 'counsellor', 'Details of Counsellor and Wellness Teacher', '', 4)
+on conflict (field_key) do nothing;
+
+-- Seed: Section E — School Infrastructure
+insert into disclosure_items (section, field_key, label, value, sort_order) values
+  ('infrastructure', 'campus_area', 'Total Campus Area (in sq. mtrs.)', '20,000 sq. mtrs.', 0),
+  ('infrastructure', 'classrooms', 'Number and Size of Classrooms', '60+ Classrooms', 1),
+  ('infrastructure', 'labs', 'Number and Size of Laboratories (incl. Computer Labs)', '5 Labs (Physics, Chemistry, Biology, Computer, Math)', 2),
+  ('infrastructure', 'internet', 'Internet Facility', 'Yes', 3),
+  ('infrastructure', 'girls_toilets', 'Number of Girls'' Toilets', '', 4),
+  ('infrastructure', 'boys_toilets', 'Number of Boys'' Toilets', '', 5),
+  ('infrastructure', 'youtube_link', 'Link of YouTube Video of School Inspection', '', 6)
+on conflict (field_key) do nothing;
+
+-- Seed: Section B — Documents
+insert into disclosure_documents (doc_key, label, sort_order) values
+  ('affiliation_letter', 'Copies of Affiliation/Upgradation Letter and Recent Extension of Affiliation', 0),
+  ('society_registration', 'Copies of Societies/Trust/Company Registration/Renewal Certificate', 1),
+  ('noc', 'Copy of No Objection Certificate (NOC) Issued by the State Govt/UT', 2),
+  ('rte_recognition', 'Copy of Recognition Certificate under RTE Act, 2009, and Its Renewal', 3),
+  ('building_safety', 'Copy of Valid Building Safety Certificate (as per National Building Code)', 4),
+  ('fire_safety', 'Copy of Valid Fire Safety Certificate Issued by the Competent Authority', 5),
+  ('deo_certificate', 'Copy of DEO Certificate Submitted for Affiliation/Self-Certification by School', 6),
+  ('water_health_sanitation', 'Copy of Valid Water, Health and Sanitation Certificates', 7)
+on conflict (doc_key) do nothing;
+
+-- Storage Bucket: "disclosure-documents" (Public)
+-- Create in Supabase Dashboard > Storage
+-- Policies:
+--   - SELECT: Allow public access
+--   - INSERT: Allow authenticated users
+--   - DELETE: Allow authenticated users
+
 -- Allow only one pending registration per email (rejected users can re-register)
 create unique index idx_registration_requests_pending_email
   on registration_requests(email) where status = 'pending';

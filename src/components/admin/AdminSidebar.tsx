@@ -22,6 +22,7 @@ import {
   ClipboardCheck,
   Clock,
   ChevronLeft,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SidebarProfileMenu } from "@/components/portal/SidebarProfileMenu";
@@ -35,6 +36,7 @@ const contentLinks = [
   { icon: FileText, label: "Transfer Certificates", href: "/admin/transfer-certificates" },
   { icon: MessageSquare, label: "Contact Messages", href: "/admin/contact" },
   { icon: Layers, label: "Site Media", href: "/admin/site-media" },
+  { icon: ScrollText, label: "Disclosure", href: "/admin/disclosure" },
 ];
 
 const erpLinks = [

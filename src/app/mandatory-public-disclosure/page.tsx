@@ -1,103 +1,145 @@
 import { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@/components/shared/PageTransition";
+import { AnimatedSection } from "@/components/shared/AnimatedSection";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  getDisclosureItems,
+  getDisclosureDocuments,
+  getDisclosureBoardResults,
+} from "@/lib/disclosure";
+import { ExternalLink, FileText, Download } from "lucide-react";
+import type { DisclosureItem, DisclosureBoardResult } from "@/types";
 
 export const metadata: Metadata = {
   title: "Mandatory Public Disclosure",
 };
 
-const disclosureData = {
-  general: [
-    { label: "Name of the School", value: "NK Public School" },
-    {
-      label: "Affiliation No.",
-      value: "1730446",
-    },
-    { label: "School Code", value: "14399" },
-    {
-      label: "Complete Address with Pin Code",
-      value: "Grand Sikar Road, Rajawas, Jaipur, Rajasthan – 302013",
-    },
-    { label: "Principal Name", value: "Mrs. Prema Kavia" },
-    { label: "School Email ID", value: "nkps.rajawas@gmail.com" },
-    { label: "Contact Details", value: "+91-9785500046, +91-9785500048" },
-  ],
-  infrastructure: [
-    { label: "Total Area of School (in sq. mtrs.)", value: "20,000 sq. mtrs." },
-    {
-      label: "No. and Size of Classrooms",
-      value: "60+ Classrooms",
-    },
-    { label: "No. and Size of Laboratories", value: "5 Labs (Physics, Chemistry, Biology, Computer, Math)" },
-    { label: "Computer Lab", value: "Yes" },
-    { label: "Library", value: "Yes" },
-    {
-      label: "Whether Playground Available",
-      value: "Yes",
-    },
-    {
-      label: "Swimming Pool",
-      value: "No",
-    },
-    {
-      label: "Indoor Games",
-      value: "Yes",
-    },
-    { label: "Auditorium", value: "Yes" },
-  ],
-  staff: [
-    { label: "Principal", value: "Mrs. Prema Kavia" },
-    { label: "Total No. of Teachers", value: "100+" },
-    { label: "PGT", value: "25+" },
-    { label: "TGT", value: "35+" },
-    { label: "PRT", value: "40+" },
-    {
-      label: "Teachers Section Ratio",
-      value: "1:1.5",
-    },
-  ],
-  result: [
-    { label: "Board Results (Class X)", value: "100% Pass" },
-    { label: "Board Results (Class XII)", value: "100% Pass" },
-  ],
-};
+export const revalidate = 60;
 
-function DisclosureTable({
-  title,
-  data,
-}: {
-  title: string;
-  data: { label: string; value: string }[];
-}) {
+function DisclosureTable({ data }: { data: { label: string; value: string }[] }) {
   return (
-    <div className="mb-10">
-      <h2 className="text-xl font-heading font-bold text-navy-900 mb-4 border-b-2 border-gold-500 pb-2">
-        {title}
-      </h2>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse">
-          <tbody>
-            {data.map((item, index) => (
-              <tr
-                key={index}
-                className={index % 2 === 0 ? "bg-cream-50" : "bg-white"}
-              >
-                <td className="border border-gray-200 px-4 py-3 font-medium text-navy-800 w-1/2">
-                  {item.label}
-                </td>
-                <td className="border border-gray-200 px-4 py-3 text-gray-700">
-                  {item.value}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-collapse">
+        <tbody>
+          {data.map((item, index) => (
+            <tr
+              key={index}
+              className={index % 2 === 0 ? "bg-cream-50" : "bg-white"}
+            >
+              <td className="border border-gray-200 px-4 py-3 font-medium text-navy-800 w-1/2">
+                {item.label}
+              </td>
+              <td className="border border-gray-200 px-4 py-3 text-gray-700">
+                {item.value || <span className="text-gray-400 italic">—</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-export default function MandatoryPublicDisclosurePage() {
+function BoardResultsTable({ results, examClass }: { results: DisclosureBoardResult[]; examClass: string }) {
+  const filtered = results.filter((r) => r.exam_class === examClass);
+  if (filtered.length === 0) {
+    return (
+      <p className="text-sm text-gray-400 italic py-2">
+        No data available for Class {examClass}.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="bg-navy-900 text-white">
+            <th className="border border-navy-800 px-4 py-2.5 text-left font-semibold">
+              Academic Year
+            </th>
+            <th className="border border-navy-800 px-4 py-2.5 text-left font-semibold">
+              Registered
+            </th>
+            <th className="border border-navy-800 px-4 py-2.5 text-left font-semibold">
+              Passed
+            </th>
+            <th className="border border-navy-800 px-4 py-2.5 text-left font-semibold">
+              Pass %
+            </th>
+            <th className="border border-navy-800 px-4 py-2.5 text-left font-semibold">
+              Remarks
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map((r, index) => (
+            <tr
+              key={r.id}
+              className={index % 2 === 0 ? "bg-cream-50" : "bg-white"}
+            >
+              <td className="border border-gray-200 px-4 py-3 font-medium text-navy-800">
+                {r.academic_year}
+              </td>
+              <td className="border border-gray-200 px-4 py-3 text-gray-700">
+                {r.registered}
+              </td>
+              <td className="border border-gray-200 px-4 py-3 text-gray-700">
+                {r.passed}
+              </td>
+              <td className="border border-gray-200 px-4 py-3 text-gray-700">
+                {r.pass_percentage}%
+              </td>
+              <td className="border border-gray-200 px-4 py-3 text-gray-700">
+                {r.remarks || "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export default async function MandatoryPublicDisclosurePage() {
+  const [items, documents, boardResults] = await Promise.all([
+    getDisclosureItems(),
+    getDisclosureDocuments(),
+    getDisclosureBoardResults(),
+  ]);
+
+  const groupedItems: Record<string, DisclosureItem[]> = {};
+  items.forEach((item) => {
+    if (!groupedItems[item.section]) groupedItems[item.section] = [];
+    groupedItems[item.section].push(item);
+  });
+
+  const generalData = (groupedItems["general"] ?? []).map((i) => ({
+    label: i.label,
+    value: i.value,
+  }));
+
+  const staffData = (groupedItems["staff"] ?? []).map((i) => ({
+    label: i.label,
+    value: i.value,
+  }));
+
+  const infraData = (groupedItems["infrastructure"] ?? []).map((i) => ({
+    label: i.label,
+    value: i.value,
+  }));
+
+  const resultTextData = (groupedItems["result_academics"] ?? []).map((i) => ({
+    label: i.label,
+    value: i.value,
+  }));
+
   return (
     <PageTransition>
       <PageHeader
@@ -106,16 +148,178 @@ export default function MandatoryPublicDisclosurePage() {
       />
 
       <section className="py-16 px-4 md:px-8 max-w-5xl mx-auto">
-        <p className="text-gray-600 mb-8 text-sm">
-          The following information is published as per CBSE Affiliation
-          Bye-Laws and mandatory disclosure requirements. This information is
-          updated periodically.
-        </p>
+        <AnimatedSection>
+          <p className="text-gray-600 mb-8 text-sm">
+            The following information is published as per CBSE Affiliation
+            Bye-Laws and mandatory disclosure requirements. This information is
+            updated periodically. Click on a section to view details.
+          </p>
+        </AnimatedSection>
 
-        <DisclosureTable title="A. General Information" data={disclosureData.general} />
-        <DisclosureTable title="B. Infrastructure Details" data={disclosureData.infrastructure} />
-        <DisclosureTable title="C. Staff Details" data={disclosureData.staff} />
-        <DisclosureTable title="D. Result & Academics" data={disclosureData.result} />
+        <AnimatedSection delay={0.1}>
+          <Accordion defaultValue={[]}>
+            {/* Section A: General Information */}
+            <AccordionItem
+              value="general"
+              className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+            >
+              <AccordionTrigger className="px-5 py-4 text-left font-heading text-base font-bold text-navy-900 hover:text-gold-600 [&[data-state=open]]:text-gold-600">
+                A. General Information
+              </AccordionTrigger>
+              <AccordionContent className="px-5 pb-5">
+                <DisclosureTable data={generalData} />
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Section B: Documents and Information */}
+            <AccordionItem
+              value="documents"
+              className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+            >
+              <AccordionTrigger className="px-5 py-4 text-left font-heading text-base font-bold text-navy-900 hover:text-gold-600 [&[data-state=open]]:text-gold-600">
+                B. Documents and Information
+              </AccordionTrigger>
+              <AccordionContent className="px-5 pb-5">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse">
+                    <tbody>
+                      {documents.map((doc, index) => (
+                        <tr
+                          key={doc.id}
+                          className={
+                            index % 2 === 0 ? "bg-cream-50" : "bg-white"
+                          }
+                        >
+                          <td className="border border-gray-200 px-4 py-3 font-medium text-navy-800">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-gray-400 shrink-0" />
+                              {doc.label}
+                            </div>
+                          </td>
+                          <td className="border border-gray-200 px-4 py-3 text-right w-40">
+                            {doc.file_url ? (
+                              <a
+                                href={doc.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                                View / Download
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 italic text-sm">
+                                Not available
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Section C: Result and Academics */}
+            <AccordionItem
+              value="result_academics"
+              className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+            >
+              <AccordionTrigger className="px-5 py-4 text-left font-heading text-base font-bold text-navy-900 hover:text-gold-600 [&[data-state=open]]:text-gold-600">
+                C. Result and Academics
+              </AccordionTrigger>
+              <AccordionContent className="px-5 pb-5 space-y-6">
+                {/* Text fields */}
+                <DisclosureTable data={resultTextData} />
+
+                {/* Board Results */}
+                <div>
+                  <h3 className="text-sm font-heading font-bold text-navy-900 mb-3 border-b border-gold-500 pb-1.5">
+                    Last Three-Year Result of Board Examination — Class X
+                  </h3>
+                  <BoardResultsTable
+                    results={boardResults}
+                    examClass="X"
+                  />
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-heading font-bold text-navy-900 mb-3 border-b border-gold-500 pb-1.5">
+                    Last Three-Year Result of Board Examination — Class XII
+                  </h3>
+                  <BoardResultsTable
+                    results={boardResults}
+                    examClass="XII"
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Section D: Staff (Teaching) */}
+            <AccordionItem
+              value="staff"
+              className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+            >
+              <AccordionTrigger className="px-5 py-4 text-left font-heading text-base font-bold text-navy-900 hover:text-gold-600 [&[data-state=open]]:text-gold-600">
+                D. Staff (Teaching)
+              </AccordionTrigger>
+              <AccordionContent className="px-5 pb-5">
+                <DisclosureTable data={staffData} />
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Section E: School Infrastructure */}
+            <AccordionItem
+              value="infrastructure"
+              className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+            >
+              <AccordionTrigger className="px-5 py-4 text-left font-heading text-base font-bold text-navy-900 hover:text-gold-600 [&[data-state=open]]:text-gold-600">
+                E. School Infrastructure
+              </AccordionTrigger>
+              <AccordionContent className="px-5 pb-5">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse">
+                    <tbody>
+                      {infraData.map((item, index) => (
+                        <tr
+                          key={index}
+                          className={
+                            index % 2 === 0 ? "bg-cream-50" : "bg-white"
+                          }
+                        >
+                          <td className="border border-gray-200 px-4 py-3 font-medium text-navy-800 w-1/2">
+                            {item.label}
+                          </td>
+                          <td className="border border-gray-200 px-4 py-3 text-gray-700">
+                            {item.label
+                              .toLowerCase()
+                              .includes("youtube") && item.value ? (
+                              <a
+                                href={item.value}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                              >
+                                Watch Video
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            ) : item.value ? (
+                              item.value
+                            ) : (
+                              <span className="text-gray-400 italic">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </AnimatedSection>
       </section>
     </PageTransition>
   );

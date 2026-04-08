@@ -18,6 +18,9 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   attendance: ["id", "student_id", "class_id", "date", "status", "marked_by", "remarks", "created_at"],
   results: ["id", "student_id", "class_id", "subject_id", "exam_type_id", "marks_obtained", "max_marks", "grade", "remarks", "entered_by", "created_at"],
   section_cards: ["id", "section", "title", "subtitle", "description", "quote", "name", "role", "initials", "date", "cta_text", "cta_link", "icon", "link", "image_url", "designation", "message", "year", "season", "sort_order", "is_active", "created_at", "updated_at"],
+  disclosure_items: ["id", "section", "field_key", "label", "value", "sort_order", "updated_at"],
+  disclosure_documents: ["id", "doc_key", "label", "file_url", "file_name", "sort_order", "updated_at"],
+  disclosure_board_results: ["id", "exam_class", "academic_year", "registered", "passed", "pass_percentage", "remarks", "sort_order", "updated_at"],
 };
 
 const ALLOWED_TABLES = Object.keys(ALLOWED_COLUMNS);
