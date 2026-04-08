@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { X, Download, Calendar, Filter, ChevronLeft, ImageIcon } from "lucide-react";
+import { X, Download, Calendar, Filter, ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { SectionDivider } from "@/components/shared/SectionDivider";
@@ -27,6 +27,118 @@ interface GalleryEventWithImages {
   academic_year: string | null;
   image_count: number;
   cover_url: string | null;
+}
+
+function EventPhotoCarousel({
+  images,
+  onImageClick,
+  onDownload,
+}: {
+  images: GalleryImage[];
+  onImageClick: (img: GalleryImage) => void;
+  onDownload: (img: GalleryImage) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    checkScroll();
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", checkScroll, { passive: true });
+    window.addEventListener("resize", checkScroll);
+    return () => {
+      el.removeEventListener("scroll", checkScroll);
+      window.removeEventListener("resize", checkScroll);
+    };
+  }, [checkScroll, images]);
+
+  const scroll = (direction: "left" | "right") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const scrollAmount = el.clientWidth * 0.75;
+    el.scrollBy({
+      left: direction === "left" ? -scrollAmount : scrollAmount,
+      behavior: "smooth",
+    });
+  };
+
+  return (
+    <div className="relative">
+      {/* Left arrow */}
+      {canScrollLeft && (
+        <button
+          onClick={() => scroll("left")}
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow-lg backdrop-blur-sm text-navy-900 hover:bg-white transition-colors -ml-3"
+          aria-label="Scroll left"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+      )}
+
+      {/* Right arrow */}
+      {canScrollRight && (
+        <button
+          onClick={() => scroll("right")}
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow-lg backdrop-blur-sm text-navy-900 hover:bg-white transition-colors -mr-3"
+          aria-label="Scroll right"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      )}
+
+      {/* Scrollable track */}
+      <div
+        ref={scrollRef}
+        className="flex gap-4 overflow-x-auto scroll-smooth pb-4 scrollbar-hide"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        {images.map((image, index) => (
+          <motion.div
+            key={image.id}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3, delay: index * 0.03 }}
+            className="group relative flex-shrink-0 w-72 sm:w-80 md:w-96 aspect-[4/3] overflow-hidden rounded-2xl bg-navy-100 cursor-pointer"
+            onClick={() => onImageClick(image)}
+          >
+            <Image
+              src={image.src}
+              alt={image.alt}
+              fill
+              sizes="(max-width: 640px) 288px, (max-width: 768px) 320px, 384px"
+              className="object-cover transition-transform duration-500 group-hover:scale-110"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-navy-900/70 via-navy-900/0 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
+              <div className="p-4 w-full flex items-end justify-between">
+                <span className="text-white font-semibold text-sm">
+                  {image.alt}
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDownload(image);
+                  }}
+                  className="flex-shrink-0 rounded-full bg-white/20 p-2 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
+                  aria-label="Download image"
+                >
+                  <Download className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function GalleryPage() {
@@ -67,16 +179,21 @@ export default function GalleryPage() {
         .order("event_date", { ascending: false });
 
       if (events && events.length > 0) {
-        // Get image counts per event
+        // Get image counts AND first image per event for cover fallback
         const { data: eventImgs } = await supabase
           .from("gallery_images")
-          .select("gallery_event_id")
-          .not("gallery_event_id", "is", null);
+          .select("gallery_event_id, src")
+          .not("gallery_event_id", "is", null)
+          .order("sort_order", { ascending: true });
 
         const counts: Record<string, number> = {};
-        (eventImgs ?? []).forEach((img: { gallery_event_id: string | null }) => {
+        const firstImages: Record<string, string> = {};
+        (eventImgs ?? []).forEach((img: { gallery_event_id: string | null; src: string }) => {
           if (img.gallery_event_id) {
             counts[img.gallery_event_id] = (counts[img.gallery_event_id] || 0) + 1;
+            if (!firstImages[img.gallery_event_id]) {
+              firstImages[img.gallery_event_id] = img.src;
+            }
           }
         });
 
@@ -86,7 +203,7 @@ export default function GalleryPage() {
           event_date: e.event_date,
           academic_year: e.academic_year,
           image_count: counts[e.id] || 0,
-          cover_url: e.cover_image_url,
+          cover_url: e.cover_image_url || firstImages[e.id] || null,
         }));
 
         setGalleryEvents(eventsWithCounts);
@@ -358,6 +475,7 @@ export default function GalleryPage() {
                             src={evt.cover_url}
                             alt={evt.title}
                             fill
+                            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
                             className="object-cover transition-transform duration-500 group-hover:scale-105"
                           />
                         ) : (
@@ -459,48 +577,11 @@ export default function GalleryPage() {
                   </p>
                 </div>
               ) : (
-                <motion.div
-                  layout
-                  className="columns-1 gap-4 md:columns-2 lg:columns-3"
-                >
-                  {eventImages.map((image, index) => (
-                    <motion.div
-                      key={image.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.3, delay: index * 0.03 }}
-                      className={cn(
-                        "group relative mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-navy-100 cursor-pointer",
-                        aspectPatterns[index % 3]
-                      )}
-                      onClick={() => setLightboxImage(image)}
-                    >
-                      <Image
-                        src={image.src}
-                        alt={image.alt}
-                        fill
-                        className="object-cover transition-transform duration-500 group-hover:scale-110"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-navy-900/70 via-navy-900/0 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
-                        <div className="p-4 w-full flex items-end justify-between">
-                          <span className="text-white font-semibold text-sm">
-                            {image.alt}
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              downloadImage(image);
-                            }}
-                            className="flex-shrink-0 rounded-full bg-white/20 p-2 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
-                            aria-label="Download image"
-                          >
-                            <Download className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </motion.div>
+                <EventPhotoCarousel
+                  images={eventImages}
+                  onImageClick={setLightboxImage}
+                  onDownload={downloadImage}
+                />
               )}
             </div>
           )}
