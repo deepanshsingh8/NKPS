@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Phone, Mail } from "lucide-react";
+import { Phone, Mail, FileText } from "lucide-react";
 import { FacebookIcon, InstagramIcon, YoutubeIcon } from "@/components/shared/SocialIcons";
 import { SCHOOL } from "@/lib/constants";
 
@@ -27,6 +27,13 @@ export function TopBar() {
           <YoutubeIcon className="h-3.5 w-3.5" />
         </Link>
       </div>
+      <Link
+        href="/mandatory-public-disclosure"
+        className="flex items-center gap-1.5 bg-gold-500 text-navy-900 font-semibold px-3 py-1 rounded hover:bg-gold-400 transition-colors"
+      >
+        <FileText className="h-3 w-3" />
+        <span>Mandatory Public Disclosure</span>
+      </Link>
     </div>
   );
 }
