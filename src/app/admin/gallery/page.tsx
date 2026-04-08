@@ -1041,8 +1041,8 @@ export default function AdminGalleryPage() {
                           {/* Expanded photo strip */}
                           {isExpanded && (
                             <tr>
-                              <td colSpan={7} className="p-0">
-                                <div className="bg-gray-50/80 dark:bg-muted/20 border-t border-b border-gray-100 dark:border-border px-6 py-4">
+                              <td colSpan={7} className="p-0 overflow-hidden">
+                                <div className="bg-gray-50/80 dark:bg-muted/20 border-t border-b border-gray-100 dark:border-border px-6 py-4 max-w-[1px] min-w-full">
                                   {isLoadingPhotos ? (
                                     <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500 text-sm py-2">
                                       <Loader2 className="h-4 w-4 animate-spin" />
