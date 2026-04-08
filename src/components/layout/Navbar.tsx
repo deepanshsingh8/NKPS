@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { Menu, X, Phone, Mail } from "lucide-react";
+import { Menu, X, Phone, Mail, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { NAV_LINKS, SCHOOL } from "@/lib/constants";
@@ -107,6 +107,16 @@ export function Navbar() {
 
         {/* ERP Login Button + Mobile Hamburger */}
         <div className="flex items-center gap-3">
+          {/* Mandatory Public Disclosure - shimmer button */}
+          <Link
+            href="/mandatory-public-disclosure"
+            className="group relative hidden lg:inline-flex items-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-5 py-2.5 text-sm font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25 hover:scale-[1.02]"
+          >
+            <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+            <FileText className="relative z-10 h-4 w-4" />
+            <span className="relative z-10">Mandatory Disclosure</span>
+          </Link>
+
           {/* ERP Login - shimmer button */}
           <Link
             href="/erp-login"
@@ -193,7 +203,7 @@ export function Navbar() {
                   );
                 })}
 
-                {/* ERP Login */}
+                {/* Mandatory Public Disclosure */}
                 <motion.div
                   initial={{ opacity: 0, x: 60 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -204,6 +214,28 @@ export function Navbar() {
                     ease: "easeOut",
                   }}
                   className="mt-4"
+                >
+                  <Link
+                    href="/mandatory-public-disclosure"
+                    onClick={() => setMobileOpen(false)}
+                    className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-8 py-3 text-sm font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Mandatory Disclosure
+                  </Link>
+                </motion.div>
+
+                {/* ERP Login */}
+                <motion.div
+                  initial={{ opacity: 0, x: 60 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 60 }}
+                  transition={{
+                    duration: 0.35,
+                    delay: (NAV_LINKS.length + 1) * 0.05,
+                    ease: "easeOut",
+                  }}
+                  className="mt-2"
                 >
                   <Link
                     href="/erp-login"

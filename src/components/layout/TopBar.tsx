@@ -29,7 +29,7 @@ export function TopBar() {
       </div>
       <Link
         href="/mandatory-public-disclosure"
-        className="flex items-center gap-1.5 bg-gold-500 text-navy-900 font-semibold px-3 py-1 rounded hover:bg-gold-400 transition-colors"
+        className="flex items-center gap-1.5 bg-gold-500/20 text-gold-400 font-semibold px-3 py-1 rounded hover:bg-gold-500/30 transition-colors"
       >
         <FileText className="h-3 w-3" />
         <span>Mandatory Public Disclosure</span>
