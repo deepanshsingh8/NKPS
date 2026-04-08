@@ -23,7 +23,6 @@ type GalleryImage = { id: string; category: string; alt: string; src: string };
 interface GalleryEventWithImages {
   id: string;
   title: string;
-  description: string | null;
   event_date: string;
   academic_year: string | null;
   image_count: number;
@@ -63,7 +62,7 @@ export default function GalleryPage() {
       // Fetch gallery events
       const { data: events } = await supabase
         .from("gallery_events")
-        .select("id, title, description, event_date, academic_year, cover_image_url")
+        .select("id, title, event_date, academic_year, cover_image_url")
         .eq("is_public", true)
         .order("event_date", { ascending: false });
 
@@ -84,7 +83,6 @@ export default function GalleryPage() {
         const eventsWithCounts: GalleryEventWithImages[] = events.map((e) => ({
           id: e.id,
           title: e.title,
-          description: e.description,
           event_date: e.event_date,
           academic_year: e.academic_year,
           image_count: counts[e.id] || 0,
@@ -392,11 +390,6 @@ export default function GalleryPage() {
                             </span>
                           )}
                         </div>
-                        {evt.description && (
-                          <p className="text-sm text-gray-500 mt-3 line-clamp-2 leading-relaxed">
-                            {evt.description}
-                          </p>
-                        )}
                       </div>
                     </motion.div>
                   ))}
@@ -454,11 +447,6 @@ export default function GalleryPage() {
                     {eventImages.length} photo{eventImages.length !== 1 ? "s" : ""}
                   </span>
                 </div>
-                {selectedEvent.description && (
-                  <p className="text-sm text-gray-500 mt-3 max-w-2xl leading-relaxed">
-                    {selectedEvent.description}
-                  </p>
-                )}
               </div>
 
               {eventImages.length === 0 ? (

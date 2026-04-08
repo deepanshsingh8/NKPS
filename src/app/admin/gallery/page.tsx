@@ -34,6 +34,7 @@ import {
   ImageIcon,
   ChevronRight,
   X,
+  Star,
 } from "lucide-react";
 import { adminUpload, adminDelete, adminApi } from "@/lib/admin-api";
 import { FileDropZone } from "@/components/shared/FileDropZone";
@@ -73,12 +74,9 @@ export default function AdminGalleryPage() {
   const [eventUploadOpen, setEventUploadOpen] = useState(false);
   const [uploadEventId, setUploadEventId] = useState<string>("");
   const [eventUploadFiles, setEventUploadFiles] = useState<FileList | null>(null);
-  const [eventUploadAlt, setEventUploadAlt] = useState("");
-  const [eventUploadCategory, setEventUploadCategory] = useState("events");
   const [eventUploading, setEventUploading] = useState(false);
   const [eventForm, setEventForm] = useState({
     title: "",
-    description: "",
     event_date: "",
     academic_year: "",
     is_public: true,
@@ -226,8 +224,6 @@ export default function AdminGalleryPage() {
   const openEventUpload = (evtId: string) => {
     setUploadEventId(evtId);
     setEventUploadFiles(null);
-    setEventUploadAlt("");
-    setEventUploadCategory("events");
     setEventUploadOpen(true);
   };
 
@@ -236,23 +232,24 @@ export default function AdminGalleryPage() {
       toast.error("Please select at least one image");
       return;
     }
-    if (!eventUploadAlt.trim()) {
-      toast.error("Please enter a description");
-      return;
-    }
 
     setEventUploading(true);
 
+    // Use event title as alt text
+    const currentEvent = events.find((e) => e.id === uploadEventId);
+    const eventTitle = currentEvent?.title ?? "Event photo";
+
     let succeeded = 0;
     let failed = 0;
+    let firstUploadedUrl: string | null = null;
 
     // Upload one file at a time to avoid body size limits
     for (let i = 0; i < eventUploadFiles.length; i++) {
       try {
         const formData = new FormData();
         formData.append("files", eventUploadFiles[i]);
-        formData.append("alt", eventUploadFiles.length > 1 ? `${eventUploadAlt.trim()} ${i + 1}` : eventUploadAlt.trim());
-        formData.append("category", eventUploadCategory);
+        formData.append("alt", eventUploadFiles.length > 1 ? `${eventTitle} ${i + 1}` : eventTitle);
+        formData.append("category", "events");
         formData.append("currentCount", String(images.length + succeeded));
         formData.append("gallery_event_id", uploadEventId);
 
@@ -263,6 +260,9 @@ export default function AdminGalleryPage() {
           toast.error(`${eventUploadFiles[i].name}: ${data.error || "Upload failed"}`);
           failed++;
         } else if (data.results?.[0]?.success) {
+          if (!firstUploadedUrl && data.results[0].src) {
+            firstUploadedUrl = data.results[0].src;
+          }
           succeeded++;
         } else {
           toast.error(`${eventUploadFiles[i].name}: ${data.results?.[0]?.error || "Upload failed"}`);
@@ -272,6 +272,16 @@ export default function AdminGalleryPage() {
         toast.error(`${eventUploadFiles[i].name}: Upload failed`);
         failed++;
       }
+    }
+
+    // Auto-set cover photo if the event doesn't have one yet
+    if (firstUploadedUrl && !currentEvent?.cover_image_url) {
+      await adminApi({
+        action: "update",
+        table: "gallery_events",
+        data: { cover_image_url: firstUploadedUrl },
+        match: { column: "id", value: uploadEventId },
+      });
     }
 
     if (succeeded > 0) {
@@ -299,7 +309,6 @@ export default function AdminGalleryPage() {
   const resetEventForm = () => {
     setEventForm({
       title: "",
-      description: "",
       event_date: "",
       academic_year: "",
       is_public: true,
@@ -311,7 +320,6 @@ export default function AdminGalleryPage() {
     setEditingId(evt.id);
     setEventForm({
       title: evt.title,
-      description: evt.description ?? "",
       event_date: evt.event_date,
       academic_year: evt.academic_year ?? "",
       is_public: evt.is_public,
@@ -334,7 +342,6 @@ export default function AdminGalleryPage() {
 
     const data = {
       title: eventForm.title.trim(),
-      description: eventForm.description.trim() || null,
       event_date: eventForm.event_date,
       academic_year: eventForm.academic_year.trim() || null,
       is_public: eventForm.is_public,
@@ -433,6 +440,26 @@ export default function AdminGalleryPage() {
     } catch {
       toast.error("Failed to delete photo");
     }
+  };
+
+  const handleSetCover = async (eventId: string, imageUrl: string) => {
+    const result = await adminApi({
+      action: "update",
+      table: "gallery_events",
+      data: { cover_image_url: imageUrl },
+      match: { column: "id", value: eventId },
+    });
+
+    if (!result.success) {
+      toast.error("Failed to set cover photo");
+      return;
+    }
+
+    toast.success("Cover photo updated");
+    // Update local state
+    setEvents((prev) =>
+      prev.map((e) => (e.id === eventId ? { ...e, cover_image_url: imageUrl } : e))
+    );
   };
 
   const formatDate = (dateStr: string) => {
@@ -683,17 +710,6 @@ export default function AdminGalleryPage() {
                     className="h-9"
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-medium">Description (optional)</Label>
-                  <Input
-                    placeholder="Brief description of the event"
-                    value={eventForm.description}
-                    onChange={(e) =>
-                      setEventForm({ ...eventForm, description: e.target.value })
-                    }
-                    className="h-9"
-                  />
-                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs font-medium">Event Date</Label>
@@ -785,32 +801,9 @@ export default function AdminGalleryPage() {
                   hint="JPEG, PNG, WebP — max 10MB each"
                 />
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="event-upload-alt" className="text-xs font-medium">Description *</Label>
-                  <Input
-                    id="event-upload-alt"
-                    placeholder="Describe the image(s) for accessibility"
-                    value={eventUploadAlt}
-                    onChange={(e) => setEventUploadAlt(e.target.value)}
-                    className="h-9"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="event-upload-category" className="text-xs font-medium">Category</Label>
-                  <select
-                    id="event-upload-category"
-                    value={eventUploadCategory}
-                    onChange={(e) => setEventUploadCategory(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
-                  >
-                    {CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <p className="text-xs text-gray-500">
+                  Photos will be tagged with the event title for accessibility.
+                </p>
 
                 <Button
                   onClick={handleEventUpload}
@@ -958,33 +951,57 @@ export default function AdminGalleryPage() {
                                     </div>
                                   ) : (
                                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-                                      {photos.map((img) => (
-                                        <div
-                                          key={img.id}
-                                          className="relative group shrink-0 w-24 h-24 rounded-lg overflow-hidden border border-gray-200 dark:border-border bg-white dark:bg-card"
-                                        >
-                                          <Image
-                                            src={img.src}
-                                            alt={img.alt}
-                                            fill
-                                            className="object-cover"
-                                            sizes="96px"
-                                          />
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleEventImageDelete(img);
-                                            }}
-                                            className="absolute top-1 right-1 bg-red-500 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                                            title="Remove photo"
+                                      {photos.map((img) => {
+                                        const isCover = evt.cover_image_url === img.src;
+                                        return (
+                                          <div
+                                            key={img.id}
+                                            className={cn(
+                                              "relative group shrink-0 w-24 h-24 rounded-lg overflow-hidden border-2 bg-white dark:bg-card",
+                                              isCover
+                                                ? "border-gold-500 ring-2 ring-gold-500/30"
+                                                : "border-gray-200 dark:border-border"
+                                            )}
                                           >
-                                            <X className="h-3 w-3" />
-                                          </button>
-                                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/50 to-transparent px-1.5 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <p className="text-[9px] text-white truncate">{img.alt}</p>
+                                            <Image
+                                              src={img.src}
+                                              alt={img.alt}
+                                              fill
+                                              className="object-cover"
+                                              sizes="96px"
+                                            />
+                                            {/* Cover badge */}
+                                            {isCover && (
+                                              <div className="absolute top-1 left-1 bg-gold-500 text-white p-0.5 rounded-full shadow-sm" title="Cover photo">
+                                                <Star className="h-3 w-3 fill-current" />
+                                              </div>
+                                            )}
+                                            {/* Set as cover button (shown on hover for non-cover photos) */}
+                                            {!isCover && (
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleSetCover(evt.id, img.src);
+                                                }}
+                                                className="absolute top-1 left-1 bg-white/80 dark:bg-black/60 text-gray-600 dark:text-gray-300 p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-gold-500 hover:text-white"
+                                                title="Set as cover photo"
+                                              >
+                                                <Star className="h-3 w-3" />
+                                              </button>
+                                            )}
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleEventImageDelete(img);
+                                              }}
+                                              className="absolute top-1 right-1 bg-red-500 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                                              title="Remove photo"
+                                            >
+                                              <X className="h-3 w-3" />
+                                            </button>
                                           </div>
-                                        </div>
-                                      ))}
+                                        );
+                                      })}
                                     </div>
                                   )}
                                 </div>

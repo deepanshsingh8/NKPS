@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      results.push({ name: file.name, success: true });
+      results.push({ name: file.name, success: true, src: publicUrl });
     }
 
     const allSucceeded = results.every((r) => r.success);
