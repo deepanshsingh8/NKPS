@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ import {
   FolderOpen,
   ImageIcon,
   ChevronRight,
+  ChevronLeft,
   X,
   Star,
 } from "lucide-react";
@@ -45,6 +46,115 @@ import type { GalleryImage, GalleryEvent } from "@/types";
 const CATEGORIES = ["academics", "sports", "cultural", "campus", "events"];
 
 type Tab = "images" | "events";
+
+function PhotoStripCarousel({
+  photos,
+  coverUrl,
+  onSetCover,
+  onDelete,
+}: {
+  photos: GalleryImage[];
+  coverUrl: string | null;
+  onSetCover: (url: string) => void;
+  onDelete: (img: GalleryImage) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    checkScroll();
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", checkScroll, { passive: true });
+    return () => el.removeEventListener("scroll", checkScroll);
+  }, [checkScroll, photos]);
+
+  const scroll = (dir: "left" | "right") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === "left" ? -240 : 240, behavior: "smooth" });
+  };
+
+  return (
+    <div className="relative group/carousel">
+      {canScrollLeft && (
+        <button
+          onClick={() => scroll("left")}
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white dark:bg-card shadow-md border border-gray-200 dark:border-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-muted transition-colors -ml-2"
+          aria-label="Scroll left"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+      )}
+      {canScrollRight && (
+        <button
+          onClick={() => scroll("right")}
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white dark:bg-card shadow-md border border-gray-200 dark:border-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-muted transition-colors -mr-2"
+          aria-label="Scroll right"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      )}
+      <div
+        ref={scrollRef}
+        className="flex gap-3 overflow-x-auto pb-2"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        {photos.map((img) => {
+          const isCover = coverUrl === img.src;
+          return (
+            <div
+              key={img.id}
+              className={cn(
+                "relative group shrink-0 w-24 h-24 rounded-lg overflow-hidden border-2 bg-white dark:bg-card",
+                isCover
+                  ? "border-gold-500 ring-2 ring-gold-500/30"
+                  : "border-gray-200 dark:border-border"
+              )}
+            >
+              <Image
+                src={img.src}
+                alt={img.alt}
+                fill
+                className="object-cover"
+                sizes="96px"
+              />
+              {isCover && (
+                <div className="absolute top-1 left-1 bg-gold-500 text-white p-0.5 rounded-full shadow-sm" title="Cover photo">
+                  <Star className="h-3 w-3 fill-current" />
+                </div>
+              )}
+              {!isCover && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onSetCover(img.src); }}
+                  className="absolute top-1 left-1 bg-white/80 dark:bg-black/60 text-gray-600 dark:text-gray-300 p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-gold-500 hover:text-white"
+                  title="Set as cover photo"
+                >
+                  <Star className="h-3 w-3" />
+                </button>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(img); }}
+                className="absolute top-1 right-1 bg-red-500 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                title="Remove photo"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function AdminGalleryPage() {
   const [tab, setTab] = useState<Tab>("images");
@@ -950,59 +1060,12 @@ export default function AdminGalleryPage() {
                                       </button>
                                     </div>
                                   ) : (
-                                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-                                      {photos.map((img) => {
-                                        const isCover = evt.cover_image_url === img.src;
-                                        return (
-                                          <div
-                                            key={img.id}
-                                            className={cn(
-                                              "relative group shrink-0 w-24 h-24 rounded-lg overflow-hidden border-2 bg-white dark:bg-card",
-                                              isCover
-                                                ? "border-gold-500 ring-2 ring-gold-500/30"
-                                                : "border-gray-200 dark:border-border"
-                                            )}
-                                          >
-                                            <Image
-                                              src={img.src}
-                                              alt={img.alt}
-                                              fill
-                                              className="object-cover"
-                                              sizes="96px"
-                                            />
-                                            {/* Cover badge */}
-                                            {isCover && (
-                                              <div className="absolute top-1 left-1 bg-gold-500 text-white p-0.5 rounded-full shadow-sm" title="Cover photo">
-                                                <Star className="h-3 w-3 fill-current" />
-                                              </div>
-                                            )}
-                                            {/* Set as cover button (shown on hover for non-cover photos) */}
-                                            {!isCover && (
-                                              <button
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  handleSetCover(evt.id, img.src);
-                                                }}
-                                                className="absolute top-1 left-1 bg-white/80 dark:bg-black/60 text-gray-600 dark:text-gray-300 p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-gold-500 hover:text-white"
-                                                title="Set as cover photo"
-                                              >
-                                                <Star className="h-3 w-3" />
-                                              </button>
-                                            )}
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleEventImageDelete(img);
-                                              }}
-                                              className="absolute top-1 right-1 bg-red-500 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                                              title="Remove photo"
-                                            >
-                                              <X className="h-3 w-3" />
-                                            </button>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
+                                    <PhotoStripCarousel
+                                      photos={photos}
+                                      coverUrl={evt.cover_image_url}
+                                      onSetCover={(url) => handleSetCover(evt.id, url)}
+                                      onDelete={handleEventImageDelete}
+                                    />
                                   )}
                                 </div>
                               </td>
