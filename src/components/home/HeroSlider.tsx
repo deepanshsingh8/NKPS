@@ -224,13 +224,12 @@ export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
       <AnimatePresence mode="wait">
         <motion.div
           key={current}
-          className="absolute inset-0"
+          className="absolute -inset-5"
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1, scale: [1, 1.06] }}
+          animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{
             opacity: { duration: 1.2, ease: "easeInOut" },
-            scale: { duration: INTERVAL / 1000, ease: "linear" },
           }}
           style={{ x: bgX, y: bgY }}
         >

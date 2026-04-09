@@ -11,9 +11,6 @@ export const config = {
     "/teacher/:path*",
     "/student/:path*",
     "/portal/:path*",
-    "/api/admin/:path*",
-    "/api/gallery/:path*",
-    "/api/transfer-certificates/:path*",
     "/api/erp/:path*",
   ],
 };
