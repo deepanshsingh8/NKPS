@@ -181,6 +181,8 @@ export interface StudentSubject {
   created_at: string;
 }
 
+export type EnrollmentStatus = 'active' | 'passed' | 'failed' | 'terminated' | 'exited';
+
 export interface StudentEnrollment {
   id: string;
   student_id: string;
@@ -188,6 +190,7 @@ export interface StudentEnrollment {
   stream_id: string | null;
   roll_number: number | null;
   enrollment_date: string;
+  status: EnrollmentStatus;
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'holiday';
@@ -331,6 +334,9 @@ export interface Student {
   previous_school: string | null;
   admission_date: string;
   is_active: boolean;
+  is_alumni: boolean;
+  alumni_passing_year: string | null;
+  alumni_academic_year_id: string | null;
   created_at: string;
   updated_at: string;
 }

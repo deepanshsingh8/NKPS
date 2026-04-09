@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       // Fetch enrollments with class info for all students
       const { data: enrollments } = await admin
         .from("student_enrollments")
-        .select("student_id, roll_number, id, classes(name, section)")
+        .select("student_id, roll_number, id, class_id, stream_id, status, classes(name, section)")
         .in("student_id", allStudents.map((s) => s.id));
 
       const merged = allStudents.map((s) => {
@@ -40,6 +40,9 @@ export async function GET(request: NextRequest) {
           ...s,
           roll_number: enrollment?.roll_number ?? null,
           enrollment_id: enrollment?.id ?? null,
+          class_id: enrollment?.class_id ?? null,
+          stream_id: enrollment?.stream_id ?? null,
+          enrollment_status: enrollment?.status ?? null,
           class_name: cls?.name ?? null,
           class_section: cls?.section ?? null,
         };
@@ -51,7 +54,7 @@ export async function GET(request: NextRequest) {
     // Get enrollments for the class
     const { data: enrollments, error: enrollError } = await admin
       .from("student_enrollments")
-      .select("id, student_id, roll_number")
+      .select("id, student_id, roll_number, class_id, stream_id, status")
       .eq("class_id", classId);
 
     if (enrollError) {
@@ -82,6 +85,9 @@ export async function GET(request: NextRequest) {
         ...s,
         roll_number: enrollment?.roll_number ?? null,
         enrollment_id: enrollment?.id ?? null,
+        class_id: enrollment?.class_id ?? null,
+        stream_id: enrollment?.stream_id ?? null,
+        enrollment_status: enrollment?.status ?? null,
       };
     });
 
@@ -194,7 +200,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, enrollment_id, roll_number, ...fields } = body;
+    const { id, enrollment_id, roll_number, class_id, stream_id, ...fields } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Student id required" }, { status: 400 });
@@ -210,12 +216,47 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Failed to update student" }, { status: 500 });
     }
 
-    // Update roll number if enrollment exists
-    if (enrollment_id && roll_number !== undefined) {
-      await admin
-        .from("student_enrollments")
-        .update({ roll_number: roll_number ? parseInt(roll_number, 10) : null })
-        .eq("id", enrollment_id);
+    // Update enrollment fields (roll_number, class_id, stream_id)
+    if (enrollment_id) {
+      const enrollmentUpdate: Record<string, unknown> = {};
+      if (roll_number !== undefined) {
+        enrollmentUpdate.roll_number = roll_number ? parseInt(roll_number, 10) : null;
+      }
+      if (class_id) {
+        enrollmentUpdate.class_id = class_id;
+      }
+      if (stream_id !== undefined) {
+        enrollmentUpdate.stream_id = stream_id || null;
+      }
+
+      if (Object.keys(enrollmentUpdate).length > 0) {
+        const { error: enrollErr } = await admin
+          .from("student_enrollments")
+          .update(enrollmentUpdate)
+          .eq("id", enrollment_id);
+
+        if (enrollErr) {
+          console.error("Update enrollment error:", enrollErr);
+          return NextResponse.json({ error: "Student updated but enrollment change failed" }, { status: 500 });
+        }
+
+        // Re-sync subjects if class changed
+        if (class_id) {
+          try {
+            const syncUrl = new URL("/api/erp/subjects/sync-students", request.url);
+            await fetch(syncUrl.toString(), {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": request.headers.get("authorization") ?? "",
+              },
+              body: JSON.stringify({ class_id, student_id: id }),
+            });
+          } catch (syncErr) {
+            console.error("Auto-sync student subjects failed:", syncErr);
+          }
+        }
+      }
     }
 
     return NextResponse.json({ success: true });

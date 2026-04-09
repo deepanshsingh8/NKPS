@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -39,9 +40,10 @@ import {
   Search,
   Users,
   GraduationCap,
+  ArrowUpCircle,
 } from "lucide-react";
 import { StudentBulkUpload } from "@/components/admin/StudentBulkUpload";
-import type { Student, Gender, BloodGroup, Stream } from "@/types";
+import type { Student, Gender, BloodGroup, Stream, EnrollmentStatus } from "@/types";
 
 interface ClassOption {
   id: string;
@@ -49,11 +51,20 @@ interface ClassOption {
   section: string;
 }
 
+interface AcademicYear {
+  id: string;
+  year_name: string;
+  is_current: boolean;
+}
+
 const HIGHER_CLASSES = ["XI", "XII"];
 
 interface StudentRow extends Student {
   roll_number: number | null;
   enrollment_id: string | null;
+  class_id?: string | null;
+  stream_id?: string | null;
+  enrollment_status?: EnrollmentStatus | null;
   class_name?: string;
   class_section?: string;
 }
@@ -63,10 +74,23 @@ const BLOOD_GROUP_OPTIONS: BloodGroup[] = [
   "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-",
 ];
 
+const ENROLLMENT_STATUSES: EnrollmentStatus[] = [
+  "active", "passed", "failed", "terminated", "exited",
+];
+
+const STATUS_BADGE_STYLES: Record<EnrollmentStatus, string> = {
+  active: "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400",
+  passed: "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
+  failed: "bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
+  terminated: "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400",
+  exited: "bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400",
+};
+
 export default function AdminStudentsPage() {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [streams, setStreams] = useState<Stream[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClassId, setSelectedClassId] = useState("");
   const [search, setSearch] = useState("");
@@ -75,7 +99,25 @@ export default function AdminStudentsPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [promoteDialogOpen, setPromoteDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Selection & bulk actions
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatusValue, setBulkStatusValue] = useState<string>("");
+  const [applyingBulk, setApplyingBulk] = useState(false);
+
+  // Promote dialog state
+  const [targetAcademicYearId, setTargetAcademicYearId] = useState("");
+  const [promoting, setPromoting] = useState(false);
+  const [promoteResult, setPromoteResult] = useState<{
+    promoted: number;
+    retained: number;
+    graduated: number;
+    skipped: number;
+    errors: string[];
+    warnings: string[];
+  } | null>(null);
 
   // Form state
   const [editingStudent, setEditingStudent] = useState<StudentRow | null>(null);
@@ -127,6 +169,13 @@ export default function AdminStudentsPage() {
       .eq("is_active", true)
       .order("sort_order");
     setStreams((streamsData as Stream[]) ?? []);
+
+    // Fetch all academic years for promotion
+    const { data: allYears } = await supabase
+      .from("academic_years")
+      .select("id, year_name, is_current")
+      .order("year_name", { ascending: false });
+    setAcademicYears((allYears as AcademicYear[]) ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -164,6 +213,7 @@ export default function AdminStudentsPage() {
   // Fetch all students on initial load, and re-fetch when class changes
   useEffect(() => {
     fetchStudents();
+    setSelectedIds(new Set()); // Clear selection on class change
   }, [selectedClassId, fetchStudents]);
 
   const filteredStudents = students.filter((s) => {
@@ -207,8 +257,8 @@ export default function AdminStudentsPage() {
   const openEditDialog = (student: StudentRow) => {
     setEditingStudent(student);
     setFormData({
-      class_id: selectedClassId,
-      stream_id: "",
+      class_id: student.class_id || selectedClassId || "",
+      stream_id: student.stream_id || "",
       admission_no: student.admission_no,
       full_name: student.full_name,
       father_name: student.father_name ?? "",
@@ -301,6 +351,8 @@ export default function AdminStudentsPage() {
         body: JSON.stringify({
           id: editingStudent.id,
           enrollment_id: editingStudent.enrollment_id,
+          class_id: formData.class_id || undefined,
+          stream_id: formData.stream_id,
           roll_number: formData.roll_number || undefined,
           admission_no: formData.admission_no.trim(),
           full_name: formData.full_name.trim(),
@@ -365,71 +417,208 @@ export default function AdminStudentsPage() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Status update for a single student
+  const handleStatusChange = async (enrollmentId: string, status: EnrollmentStatus) => {
+    try {
+      const res = await adminFetch("/api/erp/students/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          updates: [{ enrollment_id: enrollmentId, status }],
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to update status");
+        return;
+      }
+
+      // Update locally for instant feedback
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.enrollment_id === enrollmentId
+            ? { ...s, enrollment_status: status }
+            : s
+        )
+      );
+      toast.success("Status updated");
+    } catch {
+      toast.error("Failed to update status");
+    }
+  };
+
+  // Bulk status update
+  const handleBulkStatusUpdate = async () => {
+    if (!bulkStatusValue || selectedIds.size === 0) return;
+
+    setApplyingBulk(true);
+    try {
+      const updates = Array.from(selectedIds)
+        .map((studentId) => {
+          const student = students.find((s) => s.id === studentId);
+          return student?.enrollment_id
+            ? { enrollment_id: student.enrollment_id, status: bulkStatusValue as EnrollmentStatus }
+            : null;
+        })
+        .filter(Boolean);
+
+      if (updates.length === 0) {
+        toast.error("No valid enrollments selected");
+        return;
+      }
+
+      const res = await adminFetch("/api/erp/students/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to update statuses");
+        return;
+      }
+
+      toast.success(`Updated ${data.updated} student(s)`);
+      setSelectedIds(new Set());
+      setBulkStatusValue("");
+      await fetchStudents();
+    } catch {
+      toast.error("Failed to update statuses");
+    } finally {
+      setApplyingBulk(false);
+    }
+  };
+
+  // Toggle selection
+  const toggleSelection = (studentId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(studentId)) {
+        next.delete(studentId);
+      } else {
+        next.add(studentId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredStudents.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredStudents.map((s) => s.id)));
+    }
+  };
+
+  // Promote handler
+  const handlePromote = async () => {
+    if (!selectedClassId || !targetAcademicYearId) return;
+
+    setPromoting(true);
+    setPromoteResult(null);
+
+    try {
+      const res = await adminFetch("/api/erp/students/promote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          class_id: selectedClassId,
+          target_academic_year_id: targetAcademicYearId,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Promotion failed");
+        return;
+      }
+
+      setPromoteResult(data.summary);
+      toast.success("Promotion completed");
+      await fetchStudents();
+    } catch {
+      toast.error("Promotion failed");
+    } finally {
+      setPromoting(false);
+    }
+  };
+
+  // Status counts for the currently loaded students
+  const statusCounts = students.reduce(
+    (acc, s) => {
+      const st = s.enrollment_status || "active";
+      acc[st] = (acc[st] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  // Get current class info for promote dialog
+  const currentClass = classes.find((c) => c.id === selectedClassId);
+
   // Student form used in both Add and Edit dialogs
   const renderStudentForm = (
     onSubmit: (e: React.FormEvent) => void,
     isEdit: boolean
   ) => (
     <form onSubmit={onSubmit} className="space-y-3">
-      {!isEdit && (
-        <>
-          <div>
-            <Label className="text-xs font-medium">Class *</Label>
-            <Select
-              value={formData.class_id}
-              onValueChange={(val) => {
-                if (val) {
-                  updateField("class_id", val);
-                  // Reset stream when class changes
-                  const cls = classes.find((c) => c.id === val);
-                  if (!cls || !HIGHER_CLASSES.includes(cls.name)) {
-                    updateField("stream_id", "");
-                  }
-                }
-              }}
-            >
-              <SelectTrigger className="w-full mt-1">
-                <SelectValue placeholder="Select class for enrollment..." />
-              </SelectTrigger>
-              <SelectContent>
-                {classes.map((c) => (
-                  <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
-                    {c.name} - {c.section}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {isHigherClass && streams.length > 0 && (
-            <div>
-              <Label className="text-xs font-medium">Stream</Label>
-              <Select
-                value={formData.stream_id || "none"}
-                onValueChange={(val) =>
-                  updateField("stream_id", !val || val === "none" ? "" : val)
-                }
-              >
-                <SelectTrigger className="w-full mt-1">
-                  <SelectValue placeholder="Select stream..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none" label="No stream">
-                    No stream
-                  </SelectItem>
-                  {streams.map((s) => (
-                    <SelectItem key={s.id} value={s.id} label={s.name}>
-                      {s.name}
-                      {s.code ? ` (${s.code})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Stream determines which subjects the student takes
-              </p>
-            </div>
-          )}
-        </>
+      <div>
+        <Label className="text-xs font-medium">Class *</Label>
+        <Select
+          value={formData.class_id}
+          onValueChange={(val) => {
+            if (val) {
+              updateField("class_id", val);
+              // Reset stream when class changes
+              const cls = classes.find((c) => c.id === val);
+              if (!cls || !HIGHER_CLASSES.includes(cls.name)) {
+                updateField("stream_id", "");
+              }
+            }
+          }}
+        >
+          <SelectTrigger className="w-full mt-1">
+            <SelectValue placeholder="Select class for enrollment..." />
+          </SelectTrigger>
+          <SelectContent>
+            {classes.map((c) => (
+              <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
+                {c.name} - {c.section}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {isHigherClass && streams.length > 0 && (
+        <div>
+          <Label className="text-xs font-medium">Stream</Label>
+          <Select
+            value={formData.stream_id || "none"}
+            onValueChange={(val) =>
+              updateField("stream_id", !val || val === "none" ? "" : val)
+            }
+          >
+            <SelectTrigger className="w-full mt-1">
+              <SelectValue placeholder="Select stream..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none" label="No stream">
+                No stream
+              </SelectItem>
+              {streams.map((s) => (
+                <SelectItem key={s.id} value={s.id} label={s.name}>
+                  {s.name}
+                  {s.code ? ` (${s.code})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Stream determines which subjects the student takes
+          </p>
+        </div>
       )}
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -630,6 +819,20 @@ export default function AdminStudentsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {selectedClassId && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPromoteResult(null);
+                setTargetAcademicYearId("");
+                setPromoteDialogOpen(true);
+              }}
+              className="gap-2"
+            >
+              <ArrowUpCircle className="h-4 w-4" />
+              Promote Class
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() => setUploadDialogOpen(true)}
@@ -686,6 +889,52 @@ export default function AdminStudentsPage() {
           </div>
         </div>
 
+        {/* Bulk action bar */}
+        {selectedClassId && selectedIds.size > 0 && (
+          <div className="flex items-center gap-3 mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+              {selectedIds.size} selected
+            </span>
+            <div className="w-40">
+              <Select
+                value={bulkStatusValue || "choose"}
+                onValueChange={(val) => setBulkStatusValue(!val || val === "choose" ? "" : val)}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Set status..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="choose">Set status...</SelectItem>
+                  {ENROLLMENT_STATUSES.map((st) => (
+                    <SelectItem key={st} value={st}>
+                      {st.charAt(0).toUpperCase() + st.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              size="sm"
+              disabled={!bulkStatusValue || applyingBulk}
+              onClick={handleBulkStatusUpdate}
+              className="bg-navy-900 hover:bg-navy-800 text-white"
+            >
+              {applyingBulk && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+              Apply
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setSelectedIds(new Set());
+                setBulkStatusValue("");
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
@@ -703,6 +952,14 @@ export default function AdminStudentsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {selectedClassId && (
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={selectedIds.size === filteredStudents.length && filteredStudents.length > 0}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>Adm No</TableHead>
                   <TableHead>Name</TableHead>
                   {!selectedClassId && <TableHead>Class</TableHead>}
@@ -717,6 +974,14 @@ export default function AdminStudentsPage() {
               <TableBody>
                 {filteredStudents.map((student) => (
                   <TableRow key={student.id}>
+                    {selectedClassId && (
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(student.id)}
+                          onCheckedChange={() => toggleSelection(student.id)}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="font-medium">
                       {student.admission_no}
                     </TableCell>
@@ -725,32 +990,64 @@ export default function AdminStudentsPage() {
                       <TableCell className="text-gray-600 dark:text-gray-300">
                         {student.class_name
                           ? `${student.class_name}-${student.class_section ?? ""}`
-                          : "—"}
+                          : "\u2014"}
                       </TableCell>
                     )}
                     <TableCell className="text-gray-600 dark:text-gray-300">
-                      {student.father_name || "—"}
+                      {student.father_name || "\u2014"}
                     </TableCell>
                     <TableCell className="text-gray-600 dark:text-gray-300">
-                      {student.roll_number ?? "—"}
+                      {student.roll_number ?? "\u2014"}
                     </TableCell>
                     <TableCell className="text-gray-600 dark:text-gray-300 capitalize">
-                      {student.gender || "—"}
+                      {student.gender || "\u2014"}
                     </TableCell>
                     <TableCell className="text-gray-600 dark:text-gray-300">
-                      {student.phone || "—"}
+                      {student.phone || "\u2014"}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={
-                          student.is_active
-                            ? "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400"
-                            : "bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400"
-                        }
-                      >
-                        {student.is_active ? "Active" : "Inactive"}
-                      </Badge>
+                      {student.enrollment_id && selectedClassId ? (
+                        <Select
+                          value={student.enrollment_status || "active"}
+                          onValueChange={(val) => {
+                            if (val && student.enrollment_id) {
+                              handleStatusChange(student.enrollment_id, val as EnrollmentStatus);
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-7 w-[110px] text-xs border-0 bg-transparent p-0 pr-6">
+                            <Badge
+                              variant="secondary"
+                              className={STATUS_BADGE_STYLES[student.enrollment_status || "active"]}
+                            >
+                              {(student.enrollment_status || "active").charAt(0).toUpperCase() +
+                                (student.enrollment_status || "active").slice(1)}
+                            </Badge>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ENROLLMENT_STATUSES.map((st) => (
+                              <SelectItem key={st} value={st}>
+                                {st.charAt(0).toUpperCase() + st.slice(1)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge
+                          variant="secondary"
+                          className={
+                            student.enrollment_status
+                              ? STATUS_BADGE_STYLES[student.enrollment_status]
+                              : student.is_active
+                                ? STATUS_BADGE_STYLES.active
+                                : STATUS_BADGE_STYLES.exited
+                          }
+                        >
+                          {student.enrollment_status
+                            ? student.enrollment_status.charAt(0).toUpperCase() + student.enrollment_status.slice(1)
+                            : student.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -813,6 +1110,159 @@ export default function AdminStudentsPage() {
             </div>
           </DialogHeader>
           {renderStudentForm(handleEditStudent, true)}
+        </DialogContent>
+      </Dialog>
+
+      {/* Promote Dialog */}
+      <Dialog open={promoteDialogOpen} onOpenChange={setPromoteDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10">
+                <ArrowUpCircle className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <DialogTitle>Promote Class</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {currentClass
+                    ? `${currentClass.name} - ${currentClass.section}`
+                    : "Select a class first"}
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {promoteResult ? (
+            <div className="space-y-4">
+              <h3 className="font-medium text-sm">Promotion Complete</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {promoteResult.promoted > 0 && (
+                  <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/20">
+                    <p className="text-2xl font-bold text-green-700 dark:text-green-400">{promoteResult.promoted}</p>
+                    <p className="text-xs text-green-600 dark:text-green-500">Promoted</p>
+                  </div>
+                )}
+                {promoteResult.retained > 0 && (
+                  <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20">
+                    <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">{promoteResult.retained}</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-500">Retained (Failed)</p>
+                  </div>
+                )}
+                {promoteResult.graduated > 0 && (
+                  <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{promoteResult.graduated}</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-500">Graduated (Alumni)</p>
+                  </div>
+                )}
+                {promoteResult.skipped > 0 && (
+                  <div className="p-3 rounded-lg bg-gray-50 dark:bg-muted">
+                    <p className="text-2xl font-bold text-gray-700 dark:text-gray-400">{promoteResult.skipped}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-500">Skipped</p>
+                  </div>
+                )}
+              </div>
+              {promoteResult.warnings.length > 0 && (
+                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 text-sm text-amber-700 dark:text-amber-400">
+                  <p className="font-medium mb-1">Warnings:</p>
+                  <ul className="list-disc pl-4 space-y-1 text-xs">
+                    {promoteResult.warnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {promoteResult.errors.length > 0 && (
+                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/20 text-sm text-red-700 dark:text-red-400">
+                  <p className="font-medium mb-1">Errors:</p>
+                  <ul className="list-disc pl-4 space-y-1 text-xs">
+                    {promoteResult.errors.map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPromoteDialogOpen(false)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Status summary */}
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div className="p-2 rounded bg-blue-50 dark:bg-blue-950/20">
+                  <p className="text-lg font-bold text-blue-700 dark:text-blue-400">{statusCounts.passed || 0}</p>
+                  <p className="text-[10px] text-blue-600 dark:text-blue-500">Passed</p>
+                </div>
+                <div className="p-2 rounded bg-amber-50 dark:bg-amber-950/20">
+                  <p className="text-lg font-bold text-amber-700 dark:text-amber-400">{statusCounts.failed || 0}</p>
+                  <p className="text-[10px] text-amber-600 dark:text-amber-500">Failed</p>
+                </div>
+                <div className="p-2 rounded bg-red-50 dark:bg-red-950/20">
+                  <p className="text-lg font-bold text-red-700 dark:text-red-400">{(statusCounts.terminated || 0) + (statusCounts.exited || 0)}</p>
+                  <p className="text-[10px] text-red-600 dark:text-red-500">Term/Exit</p>
+                </div>
+                <div className="p-2 rounded bg-green-50 dark:bg-green-950/20">
+                  <p className="text-lg font-bold text-green-700 dark:text-green-400">{statusCounts.active || 0}</p>
+                  <p className="text-[10px] text-green-600 dark:text-green-500">Active</p>
+                </div>
+              </div>
+
+              {(statusCounts.active || 0) > 0 && (
+                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 text-sm text-amber-700 dark:text-amber-400">
+                  <strong>{statusCounts.active}</strong> student(s) still have &quot;active&quot; status.
+                  Please mark all students as passed/failed/terminated/exited before promoting.
+                </div>
+              )}
+
+              <div>
+                <Label className="text-xs font-medium">Promote to Academic Year *</Label>
+                <Select
+                  value={targetAcademicYearId || "choose"}
+                  onValueChange={(val) => setTargetAcademicYearId(!val || val === "choose" ? "" : val)}
+                >
+                  <SelectTrigger className="w-full mt-1">
+                    <SelectValue placeholder="Select target academic year..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="choose">Select academic year...</SelectItem>
+                    {academicYears.map((y) => (
+                      <SelectItem key={y.id} value={y.id}>
+                        {y.year_name}{y.is_current ? " (Current)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {currentClass && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                  {currentClass.name === "XII" ? (
+                    <p>Passed students will be <strong>graduated as alumni</strong>.</p>
+                  ) : (
+                    <p>Passed students will be promoted to the next grade with the same section.</p>
+                  )}
+                  <p>Failed students will be re-enrolled in the same class.</p>
+                  <p>Terminated/Exited students will be skipped.</p>
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPromoteDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={promoting || !targetAcademicYearId || (statusCounts.active || 0) > 0}
+                  onClick={handlePromote}
+                  className="bg-navy-900 hover:bg-navy-800 text-white"
+                >
+                  {promoting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Promote Students
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

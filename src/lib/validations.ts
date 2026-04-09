@@ -190,6 +190,8 @@ export const studentSchema = z.object({
 
 export type StudentData = z.infer<typeof studentSchema>;
 
+export const enrollmentStatusSchema = z.enum(['active', 'passed', 'failed', 'terminated', 'exited']);
+
 export const studentBulkUploadSchema = z.object({
   students: z.array(
     z.object({

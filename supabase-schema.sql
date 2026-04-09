@@ -201,6 +201,7 @@ create table if not exists student_enrollments (
   stream_id uuid references streams(id) on delete set null,
   roll_number integer,
   enrollment_date date default current_date,
+  status text not null default 'active' check (status in ('active', 'passed', 'failed', 'terminated', 'exited')),
   unique(student_id, class_id)
 );
 
@@ -731,6 +732,9 @@ create table if not exists students (
   previous_school text,
   admission_date date default current_date,
   is_active boolean default true,
+  is_alumni boolean default false,
+  alumni_passing_year text,
+  alumni_academic_year_id uuid references academic_years(id),
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
