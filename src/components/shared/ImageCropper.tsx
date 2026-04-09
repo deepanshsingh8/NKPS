@@ -22,21 +22,18 @@ interface ImageCropperProps {
 }
 
 /**
- * Creates a cropped image File from a source image + crop area.
+ * Loads an image and returns a canvas with the cropped region drawn on it.
+ * Uses createImageBitmap for reliable decoding (avoids crossOrigin/CORS issues with blob URLs).
  */
 async function getCroppedImg(
   imageSrc: string,
   pixelCrop: Area,
   fileName: string
 ): Promise<File> {
-  const image = new window.Image();
-  image.crossOrigin = "anonymous";
-
-  await new Promise<void>((resolve, reject) => {
-    image.onload = () => resolve();
-    image.onerror = reject;
-    image.src = imageSrc;
-  });
+  // Fetch as blob first to avoid any CORS issues with object URLs
+  const response = await fetch(imageSrc);
+  const blob = await response.blob();
+  const bitmap = await createImageBitmap(blob);
 
   const canvas = document.createElement("canvas");
   canvas.width = pixelCrop.width;
@@ -45,8 +42,9 @@ async function getCroppedImg(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Could not get canvas context");
 
+  // Draw only the cropped region from the original image
   ctx.drawImage(
-    image,
+    bitmap,
     pixelCrop.x,
     pixelCrop.y,
     pixelCrop.width,
@@ -57,14 +55,16 @@ async function getCroppedImg(
     pixelCrop.height
   );
 
+  bitmap.close();
+
   return new Promise<File>((resolve, reject) => {
     canvas.toBlob(
-      (blob) => {
-        if (!blob) {
+      (resultBlob) => {
+        if (!resultBlob) {
           reject(new Error("Canvas is empty"));
           return;
         }
-        resolve(new File([blob], fileName, { type: "image/jpeg" }));
+        resolve(new File([resultBlob], fileName, { type: "image/jpeg" }));
       },
       "image/jpeg",
       0.92
@@ -85,7 +85,7 @@ export function ImageCropper({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [processing, setProcessing] = useState(false);
 
-  const onCropChange = useCallback(
+  const handleCropComplete = useCallback(
     (_croppedArea: Area, croppedPixels: Area) => {
       setCroppedAreaPixels(croppedPixels);
     },
@@ -120,9 +120,10 @@ export function ImageCropper({
           showGrid={!isRound}
           onCropChange={setCrop}
           onZoomChange={setZoom}
-          onCropComplete={onCropChange}
+          onCropComplete={handleCropComplete}
           minZoom={1}
           maxZoom={4}
+          objectFit="contain"
         />
       </div>
 
