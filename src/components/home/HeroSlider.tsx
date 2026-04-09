@@ -224,7 +224,7 @@ export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
       <AnimatePresence mode="wait">
         <motion.div
           key={current}
-          className="absolute -inset-8"
+          className="absolute inset-0"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, scale: [1, 1.06] }}
           exit={{ opacity: 0 }}
@@ -238,7 +238,7 @@ export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
             src={slides[current].image}
             alt={slides[current].title.replace("\n", " ")}
             fill
-            className="object-cover scale-[1.15]"
+            className="object-cover"
             priority={current === 0}
             sizes="100vw"
           />

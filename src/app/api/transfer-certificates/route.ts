@@ -23,9 +23,10 @@ export async function POST(request: NextRequest) {
 
     const fileName = `${Date.now()}-${studentName.replace(/\s+/g, "-").toLowerCase()}.pdf`;
 
+    const fileBuffer = await file.arrayBuffer();
     const { error: uploadError } = await admin.storage
       .from("transfer-certificates")
-      .upload(fileName, file);
+      .upload(fileName, fileBuffer, { contentType: file.type });
 
     if (uploadError) {
       console.error("TC storage upload error:", uploadError);

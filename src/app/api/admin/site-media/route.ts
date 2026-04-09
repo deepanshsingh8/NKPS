@@ -57,9 +57,10 @@ export async function POST(request: NextRequest) {
     const fileName = `${slot}-${Date.now()}.${fileExt}`;
 
     // Upload to site-media storage bucket
+    const fileBuffer = await file.arrayBuffer();
     const { error: uploadError } = await admin.storage
       .from("site-media")
-      .upload(fileName, file, { upsert: false });
+      .upload(fileName, fileBuffer, { contentType: file.type, upsert: false });
 
     if (uploadError) {
       console.error("Site media upload error:", uploadError);

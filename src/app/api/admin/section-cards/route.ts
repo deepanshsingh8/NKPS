@@ -51,9 +51,10 @@ export async function POST(request: NextRequest) {
       const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
       const fileName = `section-cards/${section}-${Date.now()}.${fileExt}`;
 
+      const fileBuffer = await file.arrayBuffer();
       const { error: uploadError } = await admin.storage
         .from("site-media")
-        .upload(fileName, file, { upsert: false });
+        .upload(fileName, fileBuffer, { contentType: file.type, upsert: false });
 
       if (uploadError) {
         console.error("Section card upload error:", uploadError);
@@ -180,9 +181,10 @@ export async function PATCH(request: NextRequest) {
       const fileExt = newFile.name.split(".").pop()?.toLowerCase() || "jpg";
       const fileName = `section-cards/${section}-${Date.now()}.${fileExt}`;
 
+      const newFileBuffer = await newFile.arrayBuffer();
       const { error: uploadError } = await admin.storage
         .from("site-media")
-        .upload(fileName, newFile, { upsert: false });
+        .upload(fileName, newFileBuffer, { contentType: newFile.type, upsert: false });
 
       if (uploadError) {
         console.error("Section card image replace error:", uploadError);
