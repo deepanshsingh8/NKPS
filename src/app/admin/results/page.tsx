@@ -293,6 +293,7 @@ export default function AdminResultsPage() {
               <label className="text-sm font-medium text-navy-900 dark:text-white">Class</label>
               <Select
                 value={selectedClassId}
+                items={classes.map((cls) => ({ value: cls.id, label: `${cls.name} - ${cls.section}` }))}
                 onValueChange={(val) => val && setSelectedClassId(val)}
               >
                 <SelectTrigger className="w-full">
@@ -314,6 +315,7 @@ export default function AdminResultsPage() {
               </label>
               <Select
                 value={selectedExamTypeId}
+                items={examTypes.map((et) => ({ value: et.id, label: et.name }))}
                 onValueChange={(val) => val && setSelectedExamTypeId(val)}
               >
                 <SelectTrigger className="w-full">

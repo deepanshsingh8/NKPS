@@ -6,7 +6,15 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+function Select<Value = string, Multiple extends boolean | undefined = false>({
+  items,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple> & {
+  items?: Array<{ value: Value; label: string }> | Record<string, string>
+}) {
+  return <SelectPrimitive.Root items={items} {...props} />
+}
+
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (

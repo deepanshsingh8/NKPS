@@ -314,6 +314,7 @@ export default function TeacherResultsPage() {
               <label className="text-sm font-medium text-navy-900 dark:text-white">Class</label>
               <Select
                 value={selectedClassId}
+                items={classes.map((cls) => ({ value: cls.id, label: `${cls.name} - ${cls.section}` }))}
                 onValueChange={(val) => val && setSelectedClassId(val)}
               >
                 <SelectTrigger className="w-full">
@@ -335,6 +336,7 @@ export default function TeacherResultsPage() {
               </label>
               <Select
                 value={selectedSubjectId}
+                items={subjects.map((sub) => ({ value: sub.id, label: sub.name + (sub.code ? ` (${sub.code})` : "") }))}
                 onValueChange={(val) => val && setSelectedSubjectId(val)}
               >
                 <SelectTrigger className="w-full">
@@ -357,6 +359,7 @@ export default function TeacherResultsPage() {
               </label>
               <Select
                 value={selectedExamTypeId}
+                items={examTypes.map((et) => ({ value: et.id, label: `${et.name} (Max: ${et.max_marks})` }))}
                 onValueChange={(val) => val && setSelectedExamTypeId(val)}
               >
                 <SelectTrigger className="w-full">

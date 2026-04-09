@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { name, subject, category, photo_url, sort_order } = await request.json();
+    const { name, subject, category, photo_url, sort_order, email, phone, date_of_birth, address, qualifications } = await request.json();
 
     if (!name || !subject || !category || !VALID_CATEGORIES.includes(category)) {
       return NextResponse.json(
@@ -27,6 +27,11 @@ export async function POST(request: NextRequest) {
         category,
         photo_url: photo_url || null,
         sort_order: sort_order ?? 0,
+        email: email || null,
+        phone: phone || null,
+        date_of_birth: date_of_birth || null,
+        address: address || null,
+        qualifications: qualifications || null,
       })
       .select()
       .single();

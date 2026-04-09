@@ -130,6 +130,7 @@ export default function AdminStaffPage() {
   const [qualifications, setQualifications] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
+  const [croppedPreviewUrl, setCroppedPreviewUrl] = useState<string | null>(null);
 
   // Crop state
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
@@ -171,6 +172,8 @@ export default function AdminStaffPage() {
     setQualifications("");
     setPhotoFile(null);
     setExistingPhotoUrl(null);
+    if (croppedPreviewUrl) URL.revokeObjectURL(croppedPreviewUrl);
+    setCroppedPreviewUrl(null);
     setEditingId(null);
     setRawImageSrc(null);
     setShowCropper(false);
@@ -192,8 +195,11 @@ export default function AdminStaffPage() {
 
   const handleCropComplete = (croppedFile: File) => {
     setPhotoFile(croppedFile);
+    // Create a stable preview URL for the cropped image
+    if (croppedPreviewUrl) URL.revokeObjectURL(croppedPreviewUrl);
+    setCroppedPreviewUrl(URL.createObjectURL(croppedFile));
     setShowCropper(false);
-    // Clean up the object URL
+    // Clean up the raw image object URL
     if (rawImageSrc) URL.revokeObjectURL(rawImageSrc);
     setRawImageSrc(null);
   };
@@ -601,15 +607,14 @@ export default function AdminStaffPage() {
               ) : (
                 <>
                   {/* Show cropped preview or existing photo */}
-                  {photoFile ? (
+                  {photoFile && croppedPreviewUrl ? (
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-14 h-14 rounded-full overflow-hidden relative border-2 border-green-400">
-                        <Image
-                          src={URL.createObjectURL(photoFile)}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={croppedPreviewUrl}
                           alt="Cropped preview"
-                          fill
-                          className="object-cover"
-                          sizes="56px"
+                          className="absolute inset-0 w-full h-full object-cover"
                         />
                       </div>
                       <div>
@@ -618,6 +623,8 @@ export default function AdminStaffPage() {
                           type="button"
                           onClick={() => {
                             setPhotoFile(null);
+                            if (croppedPreviewUrl) URL.revokeObjectURL(croppedPreviewUrl);
+                            setCroppedPreviewUrl(null);
                             setRawImageSrc(null);
                           }}
                           className="text-xs text-gray-500 hover:text-red-500 mt-0.5"

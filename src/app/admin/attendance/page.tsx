@@ -250,6 +250,10 @@ export default function AdminAttendancePage() {
               </label>
               <Select
                 value={selectedClassId}
+                items={[
+                  { value: "all", label: "All Classes" },
+                  ...classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` })),
+                ]}
                 onValueChange={(val) => val && setSelectedClassId(val)}
               >
                 <SelectTrigger className="w-full">

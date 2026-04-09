@@ -297,6 +297,7 @@ export default function AdminExamTypesPage() {
                 <Label className="text-xs font-medium">Academic Year</Label>
                 <Select
                   value={formData.academic_year_id}
+                  items={academicYears.map((ay) => ({ value: ay.id, label: ay.name }))}
                   onValueChange={(val) =>
                     val &&
                     setFormData({ ...formData, academic_year_id: val })

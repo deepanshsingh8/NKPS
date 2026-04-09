@@ -342,7 +342,11 @@ export default function AdminClassesPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Academic Year</Label>
-                <Select value={academicYearId} onValueChange={(val) => val && setAcademicYearId(val)}>
+                <Select
+                  value={academicYearId}
+                  items={academicYears.map((ay) => ({ value: ay.id, label: ay.name }))}
+                  onValueChange={(val) => val && setAcademicYearId(val)}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select academic year" />
                   </SelectTrigger>
@@ -357,7 +361,14 @@ export default function AdminClassesPage() {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Class Teacher (optional)</Label>
-                <Select value={classTeacherId} onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}>
+                <Select
+                  value={classTeacherId}
+                  items={[
+                    { value: "none", label: "None" },
+                    ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.email})` })),
+                  ]}
+                  onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select teacher" />
                   </SelectTrigger>
@@ -436,7 +447,11 @@ export default function AdminClassesPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Academic Year</Label>
-                <Select value={academicYearId} onValueChange={(val) => val && setAcademicYearId(val)}>
+                <Select
+                  value={academicYearId}
+                  items={academicYears.map((ay) => ({ value: ay.id, label: ay.name }))}
+                  onValueChange={(val) => val && setAcademicYearId(val)}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select academic year" />
                   </SelectTrigger>
@@ -451,7 +466,14 @@ export default function AdminClassesPage() {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Class Teacher (optional)</Label>
-                <Select value={classTeacherId} onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}>
+                <Select
+                  value={classTeacherId}
+                  items={[
+                    { value: "none", label: "None" },
+                    ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.email})` })),
+                  ]}
+                  onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select teacher" />
                   </SelectTrigger>

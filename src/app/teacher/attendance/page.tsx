@@ -250,6 +250,7 @@ export default function TeacherAttendancePage() {
               </label>
               <Select
                 value={selectedClassId}
+                items={classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` }))}
                 onValueChange={(val) => val && setSelectedClassId(val)}
               >
                 <SelectTrigger className="w-full">

@@ -271,6 +271,7 @@ export default function AdminTimetablePage() {
       <div className="mb-6 w-full sm:w-72">
         <Select
           value={selectedClassId}
+          items={classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` }))}
           onValueChange={(val) => val && setSelectedClassId(val)}
         >
           <SelectTrigger>
@@ -411,6 +412,7 @@ export default function AdminTimetablePage() {
               <Label className="text-xs font-medium">Subject</Label>
               <Select
                 value={formData.subject_id}
+                items={subjects.map((s) => ({ value: s.id, label: s.name + (s.code ? ` (${s.code})` : "") }))}
                 onValueChange={(val) =>
                   val && setFormData({ ...formData, subject_id: val })
                 }
@@ -432,6 +434,10 @@ export default function AdminTimetablePage() {
               <Label className="text-xs font-medium">Teacher (optional)</Label>
               <Select
                 value={formData.teacher_id}
+                items={[
+                  { value: "none", label: "None" },
+                  ...teachers.map((t) => ({ value: t.id, label: t.full_name })),
+                ]}
                 onValueChange={(val) =>
                   setFormData({
                     ...formData,

@@ -568,6 +568,7 @@ export default function AdminStudentsPage() {
         <Label className="text-xs font-medium">Class *</Label>
         <Select
           value={formData.class_id}
+          items={classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` }))}
           onValueChange={(val) => {
             if (val) {
               updateField("class_id", val);
@@ -596,6 +597,10 @@ export default function AdminStudentsPage() {
           <Label className="text-xs font-medium">Stream</Label>
           <Select
             value={formData.stream_id || "none"}
+            items={[
+              { value: "none", label: "No stream" },
+              ...streams.map((s) => ({ value: s.id, label: s.name + (s.code ? ` (${s.code})` : "") })),
+            ]}
             onValueChange={(val) =>
               updateField("stream_id", !val || val === "none" ? "" : val)
             }
@@ -857,7 +862,11 @@ export default function AdminStudentsPage() {
       <div className="erp-table-container p-6">
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="w-full sm:w-64">
-            <Select value={selectedClassId || "all"} onValueChange={(val) => setSelectedClassId(!val || val === "all" ? "" : val)}>
+            <Select
+              value={selectedClassId || "all"}
+              items={[{ value: "all", label: "All Classes" }, ...classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` }))]}
+              onValueChange={(val) => setSelectedClassId(!val || val === "all" ? "" : val)}
+            >
               <SelectTrigger className="h-10">
                 <SelectValue placeholder="All Classes" />
               </SelectTrigger>
@@ -1220,6 +1229,10 @@ export default function AdminStudentsPage() {
                 <Label className="text-xs font-medium">Promote to Academic Year *</Label>
                 <Select
                   value={targetAcademicYearId || "choose"}
+                  items={[
+                    { value: "choose", label: "Select academic year..." },
+                    ...academicYears.map((y) => ({ value: y.id, label: y.year_name + (y.is_current ? " (Current)" : "") })),
+                  ]}
                   onValueChange={(val) => setTargetAcademicYearId(!val || val === "choose" ? "" : val)}
                 >
                   <SelectTrigger className="w-full mt-1">

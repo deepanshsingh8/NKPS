@@ -1071,6 +1071,10 @@ export default function AdminSubjectsPage() {
                   <div className="w-full sm:w-52">
                     <Select
                       value={filterClassId || "all"}
+                      items={[
+                        { value: "all", label: "All Classes" },
+                        ...classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` })),
+                      ]}
                       onValueChange={(val) =>
                         setFilterClassId(!val || val === "all" ? "" : val)
                       }
@@ -1097,6 +1101,10 @@ export default function AdminSubjectsPage() {
                   <div className="w-full sm:w-52">
                     <Select
                       value={filterSubjectId || "all"}
+                      items={[
+                        { value: "all", label: "All Subjects" },
+                        ...subjectsInAssignments.map((s) => ({ value: s.id, label: s.name })),
+                      ]}
                       onValueChange={(val) =>
                         setFilterSubjectId(!val || val === "all" ? "" : val)
                       }
@@ -1119,6 +1127,11 @@ export default function AdminSubjectsPage() {
                   <div className="w-full sm:w-52">
                     <Select
                       value={filterTeacherId || "all"}
+                      items={[
+                        { value: "all", label: "All Teachers" },
+                        { value: "unassigned", label: "Unassigned" },
+                        ...teachersInAssignments.map((t) => ({ value: t.id, label: t.name })),
+                      ]}
                       onValueChange={(val) =>
                         setFilterTeacherId(!val || val === "all" ? "" : val)
                       }
@@ -1610,6 +1623,7 @@ export default function AdminSubjectsPage() {
               <Label className="text-xs font-medium">Class</Label>
               <Select
                 value={newClassId}
+                items={classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` }))}
                 onValueChange={(val) => {
                   if (val) {
                     setNewClassId(val);
@@ -1637,6 +1651,7 @@ export default function AdminSubjectsPage() {
               <Label className="text-xs font-medium">Subject</Label>
               <Select
                 value={newSubjectId}
+                items={availableSubjectsForAssign.map((s) => ({ value: s.id, label: s.name + (s.code ? ` (${s.code})` : "") }))}
                 onValueChange={(val) => val && setNewSubjectId(val)}
               >
                 <SelectTrigger className="w-full">
@@ -1665,6 +1680,10 @@ export default function AdminSubjectsPage() {
               <Label className="text-xs font-medium">Teacher (optional)</Label>
               <Select
                 value={newTeacherId || "none"}
+                items={[
+                  { value: "none", label: "None" },
+                  ...teachers.map((t) => ({ value: t.id, label: t.full_name })),
+                ]}
                 onValueChange={(val) =>
                   setNewTeacherId(!val || val === "none" ? "" : val)
                 }
@@ -1733,6 +1752,10 @@ export default function AdminSubjectsPage() {
               <Label className="text-xs font-medium">Teacher</Label>
               <Select
                 value={editTeacherValue}
+                items={[
+                  { value: "none", label: "None" },
+                  ...teachers.map((t) => ({ value: t.id, label: t.full_name })),
+                ]}
                 onValueChange={(val) => val && setEditTeacherValue(val)}
               >
                 <SelectTrigger className="w-full">
