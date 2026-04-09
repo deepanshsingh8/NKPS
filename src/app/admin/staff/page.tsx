@@ -38,11 +38,13 @@ import {
   Search,
   UserCog,
   Users,
+  Upload,
 } from "lucide-react";
 import { adminFetch, adminPatch, adminDelete } from "@/lib/admin-api";
 import { uploadToStorage } from "@/lib/supabase/upload";
 import { FileDropZone } from "@/components/shared/FileDropZone";
 import { ImageCropper } from "@/components/shared/ImageCropper";
+import { StaffBulkUpload } from "@/components/admin/StaffBulkUpload";
 import type { StaffMember, StaffCategory } from "@/types";
 
 const CATEGORIES: { value: StaffCategory | "all"; label: string }[] = [
@@ -115,6 +117,7 @@ export default function AdminStaffPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<StaffCategory | "all">("all");
   const [search, setSearch] = useState("");
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
 
   // Form state
   const [name, setName] = useState("");
@@ -343,10 +346,16 @@ export default function AdminStaffPage() {
             Add, edit, and manage school staff members and their profile photos
           </p>
         </div>
-        <Button onClick={openAddDialog} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Add Staff
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setBulkUploadOpen(true)} className="gap-2">
+            <Upload className="h-4 w-4" />
+            Upload Excel
+          </Button>
+          <Button onClick={openAddDialog} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Add Staff
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -661,6 +670,13 @@ export default function AdminStaffPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Upload Dialog */}
+      <StaffBulkUpload
+        open={bulkUploadOpen}
+        onOpenChange={setBulkUploadOpen}
+        onSuccess={fetchStaff}
+      />
     </div>
   );
 }

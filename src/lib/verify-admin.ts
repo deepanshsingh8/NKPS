@@ -34,3 +34,33 @@ export async function verifyAdmin() {
   return admin;
 }
 
+/**
+ * Like verifyAdmin but also allows the "editor" role.
+ * Use for routes editors should access (gallery, TCs, site-media, disclosure, staff, calendar).
+ */
+export async function verifyAdminOrEditor() {
+  const headersList = await headers();
+  const authHeader = headersList.get("authorization");
+
+  if (!authHeader?.startsWith("Bearer ")) return null;
+
+  const accessToken = authHeader.slice(7);
+  const admin = createAdminClient();
+
+  const {
+    data: { user },
+    error,
+  } = await admin.auth.getUser(accessToken);
+
+  if (error || !user) return null;
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || (profile.role !== "admin" && profile.role !== "editor")) return null;
+  return admin;
+}
+

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { verifyAdmin } from "@/lib/verify-admin";
+import { verifyAdminOrEditor } from "@/lib/verify-admin";
 
 const PAGE_ROUTES: Record<string, string[]> = {
   home: ["/", "/facilities"],
@@ -18,7 +18,7 @@ function revalidatePages(page: string) {
 }
 
 export async function GET() {
-  const admin = await verifyAdmin();
+  const admin = await verifyAdminOrEditor();
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -39,7 +39,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const admin = await verifyAdmin();
+  const admin = await verifyAdminOrEditor();
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const admin = await verifyAdmin();
+  const admin = await verifyAdminOrEditor();
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

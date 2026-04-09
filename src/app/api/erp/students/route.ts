@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { class_id, roll_number, ...studentFields } = body;
+    const { class_id, roll_number, stream_id, ...studentFields } = body;
 
     const result = studentSchema.safeParse(studentFields);
     if (!result.success) {
@@ -147,6 +147,7 @@ export async function POST(request: NextRequest) {
           student_id: student.id,
           class_id,
           roll_number: roll_number ? parseInt(roll_number, 10) : null,
+          stream_id: stream_id || null,
         });
 
       if (enrollError) {
@@ -157,6 +158,21 @@ export async function POST(request: NextRequest) {
           data: student,
           warning: "Student created but enrollment failed",
         });
+      }
+
+      // Sync student-subject links
+      try {
+        const syncUrl = new URL("/api/erp/subjects/sync-students", request.url);
+        await fetch(syncUrl.toString(), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": request.headers.get("authorization") ?? "",
+          },
+          body: JSON.stringify({ class_id, student_id: student.id }),
+        });
+      } catch (syncErr) {
+        console.error("Auto-sync student subjects failed:", syncErr);
       }
     }
 

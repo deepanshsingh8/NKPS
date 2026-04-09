@@ -38,7 +38,7 @@ export const createUserSchema = z.object({
   full_name: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
   phone: z.string().min(10, "Please enter a valid phone number").optional().or(z.literal("")),
-  role: z.enum(["admin", "teacher", "student"], {
+  role: z.enum(["admin", "editor", "teacher", "student"], {
     message: "Please select a role",
   }),
 });
@@ -96,9 +96,25 @@ export type ClassData = z.infer<typeof classSchema>;
 export const subjectSchema = z.object({
   name: z.string().min(1, "Subject name is required"),
   code: z.string().optional().or(z.literal("")),
+  is_elective: z.boolean().optional(),
 });
 
 export type SubjectData = z.infer<typeof subjectSchema>;
+
+export const streamSchema = z.object({
+  name: z.string().min(1, "Stream name is required"),
+  code: z.string().optional().or(z.literal("")),
+});
+
+export type StreamData = z.infer<typeof streamSchema>;
+
+export const classSubjectAssignSchema = z.object({
+  class_id: z.string().uuid("Invalid class"),
+  subject_id: z.string().uuid("Invalid subject"),
+  teacher_id: z.string().uuid("Invalid teacher").optional().or(z.literal("")),
+});
+
+export type ClassSubjectAssignData = z.infer<typeof classSubjectAssignSchema>;
 
 export const feeStructureSchema = z.object({
   academic_year_id: z.string().uuid("Invalid academic year"),
@@ -175,11 +191,13 @@ export const studentSchema = z.object({
 export type StudentData = z.infer<typeof studentSchema>;
 
 export const studentBulkUploadSchema = z.object({
-  class_id: z.string().uuid("Invalid class"),
   students: z.array(
     z.object({
       admission_no: z.string().min(1, "Admission number is required"),
       full_name: z.string().min(2, "Name is required"),
+      class_name: z.string().min(1, "Class is required"),
+      section: z.string().optional().or(z.literal("")),
+      stream: z.string().optional().or(z.literal("")),
       father_name: z.string().optional().or(z.literal("")),
       mother_name: z.string().optional().or(z.literal("")),
       date_of_birth: z.string().optional().or(z.literal("")),
@@ -197,3 +215,21 @@ export const studentBulkUploadSchema = z.object({
 });
 
 export type StudentBulkUploadData = z.infer<typeof studentBulkUploadSchema>;
+
+// Staff bulk upload
+export const staffBulkUploadSchema = z.object({
+  category: z.string().min(1, "Category is required"),
+  staff: z.array(
+    z.object({
+      name: z.string().min(2, "Name is required"),
+      subject: z.string().min(1, "Subject/designation is required"),
+      email: z.string().optional().or(z.literal("")),
+      phone: z.string().optional().or(z.literal("")),
+      date_of_birth: z.string().optional().or(z.literal("")),
+      address: z.string().optional().or(z.literal("")),
+      qualifications: z.string().optional().or(z.literal("")),
+    })
+  ).min(1, "At least one staff member is required"),
+});
+
+export type StaffBulkUploadData = z.infer<typeof staffBulkUploadSchema>;

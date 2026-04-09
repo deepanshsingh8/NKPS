@@ -1,8 +1,11 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import type { UserRole } from "@/types";
 import {
   LayoutDashboard,
   Image as ImageIcon,
@@ -56,10 +59,47 @@ const erpLinks = [
   { icon: BarChart3, label: "Results", href: "/admin/results" },
 ];
 
+// Routes an editor is allowed to access
+const EDITOR_ALLOWED_HREFS = new Set([
+  "/admin",
+  "/admin/gallery",
+  "/admin/transfer-certificates",
+  "/admin/site-media",
+  "/admin/disclosure",
+  "/admin/staff",
+  "/admin/calendar",
+]);
+
 export function AdminSidebar() {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebar();
   const { unreadCount } = useUnreadCount();
+  const [userRole, setUserRole] = useState<UserRole>("admin");
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single()
+        .then(({ data }) => {
+          if (data?.role) setUserRole(data.role as UserRole);
+        });
+    });
+  }, []);
+
+  const isEditor = userRole === "editor";
+
+  const visibleContentLinks = isEditor
+    ? contentLinks.filter((l) => EDITOR_ALLOWED_HREFS.has(l.href))
+    : contentLinks;
+
+  const visibleErpLinks = isEditor
+    ? erpLinks.filter((l) => EDITOR_ALLOWED_HREFS.has(l.href))
+    : erpLinks;
 
   const renderLink = ({ icon: Icon, label, href }: (typeof contentLinks)[0]) => {
     const isActive =
@@ -178,21 +218,23 @@ export function AdminSidebar() {
           )}
           {collapsed && <div className="h-px bg-white/10 mx-2 mb-2" />}
           <div className="space-y-0.5">
-            {contentLinks.map(renderLink)}
+            {visibleContentLinks.map(renderLink)}
           </div>
         </div>
 
-        <div className="mt-4 pb-2">
-          {!collapsed && (
-            <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
-              ERP
-            </p>
-          )}
-          {collapsed && <div className="h-px bg-white/10 mx-2 mb-2 mt-3" />}
-          <div className="space-y-0.5">
-            {erpLinks.map(renderLink)}
+        {visibleErpLinks.length > 0 && (
+          <div className="mt-4 pb-2">
+            {!collapsed && (
+              <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                ERP
+              </p>
+            )}
+            {collapsed && <div className="h-px bg-white/10 mx-2 mb-2 mt-3" />}
+            <div className="space-y-0.5">
+              {visibleErpLinks.map(renderLink)}
+            </div>
           </div>
-        </div>
+        )}
       </nav>
 
       <SidebarProfileMenu settingsHref="/portal/settings" collapsed={collapsed} />

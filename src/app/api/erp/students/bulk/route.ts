@@ -38,8 +38,35 @@ export async function POST(request: Request) {
       );
     }
 
-    const { class_id, students } = result.data;
+    const { students } = result.data;
     const admin = createAdminClient();
+
+    // Fetch current academic year
+    const { data: currentYear } = await admin
+      .from("academic_years")
+      .select("id")
+      .eq("is_current", true)
+      .single();
+
+    if (!currentYear) {
+      return NextResponse.json(
+        { error: "No current academic year is set. Please set one first." },
+        { status: 400 }
+      );
+    }
+
+    // Fetch all classes for the current academic year
+    const { data: allClasses } = await admin
+      .from("classes")
+      .select("id, name, section")
+      .eq("academic_year_id", currentYear.id);
+
+    const classMap = new Map<string, string>();
+    for (const c of allClasses || []) {
+      // Key: "className|section" (case-insensitive)
+      const key = `${c.name.trim().toLowerCase()}|${c.section.trim().toLowerCase()}`;
+      classMap.set(key, c.id);
+    }
 
     let inserted = 0;
     let updated = 0;
@@ -50,84 +77,68 @@ export async function POST(request: Request) {
     for (let i = 0; i < students.length; i += BATCH_SIZE) {
       const batch = students.slice(i, i + BATCH_SIZE);
 
-      // Upsert students (on conflict by admission_no)
-      const studentRecords = batch.map((s) => ({
-        admission_no: s.admission_no.trim(),
-        full_name: s.full_name.trim(),
-        father_name: s.father_name?.trim() || null,
-        mother_name: s.mother_name?.trim() || null,
-        date_of_birth: s.date_of_birth || null,
-        gender: s.gender || null,
-        phone: s.phone?.trim() || null,
-        address: s.address?.trim() || null,
-        email: s.email?.trim() || null,
-        blood_group: s.blood_group?.trim() || null,
-        category: s.category?.trim() || null,
-        aadhar_number: s.aadhar_number?.trim() || null,
-        previous_school: s.previous_school?.trim() || null,
-      }));
-
-      const { data: upsertedStudents, error: upsertError } = await admin
-        .from("students")
-        .upsert(studentRecords, { onConflict: "admission_no" })
-        .select("id, admission_no");
-
-      if (upsertError) {
-        // If batch fails, try individually
-        for (const record of studentRecords) {
-          const { data: single, error: singleError } = await admin
-            .from("students")
-            .upsert(record, { onConflict: "admission_no" })
-            .select("id, admission_no")
-            .single();
-
-          if (singleError) {
-            errors.push({
-              admission_no: record.admission_no,
-              error: singleError.message,
-            });
-          } else if (single) {
-            // Create enrollment
-            const studentRow = batch.find(
-              (s) => s.admission_no.trim() === single.admission_no
-            );
-            await admin.from("student_enrollments").upsert(
-              {
-                student_id: single.id,
-                class_id,
-                roll_number: studentRow?.roll_number || null,
-              },
-              { onConflict: "student_id,class_id" }
-            );
-            inserted++;
-          }
+      for (const s of batch) {
+        // Resolve class name: if stream is provided, combine with class (e.g., "XI" + "Science" → "XI Science")
+        let resolvedClassName = s.class_name.trim();
+        if (s.stream && s.stream.trim()) {
+          resolvedClassName = `${resolvedClassName} ${s.stream.trim()}`;
         }
-        continue;
-      }
 
-      if (!upsertedStudents) continue;
+        const section = (s.section || "A").trim();
+        const classKey = `${resolvedClassName.toLowerCase()}|${section.toLowerCase()}`;
+        const classId = classMap.get(classKey);
 
-      // Check which were inserts vs updates
-      inserted += upsertedStudents.length;
+        if (!classId) {
+          errors.push({
+            admission_no: s.admission_no,
+            error: `Class "${resolvedClassName} - ${section}" not found. Create it first in Classes management.`,
+          });
+          continue;
+        }
 
-      // Create enrollments for all upserted students
-      const enrollmentRecords = upsertedStudents.map((s) => {
-        const studentRow = batch.find(
-          (b) => b.admission_no.trim() === s.admission_no
-        );
-        return {
-          student_id: s.id,
-          class_id,
-          roll_number: studentRow?.roll_number || null,
+        // Upsert student
+        const studentRecord = {
+          admission_no: s.admission_no.trim(),
+          full_name: s.full_name.trim(),
+          father_name: s.father_name?.trim() || null,
+          mother_name: s.mother_name?.trim() || null,
+          date_of_birth: s.date_of_birth || null,
+          gender: s.gender || null,
+          phone: s.phone?.trim() || null,
+          address: s.address?.trim() || null,
+          email: s.email?.trim() || null,
+          blood_group: s.blood_group?.trim() || null,
+          category: s.category?.trim() || null,
+          aadhar_number: s.aadhar_number?.trim() || null,
+          previous_school: s.previous_school?.trim() || null,
         };
-      });
 
-      const { error: enrollError } = await admin
-        .from("student_enrollments")
-        .upsert(enrollmentRecords, { onConflict: "student_id,class_id" });
+        const { data: upserted, error: upsertError } = await admin
+          .from("students")
+          .upsert(studentRecord, { onConflict: "admission_no" })
+          .select("id, admission_no")
+          .single();
 
-      if (enrollError) {
-        console.error("Enrollment upsert error:", enrollError);
+        if (upsertError) {
+          errors.push({
+            admission_no: s.admission_no,
+            error: upsertError.message,
+          });
+          continue;
+        }
+
+        if (upserted) {
+          // Create/update enrollment
+          await admin.from("student_enrollments").upsert(
+            {
+              student_id: upserted.id,
+              class_id: classId,
+              roll_number: s.roll_number || null,
+            },
+            { onConflict: "student_id,class_id" }
+          );
+          inserted++;
+        }
       }
     }
 

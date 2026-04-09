@@ -10,13 +10,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -36,17 +29,15 @@ import {
   AlertCircle,
   CheckCircle2,
   X,
+  Pencil,
 } from "lucide-react";
-
-interface ClassOption {
-  id: string;
-  name: string;
-  section: string;
-}
 
 interface ParsedRow {
   admission_no: string;
   full_name: string;
+  class_name: string;
+  section: string;
+  stream: string;
   father_name: string;
   mother_name: string;
   date_of_birth: string;
@@ -65,7 +56,6 @@ interface ParsedRow {
 interface StudentBulkUploadProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  classes: ClassOption[];
   onSuccess: () => void;
 }
 
@@ -88,6 +78,26 @@ const COLUMN_ALIASES: Record<string, string[]> = {
     "full name",
     "student's name",
     "pupil name",
+  ],
+  class_name: [
+    "class",
+    "class name",
+    "grade",
+    "standard",
+    "std",
+  ],
+  section: [
+    "section",
+    "sec",
+    "div",
+    "division",
+  ],
+  stream: [
+    "stream",
+    "specialization",
+    "branch",
+    "faculty",
+    "group",
   ],
   father_name: [
     "father name",
@@ -152,15 +162,12 @@ function normalizeGender(value: string): string {
 
 function normalizeDateString(value: string): string {
   if (!value) return "";
-  // Handle DD/MM/YYYY or DD-MM-YYYY
   const parts = value.split(/[/\-\.]/);
   if (parts.length === 3) {
     const [a, b, c] = parts;
-    // If first part looks like a day (1-31) and third looks like a year (4 digits)
     if (a.length <= 2 && c.length === 4) {
       return `${c}-${b.padStart(2, "0")}-${a.padStart(2, "0")}`;
     }
-    // Already YYYY-MM-DD
     if (a.length === 4) {
       return `${a}-${b.padStart(2, "0")}-${c.padStart(2, "0")}`;
     }
@@ -176,27 +183,29 @@ function validateRow(row: ParsedRow): string[] {
   if (!row.full_name || row.full_name.trim().length < 2) {
     errors.push("Name is required (min 2 chars)");
   }
+  if (!row.class_name || row.class_name.trim() === "") {
+    errors.push("Class is required");
+  }
   return errors;
 }
 
 export function StudentBulkUpload({
   open,
   onOpenChange,
-  classes,
   onSuccess,
 }: StudentBulkUploadProps) {
   const [step, setStep] = useState<"upload" | "preview">("upload");
-  const [selectedClassId, setSelectedClassId] = useState("");
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [fileName, setFileName] = useState("");
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const resetState = () => {
     setStep("upload");
-    setSelectedClassId("");
     setParsedRows([]);
     setFileName("");
     setSubmitting(false);
+    setEditingIndex(null);
   };
 
   const handleClose = (isOpen: boolean) => {
@@ -246,12 +255,15 @@ export function StudentBulkUpload({
           for (let i = 1; i < rawRows.length; i++) {
             const row = rawRows[i];
             if (!row || row.every((cell) => !cell || String(cell).trim() === "")) {
-              continue; // skip empty rows
+              continue;
             }
 
             const record: ParsedRow = {
               admission_no: "",
               full_name: "",
+              class_name: "",
+              section: "",
+              stream: "",
               father_name: "",
               mother_name: "",
               date_of_birth: "",
@@ -298,7 +310,6 @@ export function StudentBulkUpload({
         }
       };
       reader.readAsArrayBuffer(file);
-      // Reset input so same file can be re-selected
       e.target.value = "";
     },
     []
@@ -309,13 +320,25 @@ export function StudentBulkUpload({
 
   const removeRow = (index: number) => {
     setParsedRows((prev) => prev.filter((_, i) => i !== index));
+    if (editingIndex === index) setEditingIndex(null);
+  };
+
+  const updateRow = (index: number, field: keyof ParsedRow, value: string | number | undefined) => {
+    setParsedRows((prev) => {
+      const updated = [...prev];
+      const row = { ...updated[index] };
+      if (field === "roll_number") {
+        row.roll_number = value as number | undefined;
+      } else {
+        (row as unknown as Record<string, unknown>)[field] = value;
+      }
+      row.errors = validateRow(row);
+      updated[index] = row;
+      return updated;
+    });
   };
 
   const handleSubmit = async () => {
-    if (!selectedClassId) {
-      toast.error("Please select a class");
-      return;
-    }
     if (validRows.length === 0) {
       toast.error("No valid rows to import");
       return;
@@ -327,10 +350,12 @@ export function StudentBulkUpload({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          class_id: selectedClassId,
           students: validRows.map((r) => ({
             admission_no: r.admission_no,
             full_name: r.full_name,
+            class_name: r.class_name,
+            section: r.section || "A",
+            stream: r.stream || undefined,
             father_name: r.father_name || undefined,
             mother_name: r.mother_name || undefined,
             date_of_birth: r.date_of_birth || undefined,
@@ -354,14 +379,22 @@ export function StudentBulkUpload({
         return;
       }
 
+      const successCount = data.inserted || 0;
       toast.success(
-        `Successfully imported ${data.inserted} student${data.inserted === 1 ? "" : "s"}`
+        `Successfully imported ${successCount} student${successCount === 1 ? "" : "s"}`
       );
 
       if (data.errors?.length > 0) {
-        toast.warning(
-          `${data.errors.length} student(s) had errors and were skipped`
-        );
+        const classErrors = data.errors.filter((e: { error: string }) => e.error.includes("not found"));
+        if (classErrors.length > 0) {
+          toast.warning(
+            `${classErrors.length} student(s) skipped — class not found. Check class names match exactly.`
+          );
+        } else {
+          toast.warning(
+            `${data.errors.length} student(s) had errors and were skipped`
+          );
+        }
       }
 
       onSuccess();
@@ -378,6 +411,9 @@ export function StudentBulkUpload({
       [
         "Admission No",
         "Name",
+        "Class",
+        "Section",
+        "Stream",
         "Father's Name",
         "Mother's Name",
         "DOB (DD/MM/YYYY)",
@@ -391,25 +427,29 @@ export function StudentBulkUpload({
         "Aadhar Number",
         "Previous School",
       ],
-      ["1001", "Rahul Kumar", "Rajesh Kumar", "Sunita Devi", "15/03/2012", "M", "9876543210", "123, Main Street", "1", "", "O+", "General", "", ""],
+      ["1001", "Rahul Kumar", "X", "A", "", "Rajesh Kumar", "Sunita Devi", "15/03/2012", "M", "9876543210", "123, Main Street", "1", "", "O+", "General", "", ""],
+      ["1002", "Priya Sharma", "XI", "A", "Science", "Anil Sharma", "Meena Sharma", "22/07/2010", "F", "9876543211", "456, Park Road", "2", "", "B+", "", "", ""],
+      ["1003", "Amit Singh", "XII", "B", "Commerce", "Ravi Singh", "Neha Singh", "10/01/2009", "M", "9876543212", "789, Lake View", "3", "", "", "", "", ""],
     ]);
 
-    // Set column widths
     ws["!cols"] = [
-      { wch: 14 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 18 },
-      { wch: 12 },
-      { wch: 14 },
-      { wch: 30 },
-      { wch: 8 },
-      { wch: 22 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 16 },
-      { wch: 24 },
+      { wch: 14 }, // Admission No
+      { wch: 20 }, // Name
+      { wch: 8 },  // Class
+      { wch: 8 },  // Section
+      { wch: 12 }, // Stream
+      { wch: 20 }, // Father
+      { wch: 20 }, // Mother
+      { wch: 18 }, // DOB
+      { wch: 12 }, // Gender
+      { wch: 14 }, // Phone
+      { wch: 30 }, // Address
+      { wch: 8 },  // Roll
+      { wch: 22 }, // Email
+      { wch: 12 }, // Blood Group
+      { wch: 12 }, // Category
+      { wch: 16 }, // Aadhar
+      { wch: 24 }, // Previous School
     ];
 
     const wb = XLSX.utils.book_new();
@@ -419,7 +459,7 @@ export function StudentBulkUpload({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-5xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10">
@@ -427,29 +467,17 @@ export function StudentBulkUpload({
             </div>
             <div>
               <DialogTitle>{step === "upload" ? "Upload Student Data" : "Preview & Import"}</DialogTitle>
-              <p className="text-xs text-gray-500 mt-0.5">{step === "upload" ? "Import students from Excel or CSV" : "Review data before importing"}</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {step === "upload"
+                  ? "Import students from Excel or CSV — class, section, and stream are read from the file"
+                  : "Review and edit data before importing"}
+              </p>
             </div>
           </div>
         </DialogHeader>
 
         {step === "upload" ? (
           <div className="space-y-6">
-            <div>
-              <Label>Select Class</Label>
-              <Select value={selectedClassId} onValueChange={(val) => val && setSelectedClassId(val)}>
-                <SelectTrigger className="w-full mt-1">
-                  <SelectValue placeholder="Choose a class..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {classes.map((c) => (
-                    <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
-                      {c.name} - {c.section}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             <div>
               <Label>Upload Excel or CSV File</Label>
               <div className="mt-2 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-navy-400 transition-colors">
@@ -465,14 +493,19 @@ export function StudentBulkUpload({
                   accept=".xlsx,.xls,.csv"
                   onChange={handleFileChange}
                   className="max-w-xs mx-auto"
-                  disabled={!selectedClassId}
                 />
-                {!selectedClassId && (
-                  <p className="text-xs text-amber-600 mt-2">
-                    Please select a class first
-                  </p>
-                )}
               </div>
+            </div>
+
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+              <p className="text-xs text-blue-700 font-medium mb-1">How it works</p>
+              <ul className="text-xs text-blue-600 space-y-0.5 list-disc pl-4">
+                <li><strong>Class</strong> column is required (e.g., X, XI, XII, Nursery, LKG)</li>
+                <li><strong>Section</strong> column is optional (defaults to A if not provided)</li>
+                <li><strong>Stream</strong> column for senior classes (e.g., Science, Commerce, Arts) — combined with class to match &quot;XI Science&quot;</li>
+                <li>Classes must already exist in the system. Create them in Classes management first.</li>
+                <li>You can edit any field in the preview screen before importing.</li>
+              </ul>
             </div>
 
             <div className="flex items-center justify-between pt-2">
@@ -515,6 +548,7 @@ export function StudentBulkUpload({
                   setStep("upload");
                   setParsedRows([]);
                   setFileName("");
+                  setEditingIndex(null);
                 }}
               >
                 Upload Different File
@@ -529,63 +563,151 @@ export function StudentBulkUpload({
                       <TableHead className="w-8">#</TableHead>
                       <TableHead>Adm No</TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead>Father&apos;s Name</TableHead>
-                      <TableHead>DOB</TableHead>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Sec</TableHead>
+                      <TableHead>Stream</TableHead>
+                      <TableHead>Father</TableHead>
                       <TableHead>Gender</TableHead>
                       <TableHead>Roll</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="w-10"></TableHead>
+                      <TableHead className="w-16"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {parsedRows.map((row, i) => (
-                      <TableRow
-                        key={i}
-                        className={
-                          row.errors.length > 0 ? "bg-red-50" : undefined
-                        }
-                      >
-                        <TableCell className="text-gray-400 text-xs">
-                          {i + 1}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {row.admission_no || "—"}
-                        </TableCell>
-                        <TableCell>{row.full_name || "—"}</TableCell>
-                        <TableCell className="text-gray-600">
-                          {row.father_name || "—"}
-                        </TableCell>
-                        <TableCell className="text-gray-600">
-                          {row.date_of_birth || "—"}
-                        </TableCell>
-                        <TableCell className="text-gray-600 capitalize">
-                          {row.gender || "—"}
-                        </TableCell>
-                        <TableCell className="text-gray-600">
-                          {row.roll_number ?? "—"}
-                        </TableCell>
-                        <TableCell>
-                          {row.errors.length > 0 ? (
-                            <span
-                              className="text-xs text-red-600"
-                              title={row.errors.join(", ")}
-                            >
-                              {row.errors[0]}
-                            </span>
-                          ) : (
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <button
-                            onClick={() => removeRow(i)}
-                            className="text-gray-400 hover:text-red-500 transition-colors"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {parsedRows.map((row, i) => {
+                      const isEditing = editingIndex === i;
+                      return (
+                        <TableRow
+                          key={i}
+                          className={
+                            row.errors.length > 0 ? "bg-red-50" : undefined
+                          }
+                        >
+                          <TableCell className="text-gray-400 text-xs">
+                            {i + 1}
+                          </TableCell>
+                          <TableCell>
+                            {isEditing ? (
+                              <Input
+                                className="h-7 text-xs w-20"
+                                value={row.admission_no}
+                                onChange={(e) => updateRow(i, "admission_no", e.target.value)}
+                              />
+                            ) : (
+                              <span className="font-medium">{row.admission_no || "—"}</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {isEditing ? (
+                              <Input
+                                className="h-7 text-xs w-32"
+                                value={row.full_name}
+                                onChange={(e) => updateRow(i, "full_name", e.target.value)}
+                              />
+                            ) : (
+                              row.full_name || "—"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {isEditing ? (
+                              <Input
+                                className="h-7 text-xs w-16"
+                                value={row.class_name}
+                                onChange={(e) => updateRow(i, "class_name", e.target.value)}
+                              />
+                            ) : (
+                              row.class_name || "—"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {isEditing ? (
+                              <Input
+                                className="h-7 text-xs w-12"
+                                value={row.section}
+                                onChange={(e) => updateRow(i, "section", e.target.value)}
+                              />
+                            ) : (
+                              row.section || "—"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {isEditing ? (
+                              <Input
+                                className="h-7 text-xs w-20"
+                                value={row.stream}
+                                onChange={(e) => updateRow(i, "stream", e.target.value)}
+                              />
+                            ) : (
+                              <span className="text-gray-500">{row.stream || "—"}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-gray-600">
+                            {isEditing ? (
+                              <Input
+                                className="h-7 text-xs w-28"
+                                value={row.father_name}
+                                onChange={(e) => updateRow(i, "father_name", e.target.value)}
+                              />
+                            ) : (
+                              row.father_name || "—"
+                            )}
+                          </TableCell>
+                          <TableCell className="text-gray-600 capitalize">
+                            {isEditing ? (
+                              <Input
+                                className="h-7 text-xs w-14"
+                                value={row.gender}
+                                onChange={(e) => updateRow(i, "gender", e.target.value)}
+                              />
+                            ) : (
+                              row.gender || "—"
+                            )}
+                          </TableCell>
+                          <TableCell className="text-gray-600">
+                            {isEditing ? (
+                              <Input
+                                className="h-7 text-xs w-12"
+                                type="number"
+                                value={row.roll_number ?? ""}
+                                onChange={(e) => updateRow(i, "roll_number", e.target.value ? parseInt(e.target.value) : undefined)}
+                              />
+                            ) : (
+                              row.roll_number ?? "—"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {row.errors.length > 0 ? (
+                              <span
+                                className="text-xs text-red-600"
+                                title={row.errors.join(", ")}
+                              >
+                                {row.errors[0]}
+                              </span>
+                            ) : (
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-0.5">
+                              <button
+                                onClick={() => setEditingIndex(isEditing ? null : i)}
+                                className={`p-1 rounded transition-colors ${isEditing ? "text-blue-600 bg-blue-50" : "text-gray-400 hover:text-blue-500"}`}
+                                title={isEditing ? "Done editing" : "Edit row"}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => removeRow(i)}
+                                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                title="Remove row"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

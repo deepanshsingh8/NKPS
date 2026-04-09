@@ -34,10 +34,11 @@ import { Plus, Trash2, Loader2, Search, Copy, UserPlus, ShieldCheck, Users } fro
 import { adminFetch } from "@/lib/admin-api";
 import type { Profile, UserRole } from "@/types";
 
-const ROLES: UserRole[] = ["admin", "teacher", "student"];
+const ROLES: UserRole[] = ["admin", "editor", "teacher", "student"];
 
 const roleBadgeColors: Record<UserRole, string> = {
   admin: "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400",
+  editor: "bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400",
   teacher: "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
   student: "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400",
 };
@@ -134,6 +135,30 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleRoleChange = async (profile: Profile, newRole: UserRole) => {
+    if (newRole === profile.role) return;
+
+    try {
+      const res = await adminFetch("/api/erp/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: profile.id, role: newRole }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Failed to update role");
+        return;
+      }
+
+      toast.success(`Role changed to ${newRole}`);
+      await fetchProfiles();
+    } catch {
+      toast.error("Failed to update role");
+    }
+  };
+
   const handleDeactivate = async (profile: Profile) => {
     const newStatus = !profile.is_active;
     const { error } = await supabase
@@ -221,6 +246,9 @@ export default function AdminUsersPage() {
             <TabsTrigger value="admin">
               Admins ({profiles.filter((p) => p.role === "admin").length})
             </TabsTrigger>
+            <TabsTrigger value="editor">
+              Editors ({profiles.filter((p) => p.role === "editor").length})
+            </TabsTrigger>
             <TabsTrigger value="teacher">
               Teachers ({profiles.filter((p) => p.role === "teacher").length})
             </TabsTrigger>
@@ -229,7 +257,7 @@ export default function AdminUsersPage() {
             </TabsTrigger>
           </TabsList>
 
-          {["all", "admin", "teacher", "student"].map((tab) => (
+          {["all", "admin", "editor", "teacher", "student"].map((tab) => (
             <TabsContent key={tab} value={tab}>
               {loading ? (
                 <div className="flex justify-center py-12">
@@ -261,12 +289,26 @@ export default function AdminUsersPage() {
                           {profile.email}
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant="secondary"
-                            className={roleBadgeColors[profile.role]}
+                          <Select
+                            value={profile.role}
+                            onValueChange={(val) => val && handleRoleChange(profile, val as UserRole)}
                           >
-                            {profile.role}
-                          </Badge>
+                            <SelectTrigger className="h-7 w-28 border-0 bg-transparent p-0 shadow-none focus:ring-0">
+                              <Badge
+                                variant="secondary"
+                                className={`${roleBadgeColors[profile.role]} cursor-pointer`}
+                              >
+                                {profile.role}
+                              </Badge>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ROLES.map((r) => (
+                                <SelectItem key={r} value={r}>
+                                  {r.charAt(0).toUpperCase() + r.slice(1)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </TableCell>
                         <TableCell>
                           <Badge

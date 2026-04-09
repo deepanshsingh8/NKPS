@@ -41,13 +41,15 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { StudentBulkUpload } from "@/components/admin/StudentBulkUpload";
-import type { Student, Gender, BloodGroup } from "@/types";
+import type { Student, Gender, BloodGroup, Stream } from "@/types";
 
 interface ClassOption {
   id: string;
   name: string;
   section: string;
 }
+
+const HIGHER_CLASSES = ["XI", "XII"];
 
 interface StudentRow extends Student {
   roll_number: number | null;
@@ -64,6 +66,7 @@ const BLOOD_GROUP_OPTIONS: BloodGroup[] = [
 export default function AdminStudentsPage() {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
+  const [streams, setStreams] = useState<Stream[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClassId, setSelectedClassId] = useState("");
   const [search, setSearch] = useState("");
@@ -78,6 +81,7 @@ export default function AdminStudentsPage() {
   const [editingStudent, setEditingStudent] = useState<StudentRow | null>(null);
   const [formData, setFormData] = useState({
     class_id: "",
+    stream_id: "",
     admission_no: "",
     full_name: "",
     father_name: "",
@@ -115,6 +119,14 @@ export default function AdminStudentsPage() {
 
     const { data } = await query;
     setClasses((data as ClassOption[]) ?? []);
+
+    // Fetch active streams for higher-class enrollment
+    const { data: streamsData } = await supabase
+      .from("streams")
+      .select("*")
+      .eq("is_active", true)
+      .order("sort_order");
+    setStreams((streamsData as Stream[]) ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -167,6 +179,7 @@ export default function AdminStudentsPage() {
   const resetForm = () => {
     setFormData({
       class_id: selectedClassId,
+      stream_id: "",
       admission_no: "",
       full_name: "",
       father_name: "",
@@ -185,10 +198,17 @@ export default function AdminStudentsPage() {
     setEditingStudent(null);
   };
 
+  // Determine if the selected class in the form is a higher class
+  const selectedFormClass = classes.find((c) => c.id === formData.class_id);
+  const isHigherClass = selectedFormClass
+    ? HIGHER_CLASSES.includes(selectedFormClass.name)
+    : false;
+
   const openEditDialog = (student: StudentRow) => {
     setEditingStudent(student);
     setFormData({
       class_id: selectedClassId,
+      stream_id: "",
       admission_no: student.admission_no,
       full_name: student.full_name,
       father_name: student.father_name ?? "",
@@ -226,6 +246,7 @@ export default function AdminStudentsPage() {
         body: JSON.stringify({
           class_id: formData.class_id,
           roll_number: formData.roll_number || undefined,
+          stream_id: formData.stream_id || undefined,
           admission_no: formData.admission_no,
           full_name: formData.full_name,
           father_name: formData.father_name || undefined,
@@ -351,24 +372,64 @@ export default function AdminStudentsPage() {
   ) => (
     <form onSubmit={onSubmit} className="space-y-3">
       {!isEdit && (
-        <div>
-          <Label className="text-xs font-medium">Class *</Label>
-          <Select
-            value={formData.class_id}
-            onValueChange={(val) => val && updateField("class_id", val)}
-          >
-            <SelectTrigger className="w-full mt-1">
-              <SelectValue placeholder="Select class for enrollment..." />
-            </SelectTrigger>
-            <SelectContent>
-              {classes.map((c) => (
-                <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
-                  {c.name} - {c.section}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <>
+          <div>
+            <Label className="text-xs font-medium">Class *</Label>
+            <Select
+              value={formData.class_id}
+              onValueChange={(val) => {
+                if (val) {
+                  updateField("class_id", val);
+                  // Reset stream when class changes
+                  const cls = classes.find((c) => c.id === val);
+                  if (!cls || !HIGHER_CLASSES.includes(cls.name)) {
+                    updateField("stream_id", "");
+                  }
+                }
+              }}
+            >
+              <SelectTrigger className="w-full mt-1">
+                <SelectValue placeholder="Select class for enrollment..." />
+              </SelectTrigger>
+              <SelectContent>
+                {classes.map((c) => (
+                  <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
+                    {c.name} - {c.section}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {isHigherClass && streams.length > 0 && (
+            <div>
+              <Label className="text-xs font-medium">Stream</Label>
+              <Select
+                value={formData.stream_id || "none"}
+                onValueChange={(val) =>
+                  updateField("stream_id", !val || val === "none" ? "" : val)
+                }
+              >
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="Select stream..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" label="No stream">
+                    No stream
+                  </SelectItem>
+                  {streams.map((s) => (
+                    <SelectItem key={s.id} value={s.id} label={s.name}>
+                      {s.name}
+                      {s.code ? ` (${s.code})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Stream determines which subjects the student takes
+              </p>
+            </div>
+          )}
+        </>
       )}
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -759,7 +820,6 @@ export default function AdminStudentsPage() {
       <StudentBulkUpload
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}
-        classes={classes}
         onSuccess={fetchStudents}
       />
     </div>

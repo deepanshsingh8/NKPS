@@ -107,7 +107,7 @@ export interface ContactSubmission {
 // ERP System Types
 // =============================================================
 
-export type UserRole = 'admin' | 'teacher' | 'student';
+export type UserRole = 'admin' | 'editor' | 'teacher' | 'student';
 
 export interface Profile {
   id: string;
@@ -146,6 +146,7 @@ export interface Subject {
   name: string;
   code: string | null;
   is_active: boolean;
+  is_elective: boolean;
   created_at: string;
 }
 
@@ -156,10 +157,35 @@ export interface ClassSubject {
   teacher_id: string | null;
 }
 
+export interface Stream {
+  id: string;
+  name: string;
+  code: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface StreamSubject {
+  id: string;
+  stream_id: string;
+  subject_id: string;
+  is_mandatory: boolean;
+  sort_order: number;
+}
+
+export interface StudentSubject {
+  id: string;
+  student_id: string;
+  class_subject_id: string;
+  created_at: string;
+}
+
 export interface StudentEnrollment {
   id: string;
   student_id: string;
   class_id: string;
+  stream_id: string | null;
   roll_number: number | null;
   enrollment_date: string;
 }

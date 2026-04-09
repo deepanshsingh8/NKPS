@@ -126,6 +126,80 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PATCH(request: Request) {
+  try {
+    const serverSupabase = await createClient();
+    const {
+      data: { user },
+    } = await serverSupabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: callerProfile } = await serverSupabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (!callerProfile || callerProfile.role !== "admin") {
+      return NextResponse.json(
+        { error: "Forbidden: admin access required" },
+        { status: 403 }
+      );
+    }
+
+    const { id, role } = await request.json();
+
+    if (!id || !role) {
+      return NextResponse.json(
+        { error: "User id and role are required" },
+        { status: 400 }
+      );
+    }
+
+    const validRoles = ["admin", "editor", "teacher", "student"];
+    if (!validRoles.includes(role)) {
+      return NextResponse.json(
+        { error: "Invalid role" },
+        { status: 400 }
+      );
+    }
+
+    // Prevent changing own role
+    if (id === user.id) {
+      return NextResponse.json(
+        { error: "You cannot change your own role" },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createAdminClient();
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ role, updated_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Update role error:", error);
+      return NextResponse.json(
+        { error: "Failed to update role" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("Update role error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const serverSupabase = await createClient();

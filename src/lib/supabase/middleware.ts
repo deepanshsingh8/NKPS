@@ -8,6 +8,7 @@ const PROTECTED_PREFIXES = ["/admin", "/teacher", "/student"];
 function getDashboardPath(role: string): string {
   switch (role) {
     case "admin":
+    case "editor":
       return "/admin";
     case "teacher":
       return "/teacher";
@@ -105,7 +106,7 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Role-based access control
-    if (pathname.startsWith("/admin") && role !== "admin") {
+    if (pathname.startsWith("/admin") && role !== "admin" && role !== "editor") {
       const url = request.nextUrl.clone();
       url.pathname = dashboard;
       return NextResponse.redirect(url);

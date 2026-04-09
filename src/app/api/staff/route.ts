@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
+import { verifyAdminOrEditor } from "@/lib/verify-admin";
 
 const VALID_CATEGORIES = ["management", "admin", "pgt", "tgt", "prt", "motherTeachers", "additionalStaff", "busDriver", "peon"];
 
 export async function POST(request: NextRequest) {
-  const admin = await verifyAdmin();
+  const admin = await verifyAdminOrEditor();
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const admin = await verifyAdmin();
+  const admin = await verifyAdminOrEditor();
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -95,7 +95,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const admin = await verifyAdmin();
+  const admin = await verifyAdminOrEditor();
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

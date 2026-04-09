@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
+import { verifyAdminOrEditor } from "@/lib/verify-admin";
 
 // Allowlisted tables and their columns that admins can read/write via this proxy
 const ALLOWED_COLUMNS: Record<string, string[]> = {
   students: ["id", "admission_no", "full_name", "father_name", "mother_name", "date_of_birth", "gender", "address", "phone", "email", "blood_group", "category", "aadhar_number", "previous_school", "is_active", "created_at", "updated_at"],
   classes: ["id", "name", "section", "academic_year_id", "class_teacher_id", "sort_order", "created_at"],
-  subjects: ["id", "name", "code", "is_active", "created_at"],
+  subjects: ["id", "name", "code", "is_active", "is_elective", "created_at"],
   academic_years: ["id", "name", "start_date", "end_date", "is_current", "created_at"],
   class_subjects: ["id", "class_id", "subject_id", "teacher_id", "created_at"],
-  student_enrollments: ["id", "student_id", "class_id", "roll_number", "enrollment_date", "created_at"],
+  student_enrollments: ["id", "student_id", "class_id", "stream_id", "roll_number", "enrollment_date", "created_at"],
   fee_structures: ["id", "academic_year_id", "class_name", "fee_type", "amount", "due_date", "frequency", "created_at"],
   fee_payments: ["id", "student_id", "fee_structure_id", "amount_paid", "payment_date", "payment_method", "receipt_number", "month", "status", "recorded_by", "remarks", "created_at"],
   exam_types: ["id", "name", "academic_year_id", "max_marks", "weightage", "sort_order", "created_at"],
@@ -21,12 +21,15 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   disclosure_items: ["id", "section", "field_key", "label", "value", "sort_order", "updated_at"],
   disclosure_documents: ["id", "doc_key", "label", "file_url", "file_name", "sort_order", "updated_at"],
   disclosure_board_results: ["id", "exam_class", "academic_year", "registered", "passed", "pass_percentage", "remarks", "sort_order", "updated_at"],
+  streams: ["id", "name", "code", "is_active", "sort_order", "created_at"],
+  stream_subjects: ["id", "stream_id", "subject_id", "is_mandatory", "sort_order"],
+  student_subjects: ["id", "student_id", "class_subject_id", "created_at"],
 };
 
 const ALLOWED_TABLES = Object.keys(ALLOWED_COLUMNS);
 
 export async function POST(request: NextRequest) {
-  const admin = await verifyAdmin();
+  const admin = await verifyAdminOrEditor();
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
