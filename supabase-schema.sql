@@ -91,6 +91,7 @@ create policy "Service role can insert contact submissions"
 -- Note: Create these in the Supabase Dashboard > Storage:
 -- 1. Bucket: "gallery" (Public)
 -- 2. Bucket: "transfer-certificates" (Public)
+-- 3. Bucket: "avatars" (Public)
 --
 -- Storage Policies (set in Dashboard > Storage > Policies):
 -- gallery bucket:
@@ -102,6 +103,10 @@ create policy "Service role can insert contact submissions"
 --   - SELECT: Allow public access
 --   - INSERT: Allow authenticated users
 --   - DELETE: Allow authenticated users
+--
+-- avatars bucket:
+--   - SELECT: Allow public access
+--   - INSERT/UPDATE/DELETE: Managed via service role (API route)
 
 -- =============================================================
 -- ERP System Tables

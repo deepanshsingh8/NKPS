@@ -237,7 +237,7 @@ export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
             src={slides[current].image}
             alt={slides[current].title.replace("\n", " ")}
             fill
-            className="object-cover"
+            className="object-contain"
             priority={current === 0}
             sizes="100vw"
           />

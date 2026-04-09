@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import Cropper from "react-easy-crop";
-import type { Area } from "react-easy-crop";
+import { useState, useCallback, useRef } from "react";
+import ReactCrop, {
+  type Crop,
+  type PixelCrop,
+  centerCrop,
+  makeAspectCrop,
+} from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
 import { Button } from "@/components/ui/button";
-import { ZoomIn, ZoomOut, RotateCcw, Check, X } from "lucide-react";
+import { RotateCcw, Check, X, Maximize } from "lucide-react";
 
 interface ImageCropperProps {
   /** The image source URL (object URL or data URL) */
@@ -22,19 +27,13 @@ interface ImageCropperProps {
 }
 
 /**
- * Loads an image and returns a canvas with the cropped region drawn on it.
- * Uses createImageBitmap for reliable decoding (avoids crossOrigin/CORS issues with blob URLs).
+ * Extracts the cropped region from the image using canvas.
  */
 async function getCroppedImg(
-  imageSrc: string,
-  pixelCrop: Area,
+  image: HTMLImageElement,
+  pixelCrop: PixelCrop,
   fileName: string
 ): Promise<File> {
-  // Fetch as blob first to avoid any CORS issues with object URLs
-  const response = await fetch(imageSrc);
-  const blob = await response.blob();
-  const bitmap = await createImageBitmap(blob);
-
   const canvas = document.createElement("canvas");
   canvas.width = pixelCrop.width;
   canvas.height = pixelCrop.height;
@@ -42,9 +41,8 @@ async function getCroppedImg(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Could not get canvas context");
 
-  // Draw only the cropped region from the original image
   ctx.drawImage(
-    bitmap,
+    image,
     pixelCrop.x,
     pixelCrop.y,
     pixelCrop.width,
@@ -54,8 +52,6 @@ async function getCroppedImg(
     pixelCrop.width,
     pixelCrop.height
   );
-
-  bitmap.close();
 
   return new Promise<File>((resolve, reject) => {
     canvas.toBlob(
@@ -72,6 +68,21 @@ async function getCroppedImg(
   });
 }
 
+/**
+ * Creates a centered crop with the given aspect ratio.
+ */
+function makeCenteredCrop(
+  width: number,
+  height: number,
+  aspect: number
+): Crop {
+  return centerCrop(
+    makeAspectCrop({ unit: "%", width: 90 }, aspect, width, height),
+    width,
+    height
+  );
+}
+
 export function ImageCropper({
   imageSrc,
   onCropComplete,
@@ -80,23 +91,48 @@ export function ImageCropper({
   cropShape = "rect",
   aspect,
 }: ImageCropperProps) {
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
-  const [processing, setProcessing] = useState(false);
+  const isRound = cropShape === "round";
+  const effectiveAspect = aspect || (isRound ? 1 : undefined);
 
-  const handleCropComplete = useCallback(
-    (_croppedArea: Area, croppedPixels: Area) => {
-      setCroppedAreaPixels(croppedPixels);
+  const [crop, setCrop] = useState<Crop>();
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
+  const [processing, setProcessing] = useState(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+
+  const onImageLoad = useCallback(
+    (e: React.SyntheticEvent<HTMLImageElement>) => {
+      const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+      imgRef.current = e.currentTarget;
+
+      if (effectiveAspect) {
+        setCrop(makeCenteredCrop(w, h, effectiveAspect));
+      } else {
+        // Default: select the full image
+        setCrop({ unit: "%", x: 0, y: 0, width: 100, height: 100 });
+      }
     },
-    []
+    [effectiveAspect]
   );
 
+  const handleSelectAll = () => {
+    if (!imgRef.current) return;
+    const { naturalWidth: w, naturalHeight: h } = imgRef.current;
+    if (effectiveAspect) {
+      setCrop(makeCenteredCrop(w, h, effectiveAspect));
+    } else {
+      setCrop({ unit: "%", x: 0, y: 0, width: 100, height: 100 });
+    }
+  };
+
   const handleConfirm = async () => {
-    if (!croppedAreaPixels) return;
+    if (!completedCrop || !imgRef.current) return;
     setProcessing(true);
     try {
-      const croppedFile = await getCroppedImg(imageSrc, croppedAreaPixels, fileName);
+      const croppedFile = await getCroppedImg(
+        imgRef.current,
+        completedCrop,
+        fileName
+      );
       onCropComplete(croppedFile);
     } catch (err) {
       console.error("Crop failed:", err);
@@ -105,81 +141,63 @@ export function ImageCropper({
     }
   };
 
-  const isRound = cropShape === "round";
-
   return (
     <div className="space-y-4">
       {/* Crop area */}
-      <div className="relative w-full h-72 rounded-xl overflow-hidden bg-gray-900">
-        <Cropper
-          image={imageSrc}
+      <div className="relative w-full max-h-[420px] overflow-auto rounded-xl bg-gray-900 flex items-center justify-center p-2">
+        <ReactCrop
           crop={crop}
-          zoom={zoom}
-          aspect={aspect || (isRound ? 1 : 16 / 9)}
-          cropShape={cropShape}
-          showGrid={!isRound}
-          onCropChange={setCrop}
-          onZoomChange={setZoom}
-          onCropComplete={handleCropComplete}
-          minZoom={1}
-          maxZoom={4}
-          objectFit="contain"
-        />
+          onChange={(c) => setCrop(c)}
+          onComplete={(c) => setCompletedCrop(c)}
+          aspect={effectiveAspect}
+          circularCrop={isRound}
+          className="max-h-[400px]"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageSrc}
+            alt="Crop preview"
+            onLoad={onImageLoad}
+            className="max-h-[400px] w-auto"
+            style={{ display: "block" }}
+          />
+        </ReactCrop>
       </div>
 
-      {/* Zoom controls */}
+      {/* Controls */}
       <div className="flex items-center justify-center gap-3">
         <Button
           type="button"
           variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => setZoom((z) => Math.max(1, z - 0.2))}
-          disabled={zoom <= 1}
+          size="sm"
+          className="text-xs"
+          onClick={handleSelectAll}
+          title="Reset selection"
         >
-          <ZoomOut className="h-4 w-4" />
+          <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+          Reset
         </Button>
-
-        <input
-          type="range"
-          min={1}
-          max={4}
-          step={0.05}
-          value={zoom}
-          onChange={(e) => setZoom(Number(e.target.value))}
-          className="w-32 accent-navy-900"
-        />
-
         <Button
           type="button"
           variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => setZoom((z) => Math.min(4, z + 0.2))}
-          disabled={zoom >= 4}
-        >
-          <ZoomIn className="h-4 w-4" />
-        </Button>
-
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
+          size="sm"
+          className="text-xs"
           onClick={() => {
-            setZoom(1);
-            setCrop({ x: 0, y: 0 });
+            if (!imgRef.current) return;
+            const { naturalWidth: w, naturalHeight: h } = imgRef.current;
+            setCrop({ unit: "%", x: 0, y: 0, width: 100, height: 100 });
           }}
-          title="Reset"
+          title="Select entire image"
         >
-          <RotateCcw className="h-4 w-4" />
+          <Maximize className="h-3.5 w-3.5 mr-1.5" />
+          Select All
         </Button>
       </div>
 
       <p className="text-xs text-center text-gray-400">
         {isRound
-          ? "Drag to reposition. Use zoom to fit the face in the circle."
-          : "Drag to reposition. Use zoom to select the area you want."}
+          ? "Drag the selection to choose the area for the profile photo."
+          : "Drag to create a selection, or resize the handles to adjust."}
       </p>
 
       {/* Action buttons */}
@@ -191,7 +209,7 @@ export function ImageCropper({
         <Button
           type="button"
           onClick={handleConfirm}
-          disabled={processing}
+          disabled={processing || !completedCrop}
           size="sm"
         >
           <Check className="h-4 w-4 mr-1" />

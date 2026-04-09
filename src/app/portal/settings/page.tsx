@@ -15,6 +15,7 @@ import {
   Shield,
   ArrowLeft,
   Check,
+  CheckCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -54,6 +55,7 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordChanged, setPasswordChanged] = useState(false);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -128,33 +130,39 @@ export default function SettingsPage() {
     if (!profile) return;
 
     setUploadingAvatar(true);
-    const supabase = createClient();
 
-    const path = `avatars/${profile.id}.jpg`;
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
 
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(path, croppedFile, { upsert: true, contentType: "image/jpeg" });
+      if (!session?.access_token) {
+        toast.error("Session expired. Please log in again.");
+        setUploadingAvatar(false);
+        return;
+      }
 
-    if (uploadError) {
+      const formData = new FormData();
+      formData.append("file", croppedFile);
+
+      const res = await fetch("/api/portal/avatar", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Failed to upload avatar");
+        setUploadingAvatar(false);
+        return;
+      }
+
+      setProfile({ ...profile, avatar_url: data.avatarUrl });
+      toast.success("Avatar updated");
+    } catch {
       toast.error("Failed to upload avatar");
-      setUploadingAvatar(false);
-      return;
     }
-
-    const { data: urlData } = supabase.storage
-      .from("avatars")
-      .getPublicUrl(path);
-
-    const avatarUrl = urlData.publicUrl + `?t=${Date.now()}`;
-
-    await supabase
-      .from("profiles")
-      .update({ avatar_url: avatarUrl })
-      .eq("id", profile.id);
-
-    setProfile({ ...profile, avatar_url: avatarUrl });
-    toast.success("Avatar updated");
     setUploadingAvatar(false);
   };
 
@@ -197,7 +205,7 @@ export default function SettingsPage() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Password changed successfully");
+      setPasswordChanged(true);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -359,6 +367,15 @@ export default function SettingsPage() {
                 Change Password
               </h2>
             </div>
+
+            {passwordChanged && (
+              <div className="mb-4 flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
+                <CheckCircle className="h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
+                <p className="text-sm font-medium text-green-800 dark:text-green-300">
+                  Password changed successfully
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div className="space-y-2">

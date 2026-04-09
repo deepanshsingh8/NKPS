@@ -22,7 +22,6 @@ import {
   BarChart3,
   CalendarDays,
   ClipboardList,
-  ClipboardCheck,
   Clock,
   ChevronLeft,
   ScrollText,
@@ -44,9 +43,8 @@ const contentLinks = [
 ];
 
 const erpLinks = [
-  { icon: UserCog, label: "Staff", href: "/admin/staff" },
   { icon: Users, label: "Users", href: "/admin/users" },
-  { icon: ClipboardCheck, label: "Registrations", href: "/admin/registrations" },
+  { icon: UserCog, label: "Staff", href: "/admin/staff" },
   { icon: UserCheck, label: "Students", href: "/admin/students" },
   { icon: GraduationCap, label: "Classes", href: "/admin/classes" },
   { icon: BookOpen, label: "Subjects", href: "/admin/subjects" },
@@ -73,7 +71,7 @@ const EDITOR_ALLOWED_HREFS = new Set([
 export function AdminSidebar() {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebar();
-  const { unreadCount } = useUnreadCount();
+  const { unreadCount, pendingRegistrationCount } = useUnreadCount();
   const [userRole, setUserRole] = useState<UserRole>("admin");
 
   useEffect(() => {
@@ -107,7 +105,12 @@ export function AdminSidebar() {
         ? pathname === "/admin"
         : pathname.startsWith(href);
 
-    const showBadge = href === "/admin/contact" && unreadCount > 0;
+    const badgeCount =
+      href === "/admin/contact" ? unreadCount
+      : href === "/admin/users" ? pendingRegistrationCount
+      : 0;
+    const showBadge = badgeCount > 0;
+    const badgeLabel = badgeCount > 99 ? "99+" : badgeCount;
 
     const linkContent = (
       <Link
@@ -124,7 +127,7 @@ export function AdminSidebar() {
           <Icon className="h-5 w-5 shrink-0" />
           {showBadge && collapsed && (
             <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full h-4 min-w-4 px-1">
-              {unreadCount > 99 ? "99+" : unreadCount}
+              {badgeLabel}
             </span>
           )}
         </span>
@@ -133,7 +136,7 @@ export function AdminSidebar() {
             <span className="truncate">{label}</span>
             {showBadge && (
               <span className="ml-auto flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-5 px-1.5">
-                {unreadCount > 99 ? "99+" : unreadCount}
+                {badgeLabel}
               </span>
             )}
           </>
@@ -143,7 +146,7 @@ export function AdminSidebar() {
 
     if (collapsed) {
       return (
-        <SidebarTooltip key={href} label={showBadge ? `${label} (${unreadCount})` : label}>
+        <SidebarTooltip key={href} label={showBadge ? `${label} (${badgeCount})` : label}>
           {linkContent}
         </SidebarTooltip>
       );
