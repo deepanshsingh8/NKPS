@@ -20,8 +20,9 @@ export default function ForgotPasswordPage() {
 
     try {
       const supabase = createClient();
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.nkpublicschool.com";
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/portal/reset-password`,
+        redirectTo: `${siteUrl}/portal/reset-password`,
       });
 
       if (error) {

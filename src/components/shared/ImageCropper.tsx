@@ -28,30 +28,31 @@ interface ImageCropperProps {
 
 /**
  * Extracts the cropped region from the image using canvas.
+ * Scales pixel-crop coordinates from displayed size to natural size.
  */
 async function getCroppedImg(
   image: HTMLImageElement,
   pixelCrop: PixelCrop,
   fileName: string
 ): Promise<File> {
+  // react-image-crop returns pixel values relative to the displayed <img> size.
+  // Scale them to the image's natural (full-resolution) dimensions.
+  const scaleX = image.naturalWidth / image.width;
+  const scaleY = image.naturalHeight / image.height;
+
+  const sx = Math.round(pixelCrop.x * scaleX);
+  const sy = Math.round(pixelCrop.y * scaleY);
+  const sw = Math.round(pixelCrop.width * scaleX);
+  const sh = Math.round(pixelCrop.height * scaleY);
+
   const canvas = document.createElement("canvas");
-  canvas.width = pixelCrop.width;
-  canvas.height = pixelCrop.height;
+  canvas.width = sw;
+  canvas.height = sh;
 
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Could not get canvas context");
 
-  ctx.drawImage(
-    image,
-    pixelCrop.x,
-    pixelCrop.y,
-    pixelCrop.width,
-    pixelCrop.height,
-    0,
-    0,
-    pixelCrop.width,
-    pixelCrop.height
-  );
+  ctx.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
 
   return new Promise<File>((resolve, reject) => {
     canvas.toBlob(
