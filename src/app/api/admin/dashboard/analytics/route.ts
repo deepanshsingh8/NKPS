@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
+import { verifyAdminOrEditor } from "@/lib/verify-admin";
 
 export async function GET() {
-  const admin = await verifyAdmin();
+  const admin = await verifyAdminOrEditor();
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

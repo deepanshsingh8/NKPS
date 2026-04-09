@@ -207,7 +207,9 @@ export default function SettingsPage() {
 
   const getDashboardPath = () => {
     switch (profile?.role) {
-      case "admin": return "/admin";
+      case "admin":
+      case "editor":
+        return "/admin";
       case "teacher": return "/teacher";
       default: return "/student";
     }
