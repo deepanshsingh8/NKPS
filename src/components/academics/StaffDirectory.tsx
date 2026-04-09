@@ -1,17 +1,23 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Users } from "lucide-react";
+import { Search, Users, Loader2 } from "lucide-react";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { STAFF } from "@/lib/constants";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import type { StaffMember } from "@/types";
+
+const PUBLIC_CATEGORIES = ["admin", "pgt", "tgt", "prt", "motherTeachers"] as const;
 
 const tabs = [
   { label: "Administration", key: "admin" as const },
   { label: "PGT", key: "pgt" as const },
   { label: "TGT", key: "tgt" as const },
   { label: "PRT", key: "prt" as const },
+  { label: "Mother Teachers", key: "motherTeachers" as const },
 ];
 
 type TabKey = (typeof tabs)[number]["key"];
@@ -62,8 +68,56 @@ export function StaffDirectory() {
   const [search, setSearch] = useState("");
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
+  const [dbStaff, setDbStaff] = useState<Record<string, StaffMember[]> | null>(null);
+  const [dbLoading, setDbLoading] = useState(true);
 
-  const staffData = STAFF[activeTab];
+  // Fetch staff from DB
+  const fetchStaff = useCallback(async () => {
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("staff_members")
+        .select("*")
+        .eq("is_active", true)
+        .in("category", PUBLIC_CATEGORIES as unknown as string[])
+        .order("sort_order")
+        .order("name");
+
+      if (!error && data && data.length > 0) {
+        const grouped: Record<string, StaffMember[]> = {};
+        for (const member of data as StaffMember[]) {
+          if (!grouped[member.category]) grouped[member.category] = [];
+          grouped[member.category].push(member);
+        }
+        setDbStaff(grouped);
+      }
+    } catch {
+      // Silently fall back to constants
+    }
+    setDbLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchStaff();
+  }, [fetchStaff]);
+
+  // Use DB data if available, otherwise fall back to constants
+  const getStaffForTab = (key: TabKey): Array<{ name: string; subject: string; photo_url?: string | null }> => {
+    if (dbStaff) {
+      return dbStaff[key] ?? [];
+    }
+    // Fallback to constants
+    const fallback = STAFF[key as keyof typeof STAFF];
+    return fallback ? [...fallback] : [];
+  };
+
+  const getCount = (key: TabKey): number => {
+    if (dbStaff) return dbStaff[key]?.length ?? 0;
+    const fallback = STAFF[key as keyof typeof STAFF];
+    return fallback?.length ?? 0;
+  };
+
+  const staffData = getStaffForTab(activeTab);
   const filtered = staffData.filter((member) =>
     member.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -131,7 +185,7 @@ export function StaffDirectory() {
                       : "bg-navy-100 text-navy-600"
                   )}
                 >
-                  {STAFF[tab.key].length}
+                  {getCount(tab.key)}
                 </span>
               </button>
             ))}
@@ -186,16 +240,28 @@ export function StaffDirectory() {
                     <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-gold-500/40 to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300" />
 
                     {/* Avatar */}
-                    <div
-                      className={cn(
-                        "w-12 h-12 rounded-full bg-gradient-to-br flex items-center justify-center mb-3.5 shadow-sm",
-                        getAvatarColor(member.name)
-                      )}
-                    >
-                      <span className="text-sm font-bold text-white leading-none">
-                        {getInitials(member.name)}
-                      </span>
-                    </div>
+                    {member.photo_url ? (
+                      <div className="w-12 h-12 rounded-full overflow-hidden mb-3.5 shadow-sm relative">
+                        <Image
+                          src={member.photo_url}
+                          alt={member.name}
+                          fill
+                          className="object-cover"
+                          sizes="48px"
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className={cn(
+                          "w-12 h-12 rounded-full bg-gradient-to-br flex items-center justify-center mb-3.5 shadow-sm",
+                          getAvatarColor(member.name)
+                        )}
+                      >
+                        <span className="text-sm font-bold text-white leading-none">
+                          {getInitials(member.name)}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Info */}
                     <h3 className="text-sm font-semibold text-navy-900 leading-snug">
@@ -214,7 +280,13 @@ export function StaffDirectory() {
         {/* Subtle member count */}
         <div className="mt-6 text-center">
           <p className="text-xs text-gray-400">
-            Showing {filtered.length} of {staffData.length} faculty members
+            {dbLoading ? (
+              <span className="inline-flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Loading...
+              </span>
+            ) : (
+              `Showing ${filtered.length} of ${staffData.length} faculty members`
+            )}
           </p>
         </div>
       </div>

@@ -950,3 +950,45 @@ create policy "Admins can update registrations"
 create policy "Admins can delete registrations"
   on registration_requests for delete
   using (public.get_user_role() = 'admin');
+
+-- =============================================================
+-- Staff Members (website faculty + non-teaching staff)
+-- =============================================================
+
+create table if not exists staff_members (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  subject text not null,
+  category text not null check (category in ('management', 'admin', 'pgt', 'tgt', 'prt', 'motherTeachers', 'additionalStaff', 'busDriver', 'peon')),
+  photo_url text,
+  is_active boolean default true,
+  sort_order integer default 0,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table staff_members enable row level security;
+
+create policy "Public can view staff members"
+  on staff_members for select
+  using (true);
+
+create policy "Authenticated users can insert staff members"
+  on staff_members for insert
+  with check (auth.role() = 'authenticated');
+
+create policy "Authenticated users can update staff members"
+  on staff_members for update
+  using (auth.role() = 'authenticated');
+
+create policy "Authenticated users can delete staff members"
+  on staff_members for delete
+  using (auth.role() = 'authenticated');
+
+-- Storage Bucket: "staff-photos" (Public)
+-- Create in Supabase Dashboard > Storage
+-- Policies:
+--   - SELECT: Allow public access
+--   - INSERT: Allow authenticated users
+--   - UPDATE: Allow authenticated users
+--   - DELETE: Allow authenticated users

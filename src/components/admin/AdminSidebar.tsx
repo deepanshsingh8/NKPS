@@ -23,6 +23,7 @@ import {
   Clock,
   ChevronLeft,
   ScrollText,
+  UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SidebarProfileMenu } from "@/components/portal/SidebarProfileMenu";
@@ -40,6 +41,7 @@ const contentLinks = [
 ];
 
 const erpLinks = [
+  { icon: UserCog, label: "Staff", href: "/admin/staff" },
   { icon: Users, label: "Users", href: "/admin/users" },
   { icon: ClipboardCheck, label: "Registrations", href: "/admin/registrations" },
   { icon: UserCheck, label: "Students", href: "/admin/students" },

@@ -45,6 +45,20 @@ export interface SiteMedia {
   created_at: string;
 }
 
+export type StaffCategory = 'management' | 'admin' | 'pgt' | 'tgt' | 'prt' | 'motherTeachers' | 'additionalStaff' | 'busDriver' | 'peon';
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  subject: string;
+  category: StaffCategory;
+  photo_url: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export type SectionCardType = 'hero_slider' | 'testimonials' | 'latest_updates' | 'facilities_preview' | 'leadership' | 'legacy_timeline' | 'why_choose_us' | 'activities' | 'annual_events' | 'campus_facilities';
 
 export interface SectionCard {

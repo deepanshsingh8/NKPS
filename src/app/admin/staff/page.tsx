@@ -1,0 +1,516 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import Image from "next/image";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { toast } from "sonner";
+import {
+  Plus,
+  Trash2,
+  Pencil,
+  Loader2,
+  Search,
+  UserCog,
+  Users,
+} from "lucide-react";
+import { adminFetch, adminPatch, adminDelete } from "@/lib/admin-api";
+import { uploadToStorage } from "@/lib/supabase/upload";
+import { FileDropZone } from "@/components/shared/FileDropZone";
+import type { StaffMember, StaffCategory } from "@/types";
+
+const CATEGORIES: { value: StaffCategory | "all"; label: string }[] = [
+  { value: "all", label: "All Categories" },
+  { value: "management", label: "Management" },
+  { value: "admin", label: "Administration" },
+  { value: "pgt", label: "PGT" },
+  { value: "tgt", label: "TGT" },
+  { value: "prt", label: "PRT" },
+  { value: "motherTeachers", label: "Mother Teachers" },
+  { value: "additionalStaff", label: "Additional Staff" },
+  { value: "busDriver", label: "Bus Drivers" },
+  { value: "peon", label: "Peons" },
+];
+
+const CATEGORY_OPTIONS: { value: StaffCategory; label: string }[] = [
+  { value: "management", label: "Management" },
+  { value: "admin", label: "Administration" },
+  { value: "pgt", label: "PGT" },
+  { value: "tgt", label: "TGT" },
+  { value: "prt", label: "PRT" },
+  { value: "motherTeachers", label: "Mother Teachers" },
+  { value: "additionalStaff", label: "Additional Staff" },
+  { value: "busDriver", label: "Bus Drivers" },
+  { value: "peon", label: "Peons" },
+];
+
+const categoryBadgeColors: Record<StaffCategory, string> = {
+  management: "bg-purple-100 text-purple-700",
+  admin: "bg-red-100 text-red-700",
+  pgt: "bg-blue-100 text-blue-700",
+  tgt: "bg-emerald-100 text-emerald-700",
+  prt: "bg-amber-100 text-amber-700",
+  motherTeachers: "bg-violet-100 text-violet-700",
+  additionalStaff: "bg-teal-100 text-teal-700",
+  busDriver: "bg-orange-100 text-orange-700",
+  peon: "bg-gray-100 text-gray-700",
+};
+
+const AVATAR_COLORS = [
+  "from-navy-800 to-navy-900",
+  "from-blue-500 to-blue-700",
+  "from-gold-500 to-gold-600",
+  "from-emerald-500 to-emerald-700",
+  "from-violet-500 to-violet-700",
+  "from-rose-500 to-rose-700",
+  "from-cyan-500 to-cyan-700",
+  "from-amber-500 to-amber-700",
+];
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function getAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+export default function AdminStaffPage() {
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [filterCategory, setFilterCategory] = useState<StaffCategory | "all">("all");
+  const [search, setSearch] = useState("");
+
+  // Form state
+  const [name, setName] = useState("");
+  const [subject, setSubject] = useState("");
+  const [category, setCategory] = useState<StaffCategory>("pgt");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
+
+  const supabase = createClient();
+
+  const fetchStaff = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("staff_members")
+      .select("*")
+      .eq("is_active", true)
+      .order("category")
+      .order("sort_order")
+      .order("name");
+
+    if (error) {
+      console.error("Failed to fetch staff:", error);
+      toast.error("Failed to load staff members");
+    } else {
+      setStaff((data as StaffMember[]) || []);
+    }
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchStaff();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const resetForm = () => {
+    setName("");
+    setSubject("");
+    setCategory("pgt");
+    setPhotoFile(null);
+    setExistingPhotoUrl(null);
+    setEditingId(null);
+  };
+
+  const openAddDialog = () => {
+    resetForm();
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (member: StaffMember) => {
+    setEditingId(member.id);
+    setName(member.name);
+    setSubject(member.subject);
+    setCategory(member.category);
+    setPhotoFile(null);
+    setExistingPhotoUrl(member.photo_url);
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!name.trim() || !subject.trim()) {
+      toast.error("Name and subject/designation are required");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      let photoUrl = existingPhotoUrl;
+
+      // Upload new photo if selected
+      if (photoFile) {
+        const ext = photoFile.name.split(".").pop() || "jpg";
+        const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        photoUrl = await uploadToStorage("staff-photos", fileName, photoFile);
+      }
+
+      if (editingId) {
+        // Update existing
+        const res = await adminPatch("/api/staff", {
+          id: editingId,
+          name: name.trim(),
+          subject: subject.trim(),
+          category,
+          photo_url: photoUrl,
+          old_photo_url: photoFile && existingPhotoUrl ? existingPhotoUrl : undefined,
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Failed to update staff member");
+        }
+        toast.success("Staff member updated");
+      } else {
+        // Create new
+        const currentCount = staff.filter((s) => s.category === category).length;
+        const res = await adminFetch("/api/staff", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            subject: subject.trim(),
+            category,
+            photo_url: photoUrl,
+            sort_order: currentCount,
+          }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Failed to add staff member");
+        }
+        toast.success("Staff member added");
+      }
+
+      setDialogOpen(false);
+      resetForm();
+      fetchStaff();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (member: StaffMember) => {
+    if (!confirm(`Remove "${member.name}" from staff? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const res = await adminDelete("/api/staff", {
+        id: member.id,
+        photo_url: member.photo_url,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete");
+      }
+
+      toast.success("Staff member removed");
+      fetchStaff();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    }
+  };
+
+  // Filter and search
+  const filtered = staff.filter((member) => {
+    const matchesCategory = filterCategory === "all" || member.category === filterCategory;
+    const matchesSearch = member.name.toLowerCase().includes(search.toLowerCase()) ||
+      member.subject.toLowerCase().includes(search.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  const getCategoryLabel = (cat: StaffCategory) =>
+    CATEGORY_OPTIONS.find((c) => c.value === cat)?.label || cat;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <UserCog className="h-6 w-6" />
+            Staff Management
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Add, edit, and manage school staff members and their profile photos
+          </p>
+        </div>
+        <Button onClick={openAddDialog} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Add Staff
+        </Button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search by name or subject..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select
+          value={filterCategory}
+          onValueChange={(val) => val && setFilterCategory(val as StaffCategory | "all")}
+        >
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CATEGORIES.map((c) => (
+              <SelectItem key={c.value} value={c.value}>
+                {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Stats */}
+      <div className="flex gap-4 text-sm text-gray-500">
+        <span>{filtered.length} of {staff.length} staff members</span>
+        {filterCategory !== "all" && (
+          <button
+            onClick={() => setFilterCategory("all")}
+            className="text-blue-600 hover:underline"
+          >
+            Clear filter
+          </button>
+        )}
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <Users className="h-10 w-10 mb-3" />
+          <p className="text-sm font-medium">
+            {staff.length === 0 ? "No staff members yet" : "No results found"}
+          </p>
+          <p className="text-xs mt-1">
+            {staff.length === 0
+              ? "Click 'Add Staff' to get started"
+              : "Try adjusting your search or filter"}
+          </p>
+        </div>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-16">Photo</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Subject / Designation</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead className="w-24 text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((member) => (
+                <TableRow key={member.id}>
+                  <TableCell>
+                    {member.photo_url ? (
+                      <div className="w-10 h-10 rounded-full overflow-hidden relative">
+                        <Image
+                          src={member.photo_url}
+                          alt={member.name}
+                          fill
+                          className="object-cover"
+                          sizes="40px"
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className={`w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center ${getAvatarColor(member.name)}`}
+                      >
+                        <span className="text-xs font-bold text-white">
+                          {getInitials(member.name)}
+                        </span>
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="font-medium">{member.name}</TableCell>
+                  <TableCell className="text-gray-500">{member.subject}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="secondary"
+                      className={categoryBadgeColors[member.category]}
+                    >
+                      {getCategoryLabel(member.category)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEditDialog(member)}
+                        title="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(member)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* Add / Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {editingId ? "Edit Staff Member" : "Add Staff Member"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Full Name *</Label>
+              <Input
+                placeholder="e.g. Jasvindar Singh Bhatiya"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Subject / Designation *</Label>
+              <Input
+                placeholder="e.g. Biology, Principal, Mother Teacher"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Category *</Label>
+              <Select
+                value={category}
+                onValueChange={(val) => val && setCategory(val as StaffCategory)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_OPTIONS.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Profile Photo</Label>
+              {editingId && existingPhotoUrl && !photoFile && (
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-12 h-12 rounded-full overflow-hidden relative">
+                    <Image
+                      src={existingPhotoUrl}
+                      alt="Current photo"
+                      fill
+                      className="object-cover"
+                      sizes="48px"
+                    />
+                  </div>
+                  <span className="text-xs text-gray-500">Current photo. Upload a new one to replace.</span>
+                </div>
+              )}
+              <FileDropZone
+                accept="image/*"
+                maxSizeMB={5}
+                onChange={(files) => setPhotoFile(files instanceof FileList ? files[0] : files)}
+                value={photoFile}
+                label="Drop photo here or click to browse"
+                hint="JPG, PNG up to 5MB"
+                icon="image"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDialogOpen(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              {editingId ? "Update" : "Add"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
