@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { FileDropZone } from "@/components/shared/FileDropZone";
+import { ImageCropper } from "@/components/shared/ImageCropper";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { SiteMedia, SectionCard, SectionCardType } from "@/types";
@@ -265,7 +266,24 @@ function SlotCard({
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const isCustomized = item.current_url !== item.default_url;
+
+  const handleFileSelected = (file: File) => {
+    const url = URL.createObjectURL(file);
+    setCropSrc(url);
+  };
+
+  const handleCropDone = (croppedFile: File) => {
+    if (cropSrc) URL.revokeObjectURL(cropSrc);
+    setCropSrc(null);
+    handleReplace(croppedFile);
+  };
+
+  const handleCropCancel = () => {
+    if (cropSrc) URL.revokeObjectURL(cropSrc);
+    setCropSrc(null);
+  };
 
   const handleReplace = async (file: File) => {
     setUploading(true);
@@ -343,7 +361,7 @@ function SlotCard({
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) handleReplace(file);
+                if (file) handleFileSelected(file);
                 e.target.value = "";
               }}
             />
@@ -381,6 +399,25 @@ function SlotCard({
           </div>
         </div>
       </div>
+
+      {/* Crop dialog for slot images */}
+      <Dialog open={!!cropSrc} onOpenChange={(open) => { if (!open) handleCropCancel(); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Crop Image — {item.label}</DialogTitle>
+          </DialogHeader>
+          {cropSrc && (
+            <ImageCropper
+              imageSrc={cropSrc}
+              onCropComplete={handleCropDone}
+              onCancel={handleCropCancel}
+              fileName={`${item.slot}-${Date.now()}.jpg`}
+              cropShape="rect"
+              aspect={16 / 9}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -471,6 +508,36 @@ export default function AdminSiteMediaPage() {
   const [file, setFile] = useState<FileList | null>(null);
   const [form, setForm] = useState<CardForm>(emptyForm);
 
+  // Crop state for card dialog image
+  const [cardCropSrc, setCardCropSrc] = useState<string | null>(null);
+  const [showCardCropper, setShowCardCropper] = useState(false);
+
+  const handleCardFileSelected = (fileList: FileList | File | null) => {
+    const f = fileList instanceof FileList ? fileList?.[0] : fileList;
+    if (!f) {
+      setFile(null);
+      return;
+    }
+    const url = URL.createObjectURL(f);
+    setCardCropSrc(url);
+    setShowCardCropper(true);
+  };
+
+  const handleCardCropDone = (croppedFile: File) => {
+    const dt = new DataTransfer();
+    dt.items.add(croppedFile);
+    setFile(dt.files);
+    setShowCardCropper(false);
+    if (cardCropSrc) URL.revokeObjectURL(cardCropSrc);
+    setCardCropSrc(null);
+  };
+
+  const handleCardCropCancel = () => {
+    setShowCardCropper(false);
+    if (cardCropSrc) URL.revokeObjectURL(cardCropSrc);
+    setCardCropSrc(null);
+  };
+
   const fetchMedia = useCallback(async () => {
     try {
       const [mediaRes, cardsRes] = await Promise.all([
@@ -507,6 +574,9 @@ export default function AdminSiteMediaPage() {
     setForm(emptyForm);
     setFile(null);
     setEditing(null);
+    setShowCardCropper(false);
+    if (cardCropSrc) URL.revokeObjectURL(cardCropSrc);
+    setCardCropSrc(null);
   };
 
   const openAddCard = (section: SectionCardType) => {
@@ -850,21 +920,46 @@ export default function AdminSiteMediaPage() {
                 {dialogSection === "testimonials" ? "Profile Photo (optional)" : "Image"}{" "}
                 {isImageRequired && <span className="text-red-500">*</span>}
               </Label>
-              {editing?.image_url && !file && (
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 relative">
-                    <Image src={editing.image_url} alt="Current" fill className="object-cover" sizes="64px" />
-                  </div>
-                  <span className="text-xs text-gray-500">Current image (upload new to replace)</span>
-                </div>
+              {showCardCropper && cardCropSrc ? (
+                <ImageCropper
+                  imageSrc={cardCropSrc}
+                  onCropComplete={handleCardCropDone}
+                  onCancel={handleCardCropCancel}
+                  fileName={`card-${dialogSection}-${Date.now()}.jpg`}
+                  cropShape="rect"
+                  aspect={16 / 9}
+                />
+              ) : (
+                <>
+                  {file && file.length > 0 ? (
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 relative border-2 border-green-400">
+                        <Image src={URL.createObjectURL(file[0])} alt="Cropped" fill className="object-cover" sizes="64px" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-green-600 font-medium">Image cropped & ready</p>
+                        <button type="button" onClick={() => setFile(null)} className="text-xs text-gray-500 hover:text-red-500 mt-0.5">
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : editing?.image_url ? (
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 relative">
+                        <Image src={editing.image_url} alt="Current" fill className="object-cover" sizes="64px" />
+                      </div>
+                      <span className="text-xs text-gray-500">Current image (upload new to replace)</span>
+                    </div>
+                  ) : null}
+                  <FileDropZone
+                    accept="image/*"
+                    onChange={handleCardFileSelected}
+                    value={null}
+                    label={dialogSection === "testimonials" ? "Drop profile photo or click to browse" : "Drop image here or click to browse"}
+                    icon="image"
+                  />
+                </>
               )}
-              <FileDropZone
-                accept="image/*"
-                onChange={(fileList) => setFile(fileList)}
-                value={file}
-                label={dialogSection === "testimonials" ? "Drop profile photo or click to browse" : "Drop image here or click to browse"}
-                icon="image"
-              />
             </div>
 
             {/* Dynamic fields */}

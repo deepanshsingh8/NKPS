@@ -40,6 +40,7 @@ import {
 import { adminFetch, adminDelete, adminApi } from "@/lib/admin-api";
 import { uploadToStorage } from "@/lib/supabase/upload";
 import { FileDropZone } from "@/components/shared/FileDropZone";
+import { ImageCropper } from "@/components/shared/ImageCropper";
 import { AcademicYearSelect } from "@/components/shared/AcademicYearSelect";
 import { cn } from "@/lib/utils";
 import type { GalleryImage, GalleryEvent } from "@/types";
@@ -192,6 +193,69 @@ export default function AdminGalleryPage() {
     academic_year: "",
     is_public: true,
   });
+
+  // ── Crop queue state (shared by both upload dialogs) ──
+  const [cropQueue, setCropQueue] = useState<string[]>([]); // object URLs to crop
+  const [cropIndex, setCropIndex] = useState(0);
+  const [croppedFiles, setCroppedFiles] = useState<File[]>([]);
+  const [cropTarget, setCropTarget] = useState<"images" | "event" | null>(null);
+
+  const startCropQueue = (fileList: FileList, target: "images" | "event") => {
+    const urls: string[] = [];
+    for (let i = 0; i < fileList.length; i++) {
+      urls.push(URL.createObjectURL(fileList[i]));
+    }
+    setCropQueue(urls);
+    setCropIndex(0);
+    setCroppedFiles([]);
+    setCropTarget(target);
+  };
+
+  const handleCropDone = (croppedFile: File) => {
+    const newCropped = [...croppedFiles, croppedFile];
+    setCroppedFiles(newCropped);
+
+    // Revoke the URL we just finished with
+    URL.revokeObjectURL(cropQueue[cropIndex]);
+
+    if (cropIndex + 1 < cropQueue.length) {
+      // Move to next image
+      setCropIndex(cropIndex + 1);
+    } else {
+      // All done — convert to FileList-like and set on the right state
+      const dt = new DataTransfer();
+      newCropped.forEach((f) => dt.items.add(f));
+      if (cropTarget === "images") {
+        setFiles(dt.files);
+      } else {
+        setEventUploadFiles(dt.files);
+      }
+      // Clean up
+      setCropQueue([]);
+      setCropIndex(0);
+      setCropTarget(null);
+    }
+  };
+
+  const handleCropSkip = () => {
+    // Skip cropping for this image — use original file
+    // We need to convert the object URL back... but we don't have the original File.
+    // Instead, we'll fetch the blob from the object URL.
+    fetch(cropQueue[cropIndex])
+      .then((r) => r.blob())
+      .then((blob) => {
+        const file = new File([blob], `image-${cropIndex}.jpg`, { type: blob.type });
+        handleCropDone(file);
+      });
+  };
+
+  const handleCropCancelAll = () => {
+    cropQueue.forEach((url) => URL.revokeObjectURL(url));
+    setCropQueue([]);
+    setCropIndex(0);
+    setCroppedFiles([]);
+    setCropTarget(null);
+  };
 
   const supabase = createClient();
 
@@ -661,15 +725,48 @@ export default function AdminGalleryPage() {
               </DialogHeader>
 
               <div className="space-y-5">
-                <FileDropZone
-                  accept="image/*"
-                  multiple
-                  icon="image"
-                  onChange={(fileList) => setFiles(fileList)}
-                  value={files}
-                  label="Drop images here or click to browse"
-                  hint="JPEG, PNG, WebP — max 10MB each"
-                />
+                {/* Crop queue active for images */}
+                {cropTarget === "images" && cropQueue.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Cropping image {cropIndex + 1} of {cropQueue.length}</span>
+                      <button
+                        type="button"
+                        onClick={handleCropCancelAll}
+                        className="text-red-500 hover:underline"
+                      >
+                        Cancel all
+                      </button>
+                    </div>
+                    <ImageCropper
+                      imageSrc={cropQueue[cropIndex]}
+                      onCropComplete={handleCropDone}
+                      onCancel={handleCropSkip}
+                      fileName={`gallery-${Date.now()}-${cropIndex}.jpg`}
+                      cropShape="rect"
+                      aspect={16 / 9}
+                    />
+                    <p className="text-xs text-center text-gray-400">
+                      Press &quot;Cancel&quot; to skip cropping this image
+                    </p>
+                  </div>
+                ) : (
+                  <FileDropZone
+                    accept="image/*"
+                    multiple
+                    icon="image"
+                    onChange={(fileList) => {
+                      if (fileList && fileList.length > 0) {
+                        startCropQueue(fileList, "images");
+                      } else {
+                        setFiles(null);
+                      }
+                    }}
+                    value={files}
+                    label="Drop images here or click to browse"
+                    hint="JPEG, PNG, WebP — max 10MB each"
+                  />
+                )}
 
                 <div className="space-y-1.5">
                   <Label htmlFor="alt" className="text-xs font-medium">Description *</Label>
@@ -908,15 +1005,48 @@ export default function AdminGalleryPage() {
               </DialogHeader>
 
               <div className="space-y-5">
-                <FileDropZone
-                  accept="image/*"
-                  multiple
-                  icon="image"
-                  onChange={(fileList) => setEventUploadFiles(fileList)}
-                  value={eventUploadFiles}
-                  label="Drop images here or click to browse"
-                  hint="JPEG, PNG, WebP — max 10MB each"
-                />
+                {/* Crop queue active for event photos */}
+                {cropTarget === "event" && cropQueue.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Cropping image {cropIndex + 1} of {cropQueue.length}</span>
+                      <button
+                        type="button"
+                        onClick={handleCropCancelAll}
+                        className="text-red-500 hover:underline"
+                      >
+                        Cancel all
+                      </button>
+                    </div>
+                    <ImageCropper
+                      imageSrc={cropQueue[cropIndex]}
+                      onCropComplete={handleCropDone}
+                      onCancel={handleCropSkip}
+                      fileName={`event-${Date.now()}-${cropIndex}.jpg`}
+                      cropShape="rect"
+                      aspect={16 / 9}
+                    />
+                    <p className="text-xs text-center text-gray-400">
+                      Press &quot;Cancel&quot; to skip cropping this image
+                    </p>
+                  </div>
+                ) : (
+                  <FileDropZone
+                    accept="image/*"
+                    multiple
+                    icon="image"
+                    onChange={(fileList) => {
+                      if (fileList && fileList.length > 0) {
+                        startCropQueue(fileList, "event");
+                      } else {
+                        setEventUploadFiles(null);
+                      }
+                    }}
+                    value={eventUploadFiles}
+                    label="Drop images here or click to browse"
+                    hint="JPEG, PNG, WebP — max 10MB each"
+                  />
+                )}
 
                 <p className="text-xs text-gray-500">
                   Photos will be tagged with the event title for accessibility.

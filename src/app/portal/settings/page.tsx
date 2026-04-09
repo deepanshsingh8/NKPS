@@ -16,6 +16,13 @@ import {
   ArrowLeft,
   Check,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ImageCropper } from "@/components/shared/ImageCropper";
 
 interface ProfileData {
   id: string;
@@ -34,6 +41,9 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  // Avatar crop state
+  const [avatarCropSrc, setAvatarCropSrc] = useState<string | null>(null);
 
   // Profile form
   const [fullName, setFullName] = useState("");
@@ -97,24 +107,34 @@ export default function SettingsPage() {
     setSaving(false);
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !profile) return;
+    e.target.value = "";
+    if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("Image must be under 2MB");
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be under 5MB");
       return;
     }
+
+    const url = URL.createObjectURL(file);
+    setAvatarCropSrc(url);
+  };
+
+  const handleAvatarCropDone = async (croppedFile: File) => {
+    if (avatarCropSrc) URL.revokeObjectURL(avatarCropSrc);
+    setAvatarCropSrc(null);
+
+    if (!profile) return;
 
     setUploadingAvatar(true);
     const supabase = createClient();
 
-    const ext = file.name.split(".").pop();
-    const path = `avatars/${profile.id}.${ext}`;
+    const path = `avatars/${profile.id}.jpg`;
 
     const { error: uploadError } = await supabase.storage
       .from("avatars")
-      .upload(path, file, { upsert: true });
+      .upload(path, croppedFile, { upsert: true, contentType: "image/jpeg" });
 
     if (uploadError) {
       toast.error("Failed to upload avatar");
@@ -136,6 +156,11 @@ export default function SettingsPage() {
     setProfile({ ...profile, avatar_url: avatarUrl });
     toast.success("Avatar updated");
     setUploadingAvatar(false);
+  };
+
+  const handleAvatarCropCancel = () => {
+    if (avatarCropSrc) URL.revokeObjectURL(avatarCropSrc);
+    setAvatarCropSrc(null);
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -263,7 +288,7 @@ export default function SettingsPage() {
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={handleAvatarUpload}
+                  onChange={handleAvatarFileSelect}
                 />
               </div>
               <div>
@@ -389,6 +414,25 @@ export default function SettingsPage() {
 
         </div>
       </div>
+
+      {/* Avatar crop dialog */}
+      <Dialog open={!!avatarCropSrc} onOpenChange={(open) => { if (!open) handleAvatarCropCancel(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Crop Profile Photo</DialogTitle>
+          </DialogHeader>
+          {avatarCropSrc && (
+            <ImageCropper
+              imageSrc={avatarCropSrc}
+              onCropComplete={handleAvatarCropDone}
+              onCancel={handleAvatarCropCancel}
+              fileName={`avatar-${Date.now()}.jpg`}
+              cropShape="round"
+              aspect={1}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

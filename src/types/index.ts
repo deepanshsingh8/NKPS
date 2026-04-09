@@ -53,6 +53,11 @@ export interface StaffMember {
   subject: string;
   category: StaffCategory;
   photo_url: string | null;
+  email: string | null;
+  phone: string | null;
+  date_of_birth: string | null;
+  address: string | null;
+  qualifications: string | null;
   is_active: boolean;
   sort_order: number;
   created_at: string;

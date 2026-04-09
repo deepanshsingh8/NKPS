@@ -42,6 +42,7 @@ import {
 import { adminFetch, adminPatch, adminDelete } from "@/lib/admin-api";
 import { uploadToStorage } from "@/lib/supabase/upload";
 import { FileDropZone } from "@/components/shared/FileDropZone";
+import { ImageCropper } from "@/components/shared/ImageCropper";
 import type { StaffMember, StaffCategory } from "@/types";
 
 const CATEGORIES: { value: StaffCategory | "all"; label: string }[] = [
@@ -119,8 +120,17 @@ export default function AdminStaffPage() {
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
   const [category, setCategory] = useState<StaffCategory>("pgt");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [address, setAddress] = useState("");
+  const [qualifications, setQualifications] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
+
+  // Crop state
+  const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
 
   const supabase = createClient();
 
@@ -151,9 +161,44 @@ export default function AdminStaffPage() {
     setName("");
     setSubject("");
     setCategory("pgt");
+    setEmail("");
+    setPhone("");
+    setDateOfBirth("");
+    setAddress("");
+    setQualifications("");
     setPhotoFile(null);
     setExistingPhotoUrl(null);
     setEditingId(null);
+    setRawImageSrc(null);
+    setShowCropper(false);
+  };
+
+  const handleFileSelected = (files: FileList | File | null) => {
+    const file = files instanceof FileList ? files[0] : files;
+    if (!file) {
+      setPhotoFile(null);
+      setRawImageSrc(null);
+      setShowCropper(false);
+      return;
+    }
+    // Create object URL and show cropper
+    const url = URL.createObjectURL(file);
+    setRawImageSrc(url);
+    setShowCropper(true);
+  };
+
+  const handleCropComplete = (croppedFile: File) => {
+    setPhotoFile(croppedFile);
+    setShowCropper(false);
+    // Clean up the object URL
+    if (rawImageSrc) URL.revokeObjectURL(rawImageSrc);
+    setRawImageSrc(null);
+  };
+
+  const handleCropCancel = () => {
+    setShowCropper(false);
+    if (rawImageSrc) URL.revokeObjectURL(rawImageSrc);
+    setRawImageSrc(null);
   };
 
   const openAddDialog = () => {
@@ -166,6 +211,11 @@ export default function AdminStaffPage() {
     setName(member.name);
     setSubject(member.subject);
     setCategory(member.category);
+    setEmail(member.email || "");
+    setPhone(member.phone || "");
+    setDateOfBirth(member.date_of_birth || "");
+    setAddress(member.address || "");
+    setQualifications(member.qualifications || "");
     setPhotoFile(null);
     setExistingPhotoUrl(member.photo_url);
     setDialogOpen(true);
@@ -188,6 +238,14 @@ export default function AdminStaffPage() {
         photoUrl = await uploadToStorage("staff-photos", fileName, photoFile);
       }
 
+      const extraFields = {
+        email: email.trim() || null,
+        phone: phone.trim() || null,
+        date_of_birth: dateOfBirth || null,
+        address: address.trim() || null,
+        qualifications: qualifications.trim() || null,
+      };
+
       if (editingId) {
         // Update existing
         const res = await adminPatch("/api/staff", {
@@ -197,6 +255,7 @@ export default function AdminStaffPage() {
           category,
           photo_url: photoUrl,
           old_photo_url: photoFile && existingPhotoUrl ? existingPhotoUrl : undefined,
+          ...extraFields,
         });
 
         if (!res.ok) {
@@ -216,6 +275,7 @@ export default function AdminStaffPage() {
             category,
             photo_url: photoUrl,
             sort_order: currentCount,
+            ...extraFields,
           }),
         });
 
@@ -423,14 +483,14 @@ export default function AdminStaffPage() {
 
       {/* Add / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {editingId ? "Edit Staff Member" : "Add Staff Member"}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
             <div className="space-y-2">
               <Label>Full Name *</Label>
               <Input
@@ -468,31 +528,121 @@ export default function AdminStaffPage() {
               </Select>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  placeholder="e.g. john@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input
+                  placeholder="e.g. +91-9876543210"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Date of Birth</Label>
+                <Input
+                  type="date"
+                  value={dateOfBirth}
+                  onChange={(e) => setDateOfBirth(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Qualifications</Label>
+                <Input
+                  placeholder="e.g. M.Sc., B.Ed."
+                  value={qualifications}
+                  onChange={(e) => setQualifications(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Address</Label>
+              <Input
+                placeholder="Home address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label>Profile Photo</Label>
-              {editingId && existingPhotoUrl && !photoFile && (
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-12 h-12 rounded-full overflow-hidden relative">
-                    <Image
-                      src={existingPhotoUrl}
-                      alt="Current photo"
-                      fill
-                      className="object-cover"
-                      sizes="48px"
-                    />
-                  </div>
-                  <span className="text-xs text-gray-500">Current photo. Upload a new one to replace.</span>
-                </div>
+
+              {/* Show cropper when a raw image is selected */}
+              {showCropper && rawImageSrc ? (
+                <ImageCropper
+                  imageSrc={rawImageSrc}
+                  onCropComplete={handleCropComplete}
+                  onCancel={handleCropCancel}
+                  fileName={`staff-${Date.now()}.jpg`}
+                  cropShape="round"
+                  aspect={1}
+                />
+              ) : (
+                <>
+                  {/* Show cropped preview or existing photo */}
+                  {photoFile ? (
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-14 h-14 rounded-full overflow-hidden relative border-2 border-green-400">
+                        <Image
+                          src={URL.createObjectURL(photoFile)}
+                          alt="Cropped preview"
+                          fill
+                          className="object-cover"
+                          sizes="56px"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-xs text-green-600 font-medium">Photo cropped & ready</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPhotoFile(null);
+                            setRawImageSrc(null);
+                          }}
+                          className="text-xs text-gray-500 hover:text-red-500 mt-0.5"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : editingId && existingPhotoUrl ? (
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-12 h-12 rounded-full overflow-hidden relative">
+                        <Image
+                          src={existingPhotoUrl}
+                          alt="Current photo"
+                          fill
+                          className="object-cover"
+                          sizes="48px"
+                        />
+                      </div>
+                      <span className="text-xs text-gray-500">Current photo. Upload a new one to replace.</span>
+                    </div>
+                  ) : null}
+
+                  <FileDropZone
+                    accept="image/*"
+                    maxSizeMB={5}
+                    onChange={handleFileSelected}
+                    value={null}
+                    label="Drop photo here or click to browse"
+                    hint="JPG, PNG up to 5MB"
+                    icon="image"
+                  />
+                </>
               )}
-              <FileDropZone
-                accept="image/*"
-                maxSizeMB={5}
-                onChange={(files) => setPhotoFile(files instanceof FileList ? files[0] : files)}
-                value={photoFile}
-                label="Drop photo here or click to browse"
-                hint="JPG, PNG up to 5MB"
-                icon="image"
-              />
             </div>
           </div>
 
