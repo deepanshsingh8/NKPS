@@ -2,38 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { verifyAdmin } from "@/lib/verify-admin";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-
 export async function POST(request: NextRequest) {
   const admin = await verifyAdmin();
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let formData: FormData;
   try {
-    formData = await request.formData();
-  } catch {
-    return NextResponse.json(
-      { error: "Failed to parse upload" },
-      { status: 400 }
-    );
-  }
+    const { url, fileName: originalName, docKey } = await request.json();
 
-  try {
-    const file = formData.get("file") as File | null;
-    const docKey = formData.get("docKey") as string | null;
-
-    if (!file || !docKey) {
+    if (!url || !docKey) {
       return NextResponse.json(
-        { error: "Missing file or docKey" },
-        { status: 400 }
-      );
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: "File too large. Max 10MB." },
+        { error: "Missing url or docKey" },
         { status: 400 }
       );
     }
@@ -59,36 +39,12 @@ export async function POST(request: NextRequest) {
       await admin.storage.from("disclosure-documents").remove([oldFileName]);
     }
 
-    // Upload new file
-    const fileExt = file.name.split(".").pop()?.toLowerCase() || "pdf";
-    const fileName = `${docKey}-${Date.now()}.${fileExt}`;
-
-    const fileBuffer = await file.arrayBuffer();
-    const { error: uploadError } = await admin.storage
-      .from("disclosure-documents")
-      .upload(fileName, fileBuffer, {
-        contentType: file.type || "application/pdf",
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error("Disclosure document upload error:", uploadError);
-      return NextResponse.json(
-        { error: "Failed to upload file" },
-        { status: 500 }
-      );
-    }
-
-    const {
-      data: { publicUrl },
-    } = admin.storage.from("disclosure-documents").getPublicUrl(fileName);
-
     // Update the document row
     const { error: updateError } = await admin
       .from("disclosure_documents")
       .update({
-        file_url: publicUrl,
-        file_name: file.name,
+        file_url: url,
+        file_name: originalName || null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", existing.id);
@@ -102,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     revalidatePath("/mandatory-public-disclosure");
-    return NextResponse.json({ success: true, file_url: publicUrl });
+    return NextResponse.json({ success: true, file_url: url });
   } catch (err) {
     console.error("[Disclosure Document Upload Error]", err);
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });

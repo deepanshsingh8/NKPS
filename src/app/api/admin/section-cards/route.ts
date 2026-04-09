@@ -37,57 +37,36 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
-    const section = formData.get("section") as string;
+    const body = await request.json();
+    const { section, image_url, ...fields } = body;
 
     if (!section) {
       return NextResponse.json({ error: "Section is required" }, { status: 400 });
     }
 
-    let imageUrl: string | null = null;
-
-    if (file && file.size > 0) {
-      const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const fileName = `section-cards/${section}-${Date.now()}.${fileExt}`;
-
-      const fileBuffer = await file.arrayBuffer();
-      const { error: uploadError } = await admin.storage
-        .from("site-media")
-        .upload(fileName, fileBuffer, { contentType: file.type, upsert: false });
-
-      if (uploadError) {
-        console.error("Section card upload error:", uploadError);
-        return NextResponse.json({ error: "Image upload failed" }, { status: 500 });
-      }
-
-      const { data: { publicUrl } } = admin.storage.from("site-media").getPublicUrl(fileName);
-      imageUrl = publicUrl;
-    }
-
-    const name = (formData.get("name") as string)?.trim() || null;
+    const name = fields.name?.trim() || null;
 
     const record: Record<string, unknown> = {
       section,
-      title: (formData.get("title") as string)?.trim() || null,
-      subtitle: (formData.get("subtitle") as string)?.trim() || null,
-      description: (formData.get("description") as string)?.trim() || null,
-      quote: (formData.get("quote") as string)?.trim() || null,
+      title: fields.title?.trim() || null,
+      subtitle: fields.subtitle?.trim() || null,
+      description: fields.description?.trim() || null,
+      quote: fields.quote?.trim() || null,
       name,
-      role: (formData.get("role") as string)?.trim() || null,
+      role: fields.role?.trim() || null,
       initials: name ? name.charAt(0).toUpperCase() : null,
-      date: (formData.get("date") as string)?.trim() || null,
-      cta_text: (formData.get("cta_text") as string)?.trim() || null,
-      cta_link: (formData.get("cta_link") as string)?.trim() || null,
-      icon: (formData.get("icon") as string)?.trim() || null,
-      link: (formData.get("link") as string)?.trim() || null,
-      designation: (formData.get("designation") as string)?.trim() || null,
-      message: (formData.get("message") as string)?.trim() || null,
-      year: (formData.get("year") as string)?.trim() || null,
-      season: (formData.get("season") as string)?.trim() || null,
-      image_url: imageUrl,
-      sort_order: parseInt(formData.get("sort_order") as string) || 0,
-      is_active: formData.get("is_active") !== "false",
+      date: fields.date?.trim() || null,
+      cta_text: fields.cta_text?.trim() || null,
+      cta_link: fields.cta_link?.trim() || null,
+      icon: fields.icon?.trim() || null,
+      link: fields.link?.trim() || null,
+      designation: fields.designation?.trim() || null,
+      message: fields.message?.trim() || null,
+      year: fields.year?.trim() || null,
+      season: fields.season?.trim() || null,
+      image_url: image_url || null,
+      sort_order: parseInt(fields.sort_order) || 0,
+      is_active: fields.is_active !== false,
     };
 
     const { data, error: insertError } = await admin
@@ -116,59 +95,25 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const contentType = request.headers.get("content-type") || "";
-    const isFormData = contentType.includes("multipart/form-data");
-
-    let id: string;
-    let updates: Record<string, unknown> = {};
-    let newFile: File | null = null;
-
-    if (isFormData) {
-      const formData = await request.formData();
-      id = formData.get("id") as string;
-      newFile = formData.get("file") as File | null;
-
-      const fields = ["title", "subtitle", "description", "quote", "name", "role", "date", "cta_text", "cta_link", "icon", "link", "designation", "message", "year", "season", "sort_order", "is_active"];
-      for (const field of fields) {
-        const val = formData.get(field);
-        if (val !== null) {
-          if (field === "sort_order") {
-            updates[field] = parseInt(val as string) || 0;
-          } else if (field === "is_active") {
-            updates[field] = val !== "false";
-          } else {
-            updates[field] = (val as string).trim() || null;
-          }
-        }
-      }
-
-      if (updates.name) {
-        updates.initials = (updates.name as string).charAt(0).toUpperCase();
-      }
-    } else {
-      const body = await request.json();
-      id = body.id;
-      updates = body.data || {};
-
-      if (updates.name) {
-        updates.initials = (updates.name as string).charAt(0).toUpperCase();
-      }
-    }
+    const body = await request.json();
+    const { id, data: updates = {} } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Card ID is required" }, { status: 400 });
     }
 
-    // Handle new image upload
-    if (newFile && newFile.size > 0) {
-      // Get old image URL to clean up
+    if (updates.name) {
+      updates.initials = (updates.name as string).charAt(0).toUpperCase();
+    }
+
+    // Clean up old image from storage if a new image_url is provided
+    if (updates.image_url) {
       const { data: existing } = await admin
         .from("section_cards")
-        .select("image_url, section")
+        .select("image_url")
         .eq("id", id)
         .single();
 
-      // Delete old image from storage if it was an upload
       if (existing?.image_url?.includes("/site-media/section-cards/")) {
         const urlParts = existing.image_url.split("/site-media/");
         const oldFileName = urlParts[urlParts.length - 1];
@@ -176,23 +121,6 @@ export async function PATCH(request: NextRequest) {
           await admin.storage.from("site-media").remove([oldFileName]);
         }
       }
-
-      const section = existing?.section || "unknown";
-      const fileExt = newFile.name.split(".").pop()?.toLowerCase() || "jpg";
-      const fileName = `section-cards/${section}-${Date.now()}.${fileExt}`;
-
-      const newFileBuffer = await newFile.arrayBuffer();
-      const { error: uploadError } = await admin.storage
-        .from("site-media")
-        .upload(fileName, newFileBuffer, { contentType: newFile.type, upsert: false });
-
-      if (uploadError) {
-        console.error("Section card image replace error:", uploadError);
-        return NextResponse.json({ error: "Image upload failed" }, { status: 500 });
-      }
-
-      const { data: { publicUrl } } = admin.storage.from("site-media").getPublicUrl(fileName);
-      updates.image_url = publicUrl;
     }
 
     updates.updated_at = new Date().toISOString();

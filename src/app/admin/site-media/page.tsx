@@ -13,7 +13,8 @@ import {
   Pencil,
   ImageIcon,
 } from "lucide-react";
-import { adminFetch, adminUpload, adminDelete, adminPatch } from "@/lib/admin-api";
+import { adminFetch, adminDelete, adminPatch } from "@/lib/admin-api";
+import { uploadToStorage } from "@/lib/supabase/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -269,11 +270,15 @@ function SlotCard({
   const handleReplace = async (file: File) => {
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("slot", item.slot);
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${item.slot}-${Date.now()}.${fileExt}`;
+      const url = await uploadToStorage("site-media", fileName, file);
 
-      const res = await adminUpload("/api/admin/site-media", formData);
+      const res = await adminFetch("/api/admin/site-media", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slot: item.slot, url }),
+      });
       if (res.ok) {
         toast.success(`Updated: ${item.label}`);
         onUpdated();
@@ -281,8 +286,8 @@ function SlotCard({
         const data = await res.json();
         toast.error(data.error || "Upload failed");
       }
-    } catch {
-      toast.error("Upload failed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -557,20 +562,30 @@ export default function AdminSiteMediaPage() {
     setSubmitting(true);
 
     try {
-      const formData = new FormData();
+      // Upload image to storage if provided
+      let imageUrl: string | null = null;
       if (file && file.length > 0) {
-        formData.append("file", file[0]);
+        const f = file[0];
+        const fileExt = f.name.split(".").pop()?.toLowerCase() || "jpg";
+        const fileName = `section-cards/${dialogSection}-${Date.now()}.${fileExt}`;
+        imageUrl = await uploadToStorage("site-media", fileName, f);
       }
-      formData.append("section", dialogSection);
 
       const allFields = [...fieldMap.required, ...fieldMap.optional, "sort_order"];
+      const payload: Record<string, unknown> = { section: dialogSection };
       for (const field of allFields) {
-        formData.append(field, form[field as keyof CardForm] || "");
+        payload[field] = form[field as keyof CardForm] || "";
       }
 
       if (editing) {
-        formData.append("id", editing.id);
-        const res = await adminUpload("/api/admin/section-cards", formData, "PATCH");
+        const updates: Record<string, unknown> = { ...payload };
+        delete updates.section;
+        if (imageUrl) updates.image_url = imageUrl;
+        const res = await adminFetch("/api/admin/section-cards", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editing.id, data: updates }),
+        });
         if (!res.ok) {
           const data = await res.json();
           toast.error(data.error || "Update failed");
@@ -578,7 +593,12 @@ export default function AdminSiteMediaPage() {
         }
         toast.success("Card updated");
       } else {
-        const res = await adminUpload("/api/admin/section-cards", formData);
+        if (imageUrl) payload.image_url = imageUrl;
+        const res = await adminFetch("/api/admin/section-cards", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
         if (!res.ok) {
           const data = await res.json();
           toast.error(data.error || "Create failed");
@@ -590,8 +610,8 @@ export default function AdminSiteMediaPage() {
       setDialogOpen(false);
       resetForm();
       await fetchMedia();
-    } catch {
-      toast.error("An error occurred");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setSubmitting(false);
     }

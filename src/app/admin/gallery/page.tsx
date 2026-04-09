@@ -37,7 +37,8 @@ import {
   X,
   Star,
 } from "lucide-react";
-import { adminUpload, adminDelete, adminApi } from "@/lib/admin-api";
+import { adminFetch, adminDelete, adminApi } from "@/lib/admin-api";
+import { uploadToStorage } from "@/lib/supabase/upload";
 import { FileDropZone } from "@/components/shared/FileDropZone";
 import { AcademicYearSelect } from "@/components/shared/AcademicYearSelect";
 import { cn } from "@/lib/utils";
@@ -268,32 +269,34 @@ export default function AdminGalleryPage() {
     let succeeded = 0;
     let failed = 0;
 
-    // Upload one file at a time to avoid body size limits
     for (let i = 0; i < files.length; i++) {
       try {
-        const formData = new FormData();
-        formData.append("files", files[i]);
-        formData.append("alt", files.length > 1 ? `${altText.trim()} ${i + 1}` : altText.trim());
-        formData.append("category", category);
-        formData.append("currentCount", String(images.length + succeeded));
-        if (eventId) {
-          formData.append("gallery_event_id", eventId);
-        }
+        const f = files[i];
+        const fileExt = f.name.split(".").pop()?.toLowerCase() || "jpg";
+        const fileName = `${Date.now()}-${i}.${fileExt}`;
+        const url = await uploadToStorage("gallery", fileName, f);
 
-        const res = await adminUpload("/api/gallery", formData);
+        const res = await adminFetch("/api/gallery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url,
+            alt: files.length > 1 ? `${altText.trim()} ${i + 1}` : altText.trim(),
+            category,
+            currentCount: images.length + succeeded,
+            gallery_event_id: eventId || null,
+          }),
+        });
         const data = await res.json();
 
         if (!res.ok) {
-          toast.error(`${files[i].name}: ${data.error || "Upload failed"}`);
+          toast.error(`${f.name}: ${data.error || "Upload failed"}`);
           failed++;
-        } else if (data.results?.[0]?.success) {
-          succeeded++;
         } else {
-          toast.error(`${files[i].name}: ${data.results?.[0]?.error || "Upload failed"}`);
-          failed++;
+          succeeded++;
         }
-      } catch {
-        toast.error(`${files[i].name}: Upload failed`);
+      } catch (err) {
+        toast.error(`${files[i].name}: ${err instanceof Error ? err.message : "Upload failed"}`);
         failed++;
       }
     }
@@ -353,33 +356,37 @@ export default function AdminGalleryPage() {
     let failed = 0;
     let firstUploadedUrl: string | null = null;
 
-    // Upload one file at a time to avoid body size limits
     for (let i = 0; i < eventUploadFiles.length; i++) {
       try {
-        const formData = new FormData();
-        formData.append("files", eventUploadFiles[i]);
-        formData.append("alt", eventUploadFiles.length > 1 ? `${eventTitle} ${i + 1}` : eventTitle);
-        formData.append("category", "events");
-        formData.append("currentCount", String(images.length + succeeded));
-        formData.append("gallery_event_id", uploadEventId);
+        const f = eventUploadFiles[i];
+        const fileExt = f.name.split(".").pop()?.toLowerCase() || "jpg";
+        const fileName = `${Date.now()}-${i}.${fileExt}`;
+        const url = await uploadToStorage("gallery", fileName, f);
 
-        const res = await adminUpload("/api/gallery", formData);
+        const res = await adminFetch("/api/gallery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url,
+            alt: eventUploadFiles.length > 1 ? `${eventTitle} ${i + 1}` : eventTitle,
+            category: "events",
+            currentCount: images.length + succeeded,
+            gallery_event_id: uploadEventId,
+          }),
+        });
         const data = await res.json();
 
         if (!res.ok) {
-          toast.error(`${eventUploadFiles[i].name}: ${data.error || "Upload failed"}`);
+          toast.error(`${f.name}: ${data.error || "Upload failed"}`);
           failed++;
-        } else if (data.results?.[0]?.success) {
-          if (!firstUploadedUrl && data.results[0].src) {
-            firstUploadedUrl = data.results[0].src;
+        } else {
+          if (!firstUploadedUrl) {
+            firstUploadedUrl = url;
           }
           succeeded++;
-        } else {
-          toast.error(`${eventUploadFiles[i].name}: ${data.results?.[0]?.error || "Upload failed"}`);
-          failed++;
         }
-      } catch {
-        toast.error(`${eventUploadFiles[i].name}: Upload failed`);
+      } catch (err) {
+        toast.error(`${eventUploadFiles[i].name}: ${err instanceof Error ? err.message : "Upload failed"}`);
         failed++;
       }
     }

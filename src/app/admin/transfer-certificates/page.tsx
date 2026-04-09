@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Download, Trash2, Loader2, Search, UserCheck, FileText, Upload } from "lucide-react";
-import { adminUpload, adminDelete } from "@/lib/admin-api";
+import { adminFetch, adminDelete } from "@/lib/admin-api";
+import { uploadToStorage } from "@/lib/supabase/upload";
 import { FileDropZone } from "@/components/shared/FileDropZone";
 import { AcademicYearSelect } from "@/components/shared/AcademicYearSelect";
 import type { TransferCertificate, Student } from "@/types";
@@ -113,15 +114,19 @@ export default function AdminTransferCertificatesPage() {
     setUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("studentName", studentName.trim());
-      formData.append("academicYear", academicYear.trim());
-      if (admissionNo.trim()) {
-        formData.append("admissionNo", admissionNo.trim());
-      }
+      const fileName = `${Date.now()}-${studentName.replace(/\s+/g, "-").toLowerCase()}.pdf`;
+      const url = await uploadToStorage("transfer-certificates", fileName, file);
 
-      const res = await adminUpload("/api/transfer-certificates", formData);
+      const res = await adminFetch("/api/transfer-certificates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url,
+          studentName: studentName.trim(),
+          academicYear: academicYear.trim(),
+          admissionNo: admissionNo.trim() || null,
+        }),
+      });
 
       const data = await res.json();
 

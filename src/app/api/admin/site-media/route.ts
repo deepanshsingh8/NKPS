@@ -45,39 +45,16 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
-    const slot = formData.get("slot") as string;
+    const { slot, url } = await request.json();
 
-    if (!file || !slot) {
-      return NextResponse.json({ error: "Missing file or slot" }, { status: 400 });
+    if (!slot || !url) {
+      return NextResponse.json({ error: "Missing slot or url" }, { status: 400 });
     }
-
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${slot}-${Date.now()}.${fileExt}`;
-
-    // Upload to site-media storage bucket
-    const fileBuffer = await file.arrayBuffer();
-    const { error: uploadError } = await admin.storage
-      .from("site-media")
-      .upload(fileName, fileBuffer, { contentType: file.type, upsert: false });
-
-    if (uploadError) {
-      console.error("Site media upload error:", uploadError);
-      return NextResponse.json(
-        { error: "Upload failed" },
-        { status: 500 }
-      );
-    }
-
-    const {
-      data: { publicUrl },
-    } = admin.storage.from("site-media").getPublicUrl(fileName);
 
     // Update the slot's current_url and get the page for revalidation
     const { data: updated, error: updateError } = await admin
       .from("site_media")
-      .update({ current_url: publicUrl, updated_at: new Date().toISOString() })
+      .update({ current_url: url, updated_at: new Date().toISOString() })
       .eq("slot", slot)
       .select("page")
       .single();
@@ -92,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     revalidatePages(updated?.page ?? "home");
 
-    return NextResponse.json({ success: true, url: publicUrl });
+    return NextResponse.json({ success: true, url });
   } catch {
     return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }

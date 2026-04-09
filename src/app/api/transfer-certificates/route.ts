@@ -8,44 +8,21 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File;
-    const studentName = formData.get("studentName") as string;
-    const academicYear = formData.get("academicYear") as string;
-    const admissionNo = formData.get("admissionNo") as string | null;
+    const { url, studentName, academicYear, admissionNo } = await request.json();
 
-    if (!file || !studentName || !academicYear) {
+    if (!url || !studentName || !academicYear) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    const fileName = `${Date.now()}-${studentName.replace(/\s+/g, "-").toLowerCase()}.pdf`;
-
-    const fileBuffer = await file.arrayBuffer();
-    const { error: uploadError } = await admin.storage
-      .from("transfer-certificates")
-      .upload(fileName, fileBuffer, { contentType: file.type });
-
-    if (uploadError) {
-      console.error("TC storage upload error:", uploadError);
-      return NextResponse.json(
-        { error: "Failed to upload certificate" },
-        { status: 500 }
-      );
-    }
-
-    const {
-      data: { publicUrl },
-    } = admin.storage.from("transfer-certificates").getPublicUrl(fileName);
-
     const { error: insertError } = await admin
       .from("transfer_certificates")
       .insert({
         student_name: studentName,
         admission_no: admissionNo || null,
-        file_url: publicUrl,
+        file_url: url,
         academic_year: academicYear,
         upload_date: new Date().toISOString().split("T")[0],
       });

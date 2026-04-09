@@ -39,7 +39,8 @@ import {
   ExternalLink,
   ScrollText,
 } from "lucide-react";
-import { adminApi, adminUpload, adminDelete } from "@/lib/admin-api";
+import { adminApi, adminFetch, adminDelete } from "@/lib/admin-api";
+import { uploadToStorage } from "@/lib/supabase/upload";
 import { FileDropZone } from "@/components/shared/FileDropZone";
 import type {
   DisclosureItem,
@@ -275,15 +276,17 @@ function DocumentsTab({
     }
 
     setUploadingKey(doc.doc_key);
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("docKey", doc.doc_key);
 
     try {
-      const res = await adminUpload(
-        "/api/admin/disclosure-documents",
-        formData
-      );
+      const fileExt = file.name.split(".").pop()?.toLowerCase() || "pdf";
+      const fileName = `${doc.doc_key}-${Date.now()}.${fileExt}`;
+      const url = await uploadToStorage("disclosure-documents", fileName, file);
+
+      const res = await adminFetch("/api/admin/disclosure-documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, fileName: file.name, docKey: doc.doc_key }),
+      });
       const data = await res.json();
       if (data.success) {
         toast.success(`Uploaded "${doc.label}"`);
@@ -292,8 +295,8 @@ function DocumentsTab({
       } else {
         toast.error(data.error || "Upload failed");
       }
-    } catch {
-      toast.error("Upload failed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
     }
     setUploadingKey(null);
   };
