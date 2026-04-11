@@ -16,23 +16,44 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
-  // Supabase handles the token exchange via the URL hash automatically
+  // Exchange the recovery `?code=...` for a session on this page only.
+  // Doing it here (instead of a generic /auth/callback) ensures the token
+  // cannot be used as a silent magic-login if the user navigates away.
   useEffect(() => {
     const supabase = createClient();
-    // Listen for the PASSWORD_RECOVERY event that Supabase fires
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get("code");
+    const errorDescription = url.searchParams.get("error_description");
+
+    if (errorDescription) {
+      setLinkError(errorDescription);
+      return;
+    }
+
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) {
+          setLinkError(error.message);
+        } else {
+          setSessionReady(true);
+          // Strip the code from the URL so a refresh doesn't re-attempt exchange
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+      });
+      return;
+    }
+
+    // No code in URL — fall back to existing session (e.g. user refreshed
+    // after the exchange already happened).
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
         setSessionReady(true);
+      } else {
+        setLinkError("Invalid or expired reset link. Please request a new one.");
       }
     });
-
-    // Also check if there's already a session (user clicked link and landed here)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setSessionReady(true);
-    });
-
-    return () => subscription.unsubscribe();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -108,7 +129,18 @@ export default function ResetPasswordPage() {
                 </p>
               </div>
 
-              {!sessionReady ? (
+              {linkError ? (
+                <div className="text-center py-6">
+                  <p className="text-sm text-red-600 mb-4">{linkError}</p>
+                  <Button
+                    onClick={() => router.push("/portal/forgot-password")}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Request a new link
+                  </Button>
+                </div>
+              ) : !sessionReady ? (
                 <div className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-navy-900 mx-auto mb-3" />
                   <p className="text-sm text-gray-500">Verifying your reset link...</p>

@@ -10,6 +10,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/portal/login?error=missing_code`);
   }
 
+  // Password recovery must be handled on the reset-password page itself,
+  // not here — otherwise the recovery token becomes a silent magic login.
+  if (next.startsWith("/portal/reset-password")) {
+    return NextResponse.redirect(
+      `${origin}/portal/reset-password?code=${encodeURIComponent(code)}`
+    );
+  }
+
   let response = NextResponse.redirect(`${origin}${next}`);
 
   const supabase = createServerClient(
