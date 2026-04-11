@@ -12,7 +12,7 @@ import type { SectionCard } from "@/types";
 /* ─── Slide data ─── */
 const defaultSlides = [
   {
-    title: "Where Futures\nBegin",
+    title: "Where Futures\nare Shaped",
     subtitle: "Empowering young minds with holistic education since 1985",
     cta: "Explore Admissions",
     href: "/admissions",
