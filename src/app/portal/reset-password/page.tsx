@@ -51,16 +51,24 @@ export default function ResetPasswordPage() {
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.updateUser({
+      const { data: updateData, error } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
       if (error) {
         toast.error(error.message);
       } else {
+        // Clear must_change_password flag if it was set, so middleware
+        // doesn't bounce the user back to /portal/change-password.
+        if (updateData.user) {
+          await supabase
+            .from("profiles")
+            .update({ must_change_password: false })
+            .eq("id", updateData.user.id);
+        }
+        await supabase.auth.signOut();
         setSuccess(true);
         toast.success("Password reset successfully!");
-        // Redirect to login after 2 seconds
         setTimeout(() => router.push("/portal/login"), 2000);
       }
     } catch {
