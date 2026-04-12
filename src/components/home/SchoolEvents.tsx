@@ -14,6 +14,8 @@ const EVENT_TYPE_COLORS: Record<CalendarEventType, string> = {
   holiday: "bg-gold-500",
   event: "bg-gold-600",
   pta_meeting: "bg-navy-900",
+  sports: "bg-orange-600",
+  cultural: "bg-pink-600",
   other: "bg-navy-600",
 };
 
@@ -22,6 +24,8 @@ const EVENT_TYPE_LABELS: Record<CalendarEventType, string> = {
   holiday: "Holiday",
   event: "Event",
   pta_meeting: "PTA Meeting",
+  sports: "Sports",
+  cultural: "Cultural",
   other: "Other",
 };
 

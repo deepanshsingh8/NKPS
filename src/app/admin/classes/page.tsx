@@ -30,7 +30,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, Layers } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
-import type { Class, AcademicYear, Profile, Stream } from "@/types";
+import type { Class, AcademicYear, Teacher, Stream } from "@/types";
 
 const CLASS_NAMES = [
   "Nursery",
@@ -64,7 +64,7 @@ interface ClassWithRelations extends Class {
 export default function AdminClassesPage() {
   const [classes, setClasses] = useState<ClassWithRelations[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
-  const [teachers, setTeachers] = useState<Profile[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [streams, setStreams] = useState<Stream[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -85,16 +85,15 @@ export default function AdminClassesPage() {
     const [classesRes, yearsRes, teachersRes, streamsRes] = await Promise.all([
       supabase
         .from("classes")
-        .select("*, profiles:class_teacher_id(full_name), academic_years:academic_year_id(name), streams:stream_id(name)")
+        .select("*, teachers:class_teacher_id(full_name, employee_id), academic_years:academic_year_id(name), streams:stream_id(name)")
         .order("sort_order", { ascending: true }),
       supabase
         .from("academic_years")
         .select("*")
         .order("start_date", { ascending: false }),
       supabase
-        .from("profiles")
+        .from("teachers")
         .select("*")
-        .eq("role", "teacher")
         .eq("is_active", true)
         .order("full_name"),
       supabase
@@ -111,7 +110,7 @@ export default function AdminClassesPage() {
         (c: Record<string, unknown>) => ({
           ...(c as unknown as Class),
           teacher_name:
-            (c.profiles as { full_name: string } | null)?.full_name ?? "—",
+            (c.teachers as { full_name: string; employee_id: string } | null)?.full_name ?? "—",
           academic_year_name:
             (c.academic_years as { name: string } | null)?.name ?? "—",
           stream_name:
@@ -122,7 +121,7 @@ export default function AdminClassesPage() {
     }
 
     setAcademicYears((yearsRes.data as AcademicYear[]) ?? []);
-    setTeachers((teachersRes.data as Profile[]) ?? []);
+    setTeachers((teachersRes.data as Teacher[]) ?? []);
     setStreams((streamsRes.data as Stream[]) ?? []);
     setLoading(false);
   };
@@ -407,7 +406,7 @@ export default function AdminClassesPage() {
                   value={classTeacherId}
                   items={[
                     { value: "none", label: "None" },
-                    ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.email})` })),
+                    ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.employee_id})` })),
                   ]}
                   onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}
                 >
@@ -417,8 +416,8 @@ export default function AdminClassesPage() {
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
                     {teachers.map((t) => (
-                      <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.email})`}>
-                        {t.full_name} ({t.email})
+                      <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.employee_id})`}>
+                        {t.full_name} ({t.employee_id})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -533,7 +532,7 @@ export default function AdminClassesPage() {
                   value={classTeacherId}
                   items={[
                     { value: "none", label: "None" },
-                    ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.email})` })),
+                    ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.employee_id})` })),
                   ]}
                   onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}
                 >
@@ -543,8 +542,8 @@ export default function AdminClassesPage() {
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
                     {teachers.map((t) => (
-                      <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.email})`}>
-                        {t.full_name} ({t.email})
+                      <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.employee_id})`}>
+                        {t.full_name} ({t.employee_id})
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const LOGIN_PAGES = ["/portal/login", "/admin/login"];
 
-const PROTECTED_PREFIXES = ["/admin", "/teacher", "/student"];
+const PROTECTED_PREFIXES = ["/admin", "/teacher", "/student", "/parent"];
 
 function getDashboardPath(role: string): string {
   switch (role) {
@@ -14,6 +14,8 @@ function getDashboardPath(role: string): string {
       return "/teacher";
     case "student":
       return "/student";
+    case "parent":
+      return "/parent";
     default:
       return "/portal/login";
   }
@@ -124,6 +126,12 @@ export async function updateSession(request: NextRequest) {
     }
 
     if (pathname.startsWith("/student") && !pathname.startsWith("/student-life") && role !== "student") {
+      const url = request.nextUrl.clone();
+      url.pathname = dashboard;
+      return NextResponse.redirect(url);
+    }
+
+    if (pathname.startsWith("/parent") && role !== "parent") {
       const url = request.nextUrl.clone();
       url.pathname = dashboard;
       return NextResponse.redirect(url);

@@ -88,11 +88,24 @@ export default function TeacherResultsPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Resolve teacher_id from profiles
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("teacher_id")
+        .eq("id", user.id)
+        .single();
+
+      const teacherId = profileData?.teacher_id;
+      if (!teacherId) {
+        setLoading(false);
+        return;
+      }
+
       // Get classes where this teacher has subject assignments
       const { data: classSubjects } = await supabase
         .from("class_subjects")
         .select("class_id, classes(id, name, section, academic_year_id, sort_order)")
-        .eq("teacher_id", user.id);
+        .eq("teacher_id", teacherId);
 
       if (classSubjects) {
         const uniqueClasses = new Map<string, Class>();
@@ -147,11 +160,21 @@ export default function TeacherResultsPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Resolve teacher_id from profiles
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("teacher_id")
+        .eq("id", user.id)
+        .single();
+
+      const teacherId = profileData?.teacher_id;
+      if (!teacherId) return;
+
       const { data: classSubjects } = await supabase
         .from("class_subjects")
         .select("subject_id, subjects(id, name, code, is_active)")
         .eq("class_id", selectedClassId)
-        .eq("teacher_id", user.id);
+        .eq("teacher_id", teacherId);
 
       if (classSubjects) {
         const subs = classSubjects

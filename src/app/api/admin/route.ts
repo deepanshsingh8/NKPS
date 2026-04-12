@@ -23,7 +23,6 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   disclosure_board_results: ["id", "exam_class", "academic_year", "registered", "passed", "pass_percentage", "remarks", "sort_order", "updated_at"],
   streams: ["id", "name", "code", "is_active", "sort_order", "created_at"],
   stream_subjects: ["id", "stream_id", "subject_id", "is_mandatory", "sort_order"],
-  student_subjects: ["id", "student_id", "class_subject_id", "created_at"],
 };
 
 const ALLOWED_TABLES = Object.keys(ALLOWED_COLUMNS);

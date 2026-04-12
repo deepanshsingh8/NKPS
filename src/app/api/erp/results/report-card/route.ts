@@ -52,6 +52,7 @@ export async function GET(request: Request) {
         "id, marks_obtained, max_marks, grade, remarks, subjects(id, name, code), exam_types(id, name, max_marks, sort_order, academic_year_id)"
       )
       .eq("student_id", studentId)
+      .eq("is_published", true)
       .order("created_at", { ascending: true });
 
     // If academic_year_id provided, filter exam_types by it

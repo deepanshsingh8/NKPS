@@ -1,0 +1,44 @@
+"use client";
+
+import {
+  LayoutDashboard,
+  ClipboardCheck,
+  BarChart3,
+  CreditCard,
+  CalendarDays,
+} from "lucide-react";
+import { PortalSidebar } from "./PortalSidebar";
+
+const navLinks = [
+  {
+    href: "/parent",
+    label: "Dashboard",
+    icon: <LayoutDashboard className="h-5 w-5 shrink-0" />,
+  },
+  {
+    href: "/parent/attendance",
+    label: "Attendance",
+    icon: <ClipboardCheck className="h-5 w-5 shrink-0" />,
+  },
+  {
+    href: "/parent/results",
+    label: "Results",
+    icon: <BarChart3 className="h-5 w-5 shrink-0" />,
+  },
+  {
+    href: "/parent/fees",
+    label: "Fees",
+    icon: <CreditCard className="h-5 w-5 shrink-0" />,
+  },
+  {
+    href: "/parent/calendar",
+    label: "Calendar",
+    icon: <CalendarDays className="h-5 w-5 shrink-0" />,
+  },
+];
+
+export function ParentSidebar() {
+  return (
+    <PortalSidebar title="Parent Portal" role="Parent" navLinks={navLinks} />
+  );
+}

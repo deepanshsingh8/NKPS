@@ -46,17 +46,27 @@ export default function TeacherStudentsPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Resolve teacher_id from profiles
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("teacher_id")
+        .eq("id", user.id)
+        .single();
+
+      const teacherId = profileData?.teacher_id;
+      if (!teacherId) return;
+
       // Get classes from class_subjects where teacher
       const { data: classSubjects } = await supabase
         .from("class_subjects")
         .select("class_id")
-        .eq("teacher_id", user.id);
+        .eq("teacher_id", teacherId);
 
       // Also get classes where class teacher
       const { data: classTeacher } = await supabase
         .from("classes")
         .select("id")
-        .eq("class_teacher_id", user.id);
+        .eq("class_teacher_id", teacherId);
 
       const allClassIds = [
         ...new Set([

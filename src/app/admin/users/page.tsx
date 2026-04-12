@@ -46,13 +46,14 @@ import {
 import { adminFetch } from "@/lib/admin-api";
 import type { Profile, UserRole, RegistrationRequest, RegistrationStatus } from "@/types";
 
-const ROLES: UserRole[] = ["admin", "editor", "teacher", "student"];
+const ROLES: UserRole[] = ["admin", "editor", "teacher", "student", "parent"];
 
 const roleBadgeColors: Record<UserRole, string> = {
   admin: "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400",
   editor: "bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400",
   teacher: "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
   student: "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400",
+  parent: "bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
 };
 
 const regStatusBadgeColors: Record<RegistrationStatus, string> = {
@@ -64,6 +65,7 @@ const regStatusBadgeColors: Record<RegistrationStatus, string> = {
 const regRoleBadgeColors: Record<string, string> = {
   teacher: "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
   student: "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400",
+  parent: "bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
 };
 
 export default function AdminUsersPage() {
@@ -384,6 +386,9 @@ export default function AdminUsersPage() {
             <TabsTrigger value="student">
               Students ({profiles.filter((p) => p.role === "student").length})
             </TabsTrigger>
+            <TabsTrigger value="parent">
+              Parents ({profiles.filter((p) => p.role === "parent").length})
+            </TabsTrigger>
             <TabsTrigger value="registrations">
               Registrations
               {regCounts.pending > 0 && (
@@ -395,7 +400,7 @@ export default function AdminUsersPage() {
           </TabsList>
 
           {/* User tabs */}
-          {["all", "admin", "editor", "teacher", "student"].map((tab) => (
+          {["all", "admin", "editor", "teacher", "student", "parent"].map((tab) => (
             <TabsContent key={tab} value={tab}>
               <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 <div className="relative flex-1">

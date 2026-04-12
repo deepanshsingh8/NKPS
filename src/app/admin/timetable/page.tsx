@@ -22,7 +22,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Clock } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
-import type { Class, Subject, Profile, TimetablePeriod } from "@/types";
+import type { Class, Subject, Teacher, TimetablePeriod } from "@/types";
 
 const DAYS = [
   { value: 1, label: "Monday" },
@@ -54,7 +54,7 @@ export default function AdminTimetablePage() {
 
   const [classes, setClasses] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [teachers, setTeachers] = useState<Profile[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [periods, setPeriods] = useState<PeriodCell[]>([]);
 
   const [selectedClassId, setSelectedClassId] = useState("");
@@ -97,16 +97,15 @@ export default function AdminTimetablePage() {
           .eq("is_active", true)
           .order("name"),
         supabase
-          .from("profiles")
+          .from("teachers")
           .select("*")
-          .eq("role", "teacher")
           .eq("is_active", true)
           .order("full_name"),
       ]);
 
       setClasses((classesRes.data as Class[]) ?? []);
       setSubjects((subjectsRes.data as Subject[]) ?? []);
-      setTeachers((teachersRes.data as Profile[]) ?? []);
+      setTeachers((teachersRes.data as Teacher[]) ?? []);
       setLoading(false);
     }
 
@@ -124,7 +123,7 @@ export default function AdminTimetablePage() {
     const { data, error } = await supabase
       .from("timetable_periods")
       .select(
-        "*, subjects(name), profiles:teacher_id(full_name)"
+        "*, subjects(name), teachers:teacher_id(full_name, employee_id)"
       )
       .eq("class_id", selectedClassId)
       .order("day_of_week")
@@ -142,7 +141,7 @@ export default function AdminTimetablePage() {
         subject_name:
           (p.subjects as { name: string } | null)?.name ?? undefined,
         teacher_name:
-          (p.profiles as { full_name: string } | null)?.full_name ?? undefined,
+          (p.teachers as { full_name: string; employee_id: string } | null)?.full_name ?? undefined,
       })
     );
 
@@ -436,7 +435,7 @@ export default function AdminTimetablePage() {
                 value={formData.teacher_id}
                 items={[
                   { value: "none", label: "None" },
-                  ...teachers.map((t) => ({ value: t.id, label: t.full_name })),
+                  ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.employee_id})` })),
                 ]}
                 onValueChange={(val) =>
                   setFormData({
@@ -451,8 +450,8 @@ export default function AdminTimetablePage() {
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
                   {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id} label={t.full_name}>
-                      {t.full_name}
+                    <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.employee_id})`}>
+                      {t.full_name} ({t.employee_id})
                     </SelectItem>
                   ))}
                 </SelectContent>

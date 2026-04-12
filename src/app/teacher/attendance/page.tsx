@@ -74,17 +74,27 @@ export default function TeacherAttendancePage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Resolve teacher_id from profiles
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("teacher_id")
+        .eq("id", user.id)
+        .single();
+
+      const teacherId = profileData?.teacher_id;
+      if (!teacherId) return;
+
       // Get class IDs from class_subjects
       const { data: classSubjects } = await supabase
         .from("class_subjects")
         .select("class_id")
-        .eq("teacher_id", user.id);
+        .eq("teacher_id", teacherId);
 
       // Also get classes where user is class teacher
       const { data: classTeacher } = await supabase
         .from("classes")
         .select("id")
-        .eq("class_teacher_id", user.id);
+        .eq("class_teacher_id", teacherId);
 
       const classIds = [
         ...new Set([

@@ -4,8 +4,11 @@ import { generateSecurePassword } from "@/lib/password";
 interface CreatePortalUserParams {
   email: string;
   fullName: string;
-  role: "teacher" | "student";
+  role: "teacher" | "student" | "parent";
   phone?: string | null;
+  teacherId?: string | null;
+  studentId?: string | null;
+  parentId?: string | null;
 }
 
 interface CreatePortalUserResult {
@@ -19,6 +22,9 @@ export async function createPortalUser({
   fullName,
   role,
   phone,
+  teacherId,
+  studentId,
+  parentId,
 }: CreatePortalUserParams): Promise<CreatePortalUserResult> {
   const supabase = createAdminClient();
 
@@ -52,6 +58,9 @@ export async function createPortalUser({
       .update({
         phone: phone || null,
         must_change_password: true,
+        teacher_id: teacherId || null,
+        student_id: studentId || null,
+        parent_id: parentId || null,
       })
       .eq("id", newUser.user.id);
   }

@@ -21,6 +21,7 @@ import { registrationRequestSchema, type RegistrationRequestData } from "@/lib/v
 export default function PortalRegisterPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<string>("");
 
   const {
     register,
@@ -90,6 +91,10 @@ export default function PortalRegisterPage() {
             <div className="flex items-center justify-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-400" />
               <span>Students</span>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-purple-400" />
+              <span>Parents</span>
             </div>
           </div>
         </div>
@@ -197,13 +202,19 @@ export default function PortalRegisterPage() {
 
                 <div className="space-y-2">
                   <Label className="text-navy-900 font-medium">Role</Label>
-                  <Select onValueChange={(val) => val && setValue("role", val as "teacher" | "student")}>
+                  <Select onValueChange={(val) => {
+                    if (val) {
+                      setValue("role", val as "teacher" | "student" | "parent");
+                      setSelectedRole(val);
+                    }
+                  }}>
                     <SelectTrigger className="w-full h-11 border-gray-200 focus:border-navy-900 focus:ring-navy-900">
                       <SelectValue placeholder="Select your role" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="teacher">Teacher</SelectItem>
                       <SelectItem value="student">Student</SelectItem>
+                      <SelectItem value="parent">Parent</SelectItem>
                     </SelectContent>
                   </Select>
                   {errors.role && (
@@ -212,6 +223,39 @@ export default function PortalRegisterPage() {
                     </p>
                   )}
                 </div>
+
+                {selectedRole === "parent" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="student_admission_no" className="text-navy-900 font-medium">
+                        Child&apos;s Admission Number
+                      </Label>
+                      <Input
+                        id="student_admission_no"
+                        placeholder="e.g. NKPS-2024-0001"
+                        {...register("student_admission_no")}
+                        className="h-11 border-gray-200 focus:border-navy-900 focus:ring-navy-900"
+                      />
+                      <p className="text-xs text-gray-400">
+                        Enter your child&apos;s admission number for verification
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-navy-900 font-medium">Relationship</Label>
+                      <Select onValueChange={(val) => val && setValue("relationship", val as "father" | "mother" | "guardian")}>
+                        <SelectTrigger className="w-full h-11 border-gray-200 focus:border-navy-900 focus:ring-navy-900">
+                          <SelectValue placeholder="Select relationship" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="father">Father</SelectItem>
+                          <SelectItem value="mother">Mother</SelectItem>
+                          <SelectItem value="guardian">Guardian</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
 
                 <Button
                   type="submit"

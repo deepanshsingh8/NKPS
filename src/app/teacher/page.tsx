@@ -41,20 +41,23 @@ export default function TeacherDashboard() {
 
       if (!user) return;
 
-      // Fetch profile
+      // Fetch profile and resolve teacher_id
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("*")
+        .select("*, teacher_id")
         .eq("id", user.id)
         .single();
 
       if (profileData) setProfile(profileData);
 
+      const teacherId = profileData?.teacher_id;
+      if (!teacherId) return;
+
       // Fetch assigned classes via class_subjects
       const { data: classSubjects } = await supabase
         .from("class_subjects")
         .select("class_id")
-        .eq("teacher_id", user.id);
+        .eq("teacher_id", teacherId);
 
       const classIds = [
         ...new Set((classSubjects ?? []).map((cs) => cs.class_id)),
@@ -64,7 +67,7 @@ export default function TeacherDashboard() {
       const { data: classTeacherClasses } = await supabase
         .from("classes")
         .select("id")
-        .eq("class_teacher_id", user.id);
+        .eq("class_teacher_id", teacherId);
 
       const allClassIds = [
         ...new Set([

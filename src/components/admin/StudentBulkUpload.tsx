@@ -26,7 +26,6 @@ import { toast } from "sonner";
 import {
   Upload,
   Download,
-  Loader2,
   AlertCircle,
   CheckCircle2,
   X,
@@ -233,7 +232,6 @@ export function StudentBulkUpload({
 }: StudentBulkUploadProps) {
   const [step, setStep] = useState<"upload" | "preview">("upload");
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
-  const [submitting, setSubmitting] = useState(false);
   const [fileName, setFileName] = useState("");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [existingClassKeys, setExistingClassKeys] = useState<Set<string>>(new Set());
@@ -262,7 +260,6 @@ export function StudentBulkUpload({
     setStep("upload");
     setParsedRows([]);
     setFileName("");
-    setSubmitting(false);
     setEditingIndex(null);
     setExistingClassKeys(new Set());
   };
@@ -429,32 +426,40 @@ export function StudentBulkUpload({
       return;
     }
 
-    setSubmitting(true);
+    const rowCount = validRows.length;
+    const payload = {
+      students: validRows.map((r) => ({
+        admission_no: r.admission_no,
+        full_name: r.full_name,
+        class_name: r.class_name,
+        section: r.section || "A",
+        stream: r.stream || undefined,
+        father_name: r.father_name || undefined,
+        mother_name: r.mother_name || undefined,
+        date_of_birth: r.date_of_birth || undefined,
+        gender: r.gender || undefined,
+        phone: r.phone || undefined,
+        address: r.address || undefined,
+        roll_number: r.roll_number,
+        email: r.email || undefined,
+        blood_group: r.blood_group || undefined,
+        category: r.category || undefined,
+        aadhar_number: r.aadhar_number || undefined,
+        previous_school: r.previous_school || undefined,
+      })),
+    };
+
+    // Close dialog immediately and show progress toast
+    handleClose(false);
+    toast.info(`Uploading ${rowCount} student${rowCount === 1 ? "" : "s"}...`, {
+      duration: 5000,
+    });
+
     try {
       const res = await fetch("/api/erp/students/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          students: validRows.map((r) => ({
-            admission_no: r.admission_no,
-            full_name: r.full_name,
-            class_name: r.class_name,
-            section: r.section || "A",
-            stream: r.stream || undefined,
-            father_name: r.father_name || undefined,
-            mother_name: r.mother_name || undefined,
-            date_of_birth: r.date_of_birth || undefined,
-            gender: r.gender || undefined,
-            phone: r.phone || undefined,
-            address: r.address || undefined,
-            roll_number: r.roll_number,
-            email: r.email || undefined,
-            blood_group: r.blood_group || undefined,
-            category: r.category || undefined,
-            aadhar_number: r.aadhar_number || undefined,
-            previous_school: r.previous_school || undefined,
-          })),
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -500,11 +505,8 @@ export function StudentBulkUpload({
       }
 
       onSuccess();
-      handleClose(false);
     } catch {
       toast.error("Failed to import students");
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -855,20 +857,15 @@ export function StudentBulkUpload({
               <Button
                 variant="outline"
                 onClick={() => handleClose(false)}
-                disabled={submitting}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={submitting || validRows.length === 0}
+                disabled={validRows.length === 0}
                 className="bg-navy-900 hover:bg-navy-800 text-white"
               >
-                {submitting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Upload className="h-4 w-4 mr-2" />
-                )}
+                <Upload className="h-4 w-4 mr-2" />
                 Import {validRows.length} Student{validRows.length === 1 ? "" : "s"}
               </Button>
             </DialogFooter>
