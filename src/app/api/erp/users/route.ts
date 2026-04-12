@@ -96,6 +96,55 @@ export async function POST(request: Request) {
       }
     }
 
+    // For teacher role: create a teachers record and link it to the profile
+    if (role === "teacher" && newUser.user) {
+      // Auto-generate employee_id: "TCH-" + timestamp suffix
+      const employeeId = `TCH-${Date.now().toString(36).toUpperCase()}`;
+
+      const { data: teacherRecord, error: teacherError } = await supabase
+        .from("teachers")
+        .insert({
+          employee_id: employeeId,
+          full_name,
+          email,
+          phone: phone || null,
+        })
+        .select("id")
+        .single();
+
+      if (!teacherError && teacherRecord) {
+        await supabase
+          .from("profiles")
+          .update({ teacher_id: teacherRecord.id })
+          .eq("id", newUser.user.id);
+      } else {
+        console.error("Failed to create teacher record:", teacherError);
+      }
+    }
+
+    // For parent role: create a parents record and link it to the profile
+    if (role === "parent" && newUser.user) {
+      const { data: parentRecord, error: parentError } = await supabase
+        .from("parents")
+        .insert({
+          full_name,
+          email,
+          phone: phone || "N/A",
+          relationship: "guardian", // default; can be updated later
+        })
+        .select("id")
+        .single();
+
+      if (!parentError && parentRecord) {
+        await supabase
+          .from("profiles")
+          .update({ parent_id: parentRecord.id })
+          .eq("id", newUser.user.id);
+      } else {
+        console.error("Failed to create parent record:", parentError);
+      }
+    }
+
     // Send welcome email with credentials (non-blocking)
     try {
       const { sendEmail, buildWelcomeEmail } = await import("@/lib/email");
@@ -159,7 +208,7 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const validRoles = ["admin", "editor", "teacher", "student"];
+    const validRoles = ["admin", "editor", "teacher", "student", "parent"];
     if (!validRoles.includes(role)) {
       return NextResponse.json(
         { error: "Invalid role" },
@@ -239,16 +288,26 @@ export async function DELETE(request: Request) {
 
     const supabase = createAdminClient();
 
-    // Check if user is a student with a linked students record
+    // Check for linked entity records
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, student_id")
+      .select("role, student_id, teacher_id, parent_id")
       .eq("id", id)
       .single();
 
     // Delete linked students record if exists
     if (profile?.student_id) {
       await supabase.from("students").delete().eq("id", profile.student_id);
+    }
+
+    // Delete linked teachers record if exists
+    if (profile?.teacher_id) {
+      await supabase.from("teachers").delete().eq("id", profile.teacher_id);
+    }
+
+    // Delete linked parents record if exists
+    if (profile?.parent_id) {
+      await supabase.from("parents").delete().eq("id", profile.parent_id);
     }
 
     // Delete the auth user (this cascades to profiles via Supabase's built-in trigger)

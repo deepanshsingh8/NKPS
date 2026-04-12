@@ -38,7 +38,7 @@ export const createUserSchema = z.object({
   full_name: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
   phone: z.string().min(10, "Please enter a valid phone number").optional().or(z.literal("")),
-  role: z.enum(["admin", "editor", "teacher", "student"], {
+  role: z.enum(["admin", "editor", "teacher", "student", "parent"], {
     message: "Please select a role",
   }),
 });
@@ -51,7 +51,7 @@ export const attendanceBulkSchema = z.object({
   entries: z.array(
     z.object({
       student_id: z.string().uuid("Invalid student"),
-      status: z.enum(["present", "absent", "late", "holiday"]),
+      status: z.enum(["present", "absent", "late", "half_day"]),
     })
   ).min(1, "At least one attendance entry is required"),
 });
@@ -76,7 +76,7 @@ export const feePaymentSchema = z.object({
   student_id: z.string().uuid("Invalid student"),
   fee_structure_id: z.string().uuid("Invalid fee structure"),
   amount_paid: z.number().positive("Amount must be positive"),
-  payment_method: z.enum(["cash", "online", "cheque", "bank_transfer"], {
+  payment_method: z.enum(["cash", "online", "cheque", "bank_transfer", "upi", "gateway"], {
     message: "Please select a payment method",
   }),
   month: z.string().min(1, "Month is required").optional().or(z.literal("")),
@@ -119,11 +119,13 @@ export type ClassSubjectAssignData = z.infer<typeof classSubjectAssignSchema>;
 export const feeStructureSchema = z.object({
   academic_year_id: z.string().uuid("Invalid academic year"),
   class_name: z.string().min(1, "Class name is required"),
+  class_level: z.enum(["all", "nursery_ukg", "i_v", "vi_viii", "ix_x", "xi_xii"]).optional(),
   fee_type: z.string().min(1, "Fee type is required"),
   amount: z.number().positive("Amount must be positive"),
   frequency: z.enum(["monthly", "quarterly", "annual", "one_time"], {
     message: "Please select a frequency",
   }),
+  description: z.string().optional().or(z.literal("")),
 });
 
 export type FeeStructureData = z.infer<typeof feeStructureSchema>;
@@ -132,7 +134,7 @@ export const timetablePeriodSchema = z.object({
   class_id: z.string().uuid("Invalid class"),
   subject_id: z.string().uuid("Invalid subject"),
   teacher_id: z.string().uuid("Invalid teacher"),
-  day_of_week: z.number().int().min(0).max(6, "Day must be between 0 (Sunday) and 6 (Saturday)"),
+  day_of_week: z.number().int().min(1).max(6, "Day must be between 1 (Monday) and 6 (Saturday)"),
   period_number: z.number().int().positive("Period number must be positive"),
   start_time: z.string().min(1, "Start time is required"),
   end_time: z.string().min(1, "End time is required"),
@@ -143,7 +145,7 @@ export type TimetablePeriodData = z.infer<typeof timetablePeriodSchema>;
 export const calendarEventSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional().or(z.literal("")),
-  event_type: z.enum(["exam", "holiday", "event", "pta_meeting", "other"], {
+  event_type: z.enum(["exam", "holiday", "event", "pta_meeting", "sports", "cultural", "other"], {
     message: "Please select an event type",
   }),
   start_date: z.string().min(1, "Start date is required"),
@@ -161,9 +163,11 @@ export const registrationRequestSchema = z.object({
   full_name: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
   phone: z.string().min(10, "Please enter a valid phone number").optional().or(z.literal("")),
-  role: z.enum(["teacher", "student"], {
+  role: z.enum(["teacher", "student", "parent"], {
     message: "Please select a role",
   }),
+  student_admission_no: z.string().optional().or(z.literal("")),
+  relationship: z.enum(["father", "mother", "guardian"]).optional(),
 });
 
 export type RegistrationRequestData = z.infer<typeof registrationRequestSchema>;
@@ -236,3 +240,55 @@ export const staffBulkUploadSchema = z.object({
 });
 
 export type StaffBulkUploadData = z.infer<typeof staffBulkUploadSchema>;
+
+// =============================================================
+// Teacher Records
+// =============================================================
+
+export const teacherSchema = z.object({
+  employee_id: z.string().min(1, "Employee ID is required"),
+  full_name: z.string().min(2, "Full name must be at least 2 characters"),
+  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
+  date_of_joining: z.string().optional().or(z.literal("")),
+  date_of_birth: z.string().optional().or(z.literal("")),
+  gender: z.enum(["male", "female", "other"]).optional(),
+  qualifications: z.string().optional().or(z.literal("")),
+  specialization: z.string().optional().or(z.literal("")),
+  address: z.string().optional().or(z.literal("")),
+  aadhar_number: z.string().optional().or(z.literal("")),
+});
+
+export type TeacherData = z.infer<typeof teacherSchema>;
+
+// =============================================================
+// Parent Records
+// =============================================================
+
+export const parentSchema = z.object({
+  full_name: z.string().min(2, "Full name must be at least 2 characters"),
+  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  phone: z.string().min(10, "Please enter a valid phone number"),
+  alternate_phone: z.string().optional().or(z.literal("")),
+  occupation: z.string().optional().or(z.literal("")),
+  address: z.string().optional().or(z.literal("")),
+  relationship: z.enum(["father", "mother", "guardian"], {
+    message: "Please select relationship",
+  }),
+});
+
+export type ParentData = z.infer<typeof parentSchema>;
+
+// =============================================================
+// Payment Orders
+// =============================================================
+
+export const paymentOrderSchema = z.object({
+  student_id: z.string().uuid("Invalid student"),
+  fee_structure_id: z.string().uuid("Invalid fee structure"),
+  amount: z.number().positive("Amount must be positive"),
+  month: z.string().optional().or(z.literal("")),
+  gateway: z.enum(["razorpay", "stripe", "manual"]).optional(),
+});
+
+export type PaymentOrderData = z.infer<typeof paymentOrderSchema>;

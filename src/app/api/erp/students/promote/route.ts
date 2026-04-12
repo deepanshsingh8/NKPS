@@ -171,22 +171,6 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Sync subjects for promoted students
-        for (const e of passed) {
-          try {
-            const syncUrl = new URL("/api/erp/subjects/sync-students", request.url);
-            await fetch(syncUrl.toString(), {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": request.headers.get("authorization") ?? "",
-              },
-              body: JSON.stringify({ class_id: targetClass.id, student_id: e.student_id }),
-            });
-          } catch {
-            // Non-critical — subjects can be synced later
-          }
-        }
       }
     }
 
@@ -218,22 +202,6 @@ export async function POST(request: NextRequest) {
           summary.retained = count ?? retainEnrollments.length;
         }
 
-        // Sync subjects for retained students
-        for (const e of failed) {
-          try {
-            const syncUrl = new URL("/api/erp/subjects/sync-students", request.url);
-            await fetch(syncUrl.toString(), {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": request.headers.get("authorization") ?? "",
-              },
-              body: JSON.stringify({ class_id: retainClass.id, student_id: e.student_id }),
-            });
-          } catch {
-            // Non-critical
-          }
-        }
       }
     }
 

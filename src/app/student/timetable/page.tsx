@@ -48,11 +48,24 @@ export default function StudentTimetablePage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Resolve linked student record ID
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("student_id")
+        .eq("id", user.id)
+        .single();
+
+      const studentId = profile?.student_id;
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+
       // Get student's enrollment
       const { data: enrollment } = await supabase
         .from("student_enrollments")
         .select("class_id")
-        .eq("student_id", user.id)
+        .eq("student_id", studentId)
         .limit(1)
         .single();
 
@@ -65,7 +78,7 @@ export default function StudentTimetablePage() {
       const { data } = await supabase
         .from("timetable_periods")
         .select(
-          "id, day_of_week, period_number, start_time, end_time, room, subject:subjects(name), teacher:profiles(full_name)"
+          "id, day_of_week, period_number, start_time, end_time, room, subject:subjects(name), teacher:teachers(full_name)"
         )
         .eq("class_id", enrollment.class_id)
         .order("period_number", { ascending: true });

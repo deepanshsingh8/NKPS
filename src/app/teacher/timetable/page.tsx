@@ -49,12 +49,25 @@ export default function TeacherTimetablePage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Resolve teacher_id from profiles
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("teacher_id")
+        .eq("id", user.id)
+        .single();
+
+      const teacherId = profileData?.teacher_id;
+      if (!teacherId) {
+        setLoading(false);
+        return;
+      }
+
       const { data } = await supabase
         .from("timetable_periods")
         .select(
           "id, day_of_week, period_number, start_time, end_time, room, subject:subjects(name), class:classes(name, section)"
         )
-        .eq("teacher_id", user.id)
+        .eq("teacher_id", teacherId)
         .order("period_number", { ascending: true });
 
       const timetableData = (data ?? []) as unknown as TimetableEntry[];

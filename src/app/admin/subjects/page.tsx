@@ -37,15 +37,14 @@ import {
   BookOpen,
   Library,
   GraduationCap,
-  RefreshCw,
   Settings2,
   Check,
   Users,
   Filter,
 } from "lucide-react";
-import { adminApi, adminFetch } from "@/lib/admin-api";
+import { adminApi } from "@/lib/admin-api";
 import { cn } from "@/lib/utils";
-import type { Class, Subject, Profile, Stream } from "@/types";
+import type { Class, Subject, Teacher, Stream } from "@/types";
 
 type Tab = "subjects" | "assignments" | "streams";
 
@@ -96,7 +95,7 @@ export default function AdminSubjectsPage() {
   // ── Assignments state ──
   const [classes, setClasses] = useState<Class[]>([]);
   const [activeSubjects, setActiveSubjects] = useState<Subject[]>([]);
-  const [teachers, setTeachers] = useState<Profile[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
   const [assignmentsLoading, setAssignmentsLoading] = useState(true);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -113,8 +112,6 @@ export default function AdminSubjectsPage() {
   const [editTeacherDialogOpen, setEditTeacherDialogOpen] = useState(false);
   const [editTeacherValue, setEditTeacherValue] = useState("");
   const [editTeacherSubmitting, setEditTeacherSubmitting] = useState(false);
-  // Sync
-  const [syncingClassId, setSyncingClassId] = useState<string | null>(null);
 
   // ── Streams state ──
   const [streams, setStreams] = useState<StreamWithSubjects[]>([]);
@@ -175,37 +172,37 @@ export default function AdminSubjectsPage() {
         .eq("is_active", true)
         .order("name"),
       supabase
-        .from("profiles")
+        .from("teachers")
         .select("*")
-        .eq("role", "teacher")
         .eq("is_active", true)
         .order("full_name"),
     ]);
 
     setClasses((classesRes.data as Class[]) ?? []);
     setActiveSubjects((subjectsRes.data as Subject[]) ?? []);
-    setTeachers((teachersRes.data as Profile[]) ?? []);
+    setTeachers((teachersRes.data as Teacher[]) ?? []);
 
     // Fetch all class-subject assignments with joins
     const { data: csData } = await supabase
       .from("class_subjects")
       .select(
-        "id, class_id, subject_id, teacher_id, classes(name, section, sort_order), subjects(name, code), profiles:teacher_id(full_name)"
+        "id, class_id, subject_id, teacher_id, classes(name, section, sort_order), subjects(name, code), teachers:teacher_id(full_name, employee_id)"
       )
       .in(
         "class_id",
         (classesRes.data ?? []).map((c: Class) => c.id)
       );
 
-    // Fetch student_subject counts per class_subject
-    const { data: countData } = await supabase
-      .from("student_subjects")
-      .select("class_subject_id");
+    // Fetch student enrollment counts per class (students enrolled in each class)
+    const { data: enrollmentData } = await supabase
+      .from("student_enrollments")
+      .select("class_id")
+      .eq("status", "active");
 
-    const countMap: Record<string, number> = {};
-    if (countData) {
-      for (const row of countData) {
-        countMap[row.class_subject_id] = (countMap[row.class_subject_id] ?? 0) + 1;
+    const enrollmentCountMap: Record<string, number> = {};
+    if (enrollmentData) {
+      for (const row of enrollmentData) {
+        enrollmentCountMap[row.class_id] = (enrollmentCountMap[row.class_id] ?? 0) + 1;
       }
     }
 
@@ -220,8 +217,8 @@ export default function AdminSubjectsPage() {
         class_sort: (cs.classes as { sort_order: number } | null)?.sort_order ?? 0,
         subject_name: (cs.subjects as { name: string } | null)?.name ?? "Unknown",
         subject_code: (cs.subjects as { code: string | null } | null)?.code ?? null,
-        teacher_name: (cs.profiles as { full_name: string } | null)?.full_name ?? null,
-        student_count: countMap[cs.id as string] ?? 0,
+        teacher_name: (cs.teachers as { full_name: string; employee_id: string } | null)?.full_name ?? null,
+        student_count: enrollmentCountMap[cs.class_id as string] ?? 0,
       })
     );
 
@@ -447,8 +444,6 @@ export default function AdminSubjectsPage() {
       setNewSubjectId("");
       setNewTeacherId("");
       await fetchAssignmentsData();
-      // Auto-sync students for this class
-      syncStudents(newClassId, true);
     }
     setAssignSubmitting(false);
   };
@@ -506,28 +501,6 @@ export default function AdminSubjectsPage() {
     setEditTeacherSubmitting(false);
   };
 
-  const syncStudents = async (classId: string, silent = false) => {
-    setSyncingClassId(classId);
-    try {
-      const res = await adminFetch("/api/erp/subjects/sync-students", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ class_id: classId }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        if (!silent) {
-          toast.success(data.message);
-        }
-        await fetchAssignmentsData();
-      } else {
-        toast.error(data.error || "Sync failed");
-      }
-    } catch {
-      toast.error("Failed to sync students");
-    }
-    setSyncingClassId(null);
-  };
 
   // ── Filtered assignments ──
   const filteredAssignments = useMemo(() => {
@@ -545,18 +518,6 @@ export default function AdminSubjectsPage() {
     });
   }, [assignments, filterClassId, filterSubjectId, filterTeacherId]);
 
-  // Get unique classes from assignments for the sync button
-  const classesInView = useMemo(() => {
-    const seen = new Set<string>();
-    const result: { id: string; name: string; section: string }[] = [];
-    for (const a of filteredAssignments) {
-      if (!seen.has(a.class_id)) {
-        seen.add(a.class_id);
-        result.push({ id: a.class_id, name: a.class_name, section: a.class_section });
-      }
-    }
-    return result;
-  }, [filteredAssignments]);
 
   // Unique subjects appearing in assignments (for filter dropdown)
   const subjectsInAssignments = useMemo(() => {
@@ -1166,31 +1127,6 @@ export default function AdminSubjectsPage() {
                 </div>
               </div>
 
-              {/* Sync buttons */}
-              {classesInView.length > 0 && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    Sync students:
-                  </span>
-                  {classesInView.map((c) => (
-                    <Button
-                      key={c.id}
-                      variant="outline"
-                      size="sm"
-                      disabled={syncingClassId === c.id}
-                      onClick={() => syncStudents(c.id)}
-                      className="h-7 text-xs gap-1.5"
-                    >
-                      {syncingClassId === c.id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-3 w-3" />
-                      )}
-                      {c.name}-{c.section}
-                    </Button>
-                  ))}
-                </div>
-              )}
 
               {/* Table */}
               <div className="erp-table-container p-6">
@@ -1682,7 +1618,7 @@ export default function AdminSubjectsPage() {
                 value={newTeacherId || "none"}
                 items={[
                   { value: "none", label: "None" },
-                  ...teachers.map((t) => ({ value: t.id, label: t.full_name })),
+                  ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.employee_id})` })),
                 ]}
                 onValueChange={(val) =>
                   setNewTeacherId(!val || val === "none" ? "" : val)
@@ -1696,8 +1632,8 @@ export default function AdminSubjectsPage() {
                     None
                   </SelectItem>
                   {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id} label={t.full_name}>
-                      {t.full_name}
+                    <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.employee_id})`}>
+                      {t.full_name} ({t.employee_id})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1754,7 +1690,7 @@ export default function AdminSubjectsPage() {
                 value={editTeacherValue}
                 items={[
                   { value: "none", label: "None" },
-                  ...teachers.map((t) => ({ value: t.id, label: t.full_name })),
+                  ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.employee_id})` })),
                 ]}
                 onValueChange={(val) => val && setEditTeacherValue(val)}
               >
@@ -1766,8 +1702,8 @@ export default function AdminSubjectsPage() {
                     None
                   </SelectItem>
                   {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id} label={t.full_name}>
-                      {t.full_name}
+                    <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.employee_id})`}>
+                      {t.full_name} ({t.employee_id})
                     </SelectItem>
                   ))}
                 </SelectContent>

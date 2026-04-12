@@ -26,9 +26,8 @@ export async function GET() {
         .select("*", { count: "exact", head: true })
         .eq("is_active", true),
       admin
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .eq("role", "teacher"),
+        .from("teachers")
+        .select("*", { count: "exact", head: true }),
       admin
         .from("calendar_events")
         .select("id, title, description, event_type, start_date, end_date")

@@ -167,20 +167,6 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Sync student-subject links
-      try {
-        const syncUrl = new URL("/api/erp/subjects/sync-students", request.url);
-        await fetch(syncUrl.toString(), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": request.headers.get("authorization") ?? "",
-          },
-          body: JSON.stringify({ class_id, student_id: student.id }),
-        });
-      } catch (syncErr) {
-        console.error("Auto-sync student subjects failed:", syncErr);
-      }
     }
 
     let userCreated = false;
@@ -259,22 +245,7 @@ export async function PATCH(request: NextRequest) {
           return NextResponse.json({ error: "Student updated but enrollment change failed" }, { status: 500 });
         }
 
-        // Re-sync subjects if class changed
-        if (class_id) {
-          try {
-            const syncUrl = new URL("/api/erp/subjects/sync-students", request.url);
-            await fetch(syncUrl.toString(), {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": request.headers.get("authorization") ?? "",
-              },
-              body: JSON.stringify({ class_id, student_id: id }),
-            });
-          } catch (syncErr) {
-            console.error("Auto-sync student subjects failed:", syncErr);
-          }
-        }
+        // Student subjects sync no longer needed (student_subjects table removed)
       }
     }
 
