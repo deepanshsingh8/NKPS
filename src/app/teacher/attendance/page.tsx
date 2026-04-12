@@ -33,12 +33,14 @@ import {
   CheckCircle2,
   Users,
 } from "lucide-react";
+import { formatClassName } from "@/lib/utils";
 import type { AttendanceStatus } from "@/types";
 
 interface ClassOption {
   id: string;
   name: string;
   section: string;
+  streams?: { name: string } | null;
 }
 
 interface StudentRow {
@@ -110,11 +112,11 @@ export default function TeacherAttendancePage() {
 
       const { data: classData } = await supabase
         .from("classes")
-        .select("id, name, section")
+        .select("id, name, section, streams:stream_id(name)")
         .in("id", classIds)
         .order("sort_order");
 
-      setClasses((classData as ClassOption[]) ?? []);
+      setClasses((classData as unknown as ClassOption[]) ?? []);
       setLoading(false);
     }
 
@@ -260,7 +262,7 @@ export default function TeacherAttendancePage() {
               </label>
               <Select
                 value={selectedClassId}
-                items={classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` }))}
+                items={classes.map((c) => ({ value: c.id, label: formatClassName(c) }))}
                 onValueChange={(val) => val && setSelectedClassId(val)}
               >
                 <SelectTrigger className="w-full">
@@ -268,8 +270,8 @@ export default function TeacherAttendancePage() {
                 </SelectTrigger>
                 <SelectContent>
                   {classes.map((c) => (
-                    <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
-                      {c.name} - {c.section}
+                    <SelectItem key={c.id} value={c.id} label={formatClassName(c)}>
+                      {formatClassName(c)}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -31,6 +31,7 @@ import {
   X,
   Pencil,
 } from "lucide-react";
+import { formatClassName } from "@/lib/utils";
 
 interface ParsedRow {
   admission_no: string;
@@ -246,11 +247,11 @@ export function StudentBulkUpload({
         .select("name, section, stream_id, streams:stream_id(name)");
       const keys = new Set<string>();
       for (const c of classes || []) {
-        const streamName = (c.streams as unknown as { name: string } | null)?.name;
-        const label = streamName
-          ? `${c.name} - ${c.section} (${streamName})`
-          : `${c.name} - ${c.section}`;
-        keys.add(label);
+        keys.add(formatClassName({
+          name: c.name as string,
+          section: c.section as string,
+          streams: c.streams as unknown as { name: string } | null,
+        }));
       }
       setExistingClassKeys(keys);
     })();

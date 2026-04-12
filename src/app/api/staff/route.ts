@@ -39,6 +39,12 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error("Staff DB insert error:", insertError);
+      if (insertError.code === "23505") {
+        return NextResponse.json(
+          { error: `A staff member named "${name}" already exists in the ${category} category` },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
         { error: "Failed to save staff member" },
         { status: 500 }

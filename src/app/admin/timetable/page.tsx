@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Clock } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
+import { formatClassName } from "@/lib/utils";
 import type { Class, Subject, Teacher, TimetablePeriod } from "@/types";
 
 const DAYS = [
@@ -85,7 +86,7 @@ export default function AdminTimetablePage() {
       const [classesRes, subjectsRes, teachersRes] = await Promise.all([
         supabase
           .from("classes")
-          .select("*")
+          .select("*, streams:stream_id(name)")
           .eq(
             "academic_year_id",
             currentYear?.id ?? "00000000-0000-0000-0000-000000000000"
@@ -270,7 +271,7 @@ export default function AdminTimetablePage() {
       <div className="mb-6 w-full sm:w-72">
         <Select
           value={selectedClassId}
-          items={classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` }))}
+          items={classes.map((c) => ({ value: c.id, label: formatClassName(c) }))}
           onValueChange={(val) => val && setSelectedClassId(val)}
         >
           <SelectTrigger>
@@ -278,8 +279,8 @@ export default function AdminTimetablePage() {
           </SelectTrigger>
           <SelectContent>
             {classes.map((c) => (
-              <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
-                {c.name} - {c.section}
+              <SelectItem key={c.id} value={c.id} label={formatClassName(c)}>
+                {formatClassName(c)}
               </SelectItem>
             ))}
           </SelectContent>

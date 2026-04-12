@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BarChart3, TrendingUp, Users, Award } from "lucide-react";
+import { formatClassName } from "@/lib/utils";
 import type { Class, ExamType } from "@/types";
 
 interface SubjectBreakdown {
@@ -93,7 +94,7 @@ export default function AdminResultsPage() {
       if (currentYear) {
         const { data: classesData } = await supabase
           .from("classes")
-          .select("*")
+          .select("*, streams:stream_id(name)")
           .eq("academic_year_id", currentYear.id)
           .order("sort_order", { ascending: true });
 
@@ -293,7 +294,7 @@ export default function AdminResultsPage() {
               <label className="text-sm font-medium text-navy-900 dark:text-white">Class</label>
               <Select
                 value={selectedClassId}
-                items={classes.map((cls) => ({ value: cls.id, label: `${cls.name} - ${cls.section}` }))}
+                items={classes.map((cls) => ({ value: cls.id, label: formatClassName(cls) }))}
                 onValueChange={(val) => val && setSelectedClassId(val)}
               >
                 <SelectTrigger className="w-full">
@@ -301,8 +302,8 @@ export default function AdminResultsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {classes.map((cls) => (
-                    <SelectItem key={cls.id} value={cls.id} label={`${cls.name} - ${cls.section}`}>
-                      {cls.name} - {cls.section}
+                    <SelectItem key={cls.id} value={cls.id} label={formatClassName(cls)}>
+                      {formatClassName(cls)}
                     </SelectItem>
                   ))}
                 </SelectContent>

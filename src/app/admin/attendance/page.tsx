@@ -33,11 +33,13 @@ import {
   Loader2,
   BarChart3,
 } from "lucide-react";
+import { formatClassName } from "@/lib/utils";
 
 interface ClassOption {
   id: string;
   name: string;
   section: string;
+  streams?: { name: string } | null;
 }
 
 interface ClassAttendanceStat {
@@ -79,10 +81,10 @@ export default function AdminAttendancePage() {
     async function fetchClasses() {
       const { data } = await supabase
         .from("classes")
-        .select("id, name, section")
+        .select("id, name, section, streams:stream_id(name)")
         .order("sort_order");
 
-      setClasses((data as ClassOption[]) ?? []);
+      setClasses((data as unknown as ClassOption[]) ?? []);
       setLoading(false);
     }
 
@@ -252,7 +254,7 @@ export default function AdminAttendancePage() {
                 value={selectedClassId}
                 items={[
                   { value: "all", label: "All Classes" },
-                  ...classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` })),
+                  ...classes.map((c) => ({ value: c.id, label: formatClassName(c) })),
                 ]}
                 onValueChange={(val) => val && setSelectedClassId(val)}
               >
@@ -262,8 +264,8 @@ export default function AdminAttendancePage() {
                 <SelectContent>
                   <SelectItem value="all">All Classes</SelectItem>
                   {classes.map((c) => (
-                    <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
-                      {c.name} - {c.section}
+                    <SelectItem key={c.id} value={c.id} label={formatClassName(c)}>
+                      {formatClassName(c)}
                     </SelectItem>
                   ))}
                 </SelectContent>

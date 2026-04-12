@@ -78,11 +78,11 @@ export default function TeacherStudentsPage() {
       if (allClassIds.length > 0) {
         const { data: classData } = await supabase
           .from("classes")
-          .select("id, name, section")
+          .select("id, name, section, streams:stream_id(name)")
           .in("id", allClassIds)
           .order("name", { ascending: true });
 
-        const classOptions = (classData ?? []) as ClassOption[];
+        const classOptions = (classData ?? []) as unknown as ClassOption[];
         setClasses(classOptions);
 
         if (classOptions.length > 0) {

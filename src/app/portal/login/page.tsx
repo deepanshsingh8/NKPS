@@ -30,6 +30,8 @@ function getDashboardPath(role: string): string {
       return "/teacher";
     case "student":
       return "/student";
+    case "parent":
+      return "/parent";
     default:
       return "/";
   }
@@ -63,10 +65,10 @@ export default function PortalLoginPage() {
         return;
       }
 
-      // Fetch user profile to determine role
+      // Fetch user profile to determine role and password change status
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, must_change_password")
         .eq("id", authData.user.id)
         .single();
 
@@ -76,6 +78,14 @@ export default function PortalLoginPage() {
       }
 
       const role = profile?.role || "student";
+
+      // Force password change for first-time users
+      if (profile?.must_change_password) {
+        toast.success("Please set a new password to continue");
+        router.push("/portal/change-password");
+        return;
+      }
+
       const dashboard = getDashboardPath(role);
 
       toast.success("Logged in successfully");

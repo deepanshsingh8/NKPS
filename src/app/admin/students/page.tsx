@@ -43,6 +43,7 @@ import {
   ArrowUpCircle,
 } from "lucide-react";
 import { StudentBulkUpload } from "@/components/admin/StudentBulkUpload";
+import { formatClassName } from "@/lib/utils";
 import type { Student, Gender, BloodGroup, Stream, EnrollmentStatus } from "@/types";
 
 interface ClassOption {
@@ -89,10 +90,7 @@ const STATUS_BADGE_STYLES: Record<EnrollmentStatus, string> = {
 };
 
 function classLabel(c: ClassOption): string {
-  if (c.stream_name && HIGHER_CLASSES.includes(c.name)) {
-    return `${c.name} - ${c.section} (${c.stream_name})`;
-  }
-  return `${c.name} - ${c.section}`;
+  return formatClassName(c);
 }
 
 export default function AdminStudentsPage() {

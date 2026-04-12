@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Save, Loader2 } from "lucide-react";
+import { formatClassName } from "@/lib/utils";
 import type { Class, Subject, ExamType } from "@/types";
 
 interface EnrolledStudent {
@@ -104,7 +105,7 @@ export default function TeacherResultsPage() {
       // Get classes where this teacher has subject assignments
       const { data: classSubjects } = await supabase
         .from("class_subjects")
-        .select("class_id, classes(id, name, section, academic_year_id, sort_order)")
+        .select("class_id, classes(id, name, section, academic_year_id, sort_order, streams:stream_id(name))")
         .eq("teacher_id", teacherId);
 
       if (classSubjects) {
@@ -337,7 +338,7 @@ export default function TeacherResultsPage() {
               <label className="text-sm font-medium text-navy-900 dark:text-white">Class</label>
               <Select
                 value={selectedClassId}
-                items={classes.map((cls) => ({ value: cls.id, label: `${cls.name} - ${cls.section}` }))}
+                items={classes.map((cls) => ({ value: cls.id, label: formatClassName(cls) }))}
                 onValueChange={(val) => val && setSelectedClassId(val)}
               >
                 <SelectTrigger className="w-full">
@@ -345,8 +346,8 @@ export default function TeacherResultsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {classes.map((cls) => (
-                    <SelectItem key={cls.id} value={cls.id} label={`${cls.name} - ${cls.section}`}>
-                      {cls.name} - {cls.section}
+                    <SelectItem key={cls.id} value={cls.id} label={formatClassName(cls)}>
+                      {formatClassName(cls)}
                     </SelectItem>
                   ))}
                 </SelectContent>

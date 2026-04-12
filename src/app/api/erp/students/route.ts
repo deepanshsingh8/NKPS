@@ -143,6 +143,12 @@ export async function POST(request: NextRequest) {
 
     if (studentError) {
       console.error("Create student error:", studentError);
+      if (studentError.code === "23505") {
+        return NextResponse.json(
+          { error: "A student with this admission number already exists" },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({ error: "Failed to create student" }, { status: 500 });
     }
 

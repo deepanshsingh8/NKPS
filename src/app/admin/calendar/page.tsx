@@ -24,6 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, CalendarDays } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
+import { formatClassName } from "@/lib/utils";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/lib/constants/calendar";
 import type { CalendarEvent, CalendarEventType } from "@/types";
 
@@ -39,6 +40,7 @@ interface ClassOption {
   id: string;
   name: string;
   section: string;
+  streams?: { name: string } | null;
 }
 
 export default function AdminCalendarPage() {
@@ -93,9 +95,9 @@ export default function AdminCalendarPage() {
   const fetchClasses = useCallback(async () => {
     const { data } = await supabase
       .from("classes")
-      .select("id, name, section")
+      .select("id, name, section, streams:stream_id(name)")
       .order("name", { ascending: true });
-    setClasses((data ?? []) as ClassOption[]);
+    setClasses((data ?? []) as unknown as ClassOption[]);
   }, [supabase]);
 
   useEffect(() => {
@@ -418,7 +420,7 @@ export default function AdminCalendarPage() {
                   <option value="">All Classes</option>
                   {classes.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name}-{c.section}
+                      {formatClassName(c)}
                     </option>
                   ))}
                 </select>
@@ -535,7 +537,7 @@ export default function AdminCalendarPage() {
                   <option value="">All Classes</option>
                   {classes.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name}-{c.section}
+                      {formatClassName(c)}
                     </option>
                   ))}
                 </select>

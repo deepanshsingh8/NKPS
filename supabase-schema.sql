@@ -102,7 +102,8 @@ CREATE TABLE IF NOT EXISTS staff_members (
   is_active boolean DEFAULT true,
   sort_order integer DEFAULT 0,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(name, category)
 );
 
 -- Disclosure Items (text key-value for sections A, C-text, D, E)

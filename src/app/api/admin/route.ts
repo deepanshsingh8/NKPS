@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const query = admin.from(table) as any;
-    let result: { data: unknown; error: { message: string } | null };
+    let result: { data: unknown; error: { message: string; code?: string } | null };
 
     switch (action) {
       case "insert": {
@@ -108,7 +108,13 @@ export async function POST(request: NextRequest) {
 
     if (result.error) {
       console.error(`Admin proxy error [${table}/${action}]:`, result.error);
-      return NextResponse.json({ error: "Operation failed" }, { status: 500 });
+      if (result.error.code === "23505") {
+        return NextResponse.json(
+          { error: "This record already exists. Duplicate entries are not allowed." },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json({ error: result.error.message || "Operation failed" }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, data: result.data });

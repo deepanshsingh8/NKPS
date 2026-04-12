@@ -43,7 +43,7 @@ import {
   Filter,
 } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
-import { cn } from "@/lib/utils";
+import { cn, formatClassName } from "@/lib/utils";
 import type { Class, Subject, Teacher, Stream } from "@/types";
 
 type Tab = "subjects" | "assignments" | "streams";
@@ -57,6 +57,7 @@ interface AssignmentRow {
   class_name: string;
   class_section: string;
   class_sort: number;
+  stream_name: string | null;
   subject_name: string;
   subject_code: string | null;
   teacher_name: string | null;
@@ -163,7 +164,7 @@ export default function AdminSubjectsPage() {
     const [classesRes, subjectsRes, teachersRes] = await Promise.all([
       supabase
         .from("classes")
-        .select("*")
+        .select("*, streams:stream_id(name)")
         .eq("academic_year_id", yearId)
         .order("sort_order"),
       supabase
@@ -186,7 +187,7 @@ export default function AdminSubjectsPage() {
     const { data: csData } = await supabase
       .from("class_subjects")
       .select(
-        "id, class_id, subject_id, teacher_id, classes(name, section, sort_order), subjects(name, code), teachers:teacher_id(full_name, employee_id)"
+        "id, class_id, subject_id, teacher_id, classes(name, section, sort_order, streams:stream_id(name)), subjects(name, code), teachers:teacher_id(full_name, employee_id)"
       )
       .in(
         "class_id",
@@ -215,6 +216,7 @@ export default function AdminSubjectsPage() {
         class_name: (cs.classes as { name: string } | null)?.name ?? "—",
         class_section: (cs.classes as { section: string } | null)?.section ?? "",
         class_sort: (cs.classes as { sort_order: number } | null)?.sort_order ?? 0,
+        stream_name: (cs.classes as { streams?: { name: string } | null } | null)?.streams?.name ?? null,
         subject_name: (cs.subjects as { name: string } | null)?.name ?? "Unknown",
         subject_code: (cs.subjects as { code: string | null } | null)?.code ?? null,
         teacher_name: (cs.teachers as { full_name: string; employee_id: string } | null)?.full_name ?? null,
@@ -451,7 +453,7 @@ export default function AdminSubjectsPage() {
   const handleRemoveAssignment = async (row: AssignmentRow) => {
     if (
       !confirm(
-        `Remove ${row.subject_name} from ${row.class_name}-${row.class_section}? This will also remove all student-subject links.`
+        `Remove ${row.subject_name} from ${formatClassName({ name: row.class_name, section: row.class_section, stream_name: row.stream_name })}? This will also remove all student-subject links.`
       )
     )
       return;
@@ -1034,7 +1036,7 @@ export default function AdminSubjectsPage() {
                       value={filterClassId || "all"}
                       items={[
                         { value: "all", label: "All Classes" },
-                        ...classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` })),
+                        ...classes.map((c) => ({ value: c.id, label: formatClassName(c) })),
                       ]}
                       onValueChange={(val) =>
                         setFilterClassId(!val || val === "all" ? "" : val)
@@ -1051,9 +1053,9 @@ export default function AdminSubjectsPage() {
                           <SelectItem
                             key={c.id}
                             value={c.id}
-                            label={`${c.name} - ${c.section}`}
+                            label={formatClassName(c)}
                           >
-                            {c.name} - {c.section}
+                            {formatClassName(c)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1167,7 +1169,7 @@ export default function AdminSubjectsPage() {
                                 variant="secondary"
                                 className="bg-navy-100 dark:bg-navy-900/30 text-navy-800 dark:text-navy-200 font-medium"
                               >
-                                {row.class_name}-{row.class_section}
+                                {formatClassName({ name: row.class_name, section: row.class_section, stream_name: row.stream_name })}
                               </Badge>
                             </TableCell>
                             <TableCell className="font-medium">
@@ -1559,7 +1561,7 @@ export default function AdminSubjectsPage() {
               <Label className="text-xs font-medium">Class</Label>
               <Select
                 value={newClassId}
-                items={classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` }))}
+                items={classes.map((c) => ({ value: c.id, label: formatClassName(c) }))}
                 onValueChange={(val) => {
                   if (val) {
                     setNewClassId(val);
@@ -1575,9 +1577,9 @@ export default function AdminSubjectsPage() {
                     <SelectItem
                       key={c.id}
                       value={c.id}
-                      label={`${c.name} - ${c.section}`}
+                      label={formatClassName(c)}
                     >
-                      {c.name} - {c.section}
+                      {formatClassName(c)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1677,7 +1679,7 @@ export default function AdminSubjectsPage() {
                 {editTeacherRow && (
                   <p className="text-xs text-gray-500 mt-0.5">
                     {editTeacherRow.subject_name} in{" "}
-                    {editTeacherRow.class_name}-{editTeacherRow.class_section}
+                    {formatClassName({ name: editTeacherRow.class_name, section: editTeacherRow.class_section, stream_name: editTeacherRow.stream_name })}
                   </p>
                 )}
               </div>
