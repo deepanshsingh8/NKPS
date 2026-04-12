@@ -18,13 +18,10 @@ export default function ResetPasswordPage() {
   const [sessionReady, setSessionReady] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
 
-  // Exchange the recovery `?code=...` for a session on this page only.
-  // Doing it here (instead of a generic /auth/callback) ensures the token
-  // cannot be used as a silent magic-login if the user navigates away.
+  // The auth callback route exchanges the code server-side and sets session
+  // cookies before redirecting here. We just need to verify the session exists.
   useEffect(() => {
-    const supabase = createClient();
     const url = new URL(window.location.href);
-    const code = url.searchParams.get("code");
     const errorDescription = url.searchParams.get("error_description");
 
     if (errorDescription) {
@@ -32,21 +29,7 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-        if (error) {
-          setLinkError(error.message);
-        } else {
-          setSessionReady(true);
-          // Strip the code from the URL so a refresh doesn't re-attempt exchange
-          window.history.replaceState({}, "", window.location.pathname);
-        }
-      });
-      return;
-    }
-
-    // No code in URL — fall back to existing session (e.g. user refreshed
-    // after the exchange already happened).
+    const supabase = createClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setSessionReady(true);
