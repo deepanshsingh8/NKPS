@@ -287,7 +287,6 @@ export function StudentBulkUpload({
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const rawRows = XLSX.utils.sheet_to_json<string[]>(sheet, {
             header: 1,
-            raw: false,
             defval: "",
           });
 
