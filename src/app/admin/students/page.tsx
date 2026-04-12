@@ -41,9 +41,11 @@ import {
   Users,
   GraduationCap,
   ArrowUpCircle,
+  Download,
 } from "lucide-react";
 import { StudentBulkUpload } from "@/components/admin/StudentBulkUpload";
 import { formatClassName } from "@/lib/utils";
+import { downloadCSV, STUDENT_CSV_COLUMNS } from "@/lib/csv-export";
 import type { Student, Gender, BloodGroup, Stream, EnrollmentStatus } from "@/types";
 
 interface ClassOption {
@@ -902,6 +904,24 @@ export default function AdminStudentsPage() {
               Promote Class
             </Button>
           )}
+          <Button
+            variant="outline"
+            onClick={() => {
+              const rows = filteredStudents.map((s) => ({
+                ...s,
+                class_name: s.class_name ?? "",
+                class_section: s.class_section ?? "",
+                enrollment_status: s.enrollment_status ?? "active",
+              }));
+              downloadCSV(rows, STUDENT_CSV_COLUMNS, `students-${new Date().toISOString().split("T")[0]}`);
+              toast.success(`Downloaded ${rows.length} students`);
+            }}
+            className="gap-2"
+            disabled={filteredStudents.length === 0}
+          >
+            <Download className="h-4 w-4" />
+            Download CSV
+          </Button>
           <Button
             variant="outline"
             onClick={() => setUploadDialogOpen(true)}

@@ -114,6 +114,58 @@ export async function POST(request: Request) {
       }
     }
 
+    // For parent role: create a parents record, link profile, and create student_parents junction
+    if (role === "parent" && newUser.user) {
+      const { data: parentRecord, error: parentError } = await supabase
+        .from("parents")
+        .insert({
+          full_name,
+          email,
+          phone: phone || "",
+          relationship: registration.relationship || "guardian",
+        })
+        .select("id")
+        .single();
+
+      if (!parentError && parentRecord) {
+        await supabase
+          .from("profiles")
+          .update({ parent_id: parentRecord.id })
+          .eq("id", newUser.user.id);
+
+        // If student_admission_no was provided, look up the student and create the junction record
+        if (registration.student_admission_no) {
+          const { data: studentRecord } = await supabase
+            .from("students")
+            .select("id")
+            .eq("admission_no", registration.student_admission_no)
+            .single();
+
+          if (studentRecord) {
+            const { error: junctionError } = await supabase
+              .from("student_parents")
+              .insert({
+                student_id: studentRecord.id,
+                parent_id: parentRecord.id,
+                relationship: registration.relationship || "guardian",
+                is_primary_contact: true,
+              });
+
+            if (junctionError) {
+              console.error("Failed to create student_parents link:", junctionError);
+            }
+          } else {
+            console.error(
+              "Student not found for admission_no:",
+              registration.student_admission_no
+            );
+          }
+        }
+      } else {
+        console.error("Failed to create parent record:", parentError);
+      }
+    }
+
     // Update registration request status
     await supabase
       .from("registration_requests")

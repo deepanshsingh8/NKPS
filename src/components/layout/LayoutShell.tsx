@@ -14,7 +14,8 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   const isPortal = pathname.startsWith("/portal");
   const isStudent = pathname.startsWith("/student") && !pathname.startsWith("/student-life");
   const isTeacher = pathname.startsWith("/teacher");
-  const hideChrome = isAdmin || isPortal || isStudent || isTeacher;
+  const isParent = pathname.startsWith("/parent");
+  const hideChrome = isAdmin || isPortal || isStudent || isTeacher || isParent;
 
   if (hideChrome) {
     return <>{children}</>;

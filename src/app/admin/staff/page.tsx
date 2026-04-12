@@ -40,6 +40,7 @@ import {
   UserCog,
   Users,
   Upload,
+  Download,
 } from "lucide-react";
 import { adminFetch, adminPatch, adminDelete } from "@/lib/admin-api";
 import { uploadToStorage } from "@/lib/supabase/upload";
@@ -47,6 +48,7 @@ import { FileDropZone } from "@/components/shared/FileDropZone";
 import { ImageCropper } from "@/components/shared/ImageCropper";
 import { StaffBulkUpload } from "@/components/admin/StaffBulkUpload";
 import type { StaffMember, StaffCategory } from "@/types";
+import { downloadCSV, STAFF_CSV_COLUMNS } from "@/lib/csv-export";
 
 const CATEGORIES: { value: StaffCategory | "all"; label: string }[] = [
   { value: "all", label: "All Categories" },
@@ -422,6 +424,18 @@ export default function AdminStaffPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              downloadCSV(filtered, STAFF_CSV_COLUMNS, `staff-${new Date().toISOString().split("T")[0]}`);
+              toast.success(`Downloaded ${filtered.length} staff members`);
+            }}
+            className="gap-2"
+            disabled={filtered.length === 0}
+          >
+            <Download className="h-4 w-4" />
+            Download CSV
+          </Button>
           <Button variant="outline" onClick={() => setBulkUploadOpen(true)} className="gap-2">
             <Upload className="h-4 w-4" />
             Upload Excel

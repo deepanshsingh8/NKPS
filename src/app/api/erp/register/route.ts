@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { full_name, email, phone, role } = result.data;
+    const { full_name, email, phone, role, student_admission_no, relationship } = result.data;
     const supabase = createAdminClient();
 
     // Check if email already exists as an active user
@@ -55,6 +55,8 @@ export async function POST(request: Request) {
         email,
         phone: phone || null,
         role,
+        student_admission_no: student_admission_no || null,
+        relationship: relationship || null,
       });
 
     if (insertError) {
