@@ -10,15 +10,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/portal/login?error=missing_code`);
   }
 
-  // Password recovery must be handled on the reset-password page itself,
-  // not here — otherwise the recovery token becomes a silent magic login.
-  if (next.startsWith("/portal/reset-password")) {
-    return NextResponse.redirect(
-      `${origin}/portal/reset-password?code=${encodeURIComponent(code)}`
-    );
-  }
+  const isPasswordReset = next.startsWith("/portal/reset-password");
 
-  let response = NextResponse.redirect(`${origin}${next}`);
+  // Always exchange the code server-side. This avoids the PKCE "code verifier
+  // not found" error that occurs when the reset link is opened in a different
+  // browser/context (e.g. Gmail in-app browser on mobile).
+  let response = NextResponse.redirect(
+    `${origin}${isPasswordReset ? "/portal/reset-password" : next}`
+  );
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -40,9 +39,10 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    return NextResponse.redirect(
-      `${origin}/portal/login?error=${encodeURIComponent(error.message)}`
-    );
+    const errorRedirect = isPasswordReset
+      ? `/portal/reset-password?error_description=${encodeURIComponent(error.message)}`
+      : `/portal/login?error=${encodeURIComponent(error.message)}`;
+    return NextResponse.redirect(`${origin}${errorRedirect}`);
   }
 
   return response;
