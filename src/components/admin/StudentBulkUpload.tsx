@@ -54,6 +54,24 @@ interface ParsedRow {
   errors: string[];
 }
 
+interface UploadError {
+  admission_no: string;
+  full_name?: string;
+  class_name?: string;
+  section?: string;
+  error: string;
+}
+
+interface UploadResult {
+  success: boolean;
+  inserted: number;
+  updated: number;
+  usersCreated: number;
+  classesCreated: number;
+  errors: UploadError[];
+  total: number;
+}
+
 interface StudentBulkUploadProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -231,11 +249,13 @@ export function StudentBulkUpload({
   onOpenChange,
   onSuccess,
 }: StudentBulkUploadProps) {
-  const [step, setStep] = useState<"upload" | "preview">("upload");
+  const [step, setStep] = useState<"upload" | "preview" | "results">("upload");
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState("");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [existingClassKeys, setExistingClassKeys] = useState<Set<string>>(new Set());
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
 
   // Fetch existing classes when entering preview
   useEffect(() => {
@@ -263,6 +283,8 @@ export function StudentBulkUpload({
     setFileName("");
     setEditingIndex(null);
     setExistingClassKeys(new Set());
+    setUploading(false);
+    setUploadResult(null);
   };
 
   const handleClose = (isOpen: boolean) => {
@@ -427,7 +449,7 @@ export function StudentBulkUpload({
       return;
     }
 
-    const rowCount = validRows.length;
+    setUploading(true);
     const payload = {
       students: validRows.map((r) => ({
         admission_no: r.admission_no,
@@ -450,12 +472,6 @@ export function StudentBulkUpload({
       })),
     };
 
-    // Close dialog immediately and show progress toast
-    handleClose(false);
-    toast.info(`Uploading ${rowCount} student${rowCount === 1 ? "" : "s"}...`, {
-      duration: 5000,
-    });
-
     try {
       const res = await fetch("/api/erp/students/bulk", {
         method: "POST",
@@ -467,47 +483,17 @@ export function StudentBulkUpload({
 
       if (!res.ok) {
         toast.error(data.error || "Failed to import students");
+        setUploading(false);
         return;
       }
 
-      const successCount = data.inserted || 0;
-      const classesCreated = data.classesCreated || 0;
-
-      if (classesCreated > 0) {
-        toast.info(
-          `Auto-created ${classesCreated} class${classesCreated === 1 ? "" : "es"} for the current academic year`
-        );
-      }
-
-      toast.success(
-        `Successfully imported ${successCount} student${successCount === 1 ? "" : "s"}`
-      );
-
-      if (data.errors?.length > 0) {
-        const classErrors = data.errors.filter((e: { error: string }) => e.error.includes("not found"));
-        const otherErrors = data.errors.filter((e: { error: string }) => !e.error.includes("not found"));
-
-        if (classErrors.length > 0) {
-          toast.warning(
-            `${classErrors.length} student(s) skipped — class not found. Check class names match exactly.`
-          );
-        }
-        if (otherErrors.length > 0) {
-          const details = otherErrors
-            .slice(0, 5)
-            .map((e: { admission_no: string; error: string }) => `${e.admission_no}: ${e.error}`)
-            .join("\n");
-          const more = otherErrors.length > 5 ? `\n...and ${otherErrors.length - 5} more` : "";
-          toast.warning(
-            `${otherErrors.length} student(s) had errors and were skipped`,
-            { description: details + more, duration: 10000 }
-          );
-        }
-      }
-
+      setUploadResult(data as UploadResult);
+      setStep("results");
       onSuccess();
     } catch {
       toast.error("Failed to import students");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -571,17 +557,21 @@ export function StudentBulkUpload({
               <Upload className="h-5 w-5 text-violet-600" />
             </div>
             <div>
-              <DialogTitle>{step === "upload" ? "Upload Student Data" : "Preview & Import"}</DialogTitle>
+              <DialogTitle>
+                {step === "upload" ? "Upload Student Data" : step === "preview" ? "Preview & Import" : "Import Results"}
+              </DialogTitle>
               <p className="text-xs text-gray-500 mt-0.5">
                 {step === "upload"
                   ? "Import students from Excel or CSV — class, section, and stream are read from the file"
-                  : "Review and edit data before importing"}
+                  : step === "preview"
+                  ? "Review and edit data before importing"
+                  : "Summary of the import operation"}
               </p>
             </div>
           </div>
         </DialogHeader>
 
-        {step === "upload" ? (
+        {step === "upload" && (
           <div className="space-y-6">
             <div>
               <Label>Upload Excel or CSV File</Label>
@@ -628,7 +618,9 @@ export function StudentBulkUpload({
               </p>
             </div>
           </div>
-        ) : (
+        )}
+
+        {step === "preview" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -858,17 +850,133 @@ export function StudentBulkUpload({
               <Button
                 variant="outline"
                 onClick={() => handleClose(false)}
+                disabled={uploading}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={validRows.length === 0}
+                disabled={validRows.length === 0 || uploading}
                 className="bg-navy-900 hover:bg-navy-800 text-white"
               >
-                <Upload className="h-4 w-4 mr-2" />
-                Import {validRows.length} Student{validRows.length === 1 ? "" : "s"}
+                {uploading ? (
+                  <>
+                    <span className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import {validRows.length} Student{validRows.length === 1 ? "" : "s"}
+                  </>
+                )}
               </Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        {step === "results" && (
+          <div className="space-y-4">
+            {uploadResult && (
+              <>
+                {/* Summary stats */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-xl bg-green-50 border border-green-200 p-3 text-center">
+                    <p className="text-2xl font-bold text-green-700">{uploadResult.inserted}</p>
+                    <p className="text-xs text-green-600">Inserted</p>
+                  </div>
+                  <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 text-center">
+                    <p className="text-2xl font-bold text-blue-700">{uploadResult.total}</p>
+                    <p className="text-xs text-blue-600">Total Sent</p>
+                  </div>
+                  <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-center">
+                    <p className="text-2xl font-bold text-amber-700">{uploadResult.classesCreated}</p>
+                    <p className="text-xs text-amber-600">Classes Created</p>
+                  </div>
+                  <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-center">
+                    <p className="text-2xl font-bold text-red-700">{uploadResult.errors.length}</p>
+                    <p className="text-xs text-red-600">Failed</p>
+                  </div>
+                </div>
+
+                {uploadResult.errors.length === 0 ? (
+                  <div className="rounded-xl bg-green-50 border border-green-200 p-6 text-center">
+                    <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto mb-2" />
+                    <p className="text-sm font-medium text-green-700">
+                      All {uploadResult.inserted} students imported successfully!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-red-500" />
+                      <p className="text-sm font-medium text-red-700">
+                        {uploadResult.errors.length} student{uploadResult.errors.length === 1 ? "" : "s"} failed to import
+                      </p>
+                    </div>
+                    <div className="border rounded-xl overflow-hidden">
+                      <div className="overflow-x-auto max-h-[350px] overflow-y-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-8">#</TableHead>
+                              <TableHead>Adm No</TableHead>
+                              <TableHead>Name</TableHead>
+                              <TableHead>Class</TableHead>
+                              <TableHead>Error</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {uploadResult.errors.map((err, i) => (
+                              <TableRow key={i} className="bg-red-50/50">
+                                <TableCell className="text-gray-400 text-xs">{i + 1}</TableCell>
+                                <TableCell className="font-medium text-xs">{err.admission_no}</TableCell>
+                                <TableCell className="text-xs">{err.full_name || "—"}</TableCell>
+                                <TableCell className="text-xs">
+                                  {err.class_name || "—"}{err.section ? `-${err.section}` : ""}
+                                </TableCell>
+                                <TableCell className="text-xs text-red-600">{err.error}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Fix the issues above and re-upload the failed students. Successfully imported students will not be duplicated.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => handleClose(false)}>
+                Close
+              </Button>
+              {uploadResult && uploadResult.errors.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    // Download failed students as CSV for easy re-upload
+                    const failedData = uploadResult.errors.map((e) => ({
+                      "Admission No": e.admission_no,
+                      "Name": e.full_name || "",
+                      "Class": e.class_name || "",
+                      "Section": e.section || "",
+                      "Error": e.error,
+                    }));
+                    const ws = XLSX.utils.json_to_sheet(failedData);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Failed Students");
+                    XLSX.writeFile(wb, "failed_students.xlsx");
+                  }}
+                  className="gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Failed List
+                </Button>
+              )}
             </DialogFooter>
           </div>
         )}

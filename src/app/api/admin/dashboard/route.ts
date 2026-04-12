@@ -9,7 +9,7 @@ export async function GET() {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [galleryRes, tcRes, unreadRes, studentsRes, teachersRes, eventsRes, pendingRegsRes] =
+  const [galleryRes, tcRes, unreadRes, studentsRes, teachersRes, eventsRes, pendingRegsRes, profilesRes] =
     await Promise.all([
       admin
         .from("gallery_images")
@@ -38,10 +38,12 @@ export async function GET() {
         .from("registration_requests")
         .select("*", { count: "exact", head: true })
         .eq("status", "pending"),
+      admin
+        .from("profiles")
+        .select("*", { count: "exact", head: true }),
     ]);
 
-  const totalUsers =
-    (studentsRes.count ?? 0) + (teachersRes.count ?? 0);
+  const totalUsers = profilesRes.count ?? 0;
 
   return NextResponse.json({
     stats: {

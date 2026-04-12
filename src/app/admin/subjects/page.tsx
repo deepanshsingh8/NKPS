@@ -41,9 +41,13 @@ import {
   Check,
   Users,
   Filter,
+  Sparkles,
+  Upload,
 } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
 import { cn, formatClassName } from "@/lib/utils";
+import QuickSetupWizard from "@/components/admin/QuickSetupWizard";
+import { SubjectBulkUpload } from "@/components/admin/SubjectBulkUpload";
 import type { Class, Subject, Teacher, Stream } from "@/types";
 
 type Tab = "subjects" | "assignments" | "streams";
@@ -133,6 +137,10 @@ export default function AdminSubjectsPage() {
   >(new Map());
   const [streamSubjectsSubmitting, setStreamSubjectsSubmitting] = useState(false);
 
+  // ── Quick Setup & Bulk Upload state ──
+  const [quickSetupOpen, setQuickSetupOpen] = useState(false);
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+
   // ══════════════════════════════════════════════
   // Data Fetching
   // ══════════════════════════════════════════════
@@ -198,7 +206,8 @@ export default function AdminSubjectsPage() {
     const { data: enrollmentData } = await supabase
       .from("student_enrollments")
       .select("class_id")
-      .eq("status", "active");
+      .eq("status", "active")
+      .eq("academic_year_id", yearId);
 
     const enrollmentCountMap: Record<string, number> = {};
     if (enrollmentData) {
@@ -823,30 +832,49 @@ export default function AdminSubjectsPage() {
           </div>
         </div>
         {tab === "subjects" && (
-          <Button
-            onClick={() => {
-              resetSubjectForm();
-              setSubjectDialogOpen(true);
-            }}
-            className="bg-navy-900 hover:bg-navy-800 text-white"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Subject
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setQuickSetupOpen(true)}
+              className="border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              Quick Setup
+            </Button>
+            <Button
+              onClick={() => {
+                resetSubjectForm();
+                setSubjectDialogOpen(true);
+              }}
+              className="bg-navy-900 hover:bg-navy-800 text-white"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Subject
+            </Button>
+          </div>
         )}
         {tab === "assignments" && (
-          <Button
-            onClick={() => {
-              setNewClassId("");
-              setNewSubjectId("");
-              setNewTeacherId("");
-              setAssignDialogOpen(true);
-            }}
-            className="bg-navy-900 hover:bg-navy-800 text-white"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Assign Subject
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setBulkUploadOpen(true)}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Excel
+            </Button>
+            <Button
+              onClick={() => {
+                setNewClassId("");
+                setNewSubjectId("");
+                setNewTeacherId("");
+                setAssignDialogOpen(true);
+              }}
+              className="bg-navy-900 hover:bg-navy-800 text-white"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Assign Subject
+            </Button>
+          </div>
         )}
         {tab === "streams" && (
           <Button
@@ -1983,6 +2011,29 @@ export default function AdminSubjectsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Quick Setup Wizard ── */}
+      <QuickSetupWizard
+        open={quickSetupOpen}
+        onOpenChange={setQuickSetupOpen}
+        existingSubjects={subjects}
+        existingClasses={classes}
+        existingAssignments={assignments}
+        onSuccess={() => {
+          fetchSubjects();
+          fetchAssignmentsData();
+        }}
+      />
+
+      {/* ── Bulk Upload Assignments ── */}
+      <SubjectBulkUpload
+        open={bulkUploadOpen}
+        onOpenChange={setBulkUploadOpen}
+        onSuccess={() => {
+          fetchAssignmentsData();
+          fetchSubjects();
+        }}
+      />
     </div>
   );
 }

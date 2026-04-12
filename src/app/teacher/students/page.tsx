@@ -13,11 +13,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Loader2, Users, Search } from "lucide-react";
+import { formatClassName } from "@/lib/utils";
 
 interface ClassOption {
   id: string;
   name: string;
   section: string;
+  streams?: { name: string } | null;
 }
 
 interface StudentRow {
@@ -168,7 +170,7 @@ export default function TeacherStudentsPage() {
                 >
                   {classes.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name}-{c.section}
+                      {formatClassName(c)}
                     </option>
                   ))}
                 </select>

@@ -3,13 +3,35 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   ClipboardCheck,
   BarChart3,
@@ -18,9 +40,13 @@ import {
   ArrowRight,
   Users,
   GraduationCap,
+  Plus,
+  Loader2,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UpcomingEvents } from "@/components/shared/UpcomingEvents";
+import { linkChildSchema, type LinkChildData } from "@/lib/validations";
 import type { Profile } from "@/types";
 
 interface ChildInfo {
@@ -35,6 +61,7 @@ interface ChildInfo {
   };
   class_name: string | null;
   section: string | null;
+  stream_name: string | null;
   roll_number: number | null;
 }
 
@@ -42,6 +69,46 @@ export default function ParentDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [children, setChildren] = useState<ChildInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [linking, setLinking] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    reset,
+    formState: { errors },
+  } = useForm<LinkChildData>({
+    resolver: zodResolver(linkChildSchema),
+  });
+
+  const onLinkChild = async (data: LinkChildData) => {
+    setLinking(true);
+    try {
+      const res = await fetch("/api/erp/parents/link-child", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const result = await res.json();
+
+      if (!res.ok) {
+        toast.error(result.error || "Failed to link child");
+        return;
+      }
+
+      setChildren((prev) => [...prev, result.child]);
+      toast.success(
+        `${result.child.student.full_name} has been linked to your account`
+      );
+      setDialogOpen(false);
+      reset();
+    } catch {
+      toast.error("An unexpected error occurred");
+    } finally {
+      setLinking(false);
+    }
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -93,7 +160,7 @@ export default function ParentDashboard() {
 
         const { data: enrollment } = await supabase
           .from("student_enrollments")
-          .select("class_id, roll_number, classes(name, section)")
+          .select("class_id, roll_number, classes(name, section, streams:stream_id(name))")
           .eq("student_id", student.id)
           .limit(1)
           .single();
@@ -101,6 +168,7 @@ export default function ParentDashboard() {
         const classInfo = enrollment?.classes as unknown as {
           name: string;
           section: string;
+          streams?: { name: string } | null;
         } | null;
 
         childInfos.push({
@@ -110,6 +178,7 @@ export default function ParentDashboard() {
           student,
           class_name: classInfo?.name ?? null,
           section: classInfo?.section ?? null,
+          stream_name: classInfo?.streams?.name ?? null,
           roll_number: enrollment?.roll_number ?? null,
         });
       }
@@ -152,10 +221,126 @@ export default function ParentDashboard() {
 
       {/* Children Cards */}
       <div>
-        <h2 className="erp-section-title mb-4 flex items-center gap-2">
-          <Users className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-          My Children
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="erp-section-title flex items-center gap-2">
+            <Users className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+            My Children
+          </h2>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-navy-900 dark:text-white border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted"
+                />
+              }
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Child
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Link a Child to Your Account</DialogTitle>
+                <DialogDescription>
+                  Enter your child&apos;s admission number and date of birth for
+                  verification.
+                </DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleSubmit(onLinkChild)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="admission_no"
+                    className="text-navy-900 dark:text-white font-medium"
+                  >
+                    Admission Number
+                  </Label>
+                  <Input
+                    id="admission_no"
+                    placeholder="e.g. NKPS-2024-0001"
+                    {...register("admission_no")}
+                    className="h-11 border-gray-200 dark:border-border focus:border-navy-900 dark:focus:border-gold-500 focus:ring-navy-900 dark:focus:ring-gold-500"
+                  />
+                  {errors.admission_no && (
+                    <p className="text-red-500 text-xs">
+                      {errors.admission_no.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="date_of_birth"
+                    className="text-navy-900 dark:text-white font-medium"
+                  >
+                    Date of Birth
+                  </Label>
+                  <Input
+                    id="date_of_birth"
+                    type="date"
+                    {...register("date_of_birth")}
+                    className="h-11 border-gray-200 dark:border-border focus:border-navy-900 dark:focus:border-gold-500 focus:ring-navy-900 dark:focus:ring-gold-500"
+                  />
+                  {errors.date_of_birth && (
+                    <p className="text-red-500 text-xs">
+                      {errors.date_of_birth.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-navy-900 dark:text-white font-medium">
+                    Relationship
+                  </Label>
+                  <Select
+                    onValueChange={(val) =>
+                      val &&
+                      setValue(
+                        "relationship",
+                        val as "father" | "mother" | "guardian"
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-full h-11 border-gray-200 dark:border-border focus:border-navy-900 dark:focus:border-gold-500 focus:ring-navy-900 dark:focus:ring-gold-500">
+                      <SelectValue placeholder="Select relationship" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="father">Father</SelectItem>
+                      <SelectItem value="mother">Mother</SelectItem>
+                      <SelectItem value="guardian">Guardian</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {errors.relationship && (
+                    <p className="text-red-500 text-xs">
+                      {errors.relationship.message}
+                    </p>
+                  )}
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    type="submit"
+                    disabled={linking}
+                    className="bg-navy-900 dark:bg-gold-500 text-white dark:text-navy-900 hover:bg-navy-800 dark:hover:bg-gold-400 font-medium"
+                  >
+                    {linking ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Verifying...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Link Child
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
         {children.length === 0 ? (
           <Card className="erp-card">
             <CardContent className="flex items-center justify-center py-12">
@@ -163,7 +348,8 @@ export default function ParentDashboard() {
                 <Users className="h-10 w-10 mx-auto mb-3 opacity-50" />
                 <p className="text-sm">No children linked to your account</p>
                 <p className="text-xs text-gray-300 dark:text-gray-500 mt-1">
-                  Please contact the school admin to link your children.
+                  Click &quot;Add Child&quot; above to link your child using
+                  their admission number.
                 </p>
               </div>
             </CardContent>
@@ -187,7 +373,7 @@ export default function ParentDashboard() {
                       </p>
                       <p className="text-xs font-normal text-gray-500 dark:text-gray-400">
                         {child.class_name && child.section
-                          ? `${child.class_name} - ${child.section}`
+                          ? `${child.class_name} - ${child.section}${child.stream_name ? ` (${child.stream_name})` : ""}`
                           : "Class not assigned"}
                         {child.roll_number !== null &&
                           ` | Roll No: ${child.roll_number}`}

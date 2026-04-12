@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { studentBulkUploadSchema } from "@/lib/validations";
-import { createPortalUser } from "@/lib/create-portal-user";
+
+export const maxDuration = 120; // Allow up to 2 minutes for large uploads
 
 export async function POST(request: Request) {
   try {
@@ -62,8 +63,22 @@ export async function POST(request: Request) {
       .select("id, name");
 
     const streamMap = new Map<string, string>();
+    // Common aliases for stream names
+    const STREAM_ALIASES: Record<string, string[]> = {
+      humanities: ["arts", "humanities stream", "arts stream"],
+      science: ["sci", "science stream"],
+      commerce: ["comm", "commerce stream"],
+    };
     for (const s of allStreams || []) {
-      streamMap.set(s.name.trim().toLowerCase(), s.id);
+      const key = s.name.trim().toLowerCase();
+      streamMap.set(key, s.id);
+      // Also register common aliases
+      const aliases = STREAM_ALIASES[key];
+      if (aliases) {
+        for (const alias of aliases) {
+          streamMap.set(alias, s.id);
+        }
+      }
     }
 
     // Fetch all classes for the current academic year
@@ -103,7 +118,6 @@ export async function POST(request: Request) {
     }
 
     // Auto-create missing classes from student data
-    // neededClasses format: "name|||section|||streamId"
     const neededClasses = new Set<string>();
     for (const s of students) {
       const name = s.class_name.trim();
@@ -134,7 +148,6 @@ export async function POST(request: Request) {
         .single();
 
       if (createErr) {
-        // Could be a race-condition duplicate — try fetching it
         let query = admin
           .from("classes")
           .select("id")
@@ -156,40 +169,49 @@ export async function POST(request: Request) {
       }
     }
 
-    let inserted = 0;
-    let updated = 0;
-    const errors: { admission_no: string; error: string }[] = [];
+    const errors: { admission_no: string; full_name?: string; class_name?: string; section?: string; error: string }[] = [];
 
-    // Process in batches of 50
-    const BATCH_SIZE = 50;
-    for (let i = 0; i < students.length; i += BATCH_SIZE) {
-      const batch = students.slice(i, i + BATCH_SIZE);
+    // ── Phase 1: Resolve classes and prepare student records ──
+    interface PreparedStudent {
+      record: Record<string, unknown>;
+      classId: string;
+      streamId: string | null;
+      rollNumber: number | string | null;
+      admissionNo: string;
+      fullName: string;
+      className: string;
+      section: string;
+    }
 
-      for (const s of batch) {
-        const name = s.class_name.trim();
-        const section = (s.section || "A").trim();
-        const stream = s.stream?.trim().toLowerCase() || "";
-        const resolvedStreamId = SENIOR_CLASSES.includes(name) && stream ? (streamMap.get(stream) || null) : null;
-        const key = classKey(name, section, resolvedStreamId);
-        const classId = classMap.get(key);
+    const prepared: PreparedStudent[] = [];
 
-        if (!classId) {
-          const label = resolvedStreamId ? `${name} - ${section} (${s.stream?.trim()})` : `${name} - ${section}`;
-          errors.push({
-            admission_no: s.admission_no,
-            error: `Class "${label}" not found.`,
-          });
-          continue;
-        }
+    for (const s of students) {
+      const name = s.class_name.trim();
+      const section = (s.section || "A").trim();
+      const stream = s.stream?.trim().toLowerCase() || "";
+      const resolvedStreamId = SENIOR_CLASSES.includes(name) && stream ? (streamMap.get(stream) || null) : null;
+      const key = classKey(name, section, resolvedStreamId);
+      const classId = classMap.get(key);
 
-        // Validate date format before sending to DB
-        let dob: string | null = s.date_of_birth?.trim() || null;
-        if (dob && !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
-          dob = null;
-        }
+      if (!classId) {
+        const label = resolvedStreamId ? `${name} - ${section} (${s.stream?.trim()})` : `${name} - ${section}`;
+        errors.push({
+          admission_no: s.admission_no,
+          full_name: s.full_name,
+          class_name: s.class_name,
+          section: s.section || "A",
+          error: `Class "${label}" not found.`,
+        });
+        continue;
+      }
 
-        // Upsert student
-        const studentRecord = {
+      let dob: string | null = s.date_of_birth?.trim() || null;
+      if (dob && !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+        dob = null;
+      }
+
+      prepared.push({
+        record: {
           admission_no: s.admission_no.trim(),
           full_name: s.full_name.trim(),
           father_name: s.father_name?.trim() || null,
@@ -203,72 +225,124 @@ export async function POST(request: Request) {
           category: s.category?.trim() || null,
           aadhar_number: s.aadhar_number?.trim() || null,
           previous_school: s.previous_school?.trim() || null,
-        };
+        },
+        classId,
+        streamId: resolvedStreamId,
+        rollNumber: s.roll_number || null,
+        admissionNo: s.admission_no.trim(),
+        fullName: s.full_name.trim(),
+        className: s.class_name,
+        section,
+      });
+    }
 
-        const { data: upserted, error: upsertError } = await admin
-          .from("students")
-          .upsert(studentRecord, { onConflict: "admission_no" })
-          .select("id, admission_no")
-          .single();
+    // ── Phase 2: Bulk upsert students in batches ──
+    let inserted = 0;
+    const BATCH_SIZE = 100;
 
-        if (upsertError) {
+    for (let i = 0; i < prepared.length; i += BATCH_SIZE) {
+      const batch = prepared.slice(i, i + BATCH_SIZE);
+      const records = batch.map((p) => p.record);
+
+      const { data: upsertedRows, error: batchError } = await admin
+        .from("students")
+        .upsert(records, { onConflict: "admission_no" })
+        .select("id, admission_no");
+
+      if (batchError) {
+        // If the whole batch fails, record errors for all students in the batch
+        for (const p of batch) {
           errors.push({
-            admission_no: s.admission_no,
-            error: upsertError.message,
+            admission_no: p.admissionNo,
+            full_name: p.fullName,
+            class_name: p.className,
+            section: p.section,
+            error: `Student upsert failed: ${batchError.message}`,
+          });
+        }
+        continue;
+      }
+
+      if (!upsertedRows || upsertedRows.length === 0) {
+        for (const p of batch) {
+          errors.push({
+            admission_no: p.admissionNo,
+            full_name: p.fullName,
+            class_name: p.className,
+            section: p.section,
+            error: "Student upsert returned no data",
+          });
+        }
+        continue;
+      }
+
+      // Map admission_no -> student id for enrollment
+      const admToId = new Map<string, string>();
+      for (const row of upsertedRows) {
+        admToId.set(String(row.admission_no).trim(), row.id);
+      }
+
+      // Build enrollment records for successfully upserted students
+      const enrollmentRecords: Record<string, unknown>[] = [];
+      const enrollmentStudents: PreparedStudent[] = [];
+
+      for (const p of batch) {
+        const studentId = admToId.get(p.admissionNo);
+        if (!studentId) {
+          errors.push({
+            admission_no: p.admissionNo,
+            full_name: p.fullName,
+            class_name: p.className,
+            section: p.section,
+            error: "Student record not found after upsert",
           });
           continue;
         }
 
-        if (upserted) {
-          // Create/update enrollment
-          await admin.from("student_enrollments").upsert(
-            {
-              student_id: upserted.id,
-              class_id: classId,
-              roll_number: s.roll_number || null,
-            },
-            { onConflict: "student_id,class_id" }
-          );
-          inserted++;
-        }
+        enrollmentRecords.push({
+          student_id: studentId,
+          class_id: p.classId,
+          academic_year_id: currentYear.id,
+          stream_id: p.streamId || null,
+          roll_number: p.rollNumber,
+        });
+        enrollmentStudents.push(p);
       }
-    }
 
-    // Auto-create portal users for students with emails
-    let usersCreated = 0;
-    const failedAdmissions = new Set(errors.map((e) => e.admission_no));
+      // Bulk upsert enrollments
+      if (enrollmentRecords.length > 0) {
+        const { error: enrollError } = await admin
+          .from("student_enrollments")
+          .upsert(enrollmentRecords, { onConflict: "student_id,class_id" });
 
-    for (const s of students) {
-      const email = s.email?.trim();
-      if (!email || failedAdmissions.has(s.admission_no)) continue;
+        if (enrollError) {
+          // Batch enrollment failed — fall back to one-at-a-time to identify which ones fail
+          for (let j = 0; j < enrollmentRecords.length; j++) {
+            const { error: singleError } = await admin
+              .from("student_enrollments")
+              .upsert(enrollmentRecords[j], { onConflict: "student_id,class_id" });
 
-      const { data: studentRow } = await admin
-        .from("students")
-        .select("id")
-        .eq("admission_no", s.admission_no.trim())
-        .single();
-
-      const userResult = await createPortalUser({
-        email,
-        fullName: s.full_name.trim(),
-        role: "student",
-        phone: s.phone || null,
-      });
-
-      if (userResult.success && userResult.userId && studentRow) {
-        await admin
-          .from("profiles")
-          .update({ student_id: studentRow.id })
-          .eq("id", userResult.userId);
-        usersCreated++;
+            if (singleError) {
+              errors.push({
+                admission_no: enrollmentStudents[j].admissionNo,
+                full_name: enrollmentStudents[j].fullName,
+                class_name: enrollmentStudents[j].className,
+                section: enrollmentStudents[j].section,
+                error: `Enrollment failed: ${singleError.message}`,
+              });
+            } else {
+              inserted++;
+            }
+          }
+        } else {
+          inserted += enrollmentRecords.length;
+        }
       }
     }
 
     return NextResponse.json({
       success: true,
       inserted,
-      updated,
-      usersCreated,
       classesCreated,
       errors,
       total: students.length,

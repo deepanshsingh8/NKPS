@@ -229,7 +229,7 @@ export function DashboardAnalytics() {
             No enrollment data
           </p>
         ) : (
-          <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
             {data.enrollmentByClass.map((item) => (
               <div key={item.name} className="flex items-center gap-2">
                 <span className="text-xs text-gray-600 dark:text-gray-400 w-20 shrink-0 truncate">

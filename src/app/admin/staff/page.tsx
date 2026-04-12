@@ -41,12 +41,21 @@ import {
   Users,
   Upload,
   Download,
+  ChevronDown,
+  UserPlus,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { adminFetch, adminPatch, adminDelete } from "@/lib/admin-api";
 import { uploadToStorage } from "@/lib/supabase/upload";
 import { FileDropZone } from "@/components/shared/FileDropZone";
 import { ImageCropper } from "@/components/shared/ImageCropper";
 import { StaffBulkUpload } from "@/components/admin/StaffBulkUpload";
+import { CreatePortalUsersDialog } from "@/components/admin/CreatePortalUsersDialog";
 import type { StaffMember, StaffCategory } from "@/types";
 import { downloadCSV, STAFF_CSV_COLUMNS } from "@/lib/csv-export";
 
@@ -133,6 +142,7 @@ export default function AdminStaffPage() {
   const [filterCategory, setFilterCategory] = useState<StaffCategory | "all">("all");
   const [search, setSearch] = useState("");
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+  const [portalDialogOpen, setPortalDialogOpen] = useState(false);
 
   // Selection & bulk actions
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -424,22 +434,30 @@ export default function AdminStaffPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => {
-              downloadCSV(filtered, STAFF_CSV_COLUMNS, `staff-${new Date().toISOString().split("T")[0]}`);
-              toast.success(`Downloaded ${filtered.length} staff members`);
-            }}
-            className="gap-2"
-            disabled={filtered.length === 0}
-          >
-            <Download className="h-4 w-4" />
-            Download CSV
-          </Button>
-          <Button variant="outline" onClick={() => setBulkUploadOpen(true)} className="gap-2">
-            <Upload className="h-4 w-4" />
-            Upload Excel
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="outline" className="gap-2" />}
+            >
+              Actions
+              <ChevronDown className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                disabled={filtered.length === 0}
+                onClick={() => {
+                  downloadCSV(filtered, STAFF_CSV_COLUMNS, `staff-${new Date().toISOString().split("T")[0]}`);
+                  toast.success(`Downloaded ${filtered.length} staff members`);
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBulkUploadOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={openAddDialog} className="gap-2">
             <Plus className="h-4 w-4" />
             Add Staff
@@ -494,6 +512,16 @@ export default function AdminStaffPage() {
           <span className="text-sm font-medium text-red-700">
             {selectedIds.size} selected
           </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setPortalDialogOpen(true)}
+            className="gap-1"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Create Users
+          </Button>
+          <div className="w-px h-6 bg-red-200" />
           <Button
             size="sm"
             variant="destructive"
@@ -804,6 +832,17 @@ export default function AdminStaffPage() {
         open={bulkUploadOpen}
         onOpenChange={setBulkUploadOpen}
         onSuccess={fetchStaff}
+      />
+
+      {/* Create Portal Users Dialog */}
+      <CreatePortalUsersDialog
+        open={portalDialogOpen}
+        onOpenChange={setPortalDialogOpen}
+        type="staff"
+        items={filtered
+          .filter((m) => selectedIds.has(m.id))
+          .map((m) => ({ id: m.id, name: m.name, email: m.email, phone: m.phone }))}
+        onComplete={fetchStaff}
       />
     </div>
   );

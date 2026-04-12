@@ -42,8 +42,17 @@ import {
   GraduationCap,
   ArrowUpCircle,
   Download,
+  ChevronDown,
+  UserPlus,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { StudentBulkUpload } from "@/components/admin/StudentBulkUpload";
+import { CreatePortalUsersDialog } from "@/components/admin/CreatePortalUsersDialog";
 import { formatClassName } from "@/lib/utils";
 import { downloadCSV, STUDENT_CSV_COLUMNS } from "@/lib/csv-export";
 import type { Student, Gender, BloodGroup, Stream, EnrollmentStatus } from "@/types";
@@ -109,6 +118,7 @@ export default function AdminStudentsPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [promoteDialogOpen, setPromoteDialogOpen] = useState(false);
+  const [portalDialogOpen, setPortalDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Selection & bulk actions
@@ -890,46 +900,48 @@ export default function AdminStudentsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {selectedClassId && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPromoteResult(null);
-                setTargetAcademicYearId("");
-                setPromoteDialogOpen(true);
-              }}
-              className="gap-2"
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="outline" className="gap-2" />}
             >
-              <ArrowUpCircle className="h-4 w-4" />
-              Promote Class
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            onClick={() => {
-              const rows = filteredStudents.map((s) => ({
-                ...s,
-                class_name: s.class_name ?? "",
-                class_section: s.class_section ?? "",
-                enrollment_status: s.enrollment_status ?? "active",
-              }));
-              downloadCSV(rows, STUDENT_CSV_COLUMNS, `students-${new Date().toISOString().split("T")[0]}`);
-              toast.success(`Downloaded ${rows.length} students`);
-            }}
-            className="gap-2"
-            disabled={filteredStudents.length === 0}
-          >
-            <Download className="h-4 w-4" />
-            Download CSV
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setUploadDialogOpen(true)}
-            className="gap-2"
-          >
-            <Upload className="h-4 w-4" />
-            Upload Excel
-          </Button>
+              Actions
+              <ChevronDown className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {selectedClassId && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    setPromoteResult(null);
+                    setTargetAcademicYearId("");
+                    setPromoteDialogOpen(true);
+                  }}
+                >
+                  <ArrowUpCircle className="h-4 w-4 mr-2" />
+                  Promote Class
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                disabled={filteredStudents.length === 0}
+                onClick={() => {
+                  const rows = filteredStudents.map((s) => ({
+                    ...s,
+                    class_name: s.class_name ?? "",
+                    class_section: s.class_section ?? "",
+                    enrollment_status: s.enrollment_status ?? "active",
+                  }));
+                  downloadCSV(rows, STUDENT_CSV_COLUMNS, `students-${new Date().toISOString().split("T")[0]}`);
+                  toast.success(`Downloaded ${rows.length} students`);
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setUploadDialogOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             onClick={() => {
               resetForm();
@@ -1014,6 +1026,16 @@ export default function AdminStudentsPage() {
             >
               {applyingBulk && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
               Apply
+            </Button>
+            <div className="w-px h-6 bg-blue-200 dark:bg-blue-700" />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPortalDialogOpen(true)}
+              className="gap-1"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              Create Users
             </Button>
             <div className="w-px h-6 bg-blue-200 dark:bg-blue-700" />
             <Button
@@ -1375,6 +1397,17 @@ export default function AdminStudentsPage() {
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}
         onSuccess={fetchStudents}
+      />
+
+      {/* Create Portal Users Dialog */}
+      <CreatePortalUsersDialog
+        open={portalDialogOpen}
+        onOpenChange={setPortalDialogOpen}
+        type="student"
+        items={filteredStudents
+          .filter((s) => selectedIds.has(s.id))
+          .map((s) => ({ id: s.id, name: s.full_name, email: s.email, phone: s.phone }))}
+        onComplete={fetchStudents}
       />
     </div>
   );

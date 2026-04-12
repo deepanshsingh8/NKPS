@@ -173,6 +173,23 @@ export const registrationRequestSchema = z.object({
 export type RegistrationRequestData = z.infer<typeof registrationRequestSchema>;
 
 // =============================================================
+// Link Child (Parent self-service)
+// =============================================================
+
+export const linkChildSchema = z.object({
+  admission_no: z.string().min(1, "Admission number is required"),
+  date_of_birth: z.string().regex(
+    /^\d{4}-\d{2}-\d{2}$/,
+    "Date of birth must be in YYYY-MM-DD format"
+  ),
+  relationship: z.enum(["father", "mother", "guardian"], {
+    message: "Please select your relationship",
+  }),
+});
+
+export type LinkChildData = z.infer<typeof linkChildSchema>;
+
+// =============================================================
 // Student Records
 // =============================================================
 
