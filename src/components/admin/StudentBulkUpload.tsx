@@ -138,13 +138,22 @@ function mapHeaders(headers: string[]): Record<number, string> {
     const normalized = normalizeHeader(header);
     if (!normalized) return;
 
+    // Two-pass matching: first try exact matches, then substring matches
+    // This prevents "blood group" matching "group" (stream) before "blood group" (blood_group)
+    let matched = false;
     for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
-      if (
-        normalized === field ||
-        aliases.some((alias) => normalized === alias || normalized.includes(alias))
-      ) {
+      if (normalized === field || aliases.some((alias) => normalized === alias)) {
         mapping[index] = field;
+        matched = true;
         break;
+      }
+    }
+    if (!matched) {
+      for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
+        if (aliases.some((alias) => normalized.includes(alias))) {
+          mapping[index] = field;
+          break;
+        }
       }
     }
   });
