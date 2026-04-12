@@ -118,7 +118,47 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const { id, photo_url } = await request.json();
+    const body = await request.json();
+
+    // Bulk delete: { ids: string[] }
+    if (Array.isArray(body.ids) && body.ids.length > 0) {
+      const ids: string[] = body.ids;
+
+      // Fetch photo URLs for cleanup
+      const { data: rows } = await admin
+        .from("staff_members")
+        .select("id, photo_url")
+        .in("id", ids);
+
+      const photoFiles = (rows ?? [])
+        .filter((r) => r.photo_url)
+        .map((r) => {
+          const parts = (r.photo_url as string).split("/");
+          return parts[parts.length - 1];
+        });
+
+      if (photoFiles.length > 0) {
+        await admin.storage.from("staff-photos").remove(photoFiles);
+      }
+
+      const { error } = await admin
+        .from("staff_members")
+        .delete()
+        .in("id", ids);
+
+      if (error) {
+        console.error("Bulk staff delete error:", error);
+        return NextResponse.json(
+          { error: "Failed to delete staff members" },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ success: true, deleted: ids.length });
+    }
+
+    // Single delete: { id, photo_url }
+    const { id, photo_url } = body;
 
     // Remove photo from storage if exists
     if (photo_url) {

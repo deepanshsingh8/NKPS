@@ -69,6 +69,71 @@ export async function POST(request: Request) {
       classMap.set(key, c.id);
     }
 
+    // Sort order helper
+    const CLASS_ORDER = [
+      "Nursery", "LKG", "UKG", "I", "II", "III", "IV", "V",
+      "VI", "VII", "VIII", "IX", "X", "XI", "XII",
+    ];
+    const SECTION_ORDER = ["A", "B", "C", "D", "E"];
+
+    function getSortOrder(name: string, section: string): number {
+      // Match base class name (e.g. "XII" from "XII Science")
+      const base = name.split(" ")[0];
+      const classIdx = CLASS_ORDER.findIndex(
+        (c) => c.toLowerCase() === base.toLowerCase()
+      );
+      const secIdx = SECTION_ORDER.findIndex(
+        (s) => s.toLowerCase() === section.toLowerCase()
+      );
+      return (classIdx === -1 ? 99 : classIdx) * 10 + (secIdx === -1 ? 0 : secIdx);
+    }
+
+    // Auto-create missing classes from student data
+    const neededClasses = new Set<string>();
+    for (const s of students) {
+      let resolvedName = s.class_name.trim();
+      if (s.stream && s.stream.trim()) {
+        resolvedName = `${resolvedName} ${s.stream.trim()}`;
+      }
+      const section = (s.section || "A").trim();
+      const key = `${resolvedName.toLowerCase()}|${section.toLowerCase()}`;
+      if (!classMap.has(key)) {
+        neededClasses.add(`${resolvedName}|||${section}`);
+      }
+    }
+
+    let classesCreated = 0;
+    for (const entry of neededClasses) {
+      const [name, section] = entry.split("|||");
+      const { data: created, error: createErr } = await admin
+        .from("classes")
+        .insert({
+          name,
+          section,
+          academic_year_id: currentYear.id,
+          sort_order: getSortOrder(name, section),
+        })
+        .select("id")
+        .single();
+
+      if (createErr) {
+        // Could be a race-condition duplicate — try fetching it
+        const { data: existing } = await admin
+          .from("classes")
+          .select("id")
+          .eq("name", name)
+          .eq("section", section)
+          .eq("academic_year_id", currentYear.id)
+          .single();
+        if (existing) {
+          classMap.set(`${name.toLowerCase()}|${section.toLowerCase()}`, existing.id);
+        }
+      } else if (created) {
+        classMap.set(`${name.toLowerCase()}|${section.toLowerCase()}`, created.id);
+        classesCreated++;
+      }
+    }
+
     let inserted = 0;
     let updated = 0;
     const errors: { admission_no: string; error: string }[] = [];
@@ -178,6 +243,7 @@ export async function POST(request: Request) {
       inserted,
       updated,
       usersCreated,
+      classesCreated,
       errors,
       total: students.length,
     });

@@ -491,6 +491,40 @@ export default function AdminStudentsPage() {
     }
   };
 
+  // Bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (
+      !confirm(
+        `Delete ${selectedIds.size} student${selectedIds.size === 1 ? "" : "s"}? This will also remove their enrollments and linked portal accounts. This cannot be undone.`
+      )
+    )
+      return;
+
+    setApplyingBulk(true);
+    try {
+      const res = await adminFetch("/api/erp/students", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to delete students");
+        return;
+      }
+
+      toast.success(`Deleted ${selectedIds.size} student${selectedIds.size === 1 ? "" : "s"}`);
+      setSelectedIds(new Set());
+      await fetchStudents();
+    } catch {
+      toast.error("Failed to delete students");
+    } finally {
+      setApplyingBulk(false);
+    }
+  };
+
   // Toggle selection
   const toggleSelection = (studentId: string) => {
     setSelectedIds((prev) => {
@@ -930,6 +964,17 @@ export default function AdminStudentsPage() {
             >
               {applyingBulk && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
               Apply
+            </Button>
+            <div className="w-px h-6 bg-blue-200 dark:bg-blue-700" />
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={applyingBulk}
+              onClick={handleBulkDelete}
+            >
+              {applyingBulk && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+              <Trash2 className="h-3.5 w-3.5 mr-1" />
+              Delete Selected
             </Button>
             <Button
               size="sm"

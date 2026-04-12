@@ -220,11 +220,12 @@ export type StudentBulkUploadData = z.infer<typeof studentBulkUploadSchema>;
 
 // Staff bulk upload
 export const staffBulkUploadSchema = z.object({
-  category: z.string().min(1, "Category is required"),
+  category: z.string().optional(),
   staff: z.array(
     z.object({
       name: z.string().min(2, "Name is required"),
       subject: z.string().min(1, "Subject/designation is required"),
+      category: z.string().optional(),
       email: z.string().optional().or(z.literal("")),
       phone: z.string().optional().or(z.literal("")),
       date_of_birth: z.string().optional().or(z.literal("")),

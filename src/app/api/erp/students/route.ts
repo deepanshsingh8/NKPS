@@ -295,7 +295,39 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await request.json();
+    const body = await request.json();
+
+    // Bulk delete: { ids: string[] }
+    if (Array.isArray(body.ids) && body.ids.length > 0) {
+      const ids: string[] = body.ids;
+
+      // Delete enrollments first
+      await admin.from("student_enrollments").delete().in("student_id", ids);
+
+      // Delete linked profiles (auth users whose student_id matches)
+      const { data: linkedProfiles } = await admin
+        .from("profiles")
+        .select("id")
+        .in("student_id", ids);
+
+      if (linkedProfiles && linkedProfiles.length > 0) {
+        for (const p of linkedProfiles) {
+          await admin.auth.admin.deleteUser(p.id);
+        }
+      }
+
+      const { error } = await admin.from("students").delete().in("id", ids);
+
+      if (error) {
+        console.error("Bulk student delete error:", error);
+        return NextResponse.json({ error: "Failed to delete students" }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, deleted: ids.length });
+    }
+
+    // Single delete: { id }
+    const { id } = body;
     if (!id) {
       return NextResponse.json({ error: "Student id required" }, { status: 400 });
     }

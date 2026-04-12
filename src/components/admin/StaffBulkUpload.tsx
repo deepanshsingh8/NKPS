@@ -59,12 +59,34 @@ const CATEGORY_OPTIONS: { value: StaffCategory; label: string }[] = [
 interface ParsedRow {
   name: string;
   subject: string;
+  category: string;
   email: string;
   phone: string;
   date_of_birth: string;
   address: string;
   qualifications: string;
   errors: string[];
+}
+
+const CATEGORY_LABEL_TO_VALUE: Record<string, StaffCategory> = {};
+for (const c of CATEGORY_OPTIONS) {
+  CATEGORY_LABEL_TO_VALUE[c.label.toLowerCase()] = c.value;
+  CATEGORY_LABEL_TO_VALUE[c.value.toLowerCase()] = c.value;
+}
+// Common shorthand aliases
+CATEGORY_LABEL_TO_VALUE["mother teacher"] = "motherTeachers";
+CATEGORY_LABEL_TO_VALUE["mother teachers"] = "motherTeachers";
+CATEGORY_LABEL_TO_VALUE["admin"] = "admin";
+CATEGORY_LABEL_TO_VALUE["administrative staff"] = "admin";
+CATEGORY_LABEL_TO_VALUE["additional staff"] = "additionalStaff";
+CATEGORY_LABEL_TO_VALUE["bus driver"] = "busDriver";
+CATEGORY_LABEL_TO_VALUE["bus drivers"] = "busDriver";
+CATEGORY_LABEL_TO_VALUE["peons"] = "peon";
+
+function resolveCategory(raw: string): StaffCategory | null {
+  if (!raw) return null;
+  const key = raw.toLowerCase().trim();
+  return CATEGORY_LABEL_TO_VALUE[key] ?? null;
 }
 
 interface StaffBulkUploadProps {
@@ -129,6 +151,14 @@ const COLUMN_ALIASES: Record<string, string[]> = {
     "education",
     "degrees",
     "educational qualification",
+  ],
+  category: [
+    "category",
+    "type",
+    "staff category",
+    "staff type",
+    "group",
+    "department type",
   ],
 };
 
@@ -199,13 +229,19 @@ function isValidDate(d: string): boolean {
   return !isNaN(date.getTime());
 }
 
-function validateRow(row: ParsedRow): string[] {
+function validateRow(row: ParsedRow, categoryRequired: boolean): string[] {
   const errors: string[] = [];
   if (!row.name || row.name.trim().length < 2) {
     errors.push("Name is required (min 2 chars)");
   }
   if (!row.subject || row.subject.trim() === "") {
     errors.push("Subject/designation is required");
+  }
+  if (categoryRequired && !row.category) {
+    errors.push("Category is required");
+  }
+  if (row.category && !resolveCategory(row.category)) {
+    errors.push(`Unknown category: "${row.category}"`);
   }
   if (row.date_of_birth && !isValidDate(row.date_of_birth)) {
     row.date_of_birth = "";
@@ -220,6 +256,7 @@ export function StaffBulkUpload({
 }: StaffBulkUploadProps) {
   const [step, setStep] = useState<"upload" | "preview">("upload");
   const [selectedCategory, setSelectedCategory] = useState<StaffCategory | "">("");
+  const [hasFileCategory, setHasFileCategory] = useState(false);
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [fileName, setFileName] = useState("");
@@ -227,6 +264,7 @@ export function StaffBulkUpload({
   const resetState = () => {
     setStep("upload");
     setSelectedCategory("");
+    setHasFileCategory(false);
     setParsedRows([]);
     setFileName("");
     setSubmitting(false);
@@ -277,6 +315,9 @@ export function StaffBulkUpload({
             return;
           }
 
+          const fileCategoryCol = Object.values(columnMap).includes("category");
+          setHasFileCategory(fileCategoryCol);
+
           const parsed: ParsedRow[] = [];
           for (let i = 1; i < rawRows.length; i++) {
             const row = rawRows[i];
@@ -287,6 +328,7 @@ export function StaffBulkUpload({
             const record: ParsedRow = {
               name: "",
               subject: "",
+              category: "",
               email: "",
               phone: "",
               date_of_birth: "",
@@ -306,7 +348,7 @@ export function StaffBulkUpload({
               }
             }
 
-            record.errors = validateRow(record);
+            record.errors = validateRow(record, fileCategoryCol);
             parsed.push(record);
           }
 
@@ -336,7 +378,7 @@ export function StaffBulkUpload({
   };
 
   const handleSubmit = async () => {
-    if (!selectedCategory) {
+    if (!hasFileCategory && !selectedCategory) {
       toast.error("Please select a category");
       return;
     }
@@ -351,10 +393,11 @@ export function StaffBulkUpload({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          category: selectedCategory,
+          category: hasFileCategory ? undefined : selectedCategory,
           staff: validRows.map((r) => ({
             name: r.name,
             subject: r.subject,
+            category: hasFileCategory ? resolveCategory(r.category) : undefined,
             email: r.email || undefined,
             phone: r.phone || undefined,
             date_of_birth: r.date_of_birth || undefined,
@@ -404,6 +447,7 @@ export function StaffBulkUpload({
       [
         "Name",
         "Subject / Designation",
+        "Category",
         "Email",
         "Phone",
         "DOB (DD/MM/YYYY)",
@@ -413,15 +457,27 @@ export function StaffBulkUpload({
       [
         "Rahul Sharma",
         "Mathematics",
+        "PGT",
         "rahul@example.com",
         "9876543210",
         "15/03/1985",
         "123, Main Street, Jaipur",
         "M.Sc., B.Ed.",
       ],
+      [
+        "Priya Gupta",
+        "Librarian",
+        "Administrative Staff",
+        "",
+        "9876543211",
+        "",
+        "",
+        "",
+      ],
     ]);
 
     ws["!cols"] = [
+      { wch: 22 },
       { wch: 22 },
       { wch: 22 },
       { wch: 24 },
@@ -435,8 +491,6 @@ export function StaffBulkUpload({
     XLSX.utils.book_append_sheet(wb, ws, "Staff");
     XLSX.writeFile(wb, "staff_upload_template.xlsx");
   };
-
-  const categoryLabel = CATEGORY_OPTIONS.find((c) => c.value === selectedCategory)?.label || "";
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -453,7 +507,11 @@ export function StaffBulkUpload({
               <p className="text-xs text-gray-500 mt-0.5">
                 {step === "upload"
                   ? "Import staff members from Excel or CSV"
-                  : `Importing as ${categoryLabel}`}
+                  : hasFileCategory
+                    ? "Categories detected from file"
+                    : selectedCategory
+                      ? `Importing as ${CATEGORY_OPTIONS.find(c => c.value === selectedCategory)?.label || ""}`
+                      : "Select a category below"}
               </p>
             </div>
           </div>
@@ -462,25 +520,6 @@ export function StaffBulkUpload({
         {step === "upload" ? (
           <div className="space-y-6">
             <div>
-              <Label>Select Category</Label>
-              <Select
-                value={selectedCategory}
-                onValueChange={(val) => val && setSelectedCategory(val as StaffCategory)}
-              >
-                <SelectTrigger className="w-full mt-1">
-                  <SelectValue placeholder="Choose a staff category..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORY_OPTIONS.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
               <Label>Upload Excel or CSV File</Label>
               <div className="mt-2 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-navy-400 transition-colors">
                 <Upload className="h-10 w-10 mx-auto text-gray-400 mb-3" />
@@ -488,20 +527,14 @@ export function StaffBulkUpload({
                   Drop your file here or click to browse
                 </p>
                 <p className="text-xs text-gray-400 mb-4">
-                  Supports .xlsx, .xls, and .csv files
+                  Supports .xlsx, .xls, and .csv files. Include a &quot;Category&quot; column to assign categories per row, or select one below after upload.
                 </p>
                 <Input
                   type="file"
                   accept=".xlsx,.xls,.csv"
                   onChange={handleFileChange}
                   className="max-w-xs mx-auto"
-                  disabled={!selectedCategory}
                 />
-                {!selectedCategory && (
-                  <p className="text-xs text-amber-600 mt-2">
-                    Please select a category first
-                  </p>
-                )}
               </div>
             </div>
 
@@ -545,11 +578,37 @@ export function StaffBulkUpload({
                   setStep("upload");
                   setParsedRows([]);
                   setFileName("");
+                  setHasFileCategory(false);
                 }}
               >
                 Upload Different File
               </Button>
             </div>
+
+            {/* Show category selector only when file doesn't have a category column */}
+            {!hasFileCategory && (
+              <div>
+                <Label>Select Category for All Staff</Label>
+                <Select
+                  value={selectedCategory}
+                  onValueChange={(val) => val && setSelectedCategory(val as StaffCategory)}
+                >
+                  <SelectTrigger className="w-full mt-1">
+                    <SelectValue placeholder="Choose a staff category..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_OPTIONS.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400 mt-1">
+                  No &quot;Category&quot; column detected. All rows will be imported under this category.
+                </p>
+              </div>
+            )}
 
             <div className="border rounded-xl overflow-hidden">
               <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
@@ -559,6 +618,7 @@ export function StaffBulkUpload({
                       <TableHead className="w-8">#</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Subject / Designation</TableHead>
+                      {hasFileCategory && <TableHead>Category</TableHead>}
                       <TableHead>Phone</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Qualifications</TableHead>
@@ -581,6 +641,17 @@ export function StaffBulkUpload({
                           {row.name || "—"}
                         </TableCell>
                         <TableCell>{row.subject || "—"}</TableCell>
+                        {hasFileCategory && (
+                          <TableCell>
+                            {resolveCategory(row.category) ? (
+                              <Badge variant="secondary" className="text-xs">
+                                {CATEGORY_OPTIONS.find(c => c.value === resolveCategory(row.category))?.label || row.category}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-red-500">{row.category || "—"}</span>
+                            )}
+                          </TableCell>
+                        )}
                         <TableCell className="text-gray-600">
                           {row.phone || "—"}
                         </TableCell>

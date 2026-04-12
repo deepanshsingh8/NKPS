@@ -20,9 +20,9 @@ export default function ForgotPasswordPage() {
 
     try {
       const supabase = createClient();
-      const siteUrl =
-        process.env.NEXT_PUBLIC_SITE_URL ||
-        (typeof window !== "undefined" ? window.location.origin : "https://www.nkpublicschool.com");
+      // Always use the current origin so the redirect works regardless of
+      // which domain the user is on (production, Vercel preview, localhost).
+      const siteUrl = window.location.origin;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${siteUrl}/auth/callback?next=/portal/reset-password`,
       });

@@ -29,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Plus,
@@ -130,6 +131,10 @@ export default function AdminStaffPage() {
   const [filterCategory, setFilterCategory] = useState<StaffCategory | "all">("all");
   const [search, setSearch] = useState("");
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+
+  // Selection & bulk actions
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Form state
   const [name, setName] = useState("");
@@ -352,6 +357,54 @@ export default function AdminStaffPage() {
     return matchesCategory && matchesSearch;
   });
 
+  // Selection helpers
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((m) => m.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (
+      !confirm(
+        `Delete ${selectedIds.size} staff member${selectedIds.size === 1 ? "" : "s"}? This cannot be undone.`
+      )
+    )
+      return;
+
+    setBulkDeleting(true);
+    try {
+      const res = await adminDelete("/api/staff", {
+        ids: Array.from(selectedIds),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete");
+      }
+
+      toast.success(`Deleted ${selectedIds.size} staff member${selectedIds.size === 1 ? "" : "s"}`);
+      setSelectedIds(new Set());
+      fetchStaff();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Bulk delete failed");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const getCategoryLabel = (cat: StaffCategory) =>
     CATEGORY_OPTIONS.find((c) => c.value === cat)?.label || cat;
 
@@ -387,13 +440,13 @@ export default function AdminStaffPage() {
           <Input
             placeholder="Search by name or subject..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setSelectedIds(new Set()); }}
             className="pl-9"
           />
         </div>
         <Select
           value={filterCategory}
-          onValueChange={(val) => val && setFilterCategory(val as StaffCategory | "all")}
+          onValueChange={(val) => { if (val) { setFilterCategory(val as StaffCategory | "all"); setSelectedIds(new Set()); } }}
         >
           <SelectTrigger className="w-full sm:w-48">
             <SelectValue />
@@ -421,6 +474,32 @@ export default function AdminStaffPage() {
         )}
       </div>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+          <span className="text-sm font-medium text-red-700">
+            {selectedIds.size} selected
+          </span>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={bulkDeleting}
+            onClick={handleBulkDelete}
+          >
+            {bulkDeleting && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+            <Trash2 className="h-3.5 w-3.5 mr-1" />
+            Delete Selected
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Clear
+          </Button>
+        </div>
+      )}
+
       {/* Table */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -443,6 +522,12 @@ export default function AdminStaffPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead className="w-16">Photo</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Subject / Designation</TableHead>
@@ -452,7 +537,13 @@ export default function AdminStaffPage() {
             </TableHeader>
             <TableBody>
               {filtered.map((member) => (
-                <TableRow key={member.id}>
+                <TableRow key={member.id} className={selectedIds.has(member.id) ? "bg-red-50/50" : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(member.id)}
+                      onCheckedChange={() => toggleSelection(member.id)}
+                    />
+                  </TableCell>
                   <TableCell>
                     {member.photo_url ? (
                       <div className="w-10 h-10 rounded-full overflow-hidden relative">

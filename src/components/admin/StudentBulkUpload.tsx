@@ -318,6 +318,20 @@ export function StudentBulkUpload({
   const validRows = parsedRows.filter((r) => r.errors.length === 0);
   const invalidRows = parsedRows.filter((r) => r.errors.length > 0);
 
+  // Compute unique class+section combos from parsed data for preview
+  const uniqueClasses = Array.from(
+    new Set(
+      parsedRows
+        .filter((r) => r.class_name)
+        .map((r) => {
+          let name = r.class_name.trim();
+          if (r.stream && r.stream.trim()) name = `${name} ${r.stream.trim()}`;
+          const sec = (r.section || "A").trim();
+          return `${name} - ${sec}`;
+        })
+    )
+  ).sort();
+
   const removeRow = (index: number) => {
     setParsedRows((prev) => prev.filter((_, i) => i !== index));
     if (editingIndex === index) setEditingIndex(null);
@@ -380,6 +394,14 @@ export function StudentBulkUpload({
       }
 
       const successCount = data.inserted || 0;
+      const classesCreated = data.classesCreated || 0;
+
+      if (classesCreated > 0) {
+        toast.info(
+          `Auto-created ${classesCreated} class${classesCreated === 1 ? "" : "es"} for the current academic year`
+        );
+      }
+
       toast.success(
         `Successfully imported ${successCount} student${successCount === 1 ? "" : "s"}`
       );
@@ -503,7 +525,7 @@ export function StudentBulkUpload({
                 <li><strong>Class</strong> column is required (e.g., X, XI, XII, Nursery, LKG)</li>
                 <li><strong>Section</strong> column is optional (defaults to A if not provided)</li>
                 <li><strong>Stream</strong> column for senior classes (e.g., Science, Commerce, Arts) — combined with class to match &quot;XI Science&quot;</li>
-                <li>Classes must already exist in the system. Create them in Classes management first.</li>
+                <li>Missing classes are <strong>auto-created</strong> during import for the current academic year.</li>
                 <li>You can edit any field in the preview screen before importing.</li>
               </ul>
             </div>
@@ -554,6 +576,24 @@ export function StudentBulkUpload({
                 Upload Different File
               </Button>
             </div>
+
+            {uniqueClasses.length > 0 && (
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+                <p className="text-xs text-blue-700 font-medium mb-1.5">
+                  Classes detected ({uniqueClasses.length}) — missing ones will be auto-created
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {uniqueClasses.map((cls) => (
+                    <span
+                      key={cls}
+                      className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-100 text-xs font-medium text-blue-700"
+                    >
+                      {cls}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="border rounded-xl overflow-hidden">
               <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
