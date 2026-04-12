@@ -49,6 +49,8 @@ interface ClassOption {
   id: string;
   name: string;
   section: string;
+  stream_id: string | null;
+  stream_name: string | null;
 }
 
 interface AcademicYear {
@@ -85,6 +87,13 @@ const STATUS_BADGE_STYLES: Record<EnrollmentStatus, string> = {
   terminated: "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400",
   exited: "bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400",
 };
+
+function classLabel(c: ClassOption): string {
+  if (c.stream_name && HIGHER_CLASSES.includes(c.name)) {
+    return `${c.name} - ${c.section} (${c.stream_name})`;
+  }
+  return `${c.name} - ${c.section}`;
+}
 
 export default function AdminStudentsPage() {
   const [students, setStudents] = useState<StudentRow[]>([]);
@@ -152,7 +161,7 @@ export default function AdminStudentsPage() {
 
     let query = supabase
       .from("classes")
-      .select("id, name, section")
+      .select("id, name, section, stream_id, streams(name)")
       .order("sort_order", { ascending: true });
 
     if (years) {
@@ -160,7 +169,14 @@ export default function AdminStudentsPage() {
     }
 
     const { data } = await query;
-    setClasses((data as ClassOption[]) ?? []);
+    const classOptions: ClassOption[] = (data ?? []).map((c: Record<string, unknown>) => ({
+      id: c.id as string,
+      name: c.name as string,
+      section: c.section as string,
+      stream_id: c.stream_id as string | null,
+      stream_name: (c.streams as { name: string } | null)?.name ?? null,
+    }));
+    setClasses(classOptions);
 
     // Fetch active streams for higher-class enrollment
     const { data: streamsData } = await supabase
@@ -602,7 +618,7 @@ export default function AdminStudentsPage() {
         <Label className="text-xs font-medium">Class *</Label>
         <Select
           value={formData.class_id}
-          items={classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` }))}
+          items={classes.map((c) => ({ value: c.id, label: classLabel(c) }))}
           onValueChange={(val) => {
             if (val) {
               updateField("class_id", val);
@@ -619,8 +635,8 @@ export default function AdminStudentsPage() {
           </SelectTrigger>
           <SelectContent>
             {classes.map((c) => (
-              <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
-                {c.name} - {c.section}
+              <SelectItem key={c.id} value={c.id} label={classLabel(c)}>
+                {classLabel(c)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -898,7 +914,7 @@ export default function AdminStudentsPage() {
           <div className="w-full sm:w-64">
             <Select
               value={selectedClassId || "all"}
-              items={[{ value: "all", label: "All Classes" }, ...classes.map((c) => ({ value: c.id, label: `${c.name} - ${c.section}` }))]}
+              items={[{ value: "all", label: "All Classes" }, ...classes.map((c) => ({ value: c.id, label: classLabel(c) }))]}
               onValueChange={(val) => setSelectedClassId(!val || val === "all" ? "" : val)}
             >
               <SelectTrigger className="h-10">
@@ -907,8 +923,8 @@ export default function AdminStudentsPage() {
               <SelectContent>
                 <SelectItem value="all">All Classes</SelectItem>
                 {classes.map((c) => (
-                  <SelectItem key={c.id} value={c.id} label={`${c.name} - ${c.section}`}>
-                    {c.name} - {c.section}
+                  <SelectItem key={c.id} value={c.id} label={classLabel(c)}>
+                    {classLabel(c)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -933,7 +949,7 @@ export default function AdminStudentsPage() {
         </div>
 
         {/* Bulk action bar */}
-        {selectedClassId && selectedIds.size > 0 && (
+        {selectedIds.size > 0 && (
           <div className="flex items-center gap-3 mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
             <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
               {selectedIds.size} selected
@@ -1006,14 +1022,12 @@ export default function AdminStudentsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {selectedClassId && (
-                    <TableHead className="w-10">
-                      <Checkbox
-                        checked={selectedIds.size === filteredStudents.length && filteredStudents.length > 0}
-                        onCheckedChange={toggleSelectAll}
-                      />
-                    </TableHead>
-                  )}
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={selectedIds.size === filteredStudents.length && filteredStudents.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead>Adm No</TableHead>
                   <TableHead>Name</TableHead>
                   {!selectedClassId && <TableHead>Class</TableHead>}
@@ -1028,14 +1042,12 @@ export default function AdminStudentsPage() {
               <TableBody>
                 {filteredStudents.map((student) => (
                   <TableRow key={student.id}>
-                    {selectedClassId && (
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedIds.has(student.id)}
-                          onCheckedChange={() => toggleSelection(student.id)}
-                        />
-                      </TableCell>
-                    )}
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(student.id)}
+                        onCheckedChange={() => toggleSelection(student.id)}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
                       {student.admission_no}
                     </TableCell>
