@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { studentBulkUploadSchema } from "@/lib/validations";
+import { createPortalUser } from "@/lib/create-portal-user";
 
 export async function POST(request: Request) {
   try {
@@ -142,10 +143,41 @@ export async function POST(request: Request) {
       }
     }
 
+    // Auto-create portal users for students with emails
+    let usersCreated = 0;
+    const failedAdmissions = new Set(errors.map((e) => e.admission_no));
+
+    for (const s of students) {
+      const email = s.email?.trim();
+      if (!email || failedAdmissions.has(s.admission_no)) continue;
+
+      const { data: studentRow } = await admin
+        .from("students")
+        .select("id")
+        .eq("admission_no", s.admission_no.trim())
+        .single();
+
+      const userResult = await createPortalUser({
+        email,
+        fullName: s.full_name.trim(),
+        role: "student",
+        phone: s.phone || null,
+      });
+
+      if (userResult.success && userResult.userId && studentRow) {
+        await admin
+          .from("profiles")
+          .update({ student_id: studentRow.id })
+          .eq("id", userResult.userId);
+        usersCreated++;
+      }
+    }
+
     return NextResponse.json({
       success: true,
       inserted,
       updated,
+      usersCreated,
       errors,
       total: students.length,
     });

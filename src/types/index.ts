@@ -45,7 +45,7 @@ export interface SiteMedia {
   created_at: string;
 }
 
-export type StaffCategory = 'management' | 'admin' | 'pgt' | 'tgt' | 'prt' | 'motherTeachers' | 'additionalStaff' | 'busDriver' | 'peon';
+export type StaffCategory = 'management' | 'admin' | 'pgt' | 'tgt' | 'prt' | 'motherTeachers' | 'prePrimaryCoordinator' | 'primaryCoordinator' | 'middleCoordinator' | 'seniorCoordinator' | 'additionalStaff' | 'busDriver' | 'peon';
 
 export interface StaffMember {
   id: string;

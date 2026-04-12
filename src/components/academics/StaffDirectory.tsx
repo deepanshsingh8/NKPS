@@ -10,14 +10,15 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { StaffMember } from "@/types";
 
-const PUBLIC_CATEGORIES = ["admin", "pgt", "tgt", "prt", "motherTeachers"] as const;
+const PUBLIC_CATEGORIES = ["management", "pgt", "tgt", "prt", "motherTeachers", "admin"] as const;
 
 const tabs = [
-  { label: "Administration", key: "admin" as const },
+  { label: "Management", key: "management" as const },
   { label: "PGT", key: "pgt" as const },
   { label: "TGT", key: "tgt" as const },
   { label: "PRT", key: "prt" as const },
   { label: "Mother Teachers", key: "motherTeachers" as const },
+  { label: "Administrative Staff", key: "admin" as const },
 ];
 
 type TabKey = (typeof tabs)[number]["key"];
@@ -64,7 +65,7 @@ const cardVariants = {
 };
 
 export function StaffDirectory() {
-  const [activeTab, setActiveTab] = useState<TabKey>("admin");
+  const [activeTab, setActiveTab] = useState<TabKey>("management");
   const [search, setSearch] = useState("");
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });

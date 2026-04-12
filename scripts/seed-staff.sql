@@ -2,11 +2,11 @@
 -- Run this once in Supabase SQL Editor after creating the staff_members table
 
 INSERT INTO staff_members (name, subject, category, sort_order) VALUES
-  -- Administration
-  ('Kavia Prema', 'Principal', 'admin', 0),
-  ('Gaurav Kumar Mathur', 'Vice Principal', 'admin', 1),
-  ('Ramavtar Khunteta', 'Senior Coordinator', 'admin', 2),
-  ('Neelam Pandey', 'Pre-Primary Coordinator', 'admin', 3),
+  -- Management
+  ('Kavia Prema', 'Principal', 'management', 0),
+  ('Gaurav Kumar Mathur', 'Vice Principal', 'management', 1),
+  ('Ramavtar Khunteta', 'Senior Coordinator', 'management', 2),
+  ('Neelam Pandey', 'Pre-Primary Coordinator', 'management', 3),
   -- PGT (Post-Graduate Teachers)
   ('Jasvindar Singh Bhatiya', 'Biology', 'pgt', 0),
   ('Vijay Kumar Soni', 'Chemistry', 'pgt', 1),

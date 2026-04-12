@@ -115,7 +115,7 @@ export const STAFF = {
     { name: "Shivani Gaur", subject: "Mathematics" },
     { name: "Kalpana Negi", subject: "Mathematics" },
   ],
-  admin: [
+  management: [
     { name: "Kavia Prema", subject: "Principal" },
     { name: "Gaurav Kumar Mathur", subject: "Vice Principal" },
     { name: "Ramavtar Khunteta", subject: "Senior Coordinator" },
@@ -126,6 +126,7 @@ export const STAFF = {
     { name: "Nitu Sinha", subject: "Mother Teacher" },
     { name: "Mamta Agarwal", subject: "Mother Teacher" },
   ],
+  admin: [] as { name: string; subject: string }[],
 } as const;
 
 export const FACILITIES = [

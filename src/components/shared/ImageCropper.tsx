@@ -7,9 +7,11 @@ import ReactCrop, {
   centerCrop,
   makeAspectCrop,
 } from "react-image-crop";
+
+export type { Crop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import { Button } from "@/components/ui/button";
-import { RotateCcw, Check, X, Maximize } from "lucide-react";
+import { RotateCcw, Check, X, Maximize, CopyCheck } from "lucide-react";
 
 interface ImageCropperProps {
   /** The image source URL (object URL or data URL) */
@@ -24,6 +26,8 @@ interface ImageCropperProps {
   cropShape?: "round" | "rect";
   /** Aspect ratio for the crop area (default: free crop via 0, or e.g. 16/9, 4/3, 1) */
   aspect?: number;
+  /** If provided, shows a "Crop All" button for batch operations. Called with the current percentage-based crop. */
+  onCropAll?: (percentCrop: Crop) => void;
 }
 
 /**
@@ -91,6 +95,7 @@ export function ImageCropper({
   fileName = "cropped.jpg",
   cropShape = "rect",
   aspect,
+  onCropAll,
 }: ImageCropperProps) {
   const isRound = cropShape === "round";
   const effectiveAspect = aspect || (isRound ? 1 : undefined);
@@ -142,6 +147,22 @@ export function ImageCropper({
     }
   };
 
+  const handleCropAll = () => {
+    if (!crop || !onCropAll) return;
+    const percentCrop: Crop = crop.unit === "%"
+      ? crop
+      : imgRef.current
+        ? {
+            unit: "%" as const,
+            x: (crop.x / imgRef.current.width) * 100,
+            y: (crop.y / imgRef.current.height) * 100,
+            width: (crop.width / imgRef.current.width) * 100,
+            height: (crop.height / imgRef.current.height) * 100,
+          }
+        : crop;
+    onCropAll(percentCrop);
+  };
+
   return (
     <div className="space-y-4">
       {/* Crop area */}
@@ -185,7 +206,6 @@ export function ImageCropper({
           className="text-xs"
           onClick={() => {
             if (!imgRef.current) return;
-            const { naturalWidth: w, naturalHeight: h } = imgRef.current;
             setCrop({ unit: "%", x: 0, y: 0, width: 100, height: 100 });
           }}
           title="Select entire image"
@@ -207,6 +227,19 @@ export function ImageCropper({
           <X className="h-4 w-4 mr-1" />
           Cancel
         </Button>
+        {onCropAll && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCropAll}
+            disabled={processing || !crop}
+            size="sm"
+            className="text-violet-600 border-violet-300 hover:bg-violet-50"
+          >
+            <CopyCheck className="h-4 w-4 mr-1" />
+            Crop All
+          </Button>
+        )}
         <Button
           type="button"
           onClick={handleConfirm}

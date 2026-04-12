@@ -55,6 +55,10 @@ const CATEGORIES: { value: StaffCategory | "all"; label: string }[] = [
   { value: "tgt", label: "TGT" },
   { value: "prt", label: "PRT" },
   { value: "motherTeachers", label: "Mother Teachers" },
+  { value: "prePrimaryCoordinator", label: "Pre-primary Coordinator" },
+  { value: "primaryCoordinator", label: "Primary Coordinator" },
+  { value: "middleCoordinator", label: "Middle Coordinator" },
+  { value: "seniorCoordinator", label: "Senior Coordinator" },
   { value: "additionalStaff", label: "Additional Staff" },
   { value: "busDriver", label: "Bus Drivers" },
   { value: "peon", label: "Peons" },
@@ -67,6 +71,10 @@ const CATEGORY_OPTIONS: { value: StaffCategory; label: string }[] = [
   { value: "tgt", label: "TGT" },
   { value: "prt", label: "PRT" },
   { value: "motherTeachers", label: "Mother Teachers" },
+  { value: "prePrimaryCoordinator", label: "Pre-primary Coordinator" },
+  { value: "primaryCoordinator", label: "Primary Coordinator" },
+  { value: "middleCoordinator", label: "Middle Coordinator" },
+  { value: "seniorCoordinator", label: "Senior Coordinator" },
   { value: "additionalStaff", label: "Additional Staff" },
   { value: "busDriver", label: "Bus Drivers" },
   { value: "peon", label: "Peons" },
@@ -79,6 +87,10 @@ const categoryBadgeColors: Record<StaffCategory, string> = {
   tgt: "bg-emerald-100 text-emerald-700",
   prt: "bg-amber-100 text-amber-700",
   motherTeachers: "bg-violet-100 text-violet-700",
+  prePrimaryCoordinator: "bg-pink-100 text-pink-700",
+  primaryCoordinator: "bg-sky-100 text-sky-700",
+  middleCoordinator: "bg-lime-100 text-lime-700",
+  seniorCoordinator: "bg-indigo-100 text-indigo-700",
   additionalStaff: "bg-teal-100 text-teal-700",
   busDriver: "bg-orange-100 text-orange-700",
   peon: "bg-gray-100 text-gray-700",
@@ -288,11 +300,15 @@ export default function AdminStaffPage() {
           }),
         });
 
+        const resData = await res.json();
         if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || "Failed to add staff member");
+          throw new Error(resData.error || "Failed to add staff member");
         }
-        toast.success("Staff member added");
+        if (resData.userCreated) {
+          toast.success("Staff member added — portal account created & login email sent");
+        } else {
+          toast.success("Staff member added");
+        }
       }
 
       setDialogOpen(false);

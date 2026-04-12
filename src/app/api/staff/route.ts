@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@/lib/verify-admin";
+import { createPortalUser } from "@/lib/create-portal-user";
 
-const VALID_CATEGORIES = ["management", "admin", "pgt", "tgt", "prt", "motherTeachers", "additionalStaff", "busDriver", "peon"];
+const VALID_CATEGORIES = ["management", "admin", "pgt", "tgt", "prt", "motherTeachers", "prePrimaryCoordinator", "primaryCoordinator", "middleCoordinator", "seniorCoordinator", "additionalStaff", "busDriver", "peon"];
 
 export async function POST(request: NextRequest) {
   const admin = await verifyAdminOrEditor();
@@ -44,7 +45,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, data });
+    let userCreated = false;
+    if (email?.trim()) {
+      const result = await createPortalUser({
+        email: email.trim(),
+        fullName: name.trim(),
+        role: "teacher",
+        phone: phone || null,
+      });
+      userCreated = result.success;
+    }
+
+    return NextResponse.json({ success: true, data, userCreated });
   } catch (err) {
     console.error("[Staff Create Error]", err);
     return NextResponse.json(

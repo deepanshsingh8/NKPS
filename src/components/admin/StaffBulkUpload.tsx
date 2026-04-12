@@ -47,6 +47,10 @@ const CATEGORY_OPTIONS: { value: StaffCategory; label: string }[] = [
   { value: "tgt", label: "TGT" },
   { value: "prt", label: "PRT" },
   { value: "motherTeachers", label: "Mother Teachers" },
+  { value: "prePrimaryCoordinator", label: "Pre-primary Coordinator" },
+  { value: "primaryCoordinator", label: "Primary Coordinator" },
+  { value: "middleCoordinator", label: "Middle Coordinator" },
+  { value: "seniorCoordinator", label: "Senior Coordinator" },
   { value: "additionalStaff", label: "Additional Staff" },
   { value: "busDriver", label: "Bus Drivers" },
   { value: "peon", label: "Peons" },
@@ -153,8 +157,21 @@ function mapHeaders(headers: string[]): Record<number, string> {
   return mapping;
 }
 
+function excelSerialToDate(serial: number): string {
+  const epoch = new Date(1899, 11, 30);
+  const date = new Date(epoch.getTime() + serial * 86400000);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 function normalizeDateString(value: string): string {
   if (!value) return "";
+  const num = Number(value);
+  if (!isNaN(num) && num > 1000 && num < 100000) {
+    return excelSerialToDate(num);
+  }
   const parts = value.split(/[/\-\.]/);
   if (parts.length === 3) {
     const [a, b, c] = parts;
@@ -168,6 +185,20 @@ function normalizeDateString(value: string): string {
   return value;
 }
 
+function normalizePhone(value: string): string {
+  if (!value) return "";
+  const cleaned = value.replace(/[eE]+\d+$/, "");
+  return cleaned.replace(/\.0+$/, "").trim();
+}
+
+function isValidDate(d: string): boolean {
+  if (!d) return true;
+  const match = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+  const date = new Date(d);
+  return !isNaN(date.getTime());
+}
+
 function validateRow(row: ParsedRow): string[] {
   const errors: string[] = [];
   if (!row.name || row.name.trim().length < 2) {
@@ -175,6 +206,9 @@ function validateRow(row: ParsedRow): string[] {
   }
   if (!row.subject || row.subject.trim() === "") {
     errors.push("Subject/designation is required");
+  }
+  if (row.date_of_birth && !isValidDate(row.date_of_birth)) {
+    row.date_of_birth = "";
   }
   return errors;
 }
@@ -218,6 +252,8 @@ export function StaffBulkUpload({
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const rawRows = XLSX.utils.sheet_to_json<string[]>(sheet, {
             header: 1,
+            raw: false,
+            defval: "",
           });
 
           if (rawRows.length < 2) {
@@ -263,6 +299,8 @@ export function StaffBulkUpload({
               const cellValue = String(row[Number(colIndex)] ?? "").trim();
               if (field === "date_of_birth") {
                 record[field] = normalizeDateString(cellValue);
+              } else if (field === "phone") {
+                record[field] = normalizePhone(cellValue);
               } else {
                 (record as unknown as Record<string, unknown>)[field] = cellValue;
               }
@@ -333,13 +371,22 @@ export function StaffBulkUpload({
         return;
       }
 
+      const userMsg = data.usersCreated > 0
+        ? ` — ${data.usersCreated} portal account${data.usersCreated === 1 ? "" : "s"} created & emailed`
+        : "";
       toast.success(
-        `Successfully imported ${data.inserted} staff member${data.inserted === 1 ? "" : "s"}`
+        `Successfully imported ${data.inserted} staff member${data.inserted === 1 ? "" : "s"}${userMsg}`
       );
 
       if (data.errors?.length > 0) {
+        const details = data.errors
+          .slice(0, 5)
+          .map((e: { name: string; error: string }) => `${e.name}: ${e.error}`)
+          .join("\n");
+        const more = data.errors.length > 5 ? `\n...and ${data.errors.length - 5} more` : "";
         toast.warning(
-          `${data.errors.length} member(s) had errors and were skipped`
+          `${data.errors.length} member(s) had errors and were skipped`,
+          { description: details + more, duration: 10000 }
         );
       }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdmin } from "@/lib/verify-admin";
 import { studentSchema } from "@/lib/validations";
+import { createPortalUser } from "@/lib/create-portal-user";
 
 export async function GET(request: NextRequest) {
   try {
@@ -182,7 +183,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, data: student });
+    let userCreated = false;
+    const studentEmail = result.data.email?.trim();
+    if (studentEmail && student) {
+      const userResult = await createPortalUser({
+        email: studentEmail,
+        fullName: result.data.full_name.trim(),
+        role: "student",
+        phone: result.data.phone || null,
+      });
+      if (userResult.success && userResult.userId) {
+        await admin
+          .from("profiles")
+          .update({ student_id: student.id })
+          .eq("id", userResult.userId);
+      }
+      userCreated = userResult.success;
+    }
+
+    return NextResponse.json({ success: true, data: student, userCreated });
   } catch (err) {
     console.error("Create student error:", err);
     return NextResponse.json(

@@ -40,7 +40,7 @@ import {
 import { adminFetch, adminDelete, adminApi } from "@/lib/admin-api";
 import { uploadToStorage } from "@/lib/supabase/upload";
 import { FileDropZone } from "@/components/shared/FileDropZone";
-import { ImageCropper } from "@/components/shared/ImageCropper";
+import { ImageCropper, type Crop } from "@/components/shared/ImageCropper";
 import { AcademicYearSelect } from "@/components/shared/AcademicYearSelect";
 import { cn } from "@/lib/utils";
 import type { GalleryImage, GalleryEvent } from "@/types";
@@ -48,6 +48,34 @@ import type { GalleryImage, GalleryEvent } from "@/types";
 const CATEGORIES = ["academics", "sports", "cultural", "campus", "events"];
 
 type Tab = "images" | "events";
+
+async function applyCropToImage(src: string, percentCrop: Crop, fileName: string): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const x = (percentCrop.x / 100) * img.naturalWidth;
+      const y = (percentCrop.y / 100) * img.naturalHeight;
+      const w = (percentCrop.width / 100) * img.naturalWidth;
+      const h = (percentCrop.height / 100) * img.naturalHeight;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(w);
+      canvas.height = Math.round(h);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("No canvas context")); return; }
+      ctx.drawImage(img, Math.round(x), Math.round(y), Math.round(w), Math.round(h), 0, 0, Math.round(w), Math.round(h));
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { reject(new Error("Canvas empty")); return; }
+          resolve(new File([blob], fileName, { type: "image/jpeg" }));
+        },
+        "image/jpeg",
+        0.92
+      );
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
+}
 
 function PhotoStripCarousel({
   photos,
@@ -247,6 +275,36 @@ export default function AdminGalleryPage() {
         const file = new File([blob], `image-${cropIndex}.jpg`, { type: blob.type });
         handleCropDone(file);
       });
+  };
+
+  const handleCropAll = async (percentCrop: Crop) => {
+    const remaining = cropQueue.slice(cropIndex);
+    const allCropped = [...croppedFiles];
+
+    for (let i = 0; i < remaining.length; i++) {
+      try {
+        const file = await applyCropToImage(remaining[i], percentCrop, `image-${cropIndex + i}.jpg`);
+        allCropped.push(file);
+      } catch {
+        const res = await fetch(remaining[i]);
+        const blob = await res.blob();
+        allCropped.push(new File([blob], `image-${cropIndex + i}.jpg`, { type: blob.type }));
+      }
+    }
+
+    remaining.forEach((url) => URL.revokeObjectURL(url));
+
+    const dt = new DataTransfer();
+    allCropped.forEach((f) => dt.items.add(f));
+    if (cropTarget === "images") {
+      setFiles(dt.files);
+    } else {
+      setEventUploadFiles(dt.files);
+    }
+    setCropQueue([]);
+    setCropIndex(0);
+    setCropTarget(null);
+    toast.success(`Cropped ${remaining.length} image${remaining.length === 1 ? "" : "s"} with the same selection`);
   };
 
   const handleCropCancelAll = () => {
@@ -745,9 +803,11 @@ export default function AdminGalleryPage() {
                       fileName={`gallery-${Date.now()}-${cropIndex}.jpg`}
                       cropShape="rect"
                       aspect={16 / 9}
+                      onCropAll={cropQueue.length - cropIndex > 1 ? handleCropAll : undefined}
                     />
                     <p className="text-xs text-center text-gray-400">
                       Press &quot;Cancel&quot; to skip cropping this image
+                      {cropQueue.length - cropIndex > 1 && " · \"Crop All\" applies the same crop to remaining images"}
                     </p>
                   </div>
                 ) : (
@@ -1025,9 +1085,11 @@ export default function AdminGalleryPage() {
                       fileName={`event-${Date.now()}-${cropIndex}.jpg`}
                       cropShape="rect"
                       aspect={16 / 9}
+                      onCropAll={cropQueue.length - cropIndex > 1 ? handleCropAll : undefined}
                     />
                     <p className="text-xs text-center text-gray-400">
                       Press &quot;Cancel&quot; to skip cropping this image
+                      {cropQueue.length - cropIndex > 1 && " · \"Crop All\" applies the same crop to remaining images"}
                     </p>
                   </div>
                 ) : (

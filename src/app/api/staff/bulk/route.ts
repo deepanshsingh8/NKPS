@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@/lib/verify-admin";
 import { staffBulkUploadSchema } from "@/lib/validations";
+import { createPortalUser } from "@/lib/create-portal-user";
 
 const VALID_CATEGORIES = [
   "management", "admin", "pgt", "tgt", "prt",
-  "motherTeachers", "additionalStaff", "busDriver", "peon",
+  "motherTeachers", "prePrimaryCoordinator", "primaryCoordinator",
+  "middleCoordinator", "seniorCoordinator",
+  "additionalStaff", "busDriver", "peon",
 ];
 
 export async function POST(request: Request) {
@@ -52,17 +55,21 @@ export async function POST(request: Request) {
     for (let i = 0; i < staff.length; i += BATCH_SIZE) {
       const batch = staff.slice(i, i + BATCH_SIZE);
 
-      const records = batch.map((s, idx) => ({
-        name: s.name.trim(),
-        subject: s.subject.trim(),
-        category,
-        email: s.email?.trim() || null,
-        phone: s.phone?.trim() || null,
-        date_of_birth: s.date_of_birth || null,
-        address: s.address?.trim() || null,
-        qualifications: s.qualifications?.trim() || null,
-        sort_order: sortOrder + i + idx,
-      }));
+      const records = batch.map((s, idx) => {
+        const dob = s.date_of_birth?.trim() || null;
+        const validDob = dob && /^\d{4}-\d{2}-\d{2}$/.test(dob) ? dob : null;
+        return {
+          name: s.name.trim(),
+          subject: s.subject.trim(),
+          category,
+          email: s.email?.trim() || null,
+          phone: s.phone?.trim() || null,
+          date_of_birth: validDob,
+          address: s.address?.trim() || null,
+          qualifications: s.qualifications?.trim() || null,
+          sort_order: sortOrder + i + idx,
+        };
+      });
 
       const { error: insertError } = await admin
         .from("staff_members")
@@ -92,9 +99,26 @@ export async function POST(request: Request) {
 
     sortOrder += staff.length;
 
+    // Auto-create portal users for staff with emails (non-blocking)
+    let usersCreated = 0;
+    const staffWithEmails = staff.filter((s) => s.email?.trim());
+    const failedNames = errors.map((e) => e.name);
+
+    for (const s of staffWithEmails) {
+      if (failedNames.includes(s.name.trim())) continue;
+      const userResult = await createPortalUser({
+        email: s.email!.trim(),
+        fullName: s.name.trim(),
+        role: "teacher",
+        phone: s.phone || null,
+      });
+      if (userResult.success) usersCreated++;
+    }
+
     return NextResponse.json({
       success: true,
       inserted,
+      usersCreated,
       errors,
       total: staff.length,
     });
