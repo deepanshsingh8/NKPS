@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 import * as XLSX from "xlsx";
 import {
   Dialog,
@@ -235,6 +236,27 @@ export function StudentBulkUpload({
   const [submitting, setSubmitting] = useState(false);
   const [fileName, setFileName] = useState("");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [existingClassKeys, setExistingClassKeys] = useState<Set<string>>(new Set());
+
+  // Fetch existing classes when entering preview
+  useEffect(() => {
+    if (step !== "preview") return;
+    const supabase = createClient();
+    (async () => {
+      const { data: classes } = await supabase
+        .from("classes")
+        .select("name, section, stream_id, streams:stream_id(name)");
+      const keys = new Set<string>();
+      for (const c of classes || []) {
+        const streamName = (c.streams as unknown as { name: string } | null)?.name;
+        const label = streamName
+          ? `${c.name} - ${c.section} (${streamName})`
+          : `${c.name} - ${c.section}`;
+        keys.add(label);
+      }
+      setExistingClassKeys(keys);
+    })();
+  }, [step]);
 
   const resetState = () => {
     setStep("upload");
@@ -242,6 +264,7 @@ export function StudentBulkUpload({
     setFileName("");
     setSubmitting(false);
     setEditingIndex(null);
+    setExistingClassKeys(new Set());
   };
 
   const handleClose = (isOpen: boolean) => {
@@ -365,7 +388,7 @@ export function StudentBulkUpload({
   const invalidRows = parsedRows.filter((r) => r.errors.length > 0);
 
   // Compute unique class+section+stream combos from parsed data for preview
-  const uniqueClasses = Array.from(
+  const allFileClasses = Array.from(
     new Set(
       parsedRows
         .filter((r) => r.class_name)
@@ -377,6 +400,9 @@ export function StudentBulkUpload({
         })
     )
   ).sort();
+
+  const missingClasses = allFileClasses.filter((cls) => !existingClassKeys.has(cls));
+  const existingClasses = allFileClasses.filter((cls) => existingClassKeys.has(cls));
 
   const removeRow = (index: number) => {
     setParsedRows((prev) => prev.filter((_, i) => i !== index));
@@ -632,16 +658,34 @@ export function StudentBulkUpload({
               </Button>
             </div>
 
-            {uniqueClasses.length > 0 && (
-              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
-                <p className="text-xs text-blue-700 font-medium mb-1.5">
-                  Classes detected ({uniqueClasses.length}) — missing ones will be auto-created
+            {missingClasses.length > 0 && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+                <p className="text-xs text-amber-700 font-medium mb-1.5">
+                  {missingClasses.length} new class{missingClasses.length === 1 ? "" : "es"} will be auto-created
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {uniqueClasses.map((cls) => (
+                  {missingClasses.map((cls) => (
                     <span
                       key={cls}
-                      className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-100 text-xs font-medium text-blue-700"
+                      className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-100 text-xs font-medium text-amber-700"
+                    >
+                      {cls}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {existingClasses.length > 0 && (
+              <div className="rounded-lg bg-green-50 border border-green-200 p-3">
+                <p className="text-xs text-green-700 font-medium mb-1.5">
+                  {existingClasses.length} existing class{existingClasses.length === 1 ? "" : "es"}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {existingClasses.map((cls) => (
+                    <span
+                      key={cls}
+                      className="inline-flex items-center px-2 py-0.5 rounded-md bg-green-100 text-xs font-medium text-green-700"
                     >
                       {cls}
                     </span>
