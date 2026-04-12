@@ -173,13 +173,21 @@ function mapHeaders(headers: string[]): Record<number, string> {
     const normalized = normalizeHeader(header);
     if (!normalized) return;
 
+    // Two-pass matching: exact first, then substring fallback
+    let matched = false;
     for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
-      if (
-        normalized === field ||
-        aliases.some((alias) => normalized === alias || normalized.includes(alias))
-      ) {
+      if (normalized === field || aliases.some((alias) => normalized === alias)) {
         mapping[index] = field;
+        matched = true;
         break;
+      }
+    }
+    if (!matched) {
+      for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
+        if (aliases.some((alias) => normalized.includes(alias))) {
+          mapping[index] = field;
+          break;
+        }
       }
     }
   });
@@ -213,6 +221,13 @@ function normalizeDateString(value: string): string {
     }
   }
   return value;
+}
+
+function toTitleCase(value: string): string {
+  if (!value) return "";
+  return value
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function normalizePhone(value: string): string {
@@ -337,12 +352,18 @@ export function StaffBulkUpload({
               errors: [],
             };
 
+            const NAME_FIELDS = new Set(["name", "address"]);
+
             for (const [colIndex, field] of Object.entries(columnMap)) {
               const cellValue = String(row[Number(colIndex)] ?? "").trim();
               if (field === "date_of_birth") {
                 record[field] = normalizeDateString(cellValue);
               } else if (field === "phone") {
                 record[field] = normalizePhone(cellValue);
+              } else if (field === "email") {
+                record[field] = cellValue.toLowerCase();
+              } else if (NAME_FIELDS.has(field)) {
+                (record as unknown as Record<string, unknown>)[field] = toTitleCase(cellValue);
               } else {
                 (record as unknown as Record<string, unknown>)[field] = cellValue;
               }

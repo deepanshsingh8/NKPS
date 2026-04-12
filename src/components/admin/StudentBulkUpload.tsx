@@ -161,6 +161,13 @@ function mapHeaders(headers: string[]): Record<number, string> {
   return mapping;
 }
 
+function toTitleCase(value: string): string {
+  if (!value) return "";
+  return value
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function normalizeGender(value: string): string {
   const v = value.toLowerCase().trim();
   if (v === "m" || v === "male" || v === "boy") return "male";
@@ -288,6 +295,8 @@ export function StudentBulkUpload({
               errors: [],
             };
 
+            const NAME_FIELDS = new Set(["full_name", "father_name", "mother_name", "address", "previous_school"]);
+
             for (const [colIndex, field] of Object.entries(columnMap)) {
               const cellValue = String(row[Number(colIndex)] ?? "").trim();
               if (field === "roll_number") {
@@ -297,6 +306,10 @@ export function StudentBulkUpload({
                 record[field] = normalizeGender(cellValue);
               } else if (field === "date_of_birth") {
                 record[field] = normalizeDateString(cellValue);
+              } else if (field === "email") {
+                record[field] = cellValue.toLowerCase();
+              } else if (NAME_FIELDS.has(field)) {
+                (record as unknown as Record<string, unknown>)[field] = toTitleCase(cellValue);
               } else {
                 (record as unknown as Record<string, unknown>)[field] = cellValue;
               }
