@@ -4,7 +4,7 @@ import { verifyAdminOrEditor } from "@/lib/verify-admin";
 // Allowlisted tables and their columns that admins can read/write via this proxy
 const ALLOWED_COLUMNS: Record<string, string[]> = {
   students: ["id", "admission_no", "full_name", "father_name", "mother_name", "date_of_birth", "gender", "address", "phone", "email", "blood_group", "category", "aadhar_number", "previous_school", "is_active", "created_at", "updated_at"],
-  classes: ["id", "name", "section", "academic_year_id", "class_teacher_id", "sort_order", "created_at"],
+  classes: ["id", "name", "section", "academic_year_id", "class_teacher_id", "stream_id", "sort_order", "created_at"],
   subjects: ["id", "name", "code", "is_active", "is_elective", "created_at"],
   academic_years: ["id", "name", "start_date", "end_date", "is_current", "created_at"],
   class_subjects: ["id", "class_id", "subject_id", "teacher_id", "created_at"],

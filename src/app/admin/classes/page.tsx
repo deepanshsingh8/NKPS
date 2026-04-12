@@ -30,7 +30,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, Layers } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
-import type { Class, AcademicYear, Profile } from "@/types";
+import type { Class, AcademicYear, Profile, Stream } from "@/types";
 
 const CLASS_NAMES = [
   "Nursery",
@@ -52,9 +52,12 @@ const CLASS_NAMES = [
 
 const SECTIONS = ["A", "B", "C"];
 
+const SENIOR_CLASSES = ["XI", "XII"];
+
 interface ClassWithRelations extends Class {
   teacher_name?: string;
   academic_year_name?: string;
+  stream_name?: string;
   student_count?: number;
 }
 
@@ -62,6 +65,7 @@ export default function AdminClassesPage() {
   const [classes, setClasses] = useState<ClassWithRelations[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [teachers, setTeachers] = useState<Profile[]>([]);
+  const [streams, setStreams] = useState<Stream[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -73,14 +77,15 @@ export default function AdminClassesPage() {
   const [section, setSection] = useState(SECTIONS[0]);
   const [academicYearId, setAcademicYearId] = useState("");
   const [classTeacherId, setClassTeacherId] = useState("");
+  const [streamId, setStreamId] = useState("");
 
   const supabase = createClient();
 
   const fetchData = async () => {
-    const [classesRes, yearsRes, teachersRes] = await Promise.all([
+    const [classesRes, yearsRes, teachersRes, streamsRes] = await Promise.all([
       supabase
         .from("classes")
-        .select("*, profiles:class_teacher_id(full_name), academic_years:academic_year_id(name)")
+        .select("*, profiles:class_teacher_id(full_name), academic_years:academic_year_id(name), streams:stream_id(name)")
         .order("sort_order", { ascending: true }),
       supabase
         .from("academic_years")
@@ -92,6 +97,11 @@ export default function AdminClassesPage() {
         .eq("role", "teacher")
         .eq("is_active", true)
         .order("full_name"),
+      supabase
+        .from("streams")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order"),
     ]);
 
     if (classesRes.error) {
@@ -104,6 +114,8 @@ export default function AdminClassesPage() {
             (c.profiles as { full_name: string } | null)?.full_name ?? "—",
           academic_year_name:
             (c.academic_years as { name: string } | null)?.name ?? "—",
+          stream_name:
+            (c.streams as { name: string } | null)?.name ?? undefined,
         })
       );
       setClasses(enriched);
@@ -111,6 +123,7 @@ export default function AdminClassesPage() {
 
     setAcademicYears((yearsRes.data as AcademicYear[]) ?? []);
     setTeachers((teachersRes.data as Profile[]) ?? []);
+    setStreams((streamsRes.data as Stream[]) ?? []);
     setLoading(false);
   };
 
@@ -124,6 +137,7 @@ export default function AdminClassesPage() {
     setSection(SECTIONS[0]);
     setAcademicYearId("");
     setClassTeacherId("");
+    setStreamId("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -142,6 +156,7 @@ export default function AdminClassesPage() {
         section,
         academic_year_id: academicYearId,
         class_teacher_id: classTeacherId || null,
+        stream_id: SENIOR_CLASSES.includes(className) && streamId ? streamId : null,
         sort_order: CLASS_NAMES.indexOf(className) * 10 + SECTIONS.indexOf(section),
       },
     });
@@ -183,6 +198,7 @@ export default function AdminClassesPage() {
     setSection(cls.section);
     setAcademicYearId(cls.academic_year_id);
     setClassTeacherId(cls.class_teacher_id ?? "");
+    setStreamId(cls.stream_id ?? "");
     setEditDialogOpen(true);
   };
 
@@ -199,6 +215,7 @@ export default function AdminClassesPage() {
         section,
         academic_year_id: academicYearId,
         class_teacher_id: classTeacherId || null,
+        stream_id: SENIOR_CLASSES.includes(className) && streamId ? streamId : null,
         sort_order: CLASS_NAMES.indexOf(className) * 10 + SECTIONS.indexOf(section),
       },
       match: { column: "id", value: editingClass.id },
@@ -248,6 +265,7 @@ export default function AdminClassesPage() {
               <TableRow>
                 <TableHead>Class</TableHead>
                 <TableHead>Section</TableHead>
+                <TableHead>Stream</TableHead>
                 <TableHead>Academic Year</TableHead>
                 <TableHead>Class Teacher</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -258,6 +276,9 @@ export default function AdminClassesPage() {
                 <TableRow key={cls.id}>
                   <TableCell className="font-medium">{cls.name}</TableCell>
                   <TableCell>{cls.section}</TableCell>
+                  <TableCell className="text-gray-600 dark:text-gray-300">
+                    {cls.stream_name || "—"}
+                  </TableCell>
                   <TableCell className="text-gray-600 dark:text-gray-300">
                     {cls.academic_year_name}
                   </TableCell>
@@ -307,10 +328,10 @@ export default function AdminClassesPage() {
           </DialogHeader>
 
           <form onSubmit={handleEditSubmit} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className={`grid ${SENIOR_CLASSES.includes(className) ? "grid-cols-3" : "grid-cols-2"} gap-3`}>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Class Name</Label>
-                <Select value={className} onValueChange={(val) => val && setClassName(val)}>
+                <Select value={className} onValueChange={(val) => { if (val) { setClassName(val); if (!SENIOR_CLASSES.includes(val)) setStreamId(""); } }}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -338,6 +359,27 @@ export default function AdminClassesPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {SENIOR_CLASSES.includes(className) && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Stream</Label>
+                  <Select
+                    value={streamId}
+                    onValueChange={(val) => setStreamId(!val || val === "none" ? "" : val)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select stream" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {streams.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -412,10 +454,10 @@ export default function AdminClassesPage() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className={`grid ${SENIOR_CLASSES.includes(className) ? "grid-cols-3" : "grid-cols-2"} gap-3`}>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Class Name</Label>
-                <Select value={className} onValueChange={(val) => val && setClassName(val)}>
+                <Select value={className} onValueChange={(val) => { if (val) { setClassName(val); if (!SENIOR_CLASSES.includes(val)) setStreamId(""); } }}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -443,6 +485,27 @@ export default function AdminClassesPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {SENIOR_CLASSES.includes(className) && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Stream</Label>
+                  <Select
+                    value={streamId}
+                    onValueChange={(val) => setStreamId(!val || val === "none" ? "" : val)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select stream" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {streams.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">

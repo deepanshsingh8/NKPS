@@ -138,6 +138,7 @@ export interface Class {
   section: string;
   academic_year_id: string;
   class_teacher_id: string | null;
+  stream_id: string | null;
   sort_order: number;
 }
 

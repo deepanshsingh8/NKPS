@@ -327,16 +327,16 @@ export function StudentBulkUpload({
   const validRows = parsedRows.filter((r) => r.errors.length === 0);
   const invalidRows = parsedRows.filter((r) => r.errors.length > 0);
 
-  // Compute unique class+section combos from parsed data for preview
+  // Compute unique class+section+stream combos from parsed data for preview
   const uniqueClasses = Array.from(
     new Set(
       parsedRows
         .filter((r) => r.class_name)
         .map((r) => {
-          let name = r.class_name.trim();
-          if (r.stream && r.stream.trim()) name = `${name} ${r.stream.trim()}`;
+          const name = r.class_name.trim();
           const sec = (r.section || "A").trim();
-          return `${name} - ${sec}`;
+          const stream = r.stream?.trim();
+          return stream ? `${name} - ${sec} (${stream})` : `${name} - ${sec}`;
         })
     )
   ).sort();

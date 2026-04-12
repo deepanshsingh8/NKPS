@@ -56,17 +56,33 @@ export async function POST(request: Request) {
       );
     }
 
+    // Fetch streams for stream_id lookup (Science, Commerce, etc.)
+    const { data: allStreams } = await admin
+      .from("streams")
+      .select("id, name");
+
+    const streamMap = new Map<string, string>();
+    for (const s of allStreams || []) {
+      streamMap.set(s.name.trim().toLowerCase(), s.id);
+    }
+
     // Fetch all classes for the current academic year
     const { data: allClasses } = await admin
       .from("classes")
-      .select("id, name, section")
+      .select("id, name, section, stream_id")
       .eq("academic_year_id", currentYear.id);
 
+    // Key format: "name|section|streamId" — streamId is empty string for non-senior classes
+    const SENIOR_CLASSES = ["XI", "XII"];
     const classMap = new Map<string, string>();
     for (const c of allClasses || []) {
-      // Key: "className|section" (case-insensitive)
-      const key = `${c.name.trim().toLowerCase()}|${c.section.trim().toLowerCase()}`;
+      const streamPart = c.stream_id || "";
+      const key = `${c.name.trim().toLowerCase()}|${c.section.trim().toLowerCase()}|${streamPart}`;
       classMap.set(key, c.id);
+    }
+
+    function classKey(name: string, section: string, streamId: string | null): string {
+      return `${name.toLowerCase()}|${section.toLowerCase()}|${streamId || ""}`;
     }
 
     // Sort order helper
@@ -77,10 +93,8 @@ export async function POST(request: Request) {
     const SECTION_ORDER = ["A", "B", "C", "D", "E"];
 
     function getSortOrder(name: string, section: string): number {
-      // Match base class name (e.g. "XII" from "XII Science")
-      const base = name.split(" ")[0];
       const classIdx = CLASS_ORDER.findIndex(
-        (c) => c.toLowerCase() === base.toLowerCase()
+        (c) => c.toLowerCase() === name.toLowerCase()
       );
       const secIdx = SECTION_ORDER.findIndex(
         (s) => s.toLowerCase() === section.toLowerCase()
@@ -89,47 +103,55 @@ export async function POST(request: Request) {
     }
 
     // Auto-create missing classes from student data
+    // neededClasses format: "name|||section|||streamId"
     const neededClasses = new Set<string>();
     for (const s of students) {
-      let resolvedName = s.class_name.trim();
-      if (s.stream && s.stream.trim()) {
-        resolvedName = `${resolvedName} ${s.stream.trim()}`;
-      }
+      const name = s.class_name.trim();
       const section = (s.section || "A").trim();
-      const key = `${resolvedName.toLowerCase()}|${section.toLowerCase()}`;
+      const stream = s.stream?.trim().toLowerCase() || "";
+      const sId = SENIOR_CLASSES.includes(name) && stream ? (streamMap.get(stream) || null) : null;
+      const key = classKey(name, section, sId);
       if (!classMap.has(key)) {
-        neededClasses.add(`${resolvedName}|||${section}`);
+        neededClasses.add(`${name}|||${section}|||${sId || ""}`);
       }
     }
 
     let classesCreated = 0;
     for (const entry of neededClasses) {
-      const [name, section] = entry.split("|||");
+      const [name, section, sId] = entry.split("|||");
+      const insertData: Record<string, unknown> = {
+        name,
+        section,
+        academic_year_id: currentYear.id,
+        stream_id: sId || null,
+        sort_order: getSortOrder(name, section),
+      };
+
       const { data: created, error: createErr } = await admin
         .from("classes")
-        .insert({
-          name,
-          section,
-          academic_year_id: currentYear.id,
-          sort_order: getSortOrder(name, section),
-        })
+        .insert(insertData)
         .select("id")
         .single();
 
       if (createErr) {
         // Could be a race-condition duplicate — try fetching it
-        const { data: existing } = await admin
+        let query = admin
           .from("classes")
           .select("id")
           .eq("name", name)
           .eq("section", section)
-          .eq("academic_year_id", currentYear.id)
-          .single();
+          .eq("academic_year_id", currentYear.id);
+        if (sId) {
+          query = query.eq("stream_id", sId);
+        } else {
+          query = query.is("stream_id", null);
+        }
+        const { data: existing } = await query.single();
         if (existing) {
-          classMap.set(`${name.toLowerCase()}|${section.toLowerCase()}`, existing.id);
+          classMap.set(classKey(name, section, sId || null), existing.id);
         }
       } else if (created) {
-        classMap.set(`${name.toLowerCase()}|${section.toLowerCase()}`, created.id);
+        classMap.set(classKey(name, section, sId || null), created.id);
         classesCreated++;
       }
     }
@@ -144,20 +166,18 @@ export async function POST(request: Request) {
       const batch = students.slice(i, i + BATCH_SIZE);
 
       for (const s of batch) {
-        // Resolve class name: if stream is provided, combine with class (e.g., "XI" + "Science" → "XI Science")
-        let resolvedClassName = s.class_name.trim();
-        if (s.stream && s.stream.trim()) {
-          resolvedClassName = `${resolvedClassName} ${s.stream.trim()}`;
-        }
-
+        const name = s.class_name.trim();
         const section = (s.section || "A").trim();
-        const classKey = `${resolvedClassName.toLowerCase()}|${section.toLowerCase()}`;
-        const classId = classMap.get(classKey);
+        const stream = s.stream?.trim().toLowerCase() || "";
+        const resolvedStreamId = SENIOR_CLASSES.includes(name) && stream ? (streamMap.get(stream) || null) : null;
+        const key = classKey(name, section, resolvedStreamId);
+        const classId = classMap.get(key);
 
         if (!classId) {
+          const label = resolvedStreamId ? `${name} - ${section} (${s.stream?.trim()})` : `${name} - ${section}`;
           errors.push({
             admission_no: s.admission_no,
-            error: `Class "${resolvedClassName} - ${section}" not found. Create it first in Classes management.`,
+            error: `Class "${label}" not found.`,
           });
           continue;
         }
