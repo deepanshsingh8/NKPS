@@ -176,8 +176,22 @@ function normalizeGender(value: string): string {
   return "";
 }
 
+function excelSerialToDate(serial: number): string {
+  const epoch = new Date(1899, 11, 30);
+  const date = new Date(epoch.getTime() + serial * 86400000);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 function normalizeDateString(value: string): string {
   if (!value) return "";
+  // Handle Excel serial numbers (e.g., 43564)
+  const num = Number(value);
+  if (!isNaN(num) && num > 1000 && num < 100000) {
+    return excelSerialToDate(num);
+  }
   const parts = value.split(/[/\-\.]/);
   if (parts.length === 3) {
     const [a, b, c] = parts;
@@ -189,6 +203,12 @@ function normalizeDateString(value: string): string {
     }
   }
   return value;
+}
+
+function normalizePhone(value: string): string {
+  if (!value) return "";
+  const cleaned = value.replace(/[eE]+\d+$/, "");
+  return cleaned.replace(/\.0+$/, "").trim();
 }
 
 function validateRow(row: ParsedRow): string[] {
@@ -244,6 +264,8 @@ export function StudentBulkUpload({
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const rawRows = XLSX.utils.sheet_to_json<string[]>(sheet, {
             header: 1,
+            raw: false,
+            defval: "",
           });
 
           if (rawRows.length < 2) {
@@ -306,6 +328,8 @@ export function StudentBulkUpload({
                 record[field] = normalizeGender(cellValue);
               } else if (field === "date_of_birth") {
                 record[field] = normalizeDateString(cellValue);
+              } else if (field === "phone") {
+                record[field] = normalizePhone(cellValue);
               } else if (field === "email") {
                 record[field] = cellValue.toLowerCase();
               } else if (NAME_FIELDS.has(field)) {
@@ -430,13 +454,22 @@ export function StudentBulkUpload({
 
       if (data.errors?.length > 0) {
         const classErrors = data.errors.filter((e: { error: string }) => e.error.includes("not found"));
+        const otherErrors = data.errors.filter((e: { error: string }) => !e.error.includes("not found"));
+
         if (classErrors.length > 0) {
           toast.warning(
             `${classErrors.length} student(s) skipped — class not found. Check class names match exactly.`
           );
-        } else {
+        }
+        if (otherErrors.length > 0) {
+          const details = otherErrors
+            .slice(0, 5)
+            .map((e: { admission_no: string; error: string }) => `${e.admission_no}: ${e.error}`)
+            .join("\n");
+          const more = otherErrors.length > 5 ? `\n...and ${otherErrors.length - 5} more` : "";
           toast.warning(
-            `${data.errors.length} student(s) had errors and were skipped`
+            `${otherErrors.length} student(s) had errors and were skipped`,
+            { description: details + more, duration: 10000 }
           );
         }
       }

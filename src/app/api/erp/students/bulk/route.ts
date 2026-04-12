@@ -182,13 +182,19 @@ export async function POST(request: Request) {
           continue;
         }
 
+        // Validate date format before sending to DB
+        let dob: string | null = s.date_of_birth?.trim() || null;
+        if (dob && !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+          dob = null;
+        }
+
         // Upsert student
         const studentRecord = {
           admission_no: s.admission_no.trim(),
           full_name: s.full_name.trim(),
           father_name: s.father_name?.trim() || null,
           mother_name: s.mother_name?.trim() || null,
-          date_of_birth: s.date_of_birth || null,
+          date_of_birth: dob,
           gender: s.gender || null,
           phone: s.phone?.trim() || null,
           address: s.address?.trim() || null,
