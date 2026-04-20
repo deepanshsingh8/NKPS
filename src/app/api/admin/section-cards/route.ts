@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { verifyAdminOrEditor } from "@/lib/verify-admin";
 
 export async function GET(request: NextRequest) {
-  const admin = await verifyAdminOrEditor();
+  const admin = await verifyAdminOrEditor("site_media");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const admin = await verifyAdminOrEditor();
+  const admin = await verifyAdminOrEditor("site_media");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const admin = await verifyAdminOrEditor();
+  const admin = await verifyAdminOrEditor("site_media");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -144,7 +144,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const admin = await verifyAdminOrEditor();
+  const admin = await verifyAdminOrEditor("site_media");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

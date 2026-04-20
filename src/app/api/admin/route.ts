@@ -1,5 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@/lib/verify-admin";
+import type { FeatureKey } from "@/lib/permissions";
+
+// Map each proxied table to the editor feature_key required to write it.
+// Admins bypass this entirely. Editors must have the matching permission.
+const TABLE_FEATURE_KEY: Record<string, FeatureKey> = {
+  students: "students",
+  student_enrollments: "students",
+  classes: "classes",
+  class_subjects: "classes",
+  streams: "classes",
+  stream_subjects: "classes",
+  subjects: "subjects",
+  academic_years: "academic_years",
+  fee_structures: "fees",
+  fee_payments: "fees",
+  exam_types: "exam_types",
+  calendar_events: "calendar",
+  gallery_events: "gallery",
+  timetable_periods: "timetable",
+  attendance: "attendance",
+  results: "results",
+  section_cards: "site_media",
+  disclosure_items: "disclosure",
+  disclosure_documents: "disclosure",
+  disclosure_board_results: "disclosure",
+};
 
 // Allowlisted tables and their columns that admins can read/write via this proxy
 const ALLOWED_COLUMNS: Record<string, string[]> = {
@@ -28,16 +54,17 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
 const ALLOWED_TABLES = Object.keys(ALLOWED_COLUMNS);
 
 export async function POST(request: NextRequest) {
-  const admin = await verifyAdminOrEditor();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
     const { action, table, data, match } = await request.json();
 
     if (!ALLOWED_TABLES.includes(table)) {
       return NextResponse.json({ error: "Table not allowed" }, { status: 403 });
+    }
+
+    const featureKey = TABLE_FEATURE_KEY[table];
+    const admin = await verifyAdminOrEditor(featureKey);
+    if (!admin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const allowedCols = ALLOWED_COLUMNS[table];

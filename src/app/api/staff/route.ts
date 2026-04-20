@@ -5,7 +5,7 @@ import { createPortalUser } from "@/lib/create-portal-user";
 const VALID_CATEGORIES = ["management", "admin", "pgt", "tgt", "prt", "motherTeachers", "prePrimaryCoordinator", "primaryCoordinator", "middleCoordinator", "seniorCoordinator", "additionalStaff", "busDriver", "peon"];
 
 export async function POST(request: NextRequest) {
-  const admin = await verifyAdminOrEditor();
+  const admin = await verifyAdminOrEditor("staff");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const admin = await verifyAdminOrEditor();
+  const admin = await verifyAdminOrEditor("staff");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -118,7 +118,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const admin = await verifyAdminOrEditor();
+  const admin = await verifyAdminOrEditor("staff");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -18,7 +18,7 @@ function revalidatePages(page: string) {
 }
 
 export async function GET() {
-  const admin = await verifyAdminOrEditor();
+  const admin = await verifyAdminOrEditor("site_media");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -39,7 +39,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const admin = await verifyAdminOrEditor();
+  const admin = await verifyAdminOrEditor("site_media");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const admin = await verifyAdminOrEditor();
+  const admin = await verifyAdminOrEditor("site_media");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

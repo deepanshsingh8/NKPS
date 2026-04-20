@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@/lib/verify-admin";
 
 export async function POST(request: NextRequest) {
-  const admin = await verifyAdminOrEditor();
+  const admin = await verifyAdminOrEditor("transfer_certificates");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const admin = await verifyAdminOrEditor();
+  const admin = await verifyAdminOrEditor("transfer_certificates");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

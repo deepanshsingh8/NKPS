@@ -42,9 +42,11 @@ import {
   Users,
   CheckCircle2,
   XCircle,
+  KeyRound,
 } from "lucide-react";
 import { adminFetch } from "@/lib/admin-api";
 import type { Profile, UserRole, RegistrationRequest, RegistrationStatus } from "@/types";
+import { EditorPermissionsDialog } from "@/components/admin/EditorPermissionsDialog";
 
 const ROLES: UserRole[] = ["admin", "editor", "teacher", "student", "parent"];
 
@@ -103,6 +105,11 @@ export default function AdminUsersPage() {
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [approvePassword, setApprovePassword] = useState<string | null>(null);
   const [approvedName, setApprovedName] = useState("");
+
+  // Editor permissions dialog
+  const [permsDialogOpen, setPermsDialogOpen] = useState(false);
+  const [permsTargetId, setPermsTargetId] = useState<string | null>(null);
+  const [permsTargetName, setPermsTargetName] = useState("");
 
   const supabase = createClient();
 
@@ -482,6 +489,20 @@ export default function AdminUsersPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {profile.role === "editor" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setPermsTargetId(profile.id);
+                                  setPermsTargetName(profile.full_name);
+                                  setPermsDialogOpen(true);
+                                }}
+                              >
+                                <KeyRound className="h-4 w-4 mr-1" />
+                                Permissions
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
@@ -828,6 +849,20 @@ export default function AdminUsersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Editor Permissions Dialog */}
+      <EditorPermissionsDialog
+        open={permsDialogOpen}
+        onOpenChange={(open) => {
+          setPermsDialogOpen(open);
+          if (!open) {
+            setPermsTargetId(null);
+            setPermsTargetName("");
+          }
+        }}
+        editorId={permsTargetId}
+        editorName={permsTargetName}
+      />
 
       {/* Approve Success Dialog */}
       <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>

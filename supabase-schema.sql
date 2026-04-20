@@ -1510,3 +1510,35 @@ ON CONFLICT (doc_key) DO NOTHING;
 --   SELECT: Allow public access
 --   INSERT: Allow authenticated users
 --   DELETE: Allow authenticated users
+
+-- ============================================
+-- EDITOR PERMISSIONS (per-feature access for editor role)
+-- ============================================
+
+CREATE TABLE editor_permissions (
+  editor_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  feature_key text NOT NULL,
+  granted_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  granted_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (editor_id, feature_key)
+);
+
+CREATE INDEX idx_editor_permissions_editor ON editor_permissions(editor_id);
+
+ALTER TABLE editor_permissions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can read editor permissions"
+  ON editor_permissions FOR SELECT
+  USING (public.get_user_role() = 'admin');
+
+CREATE POLICY "Editors can read their own permissions"
+  ON editor_permissions FOR SELECT
+  USING (editor_id = auth.uid());
+
+CREATE POLICY "Admins can insert editor permissions"
+  ON editor_permissions FOR INSERT
+  WITH CHECK (public.get_user_role() = 'admin');
+
+CREATE POLICY "Admins can delete editor permissions"
+  ON editor_permissions FOR DELETE
+  USING (public.get_user_role() = 'admin');

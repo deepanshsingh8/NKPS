@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { featureKeyForPath, isAdminOnlyPath } from "@/lib/permissions";
 
 const LOGIN_PAGES = ["/portal/login", "/admin/login"];
 
@@ -117,6 +118,33 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = dashboard;
       return NextResponse.redirect(url);
+    }
+
+    // Editor feature-level access control.
+    // Admins skip this entirely. Editors are blocked from admin-only routes
+    // and from features they have not been granted.
+    if (pathname.startsWith("/admin") && role === "editor") {
+      if (isAdminOnlyPath(pathname)) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/admin";
+        return NextResponse.redirect(url);
+      }
+
+      const featureKey = featureKeyForPath(pathname);
+      if (featureKey) {
+        const { data: perm } = await supabase
+          .from("editor_permissions")
+          .select("feature_key")
+          .eq("editor_id", user.id)
+          .eq("feature_key", featureKey)
+          .maybeSingle();
+
+        if (!perm) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/admin";
+          return NextResponse.redirect(url);
+        }
+      }
     }
 
     if (pathname.startsWith("/teacher") && role !== "teacher") {

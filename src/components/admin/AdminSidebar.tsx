@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { UserRole } from "@/types";
+import { FEATURE_CATALOG, type FeatureKey } from "@/lib/permissions";
 import {
   LayoutDashboard,
   Image as ImageIcon,
@@ -57,22 +58,20 @@ const erpLinks = [
   { icon: BarChart3, label: "Results", href: "/admin/results" },
 ];
 
-// Routes an editor is allowed to access
-const EDITOR_ALLOWED_HREFS = new Set([
-  "/admin",
-  "/admin/gallery",
-  "/admin/transfer-certificates",
-  "/admin/site-media",
-  "/admin/disclosure",
-  "/admin/staff",
-  "/admin/calendar",
-]);
+// Dashboard is always allowed for editors regardless of feature permissions.
+const EDITOR_ALWAYS_ALLOWED_HREFS = new Set(["/admin"]);
+
+// Map admin href → feature_key for the sidebar filter.
+const HREF_TO_FEATURE_KEY: Record<string, FeatureKey> = Object.fromEntries(
+  FEATURE_CATALOG.map((f) => [f.href, f.key])
+);
 
 export function AdminSidebar() {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebar();
   const { unreadCount, pendingRegistrationCount } = useUnreadCount();
   const [userRole, setUserRole] = useState<UserRole>("admin");
+  const [permissions, setPermissions] = useState<Set<FeatureKey> | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -84,19 +83,49 @@ export function AdminSidebar() {
         .eq("id", user.id)
         .single()
         .then(({ data }) => {
-          if (data?.role) setUserRole(data.role as UserRole);
+          if (!data?.role) return;
+          const role = data.role as UserRole;
+          setUserRole(role);
+          if (role === "editor") {
+            supabase
+              .from("editor_permissions")
+              .select("feature_key")
+              .eq("editor_id", user.id)
+              .then(({ data: rows }) => {
+                const keys = new Set<FeatureKey>(
+                  (rows ?? []).map((r) => r.feature_key as FeatureKey)
+                );
+                setPermissions(keys);
+              });
+          } else {
+            setPermissions(new Set());
+          }
         });
     });
   }, []);
 
   const isEditor = userRole === "editor";
 
-  const visibleContentLinks = isEditor
-    ? contentLinks.filter((l) => EDITOR_ALLOWED_HREFS.has(l.href))
+  const isEditorAllowed = (href: string): boolean => {
+    if (EDITOR_ALWAYS_ALLOWED_HREFS.has(href)) return true;
+    const key = HREF_TO_FEATURE_KEY[href];
+    if (!key) return false;
+    return permissions?.has(key) ?? false;
+  };
+
+  // Hide everything until permissions load to avoid flash of forbidden links.
+  const editorReady = !isEditor || permissions !== null;
+
+  const visibleContentLinks = !editorReady
+    ? []
+    : isEditor
+    ? contentLinks.filter((l) => isEditorAllowed(l.href))
     : contentLinks;
 
-  const visibleErpLinks = isEditor
-    ? erpLinks.filter((l) => EDITOR_ALLOWED_HREFS.has(l.href))
+  const visibleErpLinks = !editorReady
+    ? []
+    : isEditor
+    ? erpLinks.filter((l) => isEditorAllowed(l.href))
     : erpLinks;
 
   const renderLink = ({ icon: Icon, label, href }: (typeof contentLinks)[0]) => {

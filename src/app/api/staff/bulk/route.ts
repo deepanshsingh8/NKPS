@@ -11,7 +11,7 @@ const VALID_CATEGORIES = [
 ];
 
 export async function POST(request: Request) {
-  const admin = await verifyAdminOrEditor();
+  const admin = await verifyAdminOrEditor("staff");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
