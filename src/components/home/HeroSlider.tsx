@@ -12,19 +12,21 @@ import type { SectionCard } from "@/types";
 /* ─── Slide data ─── */
 const defaultSlides = [
   {
-    title: "Where Futures\nare Shaped",
+    title: "Best CBSE School\nin Jaipur",
     subtitle: "Empowering young minds with holistic education since 1985",
     cta: "Explore Admissions",
     href: "/admissions",
     image: "/images/hero/campus-1.jpg",
+    alt: "NK Public School Jaipur campus — Grand Sikar Road, Rajawas",
   },
   {
-    title: "Excellence in\nEducation",
+    title: "Excellence in\nCBSE Education",
     subtitle:
       "CBSE affiliated institution nurturing 20,000+ students across Jaipur",
     cta: "Learn More",
     href: "/about",
     image: "/images/hero/campus-2.avif",
+    alt: "NKPS Jaipur — CBSE affiliated co-educational school",
   },
   {
     title: "Leaders Are\nMade Here",
@@ -33,6 +35,7 @@ const defaultSlides = [
     cta: "Discover More",
     href: "/academics",
     image: "/images/news/n5.jpg",
+    alt: "Students at NK Public School Rajawas Jaipur",
   },
 ];
 
@@ -157,6 +160,9 @@ export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
     cta: c.cta_text || "Learn More",
     href: c.cta_link || "/",
     image: c.image_url || "",
+    alt: c.title
+      ? `${c.title} — NK Public School Jaipur`
+      : "NK Public School Jaipur campus",
   }));
 
   const slides = [...baseSlides, ...dbSlides];
@@ -235,7 +241,7 @@ export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
         >
           <Image
             src={slides[current].image}
-            alt={slides[current].title.replace("\n", " ")}
+            alt={slides[current].alt}
             fill
             className="object-cover"
             priority={current === 0}

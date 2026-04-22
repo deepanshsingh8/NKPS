@@ -1,10 +1,15 @@
 import { Metadata } from "next";
 import { StudentLifeContent } from "./StudentLifeContent";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { getPageMedia, mediaUrl, getSectionCards } from "@/lib/site-media";
+import { buildMetadata, breadcrumbJsonLd } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Student Life",
-};
+export const metadata: Metadata = buildMetadata({
+  title: "Student Life & Activities — NK Public School Jaipur",
+  description:
+    "Co-curricular life at NK Public School, Jaipur — music, dance, art, debate, quiz, literary and science clubs plus annual events that shape character beyond the classroom.",
+  path: "/student-life",
+});
 
 export const revalidate = 60;
 
@@ -24,5 +29,15 @@ export default async function StudentLifePage() {
     mediaUrl(media, "student_life_science", "/images/gallery/st6.jpg"),
   ];
 
-  return <StudentLifeContent activityImages={activityImages} activityCards={activityCards} eventCards={eventCards} />;
+  return (
+    <>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "Student Life", path: "/student-life" },
+        ])}
+      />
+      <StudentLifeContent activityImages={activityImages} activityCards={activityCards} eventCards={eventCards} />
+    </>
+  );
 }

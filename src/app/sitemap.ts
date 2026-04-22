@@ -1,28 +1,29 @@
 import { MetadataRoute } from "next";
 import { getPublishedArticles } from "@/lib/articles";
+import { SITE_URL } from "@/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || "https://www.nkpublicschool.com";
+  const now = new Date();
 
   const staticEntries: MetadataRoute.Sitemap = [
-    { url: baseUrl, changeFrequency: "weekly", priority: 1 },
-    { url: `${baseUrl}/about`, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${baseUrl}/academics`, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${baseUrl}/admissions`, changeFrequency: "monthly", priority: 0.9 },
-    { url: `${baseUrl}/student-life`, changeFrequency: "monthly", priority: 0.7 },
-    { url: `${baseUrl}/facilities`, changeFrequency: "monthly", priority: 0.7 },
-    { url: `${baseUrl}/gallery`, changeFrequency: "weekly", priority: 0.6 },
-    { url: `${baseUrl}/contact`, changeFrequency: "yearly", priority: 0.8 },
-    { url: `${baseUrl}/transfer-certificates`, changeFrequency: "weekly", priority: 0.5 },
-    { url: `${baseUrl}/articles`, changeFrequency: "weekly", priority: 0.7 },
+    { url: SITE_URL, lastModified: now, changeFrequency: "weekly", priority: 1 },
+    { url: `${SITE_URL}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${SITE_URL}/academics`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${SITE_URL}/admissions`, lastModified: now, changeFrequency: "monthly", priority: 0.9 },
+    { url: `${SITE_URL}/student-life`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${SITE_URL}/facilities`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${SITE_URL}/gallery`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${SITE_URL}/contact`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${SITE_URL}/transfer-certificates`, lastModified: now, changeFrequency: "weekly", priority: 0.5 },
+    { url: `${SITE_URL}/mandatory-public-disclosure`, lastModified: now, changeFrequency: "yearly", priority: 0.5 },
+    { url: `${SITE_URL}/articles`, lastModified: now, changeFrequency: "weekly", priority: 0.7 },
   ];
 
   let articleEntries: MetadataRoute.Sitemap = [];
   try {
     const articles = await getPublishedArticles();
     articleEntries = articles.map((a) => ({
-      url: `${baseUrl}/articles/${a.slug}`,
+      url: `${SITE_URL}/articles/${a.slug}`,
       lastModified: a.updated_at,
       changeFrequency: "monthly" as const,
       priority: 0.6,

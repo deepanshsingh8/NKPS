@@ -15,10 +15,14 @@ import {
 } from "@/lib/disclosure";
 import { ExternalLink, FileText, Download } from "lucide-react";
 import type { DisclosureItem, DisclosureBoardResult } from "@/types";
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Mandatory Public Disclosure",
-};
+export const metadata: Metadata = buildMetadata({
+  title: "Mandatory Public Disclosure — NK Public School Jaipur",
+  description:
+    "CBSE mandatory public disclosure for NK Public School, Rajawas, Jaipur — affiliation details, infrastructure, staff, results, documents and statutory information.",
+  path: "/mandatory-public-disclosure",
+});
 
 export const revalidate = 60;
 

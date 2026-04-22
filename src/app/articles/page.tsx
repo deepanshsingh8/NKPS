@@ -5,22 +5,18 @@ import { ArrowRight, Newspaper } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { SectionDivider } from "@/components/shared/SectionDivider";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { getPublishedArticles } from "@/lib/articles";
+import { buildMetadata, breadcrumbJsonLd } from "@/lib/seo";
 
 export const revalidate = 300;
 
-export const metadata: Metadata = {
-  title: "News & Articles",
+export const metadata: Metadata = buildMetadata({
+  title: "News & Articles — NK Public School Jaipur",
   description:
-    "Latest news, announcements, and articles from NK Public School — admissions updates, events, achievements, and school life.",
-  alternates: { canonical: "/articles" },
-  openGraph: {
-    title: "News & Articles | NK Public School",
-    description:
-      "Latest news, announcements, and articles from NK Public School.",
-    type: "website",
-  },
-};
+    "Latest news, announcements and articles from NK Public School, Jaipur — admissions updates, events, achievements, and school life from a CBSE school in Rajawas.",
+  path: "/articles",
+});
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
@@ -36,6 +32,12 @@ export default async function ArticlesIndexPage() {
 
   return (
     <PageTransition>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "Articles", path: "/articles" },
+        ])}
+      />
       <PageHeader
         title="News & Articles"
         subtitle="Updates, announcements, and stories from NK Public School"

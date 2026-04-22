@@ -23,6 +23,9 @@ export const SCHOOL = {
   whatsapp: "919785500046",
   officeHours: "Mon–Sat, 9:00 AM – 3:00 PM",
   affiliation: "CBSE",
+  affiliationNumber: "1730406",
+  geo: { lat: 27.0688458, lng: 75.7495752 },
+  priceRange: "₹₹",
   social: {
     facebook: "https://www.facebook.com/nkpsrajawas",
     instagram: "https://www.instagram.com/nkps_rajawas",

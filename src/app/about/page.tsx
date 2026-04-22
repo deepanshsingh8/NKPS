@@ -8,11 +8,16 @@ import { WhyChooseUs } from "@/components/about/WhyChooseUs";
 import { AchievementsCounter } from "@/components/about/AchievementsCounter";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { SectionDivider } from "@/components/shared/SectionDivider";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { getPageMedia, mediaUrl, getSectionCards } from "@/lib/site-media";
+import { buildMetadata, breadcrumbJsonLd } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "About Us",
-};
+export const metadata: Metadata = buildMetadata({
+  title: "About NK Public School — Legacy Since 1985 in Jaipur",
+  description:
+    "Learn about NK Public School — a CBSE affiliated school in Jaipur founded in 1985 by Late Shri R.K. Choudhary. Four decades of discipline, academic excellence and character building at Rajawas.",
+  path: "/about",
+});
 
 export const revalidate = 60;
 
@@ -34,6 +39,12 @@ export default async function AboutPage() {
 
   return (
     <PageTransition>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "About", path: "/about" },
+        ])}
+      />
       <PageHeader
         title="About NK Public School"
         subtitle="Shaping Futures, Building Character"
@@ -43,7 +54,7 @@ export default async function AboutPage() {
       <div className="relative h-[50vh] w-full overflow-hidden">
         <Image
           src={aboutHeroImage}
-          alt="NK Public School Campus"
+          alt="NK Public School Jaipur campus — Grand Sikar Road, Rajawas"
           fill
           className="object-cover"
           priority
