@@ -13,5 +13,10 @@ export const config = {
     "/parent/:path*",
     "/portal/:path*",
     "/api/erp/:path*",
+    "/api/admin/:path*",
+    "/api/portal/:path*",
+    "/api/gallery/:path*",
+    "/api/staff/:path*",
+    "/api/transfer-certificates/:path*",
   ],
 };

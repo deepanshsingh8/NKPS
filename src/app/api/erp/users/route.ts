@@ -145,10 +145,14 @@ export async function POST(request: Request) {
       }
     }
 
-    // Send welcome email with credentials (non-blocking)
+    // Send welcome email with credentials. We don't abort user creation if
+    // this fails, but we DO surface the failure so the admin knows to share
+    // the credentials manually (otherwise the new user can never log in).
+    let emailWarning: string | null = null;
     try {
       const { sendEmail, buildWelcomeEmail } = await import("@/lib/email");
-      const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.nkpublicschool.com"}/portal/login`;
+      const { SITE_URL } = await import("@/lib/seo");
+      const loginUrl = `${SITE_URL}/portal/login`;
       const html = buildWelcomeEmail({
         fullName: full_name,
         email,
@@ -156,15 +160,24 @@ export async function POST(request: Request) {
         loginUrl,
         role,
       });
-      await sendEmail(email, "Your NKPS Portal Account", html);
+      await sendEmail(
+        email,
+        "Welcome to NKPS Portal — Your Login Details Inside",
+        html
+      );
     } catch (emailError) {
       console.error("Failed to send welcome email:", emailError);
+      emailWarning =
+        emailError instanceof Error
+          ? `Welcome email not sent: ${emailError.message}. Please share the temporary password with the user manually.`
+          : "Welcome email not sent. Please share the temporary password with the user manually.";
     }
 
     return NextResponse.json({
       success: true,
       user: newUser.user,
       generated_password: password,
+      email_warning: emailWarning,
     });
   } catch (err) {
     console.error("API error:", err);

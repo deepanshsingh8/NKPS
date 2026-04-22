@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
@@ -19,16 +18,18 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-      // Always use the current origin so the redirect works regardless of
-      // which domain the user is on (production, Vercel preview, localhost).
-      const siteUrl = window.location.origin;
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${siteUrl}/auth/callback?next=/portal/reset-password`,
+      // Our own API route generates a Supabase recovery link and sends a
+      // branded email via Resend instead of Supabase's default plain template.
+      const res = await fetch("/api/portal/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
 
-      if (error) {
-        toast.error(error.message);
+      const payload = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        toast.error(payload.error || "Something went wrong. Please try again.");
       } else {
         setSent(true);
       }

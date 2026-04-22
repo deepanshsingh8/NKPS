@@ -4,6 +4,9 @@ import { SCHOOL } from "@/lib/constants";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = process.env.FROM_EMAIL || `${SCHOOL.name} <onboarding@resend.dev>`;
+// Where replies should be routed. Defaults to the school's primary inbox so
+// that parents/students/staff replying to any transactional email reach us.
+const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || SCHOOL.email[0];
 
 export async function sendEmail(to: string, subject: string, html: string) {
   const { data, error } = await resend.emails.send({
@@ -11,6 +14,7 @@ export async function sendEmail(to: string, subject: string, html: string) {
     to,
     subject,
     html,
+    replyTo: REPLY_TO_EMAIL,
   });
 
   if (error) {
@@ -81,37 +85,147 @@ interface WelcomeEmailParams {
 }
 
 export function buildWelcomeEmail({ fullName, email, password, loginUrl, role }: WelcomeEmailParams): string {
+  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
   return emailWrapper(`
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a2332;">Welcome to ${SCHOOL.shortName} Portal!</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#444;line-height:1.6;">
-      Hello <strong>${fullName}</strong>,<br>
-      Your <strong>${role}</strong> account has been created on the ${SCHOOL.name} portal. Here are your login details:
+    <h2 style="margin:0 0 12px;font-size:22px;color:#1a2332;font-weight:700;">Welcome to the ${SCHOOL.shortName} Portal</h2>
+    <p style="margin:0 0 20px;font-size:15px;color:#444;line-height:1.6;">
+      Hello <strong>${fullName}</strong>,
     </p>
+    <p style="margin:0 0 24px;font-size:15px;color:#444;line-height:1.6;">
+      An account has been created for you on the <strong>${SCHOOL.name}</strong> portal as a
+      <strong>${roleLabel}</strong>. Please use the temporary credentials below to sign in for the first time.
+    </p>
+
+    <!-- Credentials card -->
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#faf8f3;border:1px solid #e8e4d9;border-radius:8px;margin-bottom:24px;">
       <tr>
         <td style="padding:20px 24px;">
-          <p style="margin:0 0 8px;font-size:13px;color:#888;">Email / Username</p>
-          <p style="margin:0 0 16px;font-size:15px;color:#1a2332;font-weight:600;">${email}</p>
-          <p style="margin:0 0 8px;font-size:13px;color:#888;">Temporary Password</p>
-          <p style="margin:0;font-size:15px;color:#1a2332;font-weight:600;font-family:monospace;letter-spacing:0.5px;">${password}</p>
+          <p style="margin:0 0 6px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Username (Email)</p>
+          <p style="margin:0 0 18px;font-size:15px;color:#1a2332;font-weight:600;word-break:break-all;">${email}</p>
+          <p style="margin:0 0 6px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Temporary Password</p>
+          <p style="margin:0;font-size:16px;color:#1a2332;font-weight:700;font-family:'Courier New',monospace;letter-spacing:1px;background:#ffffff;border:1px dashed #d4a843;border-radius:6px;padding:10px 14px;display:inline-block;">${password}</p>
         </td>
       </tr>
     </table>
-    <p style="margin:0 0 24px;font-size:14px;color:#d97706;line-height:1.5;">
-      You will be asked to set a new password on your first login.
-    </p>
-    <table cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+
+    <!-- Important notice -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#fff8e6;border-left:4px solid #d4a843;border-radius:6px;margin-bottom:28px;">
+      <tr>
+        <td style="padding:14px 18px;">
+          <p style="margin:0;font-size:14px;color:#8a6d1a;line-height:1.6;">
+            <strong>Important:</strong> For your security, you will be required to set a new password
+            the first time you log in. The temporary password above will no longer work after that.
+          </p>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Steps -->
+    <h3 style="margin:0 0 12px;font-size:16px;color:#1a2332;font-weight:700;">How to get started</h3>
+    <ol style="margin:0 0 28px;padding-left:20px;font-size:14px;color:#444;line-height:1.8;">
+      <li>Click the <strong>Sign In to Portal</strong> button below.</li>
+      <li>Enter your email and the temporary password shown above.</li>
+      <li>When prompted, create a new password that only you know.</li>
+      <li>You're in — explore the portal dashboard.</li>
+    </ol>
+
+    <!-- CTA -->
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 20px;">
       <tr>
         <td style="background-color:#1a2332;border-radius:8px;">
-          <a href="${loginUrl}" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">
+          <a href="${loginUrl}" style="display:inline-block;padding:14px 36px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">
             Sign In to Portal
           </a>
         </td>
       </tr>
     </table>
-    <p style="margin:0;font-size:13px;color:#888;">
-      If the button doesn't work, copy and paste this link:<br>
+
+    <p style="margin:0 0 24px;font-size:13px;color:#888;text-align:center;">
+      Button not working? Copy and paste this link into your browser:<br>
       <a href="${loginUrl}" style="color:#d4a843;word-break:break-all;">${loginUrl}</a>
+    </p>
+
+    <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+
+    <p style="margin:0;font-size:13px;color:#888;line-height:1.6;">
+      If you weren't expecting this email or believe it was sent to you by mistake, please contact us at
+      <a href="mailto:${SCHOOL.email[0]}" style="color:#d4a843;">${SCHOOL.email[0]}</a>
+      and do not share the credentials above with anyone.
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// Password Reset Email (sent from our own /api/auth/forgot-password route)
+// ---------------------------------------------------------------------------
+
+interface PasswordResetEmailParams {
+  fullName?: string;
+  email: string;
+  resetLink: string;
+  expiresInMinutes?: number;
+}
+
+export function buildPasswordResetEmail({
+  fullName,
+  email,
+  resetLink,
+  expiresInMinutes = 60,
+}: PasswordResetEmailParams): string {
+  const greetingName = fullName && fullName.trim().length > 0 ? fullName : "there";
+  return emailWrapper(`
+    <h2 style="margin:0 0 12px;font-size:22px;color:#1a2332;font-weight:700;">Reset your ${SCHOOL.shortName} portal password</h2>
+    <p style="margin:0 0 20px;font-size:15px;color:#444;line-height:1.6;">
+      Hello <strong>${greetingName}</strong>,
+    </p>
+    <p style="margin:0 0 24px;font-size:15px;color:#444;line-height:1.6;">
+      We received a request to reset the password for the ${SCHOOL.name} portal account associated with
+      <strong>${email}</strong>. Click the button below to choose a new password.
+    </p>
+
+    <!-- CTA -->
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 20px;">
+      <tr>
+        <td style="background-color:#1a2332;border-radius:8px;">
+          <a href="${resetLink}" style="display:inline-block;padding:14px 36px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">
+            Reset Password
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin:0 0 28px;font-size:13px;color:#888;text-align:center;">
+      Button not working? Copy and paste this link into your browser:<br>
+      <a href="${resetLink}" style="color:#d4a843;word-break:break-all;">${resetLink}</a>
+    </p>
+
+    <!-- Steps -->
+    <h3 style="margin:0 0 12px;font-size:16px;color:#1a2332;font-weight:700;">What to do next</h3>
+    <ol style="margin:0 0 24px;padding-left:20px;font-size:14px;color:#444;line-height:1.8;">
+      <li>Click the <strong>Reset Password</strong> button above.</li>
+      <li>You'll be taken to a secure page on the ${SCHOOL.shortName} portal.</li>
+      <li>Enter a new password and confirm it.</li>
+      <li>Sign in with your email and your new password.</li>
+    </ol>
+
+    <!-- Expiry notice -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#fff8e6;border-left:4px solid #d4a843;border-radius:6px;margin-bottom:28px;">
+      <tr>
+        <td style="padding:14px 18px;">
+          <p style="margin:0;font-size:14px;color:#8a6d1a;line-height:1.6;">
+            <strong>Heads up:</strong> This link will expire in about <strong>${expiresInMinutes} minutes</strong>
+            and can only be used once. If it expires, just request a new link from the sign-in page.
+          </p>
+        </td>
+      </tr>
+    </table>
+
+    <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+
+    <p style="margin:0;font-size:13px;color:#888;line-height:1.6;">
+      <strong>Didn't request this?</strong> You can safely ignore this email — your password won't change
+      unless you click the button above. If you're worried about the security of your account, please contact
+      us at <a href="mailto:${SCHOOL.email[0]}" style="color:#d4a843;">${SCHOOL.email[0]}</a>.
     </p>
   `);
 }

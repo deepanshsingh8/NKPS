@@ -30,7 +30,6 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { updates } = result.data;
-    let successCount = 0;
     const errors: string[] = [];
 
     // Collect enrollment IDs that need student deactivation
@@ -38,17 +37,26 @@ export async function PATCH(request: NextRequest) {
       .filter((u) => u.status === "terminated" || u.status === "exited")
       .map((u) => u.enrollment_id);
 
-    // Batch update enrollment statuses
-    for (const update of updates) {
-      const { error } = await admin
+    // Group updates by status so we issue one UPDATE per distinct status value
+    // instead of N individual round-trips.
+    const byStatus = new Map<string, string[]>();
+    for (const u of updates) {
+      const ids = byStatus.get(u.status) ?? [];
+      ids.push(u.enrollment_id);
+      byStatus.set(u.status, ids);
+    }
+
+    let successCount = 0;
+    for (const [status, ids] of byStatus.entries()) {
+      const { error, count } = await admin
         .from("student_enrollments")
-        .update({ status: update.status })
-        .eq("id", update.enrollment_id);
+        .update({ status }, { count: "exact" })
+        .in("id", ids);
 
       if (error) {
-        errors.push(`Failed to update enrollment ${update.enrollment_id}: ${error.message}`);
+        errors.push(`Failed to update ${ids.length} enrollment(s) to status "${status}": ${error.message}`);
       } else {
-        successCount++;
+        successCount += count ?? ids.length;
       }
     }
 

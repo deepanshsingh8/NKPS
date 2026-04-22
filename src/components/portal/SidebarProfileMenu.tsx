@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -23,7 +22,6 @@ export function SidebarProfileMenu({
   settingsHref: string;
   collapsed?: boolean;
 }) {
-  const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);

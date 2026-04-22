@@ -63,10 +63,8 @@ export async function DELETE(request: NextRequest) {
       });
       const ids = items.map((item) => item.id);
 
-      if (fileNames.length > 0) {
-        await admin.storage.from("gallery").remove(fileNames);
-      }
-
+      // Delete DB rows first — if Storage removal fails later we can retry, but
+      // an orphaned row pointing at a missing file shows broken images in the UI.
       const { error } = await admin
         .from("gallery_images")
         .delete()
@@ -75,6 +73,13 @@ export async function DELETE(request: NextRequest) {
       if (error) {
         console.error("Gallery bulk delete DB error:", error);
         return NextResponse.json({ error: "Failed to delete images" }, { status: 500 });
+      }
+
+      if (fileNames.length > 0) {
+        const { error: storageError } = await admin.storage.from("gallery").remove(fileNames);
+        if (storageError) {
+          console.error("Gallery bulk delete storage error:", storageError);
+        }
       }
 
       return NextResponse.json({ success: true, deleted: ids.length });
@@ -86,8 +91,6 @@ export async function DELETE(request: NextRequest) {
     const urlParts = (src as string).split("/");
     const fileName = urlParts[urlParts.length - 1];
 
-    await admin.storage.from("gallery").remove([fileName]);
-
     const { error } = await admin
       .from("gallery_images")
       .delete()
@@ -98,8 +101,14 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Failed to delete image" }, { status: 500 });
     }
 
+    const { error: storageError } = await admin.storage.from("gallery").remove([fileName]);
+    if (storageError) {
+      console.error("Gallery delete storage error:", storageError);
+    }
+
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error("[Gallery Delete Error]", err);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
       { status: 500 }

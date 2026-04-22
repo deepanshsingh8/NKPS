@@ -6,6 +6,7 @@ import {
   BarChart3,
   CreditCard,
   CalendarDays,
+  Clock,
 } from "lucide-react";
 import { PortalSidebar } from "./PortalSidebar";
 
@@ -24,6 +25,11 @@ const navLinks = [
     href: "/parent/results",
     label: "Results",
     icon: <BarChart3 className="h-5 w-5 shrink-0" />,
+  },
+  {
+    href: "/parent/timetable",
+    label: "Timetable",
+    icon: <Clock className="h-5 w-5 shrink-0" />,
   },
   {
     href: "/parent/fees",

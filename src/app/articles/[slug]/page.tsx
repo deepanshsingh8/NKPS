@@ -7,15 +7,13 @@ import remarkGfm from "remark-gfm";
 import { ArrowLeft, Calendar, User } from "lucide-react";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { getArticleBySlug, getPublishedArticles } from "@/lib/articles";
+import { SITE_URL } from "@/lib/seo";
 
 export const revalidate = 300;
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
-
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://www.nkpublicschool.com";
 
 export async function generateStaticParams() {
   const articles = await getPublishedArticles();

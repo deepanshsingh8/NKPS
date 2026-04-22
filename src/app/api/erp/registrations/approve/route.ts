@@ -178,7 +178,8 @@ export async function POST(request: Request) {
 
     // Send welcome email with credentials
     try {
-      const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.nkpublicschool.com"}/portal/login`;
+      const { SITE_URL } = await import("@/lib/seo");
+      const loginUrl = `${SITE_URL}/portal/login`;
       const html = buildWelcomeEmail({
         fullName: full_name,
         email,
@@ -186,7 +187,11 @@ export async function POST(request: Request) {
         loginUrl,
         role,
       });
-      await sendEmail(email, "Your NKPS Portal Account is Ready", html);
+      await sendEmail(
+        email,
+        "Your NKPS Portal Account is Approved — Login Details Inside",
+        html
+      );
     } catch (emailError) {
       console.error("Failed to send welcome email:", emailError);
     }

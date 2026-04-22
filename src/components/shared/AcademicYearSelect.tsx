@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 
 const currentCalendarYear = new Date().getFullYear();
@@ -24,21 +24,16 @@ export function AcademicYearSelect({
   required,
   id,
 }: AcademicYearSelectProps) {
-  const isOther = value !== "" && !ACADEMIC_YEARS.includes(value);
-  const [showCustom, setShowCustom] = useState(isOther);
-
-  useEffect(() => {
-    if (value !== "" && !ACADEMIC_YEARS.includes(value)) {
-      setShowCustom(true);
-    }
-  }, [value]);
+  const valueIsCustom = value !== "" && !ACADEMIC_YEARS.includes(value);
+  const [userPickedOther, setUserPickedOther] = useState(false);
+  const showCustom = valueIsCustom || userPickedOther;
 
   const handleSelectChange = (selectValue: string) => {
     if (selectValue === "__other__") {
-      setShowCustom(true);
+      setUserPickedOther(true);
       onChange("");
     } else {
-      setShowCustom(false);
+      setUserPickedOther(false);
       onChange(selectValue);
     }
   };
@@ -57,7 +52,7 @@ export function AcademicYearSelect({
         <button
           type="button"
           onClick={() => {
-            setShowCustom(false);
+            setUserPickedOther(false);
             onChange(ACADEMIC_YEARS[ACADEMIC_YEARS.length - 2] ?? "");
           }}
           className="shrink-0 h-9 px-2.5 rounded-lg border border-gray-200 dark:border-border text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-muted transition-colors"

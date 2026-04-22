@@ -30,11 +30,28 @@ const EVENT_TYPE_COLORS: Record<CalendarEventType, string> = {
 interface UpcomingEventsProps {
   limit?: number;
   classId?: string;
+  classIds?: string[];
+  /**
+   * When true, always include school-wide (class_id IS NULL) events even if
+   * classIds is empty. Useful for role pages where the user has no enrolled
+   * class yet — they should still see holidays, PTA meetings, etc.
+   */
+  includeSchoolWide?: boolean;
 }
 
-export function UpcomingEvents({ limit = 5, classId }: UpcomingEventsProps) {
+export function UpcomingEvents({
+  limit = 5,
+  classId,
+  classIds,
+  includeSchoolWide = false,
+}: UpcomingEventsProps) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Normalize to a sorted, stable JSON key so the effect re-runs on content
+  // change but not on unrelated array identity changes.
+  const resolvedClassIds = classIds ?? (classId ? [classId] : []);
+  const classIdsKey = [...resolvedClassIds].sort().join(",");
 
   useEffect(() => {
     async function fetchEvents() {
@@ -48,9 +65,15 @@ export function UpcomingEvents({ limit = 5, classId }: UpcomingEventsProps) {
         .order("start_date", { ascending: true })
         .limit(limit);
 
-      // Show events for specific class or all-class events
-      if (classId) {
-        query = query.or(`class_id.is.null,class_id.eq.${classId}`);
+      const ids = classIdsKey ? classIdsKey.split(",") : [];
+      if (ids.length === 1) {
+        query = query.or(`class_id.is.null,class_id.eq.${ids[0]}`);
+      } else if (ids.length > 1) {
+        query = query.or(
+          `class_id.is.null,class_id.in.(${ids.join(",")})`
+        );
+      } else if (includeSchoolWide) {
+        query = query.is("class_id", null);
       }
 
       const { data } = await query;
@@ -59,7 +82,7 @@ export function UpcomingEvents({ limit = 5, classId }: UpcomingEventsProps) {
     }
 
     fetchEvents();
-  }, [limit, classId]);
+  }, [limit, classIdsKey, includeSchoolWide]);
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr + "T00:00:00");

@@ -28,6 +28,9 @@ export function Navbar() {
   }, []);
 
   useEffect(() => {
+    // Close the mobile menu when the user navigates to a new page.
+    // pathname is an external system (the URL); syncing UI to it is the intent.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobileOpen(false);
   }, [pathname]);
 

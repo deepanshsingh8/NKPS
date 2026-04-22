@@ -1,0 +1,93 @@
+import { NextResponse } from "next/server";
+import { renderToBuffer } from "@react-pdf/renderer";
+import { createClient } from "@/lib/supabase/server";
+import { canViewReportCard, getReportCardData } from "@/lib/report-card";
+import { ReportCardPDF } from "@/components/pdf/ReportCardPDF";
+import { SCHOOL } from "@/lib/constants";
+
+export const runtime = "nodejs";
+
+export async function GET(request: Request) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const studentId = searchParams.get("student_id");
+    const examTypeId = searchParams.get("exam_type_id");
+    const academicYearId = searchParams.get("academic_year_id");
+
+    if (!studentId || !examTypeId) {
+      return NextResponse.json(
+        { error: "student_id and exam_type_id are required" },
+        { status: 400 }
+      );
+    }
+
+    const allowed = await canViewReportCard(supabase, user.id, studentId);
+    if (!allowed) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const data = await getReportCardData(supabase, studentId, academicYearId);
+    if (!data) {
+      return NextResponse.json({ error: "Student not found" }, { status: 404 });
+    }
+
+    const exam = data.exams.find((e) => e.exam_type_id === examTypeId);
+    if (!exam) {
+      return NextResponse.json(
+        { error: "No published results for this exam" },
+        { status: 404 }
+      );
+    }
+
+    const generatedOn = new Date().toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const buffer = await renderToBuffer(
+      <ReportCardPDF
+        school={{
+          name: SCHOOL.name,
+          addressLine: SCHOOL.address.full,
+          affiliation: SCHOOL.affiliation,
+          affiliationNumber: SCHOOL.affiliationNumber,
+        }}
+        student={data.student}
+        exam={exam}
+        generatedOn={generatedOn}
+      />
+    );
+
+    const safeName = data.student.name.replace(/[^\w\-]+/g, "_");
+    const safeExam = exam.exam_type_name.replace(/[^\w\-]+/g, "_");
+    const filename = `report-card_${safeName}_${safeExam}.pdf`;
+
+    return new NextResponse(new Uint8Array(buffer), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "private, no-store",
+      },
+    });
+  } catch (err) {
+    console.error("Report card PDF error:", err);
+    return NextResponse.json(
+      { error: "Failed to generate PDF" },
+      { status: 500 }
+    );
+  }
+}

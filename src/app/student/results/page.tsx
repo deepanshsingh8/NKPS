@@ -54,10 +54,13 @@ const GRADE_COLORS: Record<string, string> = {
 
 export default function StudentResultsPage() {
   const [exams, setExams] = useState<ExamGroup[]>([]);
+  const [studentId, setStudentId] = useState<string>("");
+  const [selectedExam, setSelectedExam] = useState<string>("");
   const [studentName, setStudentName] = useState("");
   const [className, setClassName] = useState("");
   const [rollNumber, setRollNumber] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     async function fetchResults() {
@@ -75,15 +78,16 @@ export default function StudentResultsPage() {
         .eq("id", user.id)
         .single();
 
-      const studentId = profile?.student_id;
-      if (!studentId) {
+      const sid = profile?.student_id;
+      if (!sid) {
         setLoading(false);
         return;
       }
+      setStudentId(sid);
 
       // Fetch report card via API using the students table ID
       const res = await fetch(
-        `/api/erp/results/report-card?student_id=${studentId}`
+        `/api/erp/results/report-card?student_id=${sid}`
       );
 
       if (!res.ok) {
@@ -101,11 +105,48 @@ export default function StudentResultsPage() {
       );
       setRollNumber(data.student?.roll_number ?? null);
       setExams(data.exams ?? []);
+      if (data.exams?.[0]?.exam_type_id) {
+        setSelectedExam(data.exams[0].exam_type_id);
+      }
       setLoading(false);
     }
 
     fetchResults();
   }, []);
+
+  async function handleDownload() {
+    if (!studentId || !selectedExam) {
+      toast.error("Select an exam to download its report card");
+      return;
+    }
+    setDownloading(true);
+    try {
+      const res = await fetch(
+        `/api/erp/results/report-card/pdf?student_id=${studentId}&exam_type_id=${selectedExam}`
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body.error ?? "Failed to download report card");
+        return;
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="(.+)"/);
+      a.download = match?.[1] ?? "report-card.pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Report card download error:", err);
+      toast.error("Failed to download report card");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -131,12 +172,11 @@ export default function StudentResultsPage() {
         <Button
           variant="outline"
           className="border-navy-900 dark:border-white text-navy-900 dark:text-white hover:bg-navy-900/5 dark:hover:bg-white/5"
-          onClick={() =>
-            toast.info("Report card download coming soon")
-          }
+          onClick={handleDownload}
+          disabled={downloading || !selectedExam || exams.length === 0}
         >
           <Download className="h-4 w-4 mr-2" />
-          Download Report Card
+          {downloading ? "Preparing…" : "Download Report Card"}
         </Button>
       </div>
 
@@ -153,7 +193,7 @@ export default function StudentResultsPage() {
           </CardContent>
         </Card>
       ) : (
-        <Tabs defaultValue={exams[0]?.exam_type_id}>
+        <Tabs value={selectedExam} onValueChange={setSelectedExam}>
           <TabsList variant="line" className="mb-4 flex-wrap">
             {exams.map((exam) => (
               <TabsTrigger key={exam.exam_type_id} value={exam.exam_type_id}>

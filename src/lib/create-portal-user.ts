@@ -67,7 +67,8 @@ export async function createPortalUser({
 
   try {
     const { sendEmail, buildWelcomeEmail } = await import("@/lib/email");
-    const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.nkpublicschool.com"}/portal/login`;
+    const { SITE_URL } = await import("@/lib/seo");
+    const loginUrl = `${SITE_URL}/portal/login`;
     const html = buildWelcomeEmail({
       fullName,
       email,

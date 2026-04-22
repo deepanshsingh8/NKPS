@@ -209,6 +209,9 @@ export default function AdminUsersPage() {
       }
 
       toast.success("User created successfully");
+      if (data.email_warning) {
+        toast.warning(data.email_warning, { duration: 10000 });
+      }
       setGeneratedPassword(data.generated_password);
       await fetchProfiles();
     } catch {

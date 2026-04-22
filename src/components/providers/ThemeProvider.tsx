@@ -36,17 +36,23 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
 
-  // Initialize from localStorage
+  // Initialize from localStorage after hydration. We can't use a lazy useState
+  // initializer because localStorage isn't available during SSR, and reading
+  // it during the first client render would cause a hydration mismatch.
   useEffect(() => {
     const stored = localStorage.getItem("nkps-theme") as Theme | null;
     if (stored && ["light", "dark", "system"].includes(stored)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setThemeState(stored);
     }
   }, []);
 
-  // Resolve theme (but don't touch document.documentElement)
+  // Resolve theme (but don't touch document.documentElement).
+  // This deliberately defers resolution to after hydration so initial SSR
+  // markup matches the client's first paint ("light"), then updates.
   useEffect(() => {
     const resolved = theme === "system" ? getSystemTheme() : theme;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setResolvedTheme(resolved);
   }, [theme]);
 

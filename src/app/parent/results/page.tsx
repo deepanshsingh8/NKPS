@@ -67,11 +67,13 @@ export default function ParentResultsPage() {
   const [children, setChildren] = useState<ChildOption[]>([]);
   const [selectedChild, setSelectedChild] = useState<string>("");
   const [exams, setExams] = useState<ExamGroup[]>([]);
+  const [selectedExam, setSelectedExam] = useState<string>("");
   const [studentName, setStudentName] = useState("");
   const [className, setClassName] = useState("");
   const [rollNumber, setRollNumber] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingResults, setLoadingResults] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   // Fetch children on mount
   useEffect(() => {
@@ -173,12 +175,48 @@ export default function ParentResultsPage() {
           : ""
       );
       setRollNumber(data.student?.roll_number ?? null);
-      setExams(data.exams ?? []);
+      const nextExams = data.exams ?? [];
+      setExams(nextExams);
+      setSelectedExam(nextExams[0]?.exam_type_id ?? "");
       setLoadingResults(false);
     }
 
     fetchResults();
   }, [selectedChild]);
+
+  async function handleDownload() {
+    if (!selectedChild || !selectedExam) {
+      toast.error("Select an exam to download its report card");
+      return;
+    }
+    setDownloading(true);
+    try {
+      const res = await fetch(
+        `/api/erp/results/report-card/pdf?student_id=${selectedChild}&exam_type_id=${selectedExam}`
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body.error ?? "Failed to download report card");
+        return;
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="(.+)"/);
+      a.download = match?.[1] ?? "report-card.pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Report card download error:", err);
+      toast.error("Failed to download report card");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -225,10 +263,11 @@ export default function ParentResultsPage() {
           <Button
             variant="outline"
             className="border-navy-900 dark:border-white text-navy-900 dark:text-white hover:bg-navy-900/5 dark:hover:bg-white/5"
-            onClick={() => toast.info("Report card download coming soon")}
+            onClick={handleDownload}
+            disabled={downloading || !selectedExam || exams.length === 0}
           >
             <Download className="h-4 w-4 mr-2" />
-            Download Report Card
+            {downloading ? "Preparing…" : "Download Report Card"}
           </Button>
         </div>
       </div>
@@ -250,7 +289,7 @@ export default function ParentResultsPage() {
           </CardContent>
         </Card>
       ) : (
-        <Tabs defaultValue={exams[0]?.exam_type_id}>
+        <Tabs value={selectedExam} onValueChange={setSelectedExam}>
           <TabsList variant="line" className="mb-4 flex-wrap">
             {exams.map((exam) => (
               <TabsTrigger key={exam.exam_type_id} value={exam.exam_type_id}>
