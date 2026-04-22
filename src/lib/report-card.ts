@@ -18,6 +18,7 @@ export interface ReportCardExamGroup {
   total_max: number;
   percentage: number;
   overall_grade: string;
+  remark: string | null;
 }
 
 export interface ReportCardStudent {
@@ -28,9 +29,17 @@ export interface ReportCardStudent {
   roll_number: number | null;
 }
 
+export interface ReportCardAttendance {
+  total_days: number;
+  present_days: number; // present + late + half_day count as attended
+  percentage: number;
+  academic_year_label: string | null;
+}
+
 export interface ReportCardData {
   student: ReportCardStudent;
   exams: ReportCardExamGroup[];
+  attendance: ReportCardAttendance | null;
 }
 
 /**
@@ -106,6 +115,42 @@ export async function getReportCardData(
     .limit(1)
     .single();
 
+  // Current academic year — used for attendance window.
+  const { data: academicYear } = await supabase
+    .from("academic_years")
+    .select("id, label, start_date, end_date")
+    .eq("is_current", true)
+    .limit(1)
+    .maybeSingle();
+
+  let attendance: ReportCardAttendance | null = null;
+  if (enrollment?.class_id) {
+    let attQuery = supabase
+      .from("attendance")
+      .select("status")
+      .eq("student_id", studentId)
+      .eq("class_id", enrollment.class_id);
+
+    if (academicYear?.start_date && academicYear?.end_date) {
+      attQuery = attQuery
+        .gte("date", academicYear.start_date)
+        .lte("date", academicYear.end_date);
+    }
+
+    const { data: attRows } = await attQuery;
+    const total = attRows?.length ?? 0;
+    const attended = (attRows ?? []).filter(
+      (r) => r.status === "present" || r.status === "late" || r.status === "half_day"
+    ).length;
+
+    attendance = {
+      total_days: total,
+      present_days: attended,
+      percentage: total > 0 ? Math.round((attended / total) * 100) : 0,
+      academic_year_label: academicYear?.label ?? null,
+    };
+  }
+
   let query = supabase
     .from("results")
     .select(
@@ -156,6 +201,7 @@ export async function getReportCardData(
         total_max: 0,
         percentage: 0,
         overall_grade: "",
+        remark: null,
       };
     }
 
@@ -181,6 +227,21 @@ export async function getReportCardData(
     }
   }
 
+  // Attach class-teacher remarks per exam
+  const examTypeIds = Object.keys(examGroups);
+  if (examTypeIds.length > 0) {
+    const { data: remarks } = await supabase
+      .from("student_remarks")
+      .select("exam_type_id, remark")
+      .eq("student_id", studentId)
+      .in("exam_type_id", examTypeIds);
+
+    for (const r of remarks ?? []) {
+      const group = examGroups[r.exam_type_id as string];
+      if (group) group.remark = r.remark as string;
+    }
+  }
+
   const sortedExams = Object.values(examGroups).sort(
     (a, b) => a.sort_order - b.sort_order
   );
@@ -196,5 +257,6 @@ export async function getReportCardData(
       roll_number: enrollment?.roll_number ?? null,
     },
     exams: sortedExams,
+    attendance,
   };
 }

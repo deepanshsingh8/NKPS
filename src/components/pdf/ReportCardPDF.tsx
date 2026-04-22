@@ -3,9 +3,14 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
 } from "@react-pdf/renderer";
-import type { ReportCardExamGroup, ReportCardStudent } from "@/lib/report-card";
+import type {
+  ReportCardAttendance,
+  ReportCardExamGroup,
+  ReportCardStudent,
+} from "@/lib/report-card";
 
 const styles = StyleSheet.create({
   page: {
@@ -19,7 +24,17 @@ const styles = StyleSheet.create({
     borderBottomColor: "#0b2452",
     paddingBottom: 10,
     marginBottom: 16,
+    flexDirection: "row",
     alignItems: "center",
+    gap: 12,
+  },
+  headerText: {
+    flex: 1,
+    alignItems: "center",
+  },
+  logo: {
+    width: 56,
+    height: 56,
   },
   schoolName: {
     fontFamily: "Helvetica-Bold",
@@ -111,6 +126,45 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
   },
+  attendanceRow: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: "#f9fafb",
+    borderLeftWidth: 3,
+    borderLeftColor: "#0b2452",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  attendanceLabel: {
+    fontFamily: "Helvetica-Bold",
+    color: "#0b2452",
+  },
+  attendanceMeta: {
+    color: "#4b5563",
+    marginTop: 2,
+  },
+  attendanceValue: {
+    fontFamily: "Helvetica-Bold",
+    color: "#0b2452",
+    fontSize: 12,
+  },
+  remarkBlock: {
+    marginTop: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 4,
+  },
+  remarkLabel: {
+    fontFamily: "Helvetica-Bold",
+    color: "#0b2452",
+    marginBottom: 4,
+  },
+  remarkText: {
+    color: "#111827",
+    lineHeight: 1.4,
+  },
   summaryLabel: {
     fontFamily: "Helvetica-Bold",
     color: "#0b2452",
@@ -160,6 +214,12 @@ interface ReportCardPDFProps {
   };
   student: ReportCardStudent;
   exam: ReportCardExamGroup;
+  attendance: ReportCardAttendance | null;
+  /**
+   * Raw PNG/JPEG bytes for the school logo. Buffers work server-side with
+   * @react-pdf/renderer; undefined means skip the logo slot.
+   */
+  logoData?: Buffer | Uint8Array;
   generatedOn: string;
 }
 
@@ -167,6 +227,8 @@ export function ReportCardPDF({
   school,
   student,
   exam,
+  attendance,
+  logoData,
   generatedOn,
 }: ReportCardPDFProps) {
   const classLabel = student.class
@@ -180,15 +242,24 @@ export function ReportCardPDF({
     >
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.schoolName}>{school.name}</Text>
-          <Text style={styles.schoolMeta}>{school.addressLine}</Text>
-          <Text style={styles.schoolMeta}>
-            Affiliated to {school.affiliation} · Affiliation No.{" "}
-            {school.affiliationNumber}
-          </Text>
-          <Text style={styles.reportTitle}>
-            Report Card · {exam.exam_type_name}
-          </Text>
+          {logoData ? (
+            <Image
+              src={{ data: Buffer.from(logoData), format: "png" }}
+              style={styles.logo}
+            />
+          ) : null}
+          <View style={styles.headerText}>
+            <Text style={styles.schoolName}>{school.name}</Text>
+            <Text style={styles.schoolMeta}>{school.addressLine}</Text>
+            <Text style={styles.schoolMeta}>
+              Affiliated to {school.affiliation} · Affiliation No.{" "}
+              {school.affiliationNumber}
+            </Text>
+            <Text style={styles.reportTitle}>
+              Report Card · {exam.exam_type_name}
+            </Text>
+          </View>
+          {logoData ? <View style={styles.logo} /> : null}
         </View>
 
         <View style={styles.studentBlock}>
@@ -262,6 +333,28 @@ export function ReportCardPDF({
             </Text>
           </View>
         </View>
+
+        {attendance ? (
+          <View style={styles.attendanceRow}>
+            <View>
+              <Text style={styles.attendanceLabel}>Attendance</Text>
+              <Text style={styles.attendanceMeta}>
+                {attendance.present_days} / {attendance.total_days} days
+                {attendance.academic_year_label
+                  ? ` · ${attendance.academic_year_label}`
+                  : ""}
+              </Text>
+            </View>
+            <Text style={styles.attendanceValue}>{attendance.percentage}%</Text>
+          </View>
+        ) : null}
+
+        {exam.remark ? (
+          <View style={styles.remarkBlock} wrap={false}>
+            <Text style={styles.remarkLabel}>Class Teacher&apos;s Remark</Text>
+            <Text style={styles.remarkText}>{exam.remark}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.footer} fixed>
           <View>

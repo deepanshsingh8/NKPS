@@ -27,11 +27,15 @@ CREATE TABLE IF NOT EXISTS gallery_images (
 CREATE TABLE IF NOT EXISTS transfer_certificates (
   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
   student_name text NOT NULL,
+  admission_no text,
   file_url text NOT NULL,
   academic_year text NOT NULL,
   upload_date date DEFAULT current_date,
   created_at timestamptz DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_tc_admission_no ON transfer_certificates(admission_no);
+CREATE INDEX IF NOT EXISTS idx_tc_student_name ON transfer_certificates(student_name);
 
 -- Contact Submissions
 CREATE TABLE IF NOT EXISTS contact_submissions (
@@ -92,7 +96,12 @@ CREATE TABLE IF NOT EXISTS staff_members (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   name text NOT NULL,
   subject text NOT NULL,
-  category text NOT NULL CHECK (category IN ('management', 'admin', 'pgt', 'tgt', 'prt', 'motherTeachers', 'additionalStaff', 'busDriver', 'peon')),
+  category text NOT NULL CHECK (category IN (
+    'management', 'admin', 'pgt', 'tgt', 'prt',
+    'motherTeachers', 'prePrimaryCoordinator', 'primaryCoordinator',
+    'middleCoordinator', 'seniorCoordinator',
+    'additionalStaff', 'busDriver', 'peon'
+  )),
   photo_url text,
   email text,
   phone text,
@@ -315,7 +324,46 @@ CREATE TABLE class_subjects (
   UNIQUE(class_id, subject_id)
 );
 
--- 2k. Student Parents (many-to-many)
+-- 2k. Student Subjects (resolved student ↔ class_subject link; references
+-- class_subjects so teacher reassignments auto-propagate to students).
+CREATE TABLE IF NOT EXISTS student_subjects (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  student_id uuid REFERENCES students(id) ON DELETE CASCADE NOT NULL,
+  class_subject_id uuid REFERENCES class_subjects(id) ON DELETE CASCADE NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(student_id, class_subject_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_student_subjects_student ON student_subjects(student_id);
+CREATE INDEX IF NOT EXISTS idx_student_subjects_class_subject ON student_subjects(class_subject_id);
+
+ALTER TABLE student_subjects ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public can read student_subjects"
+  ON student_subjects FOR SELECT USING (true);
+
+CREATE POLICY "Admins can insert student_subjects"
+  ON student_subjects FOR INSERT
+  WITH CHECK (public.get_user_role() = 'admin');
+
+CREATE POLICY "Admins can update student_subjects"
+  ON student_subjects FOR UPDATE
+  USING (public.get_user_role() = 'admin');
+
+CREATE POLICY "Admins can delete student_subjects"
+  ON student_subjects FOR DELETE
+  USING (public.get_user_role() = 'admin');
+
+CREATE POLICY "Teachers can read student_subjects for their classes"
+  ON student_subjects FOR SELECT
+  USING (
+    public.get_user_role() = 'teacher'
+    AND class_subject_id IN (
+      SELECT id FROM class_subjects WHERE teacher_id = auth.uid()
+    )
+  );
+
+-- 2l. Student Parents (many-to-many)
 CREATE TABLE student_parents (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   student_id uuid REFERENCES students(id) ON DELETE CASCADE NOT NULL,
@@ -1587,3 +1635,83 @@ CREATE POLICY "Authenticated can update articles"
 CREATE POLICY "Authenticated can delete articles"
   ON articles FOR DELETE TO authenticated
   USING (true);
+
+-- ============================================
+-- STUDENT REMARKS (class teacher's overall comment per student per exam,
+-- shown at the bottom of the printed report card — distinct from the
+-- per-subject results.remarks column)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS student_remarks (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  exam_type_id uuid NOT NULL REFERENCES exam_types(id) ON DELETE CASCADE,
+  remark text NOT NULL,
+  author_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE (student_id, exam_type_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_student_remarks_student ON student_remarks(student_id);
+CREATE INDEX IF NOT EXISTS idx_student_remarks_exam ON student_remarks(exam_type_id);
+
+ALTER TABLE student_remarks ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Students read own remarks" ON student_remarks;
+CREATE POLICY "Students read own remarks"
+  ON student_remarks FOR SELECT
+  TO authenticated
+  USING (
+    student_id IN (
+      SELECT student_id FROM profiles WHERE id = auth.uid() AND student_id IS NOT NULL
+    )
+  );
+
+DROP POLICY IF EXISTS "Parents read linked children remarks" ON student_remarks;
+CREATE POLICY "Parents read linked children remarks"
+  ON student_remarks FOR SELECT
+  TO authenticated
+  USING (
+    student_id IN (
+      SELECT sp.student_id
+      FROM student_parents sp
+      JOIN profiles p ON p.parent_id = sp.parent_id
+      WHERE p.id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers read all remarks" ON student_remarks;
+CREATE POLICY "Teachers read all remarks"
+  ON student_remarks FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('teacher', 'admin', 'editor'))
+  );
+
+DROP POLICY IF EXISTS "Teachers upsert remarks" ON student_remarks;
+CREATE POLICY "Teachers upsert remarks"
+  ON student_remarks FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('teacher', 'admin'))
+  );
+
+DROP POLICY IF EXISTS "Teachers update remarks" ON student_remarks;
+CREATE POLICY "Teachers update remarks"
+  ON student_remarks FOR UPDATE
+  TO authenticated
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('teacher', 'admin'))
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('teacher', 'admin'))
+  );
+
+DROP POLICY IF EXISTS "Admins delete remarks" ON student_remarks;
+CREATE POLICY "Admins delete remarks"
+  ON student_remarks FOR DELETE
+  TO authenticated
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );

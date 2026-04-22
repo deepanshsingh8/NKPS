@@ -80,6 +80,20 @@ export default function TeacherResultsPage() {
 
   const [maxMarks, setMaxMarks] = useState(100);
 
+  const [teacherId, setTeacherId] = useState<string | null>(null);
+  const [classTeacherMap, setClassTeacherMap] = useState<
+    Record<string, string | null>
+  >({});
+  const [remarks, setRemarks] = useState<Record<string, string>>({});
+  const [remarksLoading, setRemarksLoading] = useState(false);
+  const [remarksSaving, setRemarksSaving] = useState(false);
+
+  const isClassTeacher = Boolean(
+    selectedClassId &&
+      teacherId &&
+      classTeacherMap[selectedClassId] === teacherId
+  );
+
   // Fetch teacher's assigned classes
   useEffect(() => {
     async function fetchClasses() {
@@ -96,24 +110,29 @@ export default function TeacherResultsPage() {
         .eq("id", user.id)
         .single();
 
-      const teacherId = profileData?.teacher_id;
-      if (!teacherId) {
+      const tid = profileData?.teacher_id;
+      if (!tid) {
         setLoading(false);
         return;
       }
+      setTeacherId(tid);
 
       // Get classes where this teacher has subject assignments
       const { data: classSubjects } = await supabase
         .from("class_subjects")
-        .select("class_id, classes(id, name, section, academic_year_id, sort_order, streams:stream_id(name))")
-        .eq("teacher_id", teacherId);
+        .select("class_id, classes(id, name, section, academic_year_id, sort_order, class_teacher_id, streams:stream_id(name))")
+        .eq("teacher_id", tid);
 
       if (classSubjects) {
         const uniqueClasses = new Map<string, Class>();
+        const teacherByClass: Record<string, string | null> = {};
         for (const cs of classSubjects) {
-          const cls = cs.classes as unknown as Class;
+          const cls = cs.classes as unknown as Class & {
+            class_teacher_id: string | null;
+          };
           if (cls && !uniqueClasses.has(cls.id)) {
             uniqueClasses.set(cls.id, cls);
+            teacherByClass[cls.id] = cls.class_teacher_id ?? null;
           }
         }
         setClasses(
@@ -121,6 +140,7 @@ export default function TeacherResultsPage() {
             (a, b) => a.sort_order - b.sort_order
           )
         );
+        setClassTeacherMap(teacherByClass);
       }
 
       // Fetch exam types for current academic year
@@ -168,14 +188,14 @@ export default function TeacherResultsPage() {
         .eq("id", user.id)
         .single();
 
-      const teacherId = profileData?.teacher_id;
-      if (!teacherId) return;
+      const tid = profileData?.teacher_id;
+      if (!tid) return;
 
       const { data: classSubjects } = await supabase
         .from("class_subjects")
         .select("subject_id, subjects(id, name, code, is_active)")
         .eq("class_id", selectedClassId)
-        .eq("teacher_id", teacherId);
+        .eq("teacher_id", tid);
 
       if (classSubjects) {
         const subs = classSubjects
@@ -252,6 +272,79 @@ export default function TeacherResultsPage() {
   useEffect(() => {
     fetchStudentsAndMarks();
   }, [fetchStudentsAndMarks]);
+
+  // Fetch existing class-teacher remarks for the (class, exam) pair whenever
+  // the teacher is the class teacher of the selected class and an exam is
+  // picked. Independent of subject selection.
+  useEffect(() => {
+    if (!isClassTeacher || !selectedClassId || !selectedExamTypeId) {
+      setRemarks({});
+      return;
+    }
+
+    let cancelled = false;
+    async function fetchRemarks() {
+      setRemarksLoading(true);
+      try {
+        const res = await fetch(
+          `/api/erp/results/remarks?class_id=${selectedClassId}&exam_type_id=${selectedExamTypeId}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const map: Record<string, string> = {};
+        for (const r of data.remarks ?? []) {
+          map[r.student_id] = r.remark;
+        }
+        setRemarks(map);
+      } finally {
+        if (!cancelled) setRemarksLoading(false);
+      }
+    }
+    fetchRemarks();
+    return () => {
+      cancelled = true;
+    };
+  }, [isClassTeacher, selectedClassId, selectedExamTypeId]);
+
+  function handleRemarkChange(studentId: string, value: string) {
+    setRemarks((prev) => ({ ...prev, [studentId]: value }));
+  }
+
+  async function handleSaveRemarks() {
+    if (!selectedClassId || !selectedExamTypeId) return;
+
+    const entries = students.map((s) => ({
+      student_id: s.student_id,
+      remark: remarks[s.student_id] ?? "",
+    }));
+
+    setRemarksSaving(true);
+    try {
+      const res = await fetch("/api/erp/results/remarks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          class_id: selectedClassId,
+          exam_type_id: selectedExamTypeId,
+          entries,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Failed to save remarks");
+      } else {
+        const total = (data.saved ?? 0) + (data.cleared ?? 0);
+        toast.success(`Remarks saved for ${total} student(s)`);
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setRemarksSaving(false);
+    }
+  }
 
   function handleMarksChange(studentId: string, value: string) {
     const numVal = value === "" ? "" : Number(value);
@@ -495,6 +588,70 @@ export default function TeacherResultsPage() {
                     })}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Class Teacher Remarks — only shown when current teacher is the class
+          teacher for the selected class and an exam is chosen. */}
+      {isClassTeacher && selectedClassId && selectedExamTypeId && (
+        <Card className="bg-white dark:bg-card rounded-2xl">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-navy-900 dark:text-white">
+              Class Teacher Remarks
+              <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
+                (Shown on the report card)
+              </span>
+            </CardTitle>
+            <Button
+              onClick={handleSaveRemarks}
+              disabled={remarksSaving || students.length === 0}
+              className="bg-navy-900 text-white hover:bg-navy-900/90"
+            >
+              {remarksSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Save Remarks
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {remarksLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-navy-900 dark:text-white" />
+              </div>
+            ) : students.length === 0 ? (
+              <p className="text-center text-gray-400 dark:text-gray-500 py-8 text-sm">
+                Select a class with enrolled students to enter remarks.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {students.map((student) => (
+                  <div
+                    key={student.student_id}
+                    className="flex items-start gap-3 border-b border-gray-100 dark:border-border pb-3 last:border-0"
+                  >
+                    <div className="w-48 shrink-0 pt-2">
+                      <p className="text-sm font-medium text-navy-900 dark:text-white">
+                        {student.full_name}
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                        Roll {student.roll_number ?? "-"}
+                      </p>
+                    </div>
+                    <textarea
+                      value={remarks[student.student_id] ?? ""}
+                      onChange={(e) =>
+                        handleRemarkChange(student.student_id, e.target.value)
+                      }
+                      placeholder="Optional — e.g. Diligent and consistent. Keep it up."
+                      className="flex-1 min-h-[64px] rounded-lg border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                    />
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

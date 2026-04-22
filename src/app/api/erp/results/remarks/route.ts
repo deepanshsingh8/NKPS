@@ -1,0 +1,198 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+
+export async function GET(request: Request) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const examTypeId = searchParams.get("exam_type_id");
+    const classId = searchParams.get("class_id");
+    const studentId = searchParams.get("student_id");
+
+    if (!examTypeId) {
+      return NextResponse.json(
+        { error: "exam_type_id is required" },
+        { status: 400 }
+      );
+    }
+
+    // Class-scoped fetch: return all remarks for students in that class
+    // for the given exam. Used by the teacher's remarks editor.
+    if (classId) {
+      const { data: enrollments } = await supabase
+        .from("student_enrollments")
+        .select("student_id")
+        .eq("class_id", classId);
+
+      const studentIds = (enrollments ?? []).map((e) => e.student_id);
+      if (studentIds.length === 0) {
+        return NextResponse.json({ remarks: [] });
+      }
+
+      const { data } = await supabase
+        .from("student_remarks")
+        .select("student_id, remark, updated_at")
+        .eq("exam_type_id", examTypeId)
+        .in("student_id", studentIds);
+
+      return NextResponse.json({ remarks: data ?? [] });
+    }
+
+    // Single-student fetch
+    if (studentId) {
+      const { data } = await supabase
+        .from("student_remarks")
+        .select("student_id, remark, updated_at")
+        .eq("exam_type_id", examTypeId)
+        .eq("student_id", studentId)
+        .maybeSingle();
+
+      return NextResponse.json({ remark: data });
+    }
+
+    return NextResponse.json(
+      { error: "class_id or student_id is required" },
+      { status: 400 }
+    );
+  } catch (err) {
+    console.error("Remarks GET error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+interface RemarkEntry {
+  student_id: string;
+  remark: string;
+}
+
+export async function POST(request: Request) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, teacher_id")
+      .eq("id", user.id)
+      .single();
+
+    if (
+      !profile ||
+      (profile.role !== "teacher" && profile.role !== "admin")
+    ) {
+      return NextResponse.json(
+        { error: "Forbidden: teacher or admin access required" },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const examTypeId: string | undefined = body.exam_type_id;
+    const classId: string | undefined = body.class_id;
+    const entries: RemarkEntry[] | undefined = body.entries;
+
+    if (!examTypeId || !Array.isArray(entries)) {
+      return NextResponse.json(
+        { error: "exam_type_id and entries[] are required" },
+        { status: 400 }
+      );
+    }
+
+    // Teachers can only submit remarks for classes they teach as class teacher.
+    // Admins bypass this check.
+    if (profile.role === "teacher") {
+      if (!classId) {
+        return NextResponse.json(
+          { error: "class_id is required for teacher submissions" },
+          { status: 400 }
+        );
+      }
+      const { data: classRow } = await supabase
+        .from("classes")
+        .select("class_teacher_id")
+        .eq("id", classId)
+        .single();
+
+      if (!classRow || classRow.class_teacher_id !== profile.teacher_id) {
+        return NextResponse.json(
+          { error: "Only the assigned class teacher can submit remarks for this class" },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Split into upserts (non-empty) and deletes (empty/whitespace-only remarks)
+    const toUpsert = entries
+      .filter((e) => e.remark && e.remark.trim().length > 0)
+      .map((e) => ({
+        student_id: e.student_id,
+        exam_type_id: examTypeId,
+        remark: e.remark.trim(),
+        author_id: user.id,
+        updated_at: new Date().toISOString(),
+      }));
+
+    const toDeleteStudentIds = entries
+      .filter((e) => !e.remark || e.remark.trim().length === 0)
+      .map((e) => e.student_id);
+
+    if (toUpsert.length > 0) {
+      const { error } = await supabase
+        .from("student_remarks")
+        .upsert(toUpsert, { onConflict: "student_id,exam_type_id" });
+
+      if (error) {
+        console.error("Remarks upsert error:", error);
+        return NextResponse.json(
+          { error: "Failed to save remarks" },
+          { status: 500 }
+        );
+      }
+    }
+
+    if (toDeleteStudentIds.length > 0) {
+      const { error } = await supabase
+        .from("student_remarks")
+        .delete()
+        .eq("exam_type_id", examTypeId)
+        .in("student_id", toDeleteStudentIds);
+
+      if (error) {
+        console.error("Remarks delete error:", error);
+        return NextResponse.json(
+          { error: "Failed to clear remarks" },
+          { status: 500 }
+        );
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      saved: toUpsert.length,
+      cleared: toDeleteStudentIds.length,
+    });
+  } catch (err) {
+    console.error("Remarks POST error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}

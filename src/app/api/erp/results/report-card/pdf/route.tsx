@@ -1,11 +1,27 @@
 import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
+import { promises as fs } from "fs";
+import path from "path";
 import { createClient } from "@/lib/supabase/server";
 import { canViewReportCard, getReportCardData } from "@/lib/report-card";
 import { ReportCardPDF } from "@/components/pdf/ReportCardPDF";
 import { SCHOOL } from "@/lib/constants";
 
 export const runtime = "nodejs";
+
+// Cache the logo bytes across invocations in the same Node process.
+let cachedLogo: Buffer | null = null;
+async function loadLogo(): Promise<Buffer | null> {
+  if (cachedLogo) return cachedLogo;
+  try {
+    const logoPath = path.join(process.cwd(), "public", "images", "logo.png");
+    cachedLogo = await fs.readFile(logoPath);
+    return cachedLogo;
+  } catch (err) {
+    console.warn("Report card: logo not found, PDF will render without it", err);
+    return null;
+  }
+}
 
 export async function GET(request: Request) {
   try {
@@ -57,6 +73,8 @@ export async function GET(request: Request) {
       minute: "2-digit",
     });
 
+    const logoData = await loadLogo();
+
     const buffer = await renderToBuffer(
       <ReportCardPDF
         school={{
@@ -67,6 +85,8 @@ export async function GET(request: Request) {
         }}
         student={data.student}
         exam={exam}
+        attendance={data.attendance}
+        logoData={logoData ?? undefined}
         generatedOn={generatedOn}
       />
     );

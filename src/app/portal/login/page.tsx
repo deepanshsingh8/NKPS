@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowLeft, GraduationCap, Eye, EyeOff } from "lucide-react";
+import { Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -109,8 +109,15 @@ export default function PortalLoginPage() {
 
         <div className="relative z-10 text-center max-w-md">
           {/* School Logo */}
-          <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm border border-white/20">
-            <GraduationCap className="h-12 w-12 text-gold-500" />
+          <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-white/20">
+            <Image
+              src="/images/logo.png"
+              alt="NK Public School Logo"
+              width={96}
+              height={96}
+              className="h-24 w-24 rounded-full object-contain"
+              priority
+            />
           </div>
 
           <h1 className="font-heading text-4xl font-bold mb-4">
@@ -136,6 +143,10 @@ export default function PortalLoginPage() {
               <span className="h-2 w-2 rounded-full bg-emerald-400" />
               <span>Students</span>
             </div>
+            <div className="flex items-center justify-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-rose-400" />
+              <span>Parents</span>
+            </div>
           </div>
         </div>
       </div>
@@ -145,8 +156,15 @@ export default function PortalLoginPage() {
         <div className="w-full max-w-md">
           {/* Mobile branding */}
           <div className="lg:hidden text-center mb-8">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-navy-900">
-              <GraduationCap className="h-8 w-8 text-gold-500" />
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-navy-900/10 overflow-hidden">
+              <Image
+                src="/images/logo.png"
+                alt="NK Public School Logo"
+                width={64}
+                height={64}
+                className="h-16 w-16 rounded-full object-contain"
+                priority
+              />
             </div>
             <h1 className="font-heading text-2xl font-bold text-navy-900">
               NK Public School
