@@ -35,7 +35,7 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   academic_years: ["id", "name", "start_date", "end_date", "is_current", "created_at"],
   class_subjects: ["id", "class_id", "subject_id", "teacher_id", "created_at"],
   student_enrollments: ["id", "student_id", "class_id", "stream_id", "roll_number", "enrollment_date", "created_at"],
-  fee_structures: ["id", "academic_year_id", "class_name", "fee_type", "amount", "due_date", "frequency", "created_at"],
+  fee_structures: ["id", "academic_year_id", "class_name", "class_level", "stream_id", "fee_type", "amount", "due_date", "frequency", "is_active", "description", "created_at", "updated_at"],
   fee_payments: ["id", "student_id", "fee_structure_id", "amount_paid", "payment_date", "payment_method", "receipt_number", "month", "status", "recorded_by", "remarks", "created_at"],
   exam_types: ["id", "name", "academic_year_id", "max_marks", "weightage", "sort_order", "created_at"],
   calendar_events: ["id", "title", "description", "event_type", "start_date", "end_date", "class_id", "created_by", "created_at"],

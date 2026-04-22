@@ -439,6 +439,7 @@ CREATE TABLE fee_structures (
   class_name text NOT NULL,
   class_level text NOT NULL DEFAULT 'all'
     CHECK (class_level IN ('all', 'nursery_ukg', 'i_v', 'vi_viii', 'ix_x', 'xi_xii')),
+  stream_id uuid REFERENCES streams(id) ON DELETE SET NULL,
   fee_type text NOT NULL,
   amount numeric(10,2) NOT NULL,
   due_date date,
@@ -621,6 +622,7 @@ CREATE INDEX idx_results_exam_type_id ON results(exam_type_id);
 -- Fee Structures
 CREATE INDEX idx_fee_structures_academic_year_id ON fee_structures(academic_year_id);
 CREATE INDEX idx_fee_structures_class_name ON fee_structures(class_name);
+CREATE INDEX idx_fee_structures_stream_id ON fee_structures(stream_id);
 
 -- Fee Payments
 CREATE INDEX idx_fee_payments_student_id ON fee_payments(student_id);

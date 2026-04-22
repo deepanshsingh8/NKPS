@@ -1,10 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Clock, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Clock, Users, Sun } from "lucide-react";
+import {
+  cn,
+  dayOfWeekFromDate,
+  formatTime12,
+  nowMinutes,
+  timeStringToMinutes,
+} from "@/lib/utils";
 
 interface ChildOption {
   student_id: string;
@@ -173,6 +181,16 @@ export default function ParentTimetablePage() {
     fetchTimetable();
   }, [selectedChild]);
 
+  const todayDow = useMemo(() => dayOfWeekFromDate(), []);
+  const todayEntries = useMemo(
+    () =>
+      entries
+        .filter((e) => e.day_of_week === todayDow)
+        .sort((a, b) => a.period_number - b.period_number),
+    [entries, todayDow]
+  );
+  const now = nowMinutes();
+
   const getEntry = (day: number, period: number) =>
     entries.find((e) => e.day_of_week === day && e.period_number === period);
 
@@ -225,6 +243,69 @@ export default function ParentTimetablePage() {
         )}
       </div>
 
+      {/* Today at a glance */}
+      {entries.length > 0 && !loadingTimetable && (
+        <Card className="bg-white dark:bg-card rounded-2xl shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white">
+              <Sun className="h-5 w-5 text-gold-500" />
+              Today
+              <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
+                {todayDow === 7 ? "Sunday" : DAYS[todayDow - 1]}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {todayDow === 7 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No classes today.
+              </p>
+            ) : todayEntries.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No periods scheduled for today.
+              </p>
+            ) : (
+              <ul className="divide-y divide-gray-100 dark:divide-border">
+                {todayEntries.map((p) => {
+                  const startM = timeStringToMinutes(p.start_time);
+                  const endM = timeStringToMinutes(p.end_time);
+                  const isPast = endM <= now;
+                  const isNow = startM <= now && endM > now;
+                  return (
+                    <li
+                      key={p.id}
+                      className={cn(
+                        "flex items-center gap-4 py-2.5 text-sm",
+                        isPast && "opacity-60",
+                        isNow && "bg-gold-50 dark:bg-gold-500/10 -mx-4 px-4 rounded-lg"
+                      )}
+                    >
+                      <div className="w-20 shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                        {formatTime12(p.start_time)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-navy-900 dark:text-white truncate">
+                          {p.subject?.name ?? "—"}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {p.teacher?.full_name ?? "—"}
+                          {p.room ? ` • ${p.room}` : ""}
+                        </p>
+                      </div>
+                      {isNow && (
+                        <Badge className="bg-gold-500/20 text-gold-700 dark:text-gold-300 text-[10px] font-semibold">
+                          Now
+                        </Badge>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="bg-white dark:bg-card rounded-2xl shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white">
@@ -253,14 +334,26 @@ export default function ParentTimetablePage() {
                     <th className="border border-gray-200 dark:border-border bg-navy-900 text-white px-3 py-2 text-sm font-medium">
                       Period
                     </th>
-                    {DAYS.map((day) => (
-                      <th
-                        key={day}
-                        className="border border-gray-200 dark:border-border bg-navy-900 text-white px-3 py-2 text-sm font-medium min-w-[140px]"
-                      >
-                        {day}
-                      </th>
-                    ))}
+                    {DAYS.map((day, idx) => {
+                      const dow = idx + 1;
+                      const isToday = dow === todayDow;
+                      return (
+                        <th
+                          key={day}
+                          className={cn(
+                            "border border-gray-200 dark:border-border text-white px-3 py-2 text-sm font-medium min-w-[140px]",
+                            isToday ? "bg-gold-500 text-navy-900" : "bg-navy-900"
+                          )}
+                        >
+                          {day}
+                          {isToday && (
+                            <span className="ml-1 text-[10px] font-semibold uppercase">
+                              Today
+                            </span>
+                          )}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -271,11 +364,15 @@ export default function ParentTimetablePage() {
                       </td>
                       {DAY_NUMBERS.map((day) => {
                         const entry = getEntry(day, period);
+                        const isToday = day === todayDow;
                         if (!entry) {
                           return (
                             <td
                               key={day}
-                              className="border border-gray-200 dark:border-border px-3 py-2 text-center text-sm text-gray-300 dark:text-gray-500"
+                              className={cn(
+                                "border border-gray-200 dark:border-border px-3 py-2 text-center text-sm text-gray-300 dark:text-gray-500",
+                                isToday && "bg-gold-500/5"
+                              )}
                             >
                               Free
                             </td>
@@ -287,7 +384,10 @@ export default function ParentTimetablePage() {
                         return (
                           <td
                             key={day}
-                            className="border border-gray-200 dark:border-border p-1"
+                            className={cn(
+                              "border border-gray-200 dark:border-border p-1",
+                              isToday && "ring-2 ring-gold-500/60 ring-inset"
+                            )}
                           >
                             <div
                               className={`rounded-lg border p-2 text-xs ${colorClass}`}

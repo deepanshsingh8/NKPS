@@ -154,23 +154,36 @@ export async function POST(request: NextRequest) {
 
     // Create enrollment if class_id provided
     if (class_id && student) {
+      const { data: classRow, error: classLookupError } = await admin
+        .from("classes")
+        .select("academic_year_id")
+        .eq("id", class_id)
+        .single();
+
+      if (classLookupError || !classRow?.academic_year_id) {
+        console.error("Class lookup failed:", classLookupError);
+        return NextResponse.json(
+          { error: "Selected class could not be resolved" },
+          { status: 400 }
+        );
+      }
+
       const { error: enrollError } = await admin
         .from("student_enrollments")
         .insert({
           student_id: student.id,
           class_id,
+          academic_year_id: classRow.academic_year_id,
           roll_number: roll_number ? parseInt(roll_number, 10) : null,
           stream_id: stream_id || null,
         });
 
       if (enrollError) {
         console.error("Enrollment error:", enrollError);
-        // Student was created but enrollment failed — still return success
-        return NextResponse.json({
-          success: true,
-          data: student,
-          warning: "Student created but enrollment failed",
-        });
+        return NextResponse.json(
+          { error: "Failed to enroll student in the selected class" },
+          { status: 500 }
+        );
       }
 
     }
@@ -235,6 +248,21 @@ export async function PATCH(request: NextRequest) {
       }
       if (class_id) {
         enrollmentUpdate.class_id = class_id;
+
+        const { data: classRow, error: classLookupError } = await admin
+          .from("classes")
+          .select("academic_year_id")
+          .eq("id", class_id)
+          .single();
+
+        if (classLookupError || !classRow?.academic_year_id) {
+          console.error("Class lookup failed on update:", classLookupError);
+          return NextResponse.json(
+            { error: "Selected class could not be resolved" },
+            { status: 400 }
+          );
+        }
+        enrollmentUpdate.academic_year_id = classRow.academic_year_id;
       }
       if (stream_id !== undefined) {
         enrollmentUpdate.stream_id = stream_id || null;
@@ -250,8 +278,40 @@ export async function PATCH(request: NextRequest) {
           console.error("Update enrollment error:", enrollErr);
           return NextResponse.json({ error: "Student updated but enrollment change failed" }, { status: 500 });
         }
+      }
+    } else if (class_id) {
+      // No prior enrollment — create one on edit (recovers students whose
+      // initial enrollment silently failed before the fix was in place).
+      const { data: classRow, error: classLookupError } = await admin
+        .from("classes")
+        .select("academic_year_id")
+        .eq("id", class_id)
+        .single();
 
-        // Student subjects sync no longer needed (student_subjects table removed)
+      if (classLookupError || !classRow?.academic_year_id) {
+        console.error("Class lookup failed on recover:", classLookupError);
+        return NextResponse.json(
+          { error: "Selected class could not be resolved" },
+          { status: 400 }
+        );
+      }
+
+      const { error: enrollErr } = await admin
+        .from("student_enrollments")
+        .insert({
+          student_id: id,
+          class_id,
+          academic_year_id: classRow.academic_year_id,
+          roll_number: roll_number ? parseInt(roll_number, 10) : null,
+          stream_id: stream_id || null,
+        });
+
+      if (enrollErr) {
+        console.error("Recover enrollment error:", enrollErr);
+        return NextResponse.json(
+          { error: "Student updated but enrollment creation failed" },
+          { status: 500 }
+        );
       }
     }
 

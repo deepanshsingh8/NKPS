@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
@@ -64,15 +65,20 @@ const GRADE_COLORS: Record<string, string> = {
 };
 
 export default function TeacherResultsPage() {
+  const searchParams = useSearchParams();
+  const preselectClassId = searchParams.get("class_id") ?? "";
+  const preselectSubjectId = searchParams.get("subject_id") ?? "";
+  const preselectExamTypeId = searchParams.get("exam_type_id") ?? "";
+
   const [classes, setClasses] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [examTypes, setExamTypes] = useState<ExamType[]>([]);
   const [students, setStudents] = useState<EnrolledStudent[]>([]);
   const [marksEntries, setMarksEntries] = useState<MarksEntry[]>([]);
 
-  const [selectedClassId, setSelectedClassId] = useState("");
-  const [selectedSubjectId, setSelectedSubjectId] = useState("");
-  const [selectedExamTypeId, setSelectedExamTypeId] = useState("");
+  const [selectedClassId, setSelectedClassId] = useState(preselectClassId);
+  const [selectedSubjectId, setSelectedSubjectId] = useState(preselectSubjectId);
+  const [selectedExamTypeId, setSelectedExamTypeId] = useState(preselectExamTypeId);
 
   const [loading, setLoading] = useState(true);
   const [loadingStudents, setLoadingStudents] = useState(false);
@@ -86,7 +92,6 @@ export default function TeacherResultsPage() {
   >({});
   const [remarks, setRemarks] = useState<Record<string, string>>({});
   const [remarksLoading, setRemarksLoading] = useState(false);
-  const [remarksSaving, setRemarksSaving] = useState(false);
 
   const isClassTeacher = Boolean(
     selectedClassId &&
@@ -311,41 +316,6 @@ export default function TeacherResultsPage() {
     setRemarks((prev) => ({ ...prev, [studentId]: value }));
   }
 
-  async function handleSaveRemarks() {
-    if (!selectedClassId || !selectedExamTypeId) return;
-
-    const entries = students.map((s) => ({
-      student_id: s.student_id,
-      remark: remarks[s.student_id] ?? "",
-    }));
-
-    setRemarksSaving(true);
-    try {
-      const res = await fetch("/api/erp/results/remarks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          class_id: selectedClassId,
-          exam_type_id: selectedExamTypeId,
-          entries,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.error || "Failed to save remarks");
-      } else {
-        const total = (data.saved ?? 0) + (data.cleared ?? 0);
-        toast.success(`Remarks saved for ${total} student(s)`);
-      }
-    } catch {
-      toast.error("Network error. Please try again.");
-    } finally {
-      setRemarksSaving(false);
-    }
-  }
-
   function handleMarksChange(studentId: string, value: string) {
     const numVal = value === "" ? "" : Number(value);
     setMarksEntries((prev) =>
@@ -356,7 +326,7 @@ export default function TeacherResultsPage() {
   }
 
   async function handleSave() {
-    // Validate all entries
+    // Validate marks entries
     const entries = marksEntries
       .filter((e) => e.marks_obtained !== "")
       .map((e) => ({
@@ -364,13 +334,15 @@ export default function TeacherResultsPage() {
         marks_obtained: Number(e.marks_obtained),
       }));
 
-    if (entries.length === 0) {
+    if (entries.length === 0 && !isClassTeacher) {
       toast.error("Please enter marks for at least one student");
       return;
     }
 
     // Check max marks
-    const invalid = entries.find((e) => e.marks_obtained > maxMarks || e.marks_obtained < 0);
+    const invalid = entries.find(
+      (e) => e.marks_obtained > maxMarks || e.marks_obtained < 0
+    );
     if (invalid) {
       toast.error(`Marks must be between 0 and ${maxMarks}`);
       return;
@@ -378,25 +350,77 @@ export default function TeacherResultsPage() {
 
     setSaving(true);
 
+    // Build both API requests so they can run in parallel.
+    const requests: Promise<{ ok: boolean; kind: "marks" | "remarks"; data: Record<string, unknown> }>[] = [];
+
+    if (entries.length > 0) {
+      requests.push(
+        fetch("/api/erp/results/bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            class_id: selectedClassId,
+            subject_id: selectedSubjectId,
+            exam_type_id: selectedExamTypeId,
+            entries,
+          }),
+        }).then(async (res) => ({
+          ok: res.ok,
+          kind: "marks" as const,
+          data: await res.json(),
+        }))
+      );
+    }
+
+    if (isClassTeacher) {
+      const remarkEntries = students.map((s) => ({
+        student_id: s.student_id,
+        remark: remarks[s.student_id] ?? "",
+      }));
+      requests.push(
+        fetch("/api/erp/results/remarks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            class_id: selectedClassId,
+            exam_type_id: selectedExamTypeId,
+            entries: remarkEntries,
+          }),
+        }).then(async (res) => ({
+          ok: res.ok,
+          kind: "remarks" as const,
+          data: await res.json(),
+        }))
+      );
+    }
+
     try {
-      const res = await fetch("/api/erp/results/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          class_id: selectedClassId,
-          subject_id: selectedSubjectId,
-          exam_type_id: selectedExamTypeId,
-          entries,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.error || "Failed to save results");
-      } else {
-        toast.success(`Results saved for ${data.count} students`);
+      const results = await Promise.all(requests);
+      for (const r of results) {
+        if (!r.ok) {
+          toast.error(
+            (r.data as { error?: string }).error ||
+              `Failed to save ${r.kind}`
+          );
+        }
       }
+
+      const marksResult = results.find((r) => r.kind === "marks");
+      const remarksResult = results.find((r) => r.kind === "remarks");
+      const parts: string[] = [];
+      if (marksResult?.ok) {
+        parts.push(
+          `Marks saved for ${(marksResult.data as { count?: number }).count ?? entries.length} students`
+        );
+      }
+      if (remarksResult?.ok) {
+        const saved = (remarksResult.data as { saved?: number }).saved ?? 0;
+        const cleared = (remarksResult.data as { cleared?: number }).cleared ?? 0;
+        if (saved + cleared > 0) {
+          parts.push(`Remarks updated for ${saved + cleared} students`);
+        }
+      }
+      if (parts.length > 0) toast.success(parts.join(" · "));
     } catch {
       toast.error("Network error. Please try again.");
     } finally {
@@ -498,13 +522,21 @@ export default function TeacherResultsPage() {
       {/* Marks Entry Table */}
       {selectedClassId && selectedSubjectId && selectedExamTypeId && (
         <Card className="bg-white dark:bg-card rounded-2xl">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-navy-900 dark:text-white">
-              Marks Entry
-              <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
-                (Max: {maxMarks})
-              </span>
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-navy-900 dark:text-white">
+                Marks Entry
+                <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
+                  (Max: {maxMarks})
+                </span>
+              </CardTitle>
+              {isClassTeacher && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  As class teacher, add report-card remarks alongside each
+                  student. Remarks are shared across all subjects for this exam.
+                </p>
+              )}
+            </div>
             <Button
               onClick={handleSave}
               disabled={saving}
@@ -519,7 +551,7 @@ export default function TeacherResultsPage() {
             </Button>
           </CardHeader>
           <CardContent>
-            {loadingStudents ? (
+            {loadingStudents || (isClassTeacher && remarksLoading) ? (
               <div className="flex items-center justify-center py-12">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900 border-t-transparent" />
               </div>
@@ -536,6 +568,11 @@ export default function TeacherResultsPage() {
                       <TableHead>Student Name</TableHead>
                       <TableHead className="w-32">Marks</TableHead>
                       <TableHead className="w-24">Grade</TableHead>
+                      {isClassTeacher && (
+                        <TableHead className="min-w-[260px]">
+                          Class Teacher Remarks
+                        </TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -583,75 +620,27 @@ export default function TeacherResultsPage() {
                               <span className="text-gray-300 dark:text-gray-500">--</span>
                             )}
                           </TableCell>
+                          {isClassTeacher && (
+                            <TableCell>
+                              <textarea
+                                value={remarks[student.student_id] ?? ""}
+                                onChange={(e) =>
+                                  handleRemarkChange(
+                                    student.student_id,
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Optional report-card remark…"
+                                rows={2}
+                                className="w-full min-h-[44px] rounded-lg border border-gray-200 dark:border-border bg-white dark:bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500 resize-y"
+                              />
+                            </TableCell>
+                          )}
                         </TableRow>
                       );
                     })}
                   </TableBody>
                 </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Class Teacher Remarks — only shown when current teacher is the class
-          teacher for the selected class and an exam is chosen. */}
-      {isClassTeacher && selectedClassId && selectedExamTypeId && (
-        <Card className="bg-white dark:bg-card rounded-2xl">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-navy-900 dark:text-white">
-              Class Teacher Remarks
-              <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
-                (Shown on the report card)
-              </span>
-            </CardTitle>
-            <Button
-              onClick={handleSaveRemarks}
-              disabled={remarksSaving || students.length === 0}
-              className="bg-navy-900 text-white hover:bg-navy-900/90"
-            >
-              {remarksSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
-              )}
-              Save Remarks
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {remarksLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-navy-900 dark:text-white" />
-              </div>
-            ) : students.length === 0 ? (
-              <p className="text-center text-gray-400 dark:text-gray-500 py-8 text-sm">
-                Select a class with enrolled students to enter remarks.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {students.map((student) => (
-                  <div
-                    key={student.student_id}
-                    className="flex items-start gap-3 border-b border-gray-100 dark:border-border pb-3 last:border-0"
-                  >
-                    <div className="w-48 shrink-0 pt-2">
-                      <p className="text-sm font-medium text-navy-900 dark:text-white">
-                        {student.full_name}
-                      </p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500">
-                        Roll {student.roll_number ?? "-"}
-                      </p>
-                    </div>
-                    <textarea
-                      value={remarks[student.student_id] ?? ""}
-                      onChange={(e) =>
-                        handleRemarkChange(student.student_id, e.target.value)
-                      }
-                      placeholder="Optional — e.g. Diligent and consistent. Keep it up."
-                      className="flex-1 min-h-[64px] rounded-lg border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
-                    />
-                  </div>
-                ))}
               </div>
             )}
           </CardContent>

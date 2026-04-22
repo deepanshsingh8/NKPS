@@ -365,6 +365,7 @@ export interface FeeStructure {
   academic_year_id: string;
   class_name: string;
   class_level: FeeClassLevel;
+  stream_id: string | null;
   fee_type: string;
   amount: number;
   due_date: string | null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,9 +28,9 @@ import {
 } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Search, CreditCard, Banknote } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
-import type { FeeStructure, FeePayment, Student } from "@/types";
+import type { FeeStructure, FeePayment, Student, Stream } from "@/types";
 
 const CLASS_NAMES = [
   "Nursery",
@@ -50,6 +50,8 @@ const CLASS_NAMES = [
   "XII",
 ];
 
+const STREAM_CLASSES = ["XI", "XII"];
+
 const FEE_TYPES = ["Tuition", "Transport", "Lab", "Annual", "Other"];
 const FREQUENCIES = ["monthly", "quarterly", "annual", "one_time"] as const;
 const PAYMENT_METHODS = [
@@ -59,6 +61,15 @@ const PAYMENT_METHODS = [
   "bank_transfer",
 ] as const;
 
+const EMPTY_STRUCTURE = {
+  class_name: CLASS_NAMES[0],
+  stream_id: "" as string,
+  fee_type: FEE_TYPES[0],
+  amount: "",
+  frequency: "monthly" as (typeof FREQUENCIES)[number],
+  due_date: "",
+};
+
 export default function AdminFeesPage() {
   const supabase = createClient();
 
@@ -66,20 +77,20 @@ export default function AdminFeesPage() {
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
   const [structuresLoading, setStructuresLoading] = useState(true);
   const [classFilter, setClassFilter] = useState("");
-  const [addStructureOpen, setAddStructureOpen] = useState(false);
+  const [streams, setStreams] = useState<Stream[]>([]);
+  const [structureDialogOpen, setStructureDialogOpen] = useState(false);
+  const [structureDialogMode, setStructureDialogMode] = useState<"add" | "edit">("add");
+  const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [structureSubmitting, setStructureSubmitting] = useState(false);
-  const [newStructure, setNewStructure] = useState({
-    class_name: CLASS_NAMES[0],
-    fee_type: FEE_TYPES[0],
-    amount: "",
-    frequency: "monthly" as (typeof FREQUENCIES)[number],
-    due_date: "",
-  });
+  const [structureForm, setStructureForm] = useState(EMPTY_STRUCTURE);
 
   // Payments state
   const [studentSearch, setStudentSearch] = useState("");
   const [studentResults, setStudentResults] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [selectedStudentStreamId, setSelectedStudentStreamId] = useState<
+    string | null
+  >(null);
   const [studentFeeStructures, setStudentFeeStructures] = useState<
     FeeStructure[]
   >([]);
@@ -108,6 +119,15 @@ export default function AdminFeesPage() {
     if (data) setAcademicYearId(data.id);
   }, [supabase]);
 
+  const fetchStreams = useCallback(async () => {
+    const { data } = await supabase
+      .from("streams")
+      .select("*")
+      .eq("is_active", true)
+      .order("sort_order");
+    setStreams((data as Stream[]) ?? []);
+  }, [supabase]);
+
   const fetchFeeStructures = useCallback(async () => {
     let query = supabase
       .from("fee_structures")
@@ -129,11 +149,20 @@ export default function AdminFeesPage() {
 
   useEffect(() => {
     fetchAcademicYear();
-  }, [fetchAcademicYear]);
+    fetchStreams();
+  }, [fetchAcademicYear, fetchStreams]);
 
   useEffect(() => {
     fetchFeeStructures();
   }, [fetchFeeStructures]);
+
+  const streamById = useMemo(() => {
+    const map: Record<string, string> = {};
+    streams.forEach((s) => {
+      map[s.id] = s.code ? `${s.name} (${s.code})` : s.name;
+    });
+    return map;
+  }, [streams]);
 
   // Search students (from students table, not profiles)
   const searchStudents = async (query: string) => {
@@ -160,23 +189,36 @@ export default function AdminFeesPage() {
     setStudentSearch(student.full_name);
     setPaymentsLoading(true);
 
-    // Get enrollment to determine class
+    // Get active enrollment to determine class + stream
     const { data: enrollment } = await supabase
       .from("student_enrollments")
-      .select("class_id, classes(name)")
+      .select("class_id, stream_id, classes(name)")
       .eq("student_id", student.id)
+      .order("enrollment_date", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     const className =
       (enrollment?.classes as unknown as { name: string })?.name ?? "";
+    const streamId = enrollment?.stream_id ?? null;
+    setSelectedStudentStreamId(streamId);
 
-    // Fetch fee structures for student's class
+    // Fetch fee structures for student's class. Filter by stream:
+    //  - rows with stream_id IS NULL always apply
+    //  - rows with matching stream_id apply
     if (className) {
-      const { data: structures } = await supabase
+      let query = supabase
         .from("fee_structures")
         .select("*")
         .eq("class_name", className);
+
+      if (streamId) {
+        query = query.or(`stream_id.is.null,stream_id.eq.${streamId}`);
+      } else {
+        query = query.is("stream_id", null);
+      }
+
+      const { data: structures } = await query;
       setStudentFeeStructures((structures as FeeStructure[]) ?? []);
     } else {
       setStudentFeeStructures([]);
@@ -195,44 +237,78 @@ export default function AdminFeesPage() {
     setPaymentsLoading(false);
   };
 
-  // Add fee structure
-  const handleAddStructure = async () => {
+  const openAddStructure = () => {
+    setStructureDialogMode("add");
+    setEditingStructureId(null);
+    setStructureForm({
+      ...EMPTY_STRUCTURE,
+      class_name: classFilter || CLASS_NAMES[0],
+    });
+    setStructureDialogOpen(true);
+  };
+
+  const openEditStructure = (fs: FeeStructure) => {
+    setStructureDialogMode("edit");
+    setEditingStructureId(fs.id);
+    setStructureForm({
+      class_name: fs.class_name,
+      stream_id: fs.stream_id ?? "",
+      fee_type: fs.fee_type,
+      amount: String(fs.amount),
+      frequency: fs.frequency,
+      due_date: fs.due_date ?? "",
+    });
+    setStructureDialogOpen(true);
+  };
+
+  const supportsStream = STREAM_CLASSES.includes(structureForm.class_name);
+
+  // Save fee structure (add or edit)
+  const handleSaveStructure = async () => {
     if (!academicYearId) {
       toast.error("No current academic year found");
       return;
     }
-    const amount = parseFloat(newStructure.amount);
+    const amount = parseFloat(structureForm.amount);
     if (isNaN(amount) || amount <= 0) {
       toast.error("Please enter a valid amount");
       return;
     }
 
     setStructureSubmitting(true);
-    const result = await adminApi({
-      action: "insert",
-      table: "fee_structures",
-      data: {
-        academic_year_id: academicYearId,
-        class_name: newStructure.class_name,
-        fee_type: newStructure.fee_type,
-        amount,
-        frequency: newStructure.frequency,
-        due_date: newStructure.due_date || null,
-      },
-    });
+
+    const data: Record<string, unknown> = {
+      academic_year_id: academicYearId,
+      class_name: structureForm.class_name,
+      fee_type: structureForm.fee_type,
+      amount,
+      frequency: structureForm.frequency,
+      due_date: structureForm.due_date || null,
+      stream_id: supportsStream ? (structureForm.stream_id || null) : null,
+    };
+
+    const result = editingStructureId
+      ? await adminApi({
+          action: "update",
+          table: "fee_structures",
+          data,
+          match: { column: "id", value: editingStructureId },
+        })
+      : await adminApi({
+          action: "insert",
+          table: "fee_structures",
+          data,
+        });
 
     if (!result.success) {
-      toast.error(`Failed to add fee structure: ${result.error}`);
+      toast.error(
+        `Failed to ${editingStructureId ? "update" : "add"} fee structure: ${result.error}`
+      );
     } else {
-      toast.success("Fee structure added");
-      setAddStructureOpen(false);
-      setNewStructure({
-        class_name: CLASS_NAMES[0],
-        fee_type: FEE_TYPES[0],
-        amount: "",
-        frequency: "monthly",
-        due_date: "",
-      });
+      toast.success(editingStructureId ? "Fee structure updated" : "Fee structure added");
+      setStructureDialogOpen(false);
+      setStructureForm(EMPTY_STRUCTURE);
+      setEditingStructureId(null);
       fetchFeeStructures();
     }
     setStructureSubmitting(false);
@@ -357,7 +433,7 @@ export default function AdminFeesPage() {
                 </div>
                 <Button
                   className="bg-navy-900 hover:bg-navy-800 text-white"
-                  onClick={() => setAddStructureOpen(true)}
+                  onClick={openAddStructure}
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add Fee Structure
@@ -377,11 +453,12 @@ export default function AdminFeesPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Class</TableHead>
+                      <TableHead>Stream</TableHead>
                       <TableHead>Fee Type</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Frequency</TableHead>
                       <TableHead>Due Date</TableHead>
-                      <TableHead className="w-12" />
+                      <TableHead className="w-24 text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -389,6 +466,9 @@ export default function AdminFeesPage() {
                       <TableRow key={fs.id}>
                         <TableCell className="font-medium">
                           {fs.class_name}
+                        </TableCell>
+                        <TableCell className="text-gray-600 dark:text-gray-300">
+                          {fs.stream_id ? streamById[fs.stream_id] ?? "—" : "All streams"}
                         </TableCell>
                         <TableCell>{fs.fee_type}</TableCell>
                         <TableCell>
@@ -402,13 +482,23 @@ export default function AdminFeesPage() {
                           {fs.frequency.replace("_", " ")}
                         </TableCell>
                         <TableCell>{fs.due_date ?? "--"}</TableCell>
-                        <TableCell>
-                          <button
-                            onClick={() => handleDeleteStructure(fs.id)}
-                            className="text-red-500 hover:text-red-700 p-1"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => openEditStructure(fs)}
+                              className="text-blue-500 hover:text-blue-700 p-1"
+                              aria-label="Edit fee structure"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteStructure(fs.id)}
+                              className="text-red-500 hover:text-red-700 p-1"
+                              aria-label="Delete fee structure"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -456,9 +546,16 @@ export default function AdminFeesPage() {
               {selectedStudent && (
                 <>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-heading text-lg font-semibold text-navy-900 dark:text-white">
-                      {selectedStudent.full_name}
-                    </h3>
+                    <div>
+                      <h3 className="font-heading text-lg font-semibold text-navy-900 dark:text-white">
+                        {selectedStudent.full_name}
+                      </h3>
+                      {selectedStudentStreamId && streamById[selectedStudentStreamId] && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          Stream: {streamById[selectedStudentStreamId]}
+                        </p>
+                      )}
+                    </div>
                     <Button
                       className="bg-gold-500 hover:bg-gold-600 text-navy-900"
                       onClick={() => setRecordPaymentOpen(true)}
@@ -492,6 +589,9 @@ export default function AdminFeesPage() {
                             </p>
                             <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">
                               {fs.frequency.replace("_", " ")}
+                              {fs.stream_id && streamById[fs.stream_id]
+                                ? ` • ${streamById[fs.stream_id]}`
+                                : ""}
                             </p>
                           </div>
                         ))}
@@ -562,8 +662,8 @@ export default function AdminFeesPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Add Fee Structure Dialog */}
-      <Dialog open={addStructureOpen} onOpenChange={setAddStructureOpen}>
+      {/* Add/Edit Fee Structure Dialog */}
+      <Dialog open={structureDialogOpen} onOpenChange={setStructureDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <div className="flex items-center gap-3">
@@ -571,8 +671,16 @@ export default function AdminFeesPage() {
                 <CreditCard className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
-                <DialogTitle>Add Fee Structure</DialogTitle>
-                <p className="text-xs text-gray-500 mt-0.5">Define fees for a class</p>
+                <DialogTitle>
+                  {structureDialogMode === "edit"
+                    ? "Edit Fee Structure"
+                    : "Add Fee Structure"}
+                </DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {structureDialogMode === "edit"
+                    ? "Update the fee for this class"
+                    : "Define fees for a class"}
+                </p>
               </div>
             </div>
           </DialogHeader>
@@ -581,9 +689,15 @@ export default function AdminFeesPage() {
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Class</Label>
                 <select
-                  value={newStructure.class_name}
+                  value={structureForm.class_name}
                   onChange={(e) =>
-                    setNewStructure({ ...newStructure, class_name: e.target.value })
+                    setStructureForm({
+                      ...structureForm,
+                      class_name: e.target.value,
+                      stream_id: STREAM_CLASSES.includes(e.target.value)
+                        ? structureForm.stream_id
+                        : "",
+                    })
                   }
                   className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
                 >
@@ -597,9 +711,9 @@ export default function AdminFeesPage() {
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Fee Type</Label>
                 <select
-                  value={newStructure.fee_type}
+                  value={structureForm.fee_type}
                   onChange={(e) =>
-                    setNewStructure({ ...newStructure, fee_type: e.target.value })
+                    setStructureForm({ ...structureForm, fee_type: e.target.value })
                   }
                   className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
                 >
@@ -611,6 +725,29 @@ export default function AdminFeesPage() {
                 </select>
               </div>
             </div>
+            {supportsStream && (
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Stream (optional)</Label>
+                <select
+                  value={structureForm.stream_id}
+                  onChange={(e) =>
+                    setStructureForm({ ...structureForm, stream_id: e.target.value })
+                  }
+                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                >
+                  <option value="">All streams (applies to everyone)</option>
+                  {streams.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                      {s.code ? ` (${s.code})` : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Leave blank to apply the same fee to every stream in this class.
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Amount</Label>
@@ -618,19 +755,19 @@ export default function AdminFeesPage() {
                   className="h-9"
                   type="number"
                   placeholder="Enter amount"
-                  value={newStructure.amount}
+                  value={structureForm.amount}
                   onChange={(e) =>
-                    setNewStructure({ ...newStructure, amount: e.target.value })
+                    setStructureForm({ ...structureForm, amount: e.target.value })
                   }
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Frequency</Label>
                 <select
-                  value={newStructure.frequency}
+                  value={structureForm.frequency}
                   onChange={(e) =>
-                    setNewStructure({
-                      ...newStructure,
+                    setStructureForm({
+                      ...structureForm,
                       frequency: e.target.value as (typeof FREQUENCIES)[number],
                     })
                   }
@@ -649,14 +786,14 @@ export default function AdminFeesPage() {
               <Input
                 className="h-9"
                 type="date"
-                value={newStructure.due_date}
+                value={structureForm.due_date}
                 onChange={(e) =>
-                  setNewStructure({ ...newStructure, due_date: e.target.value })
+                  setStructureForm({ ...structureForm, due_date: e.target.value })
                 }
               />
             </div>
             <Button
-              onClick={handleAddStructure}
+              onClick={handleSaveStructure}
               disabled={structureSubmitting}
               className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white"
             >
@@ -665,6 +802,8 @@ export default function AdminFeesPage() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Saving...
                 </>
+              ) : structureDialogMode === "edit" ? (
+                "Save Changes"
               ) : (
                 "Add Fee Structure"
               )}
@@ -709,6 +848,9 @@ export default function AdminFeesPage() {
                       currency: "INR",
                       maximumFractionDigits: 0,
                     }).format(fs.amount)}
+                    {fs.stream_id && streamById[fs.stream_id]
+                      ? ` (${streamById[fs.stream_id]})`
+                      : ""}
                   </option>
                 ))}
               </select>

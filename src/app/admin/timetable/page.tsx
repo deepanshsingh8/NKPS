@@ -20,9 +20,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Clock } from "lucide-react";
+import { Plus, Trash2, Loader2, Clock, CalendarRange, Info } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName, formatShortDate } from "@/lib/utils";
 import type { Class, Subject, Teacher, TimetablePeriod } from "@/types";
 
 const DAYS = [
@@ -50,6 +50,13 @@ interface PeriodCell extends TimetablePeriod {
   teacher_name?: string;
 }
 
+interface AcademicYearInfo {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+}
+
 export default function AdminTimetablePage() {
   const supabase = createClient();
 
@@ -57,6 +64,7 @@ export default function AdminTimetablePage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [periods, setPeriods] = useState<PeriodCell[]>([]);
+  const [academicYear, setAcademicYear] = useState<AcademicYearInfo | null>(null);
 
   const [selectedClassId, setSelectedClassId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -79,9 +87,13 @@ export default function AdminTimetablePage() {
     async function fetchData() {
       const { data: currentYear } = await supabase
         .from("academic_years")
-        .select("id")
+        .select("id, name, start_date, end_date")
         .eq("is_current", true)
         .single();
+
+      if (currentYear) {
+        setAcademicYear(currentYear as AcademicYearInfo);
+      }
 
       const [classesRes, subjectsRes, teachersRes] = await Promise.all([
         supabase
@@ -289,9 +301,26 @@ export default function AdminTimetablePage() {
 
       {!selectedClassId ? (
         <div className="erp-table-container p-6">
-          <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-            <Clock className="h-10 w-10 mx-auto mb-3 opacity-50" />
-            <p className="text-sm">Select a class to manage its timetable</p>
+          <div className="mx-auto max-w-md text-center py-12">
+            <div className="h-14 w-14 rounded-2xl bg-navy-900/5 dark:bg-white/5 flex items-center justify-center mx-auto mb-4">
+              <Clock className="h-7 w-7 text-navy-900/70 dark:text-white/70" />
+            </div>
+            <h3 className="text-base font-semibold text-navy-900 dark:text-white mb-1">
+              Pick a class to edit its weekly schedule
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Timetables repeat every Monday through Saturday for the entire
+              academic year. Add or update a period once and it applies to every
+              week.
+            </p>
+            {academicYear && (
+              <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 dark:bg-muted px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300">
+                <CalendarRange className="h-3.5 w-3.5" />
+                Academic year {academicYear.name} ·{" "}
+                {formatShortDate(academicYear.start_date)}–
+                {formatShortDate(academicYear.end_date)}
+              </div>
+            )}
           </div>
         </div>
       ) : periodsLoading ? (
@@ -299,7 +328,19 @@ export default function AdminTimetablePage() {
           <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
         </div>
       ) : (
-        <div className="erp-table-container overflow-x-auto">
+        <>
+          {academicYear && (
+            <div className="mb-3 flex items-center gap-2 rounded-lg border border-blue-100 dark:border-blue-900/40 bg-blue-50/60 dark:bg-blue-950/20 px-3 py-2 text-xs text-blue-800 dark:text-blue-300">
+              <Info className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                This schedule applies to every week of{" "}
+                <strong className="font-semibold">{academicYear.name}</strong>{" "}
+                ({formatShortDate(academicYear.start_date)}–
+                {formatShortDate(academicYear.end_date)}) until you change it.
+              </span>
+            </div>
+          )}
+          <div className="erp-table-container overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 dark:bg-muted">
@@ -366,7 +407,8 @@ export default function AdminTimetablePage() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Period Dialog */}

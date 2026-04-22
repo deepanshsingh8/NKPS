@@ -362,16 +362,20 @@ export default function AdminClassesPage() {
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Stream</Label>
                   <Select
-                    value={streamId}
+                    value={streamId || "none"}
+                    items={[
+                      { value: "none", label: "None" },
+                      ...streams.map((s) => ({ value: s.id, label: s.name })),
+                    ]}
                     onValueChange={(val) => setStreamId(!val || val === "none" ? "" : val)}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select stream" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="none" label="None">None</SelectItem>
                       {streams.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
+                        <SelectItem key={s.id} value={s.id} label={s.name}>
                           {s.name}
                         </SelectItem>
                       ))}
@@ -488,16 +492,20 @@ export default function AdminClassesPage() {
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Stream</Label>
                   <Select
-                    value={streamId}
+                    value={streamId || "none"}
+                    items={[
+                      { value: "none", label: "None" },
+                      ...streams.map((s) => ({ value: s.id, label: s.name })),
+                    ]}
                     onValueChange={(val) => setStreamId(!val || val === "none" ? "" : val)}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select stream" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="none" label="None">None</SelectItem>
                       {streams.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
+                        <SelectItem key={s.id} value={s.id} label={s.name}>
                           {s.name}
                         </SelectItem>
                       ))}

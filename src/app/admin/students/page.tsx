@@ -242,22 +242,6 @@ export default function AdminStudentsPage() {
     setSelectedIds(new Set()); // Clear selection on class change
   }, [selectedClassId, fetchStudents]);
 
-  // Auto-refresh: re-fetch when window regains focus and periodically every 30s
-  useEffect(() => {
-    const onFocus = () => {
-      fetchStudents();
-      fetchClasses();
-    };
-    window.addEventListener("focus", onFocus);
-
-    const interval = setInterval(fetchStudents, 30_000);
-
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      clearInterval(interval);
-    };
-  }, [fetchStudents, fetchClasses]);
-
   const filteredStudents = students.filter((s) => {
     if (!search) return true;
     const q = search.toLowerCase();
