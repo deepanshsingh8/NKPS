@@ -471,7 +471,6 @@ export default function AdminArticlesPage() {
                   onCancel={handleCropCancel}
                   fileName={`article-${Date.now()}.jpg`}
                   cropShape="rect"
-                  aspect={16 / 9}
                 />
               ) : (
                 <>

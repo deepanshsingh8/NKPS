@@ -413,7 +413,6 @@ function SlotCard({
               onCancel={handleCropCancel}
               fileName={`${item.slot}-${Date.now()}.jpg`}
               cropShape="rect"
-              aspect={16 / 9}
             />
           )}
         </DialogContent>
@@ -927,7 +926,6 @@ export default function AdminSiteMediaPage() {
                   onCancel={handleCardCropCancel}
                   fileName={`card-${dialogSection}-${Date.now()}.jpg`}
                   cropShape="rect"
-                  aspect={16 / 9}
                 />
               ) : (
                 <>

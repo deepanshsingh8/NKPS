@@ -861,7 +861,6 @@ export default function AdminGalleryPage() {
                       onCancel={handleCropSkip}
                       fileName={`gallery-${Date.now()}-${cropIndex}.jpg`}
                       cropShape="rect"
-                      aspect={16 / 9}
                       onCropAll={cropQueue.length - cropIndex > 1 ? handleCropAll : undefined}
                     />
                     <p className="text-xs text-center text-gray-400">
@@ -1215,7 +1214,6 @@ export default function AdminGalleryPage() {
                       onCancel={handleCropSkip}
                       fileName={`event-${Date.now()}-${cropIndex}.jpg`}
                       cropShape="rect"
-                      aspect={16 / 9}
                       onCropAll={cropQueue.length - cropIndex > 1 ? handleCropAll : undefined}
                     />
                     <p className="text-xs text-center text-gray-400">
