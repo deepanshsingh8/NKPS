@@ -62,14 +62,18 @@ export function FacilitiesPreview({ images, cards }: FacilitiesPreviewProps = {}
           viewport={{ once: true, margin: "-100px" }}
           className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mt-12"
         >
-          {preview.map((facility, index) => {
+          {preview.map((facility) => {
             const Icon = iconMap[facility.icon] || Monitor;
             return (
               <motion.div
                 key={facility.title}
                 variants={fadeUp}
               >
-                <div className="group relative aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer shadow-lg shadow-black/10 hover:shadow-2xl hover:shadow-black/20 transition-shadow duration-700">
+                <Link
+                  href="/facilities"
+                  aria-label={`Learn more about ${facility.title}`}
+                  className="group relative block aspect-[3/4] rounded-3xl overflow-hidden shadow-lg shadow-black/10 hover:shadow-2xl hover:shadow-black/20 transition-shadow duration-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:ring-offset-2"
+                >
                   {/* Background image */}
                   <Image
                     src={facility.image}
@@ -97,7 +101,7 @@ export function FacilitiesPreview({ images, cards }: FacilitiesPreviewProps = {}
                     {/* Gold accent line */}
                     <div className="w-0 h-0.5 bg-gold-400/60 rounded-full mt-3 group-hover:w-12 transition-all duration-500 delay-200" />
                   </div>
-                </div>
+                </Link>
               </motion.div>
             );
           })}

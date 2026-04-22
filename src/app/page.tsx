@@ -9,17 +9,19 @@ import { SectionDivider } from "@/components/shared/SectionDivider";
 import { MarqueeStrip } from "@/components/shared/MarqueeStrip";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { getPageMedia, mediaUrl, getSectionCards } from "@/lib/site-media";
+import { getLatestArticles } from "@/lib/articles";
 
 // ISR: revalidate every 60s, plus on-demand via revalidatePath from admin
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const [media, heroCards, testimonialCards, updateCards, facilityCards] = await Promise.all([
+  const [media, heroCards, testimonialCards, updateCards, facilityCards, latestArticles] = await Promise.all([
     getPageMedia("home"),
     getSectionCards("hero_slider"),
     getSectionCards("testimonials"),
     getSectionCards("latest_updates"),
     getSectionCards("facilities_preview"),
+    getLatestArticles(3),
   ]);
 
   const heroImages = [
@@ -67,7 +69,7 @@ export default async function HomePage() {
 
       <StatsCounter backgroundImage={statsBackground} />
 
-      <LatestUpdates images={updateImages} cards={updateCards} />
+      <LatestUpdates images={updateImages} cards={updateCards} articles={latestArticles} />
 
       <SchoolEvents />
 

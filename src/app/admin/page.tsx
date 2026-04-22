@@ -12,6 +12,7 @@ import {
   Calendar,
   ArrowRight,
   ClipboardCheck,
+  UserCog,
 } from "lucide-react";
 import { adminFetch } from "@/lib/admin-api";
 import { cn } from "@/lib/utils";
@@ -26,7 +27,7 @@ interface Stats {
   unreadCount: number;
   totalUsers: number;
   totalStudents: number;
-  totalTeachers: number;
+  totalStaff: number;
   pendingRegistrations: number;
 }
 
@@ -57,9 +58,9 @@ const statCardConfig = [
     accent: "from-blue-500/10 to-transparent",
   },
   {
-    key: "totalTeachers",
-    label: "Teachers",
-    icon: Users,
+    key: "totalStaff",
+    label: "Staff",
+    icon: UserCog,
     iconBg: "bg-emerald-100 dark:bg-emerald-900/30",
     iconColor: "text-emerald-600",
     accent: "from-emerald-500/10 to-transparent",

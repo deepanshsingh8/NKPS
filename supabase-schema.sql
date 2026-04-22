@@ -1542,3 +1542,48 @@ CREATE POLICY "Admins can insert editor permissions"
 CREATE POLICY "Admins can delete editor permissions"
   ON editor_permissions FOR DELETE
   USING (public.get_user_role() = 'admin');
+
+-- ============================================
+-- ARTIFACTS (long-form news/announcements; surfaced on Latest Updates + own pages)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS articles (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  slug text UNIQUE NOT NULL,
+  title text NOT NULL,
+  excerpt text,
+  content text NOT NULL,
+  cover_image_url text,
+  author_name text,
+  meta_description text,
+  tags text[] DEFAULT '{}',
+  is_published boolean DEFAULT false,
+  published_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(is_published, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_articles_slug ON articles(slug);
+
+ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public can read published articles"
+  ON articles FOR SELECT
+  USING (is_published = true);
+
+CREATE POLICY "Authenticated can read all articles"
+  ON articles FOR SELECT TO authenticated
+  USING (true);
+
+CREATE POLICY "Authenticated can insert articles"
+  ON articles FOR INSERT TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "Authenticated can update articles"
+  ON articles FOR UPDATE TO authenticated
+  USING (true) WITH CHECK (true);
+
+CREATE POLICY "Authenticated can delete articles"
+  ON articles FOR DELETE TO authenticated
+  USING (true);

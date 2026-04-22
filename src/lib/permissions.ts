@@ -11,6 +11,7 @@
 
 export type FeatureKey =
   | "gallery"
+  | "articles"
   | "transfer_certificates"
   | "contact"
   | "site_media"
@@ -39,6 +40,7 @@ export interface FeatureDef {
 
 export const FEATURE_CATALOG: readonly FeatureDef[] = [
   { key: "gallery", label: "Gallery", href: "/admin/gallery", group: "content" },
+  { key: "articles", label: "Articles", href: "/admin/articles", group: "content" },
   { key: "transfer_certificates", label: "Transfer Certificates", href: "/admin/transfer-certificates", group: "content" },
   { key: "contact", label: "Contact Messages", href: "/admin/contact", group: "content" },
   { key: "site_media", label: "Site Media", href: "/admin/site-media", group: "content" },

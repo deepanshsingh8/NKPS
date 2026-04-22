@@ -240,6 +240,81 @@
   .erp-empty-state p, .erp-empty-state span {
     @apply dark:text-gray-400;
   }
+
+  /* ── Article body (markdown-rendered) ── */
+  .article-prose {
+    @apply text-gray-700 leading-relaxed text-base;
+  }
+  .article-prose > * + * {
+    @apply mt-5;
+  }
+  .article-prose h1 {
+    @apply font-heading text-3xl font-bold text-navy-900 mt-10 mb-3 leading-tight;
+  }
+  .article-prose h2 {
+    @apply font-heading text-2xl font-bold text-navy-900 mt-8 mb-3 leading-tight;
+  }
+  .article-prose h3 {
+    @apply font-heading text-xl font-semibold text-navy-900 mt-6 mb-2 leading-snug;
+  }
+  .article-prose h4 {
+    @apply font-heading text-lg font-semibold text-navy-900 mt-5 mb-2;
+  }
+  .article-prose p {
+    @apply text-gray-700 leading-relaxed;
+  }
+  .article-prose a {
+    @apply text-blue-600 underline-offset-2 hover:underline;
+  }
+  .article-prose strong {
+    @apply font-semibold text-navy-900;
+  }
+  .article-prose em {
+    @apply italic;
+  }
+  .article-prose ul {
+    @apply list-disc pl-6 space-y-2;
+  }
+  .article-prose ol {
+    @apply list-decimal pl-6 space-y-2;
+  }
+  .article-prose li {
+    @apply leading-relaxed;
+  }
+  .article-prose blockquote {
+    @apply border-l-4 border-gold-500 pl-4 italic text-gray-600 my-6;
+  }
+  .article-prose code {
+    @apply bg-cream-100 text-navy-900 px-1.5 py-0.5 rounded text-[0.9em] font-mono;
+  }
+  .article-prose pre {
+    @apply bg-navy-900 text-white p-4 rounded-xl overflow-x-auto text-sm;
+  }
+  .article-prose pre code {
+    @apply bg-transparent text-white p-0;
+  }
+  .article-prose img {
+    @apply rounded-xl my-6 w-full;
+  }
+  .article-prose hr {
+    @apply my-8 border-gray-200;
+  }
+  .article-prose table {
+    @apply w-full border-collapse my-6 text-sm;
+  }
+  .article-prose th {
+    @apply text-left font-semibold text-navy-900 border-b-2 border-gray-200 py-2 px-3;
+  }
+  .article-prose td {
+    @apply border-b border-gray-100 py-2 px-3;
+  }
+  .article-prose--sm {
+    @apply text-sm;
+  }
+  .article-prose--sm h1 { @apply text-2xl mt-6; }
+  .article-prose--sm h2 { @apply text-xl mt-5; }
+  .article-prose--sm h3 { @apply text-lg mt-4; }
+  .article-prose--sm > * + * { @apply mt-3; }
 }
 
 /* Smooth scroll for anchor links */

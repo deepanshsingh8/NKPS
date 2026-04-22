@@ -52,9 +52,37 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const { id, src } = await request.json();
+    const body = await request.json();
 
-    // Extract file name from URL for storage deletion
+    // Bulk delete: body.items = [{ id, src }, ...]
+    if (Array.isArray(body.items) && body.items.length > 0) {
+      const items = body.items as { id: string; src: string }[];
+      const fileNames = items.map((item) => {
+        const parts = item.src.split("/");
+        return parts[parts.length - 1];
+      });
+      const ids = items.map((item) => item.id);
+
+      if (fileNames.length > 0) {
+        await admin.storage.from("gallery").remove(fileNames);
+      }
+
+      const { error } = await admin
+        .from("gallery_images")
+        .delete()
+        .in("id", ids);
+
+      if (error) {
+        console.error("Gallery bulk delete DB error:", error);
+        return NextResponse.json({ error: "Failed to delete images" }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, deleted: ids.length });
+    }
+
+    // Single delete
+    const { id, src } = body;
+
     const urlParts = (src as string).split("/");
     const fileName = urlParts[urlParts.length - 1];
 

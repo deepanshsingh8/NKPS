@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Plus,
@@ -36,6 +37,7 @@ import {
   ChevronLeft,
   X,
   Star,
+  Check,
 } from "lucide-react";
 import { adminFetch, adminDelete, adminApi } from "@/lib/admin-api";
 import { uploadToStorage } from "@/lib/supabase/upload";
@@ -199,6 +201,10 @@ export default function AdminGalleryPage() {
   const [eventId, setEventId] = useState("");
   const [files, setFiles] = useState<FileList | null>(null);
 
+  // ── Multi-select for bulk delete ──
+  const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   // ── Events state ──
   const [events, setEvents] = useState<GalleryEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
@@ -317,11 +323,12 @@ export default function AdminGalleryPage() {
 
   const supabase = createClient();
 
-  // ── Fetch images ──
+  // ── Fetch images (standalone only — event photos live in the Events tab) ──
   const fetchImages = useCallback(async () => {
     const { data, error } = await supabase
       .from("gallery_images")
       .select("*")
+      .is("gallery_event_id", null)
       .order("sort_order", { ascending: true });
 
     if (error) {
@@ -452,6 +459,55 @@ export default function AdminGalleryPage() {
       fetchImages();
     } catch {
       toast.error("An unexpected error occurred");
+    }
+  };
+
+  // ── Selection helpers ──
+  const toggleImageSelection = (id: string) => {
+    setSelectedImageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllImages = () => {
+    if (selectedImageIds.size === images.length) {
+      setSelectedImageIds(new Set());
+    } else {
+      setSelectedImageIds(new Set(images.map((img) => img.id)));
+    }
+  };
+
+  const clearImageSelection = () => setSelectedImageIds(new Set());
+
+  const handleBulkImageDelete = async () => {
+    if (selectedImageIds.size === 0) return;
+    const count = selectedImageIds.size;
+    if (!confirm(`Delete ${count} image${count === 1 ? "" : "s"}? This cannot be undone.`)) return;
+
+    setBulkDeleting(true);
+    try {
+      const items = images
+        .filter((img) => selectedImageIds.has(img.id))
+        .map((img) => ({ id: img.id, src: img.src }));
+
+      const res = await adminDelete("/api/gallery", { items });
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Bulk delete failed");
+        return;
+      }
+
+      toast.success(`Deleted ${count} image${count === 1 ? "" : "s"}`);
+      clearImageSelection();
+      fetchImages();
+    } catch {
+      toast.error("An unexpected error occurred");
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -751,7 +807,10 @@ export default function AdminGalleryPage() {
           By Category
         </button>
         <button
-          onClick={() => setTab("events")}
+          onClick={() => {
+            setTab("events");
+            clearImageSelection();
+          }}
           className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
             tab === "events"
@@ -894,6 +953,49 @@ export default function AdminGalleryPage() {
             </DialogContent>
           </Dialog>
 
+          {/* Selection toolbar */}
+          {!imagesLoading && images.length > 0 && (
+            <div className="flex items-center justify-between mb-4 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer text-gray-600 dark:text-gray-300 select-none">
+                <Checkbox
+                  checked={selectedImageIds.size === images.length && images.length > 0}
+                  onCheckedChange={toggleSelectAllImages}
+                />
+                <span>
+                  {selectedImageIds.size > 0
+                    ? `${selectedImageIds.size} selected`
+                    : `Select all (${images.length})`}
+                </span>
+              </label>
+              {selectedImageIds.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={clearImageSelection}
+                    disabled={bulkDeleting}
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={handleBulkImageDelete}
+                    disabled={bulkDeleting}
+                    className="gap-1.5"
+                  >
+                    {bulkDeleting ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                    Delete {selectedImageIds.size}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Images Grid */}
           {imagesLoading ? (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-3">
@@ -917,38 +1019,67 @@ export default function AdminGalleryPage() {
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-3">
-              {images.map((image) => (
-                <div
-                  key={image.id}
-                  className="relative group bg-white dark:bg-card rounded-lg overflow-hidden shadow-sm border border-gray-200 dark:border-border"
-                >
-                  <div className="aspect-square bg-navy-100 flex items-center justify-center relative">
-                    {image.src ? (
-                      <Image
-                        src={image.src}
-                        alt={image.alt}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 50vw, 20vw"
-                      />
-                    ) : (
-                      <span className="text-gray-400 dark:text-gray-500 text-[10px]">{image.alt}</span>
+              {images.map((image) => {
+                const isSelected = selectedImageIds.has(image.id);
+                return (
+                  <div
+                    key={image.id}
+                    onClick={() => toggleImageSelection(image.id)}
+                    className={cn(
+                      "relative group bg-white dark:bg-card rounded-lg overflow-hidden shadow-sm border cursor-pointer transition-all",
+                      isSelected
+                        ? "border-blue-500 ring-2 ring-blue-500/40"
+                        : "border-gray-200 dark:border-border hover:border-gray-300"
+                    )}
+                  >
+                    <div className="aspect-square bg-navy-100 flex items-center justify-center relative">
+                      {image.src ? (
+                        <Image
+                          src={image.src}
+                          alt={image.alt}
+                          fill
+                          className={cn(
+                            "object-cover transition-opacity",
+                            isSelected && "opacity-80"
+                          )}
+                          sizes="(max-width: 768px) 50vw, 20vw"
+                        />
+                      ) : (
+                        <span className="text-gray-400 dark:text-gray-500 text-[10px]">{image.alt}</span>
+                      )}
+                    </div>
+                    <div className="p-1.5">
+                      <p className="text-[10px] font-medium truncate">{image.alt}</p>
+                      <span className="text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 px-1 py-0.5 rounded-full">
+                        {image.category}
+                      </span>
+                    </div>
+                    {/* Selection indicator (top-left) */}
+                    <div
+                      className={cn(
+                        "absolute top-1 left-1 h-5 w-5 rounded-md border-2 flex items-center justify-center transition-all shadow-sm",
+                        isSelected
+                          ? "bg-blue-500 border-blue-500 text-white"
+                          : "bg-white/80 dark:bg-black/50 border-white/90 text-transparent opacity-0 group-hover:opacity-100"
+                      )}
+                    >
+                      <Check className="h-3 w-3" strokeWidth={3} />
+                    </div>
+                    {/* Delete button (top-right) — hidden while selecting to avoid confusion */}
+                    {selectedImageIds.size === 0 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleImageDelete(image);
+                        }}
+                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
                     )}
                   </div>
-                  <div className="p-1.5">
-                    <p className="text-[10px] font-medium truncate">{image.alt}</p>
-                    <span className="text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 px-1 py-0.5 rounded-full">
-                      {image.category}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleImageDelete(image)}
-                    className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>

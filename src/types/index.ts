@@ -103,6 +103,22 @@ export interface ContactSubmission {
   created_at: string;
 }
 
+export interface Article {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  content: string;
+  cover_image_url: string | null;
+  author_name: string | null;
+  meta_description: string | null;
+  tags: string[];
+  is_published: boolean;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // =============================================================
 // ERP System Types
 // =============================================================

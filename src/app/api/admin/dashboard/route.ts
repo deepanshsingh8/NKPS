@@ -9,7 +9,7 @@ export async function GET() {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [galleryRes, tcRes, unreadRes, studentsRes, teachersRes, eventsRes, pendingRegsRes, profilesRes] =
+  const [galleryRes, tcRes, unreadRes, studentsRes, staffRes, eventsRes, pendingRegsRes, profilesRes] =
     await Promise.all([
       admin
         .from("gallery_images")
@@ -26,8 +26,9 @@ export async function GET() {
         .select("*", { count: "exact", head: true })
         .eq("is_active", true),
       admin
-        .from("teachers")
-        .select("*", { count: "exact", head: true }),
+        .from("staff_members")
+        .select("*", { count: "exact", head: true })
+        .eq("is_active", true),
       admin
         .from("calendar_events")
         .select("id, title, description, event_type, start_date, end_date")
@@ -52,7 +53,7 @@ export async function GET() {
       unreadCount: unreadRes.count ?? 0,
       totalUsers,
       totalStudents: studentsRes.count ?? 0,
-      totalTeachers: teachersRes.count ?? 0,
+      totalStaff: staffRes.count ?? 0,
       pendingRegistrations: pendingRegsRes.count ?? 0,
     },
     upcomingEvents: eventsRes.data ?? [],

@@ -159,6 +159,7 @@ export default function GalleryPage() {
       const { data } = await supabase
         .from("gallery_images")
         .select("id, src, alt, category")
+        .is("gallery_event_id", null)
         .order("sort_order", { ascending: true });
 
       if (data) {
