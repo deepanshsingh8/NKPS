@@ -1,8 +1,19 @@
 import type { Metadata } from "next";
 import { SCHOOL } from "@/lib/constants";
 
-export const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://www.nkpublicschool.com";
+const DEFAULT_SITE_URL = "https://www.nkpublicschool.com";
+
+function normalizeSiteUrl(raw: string | undefined): string {
+  if (!raw || !raw.trim()) return DEFAULT_SITE_URL;
+  const trimmed = raw.trim();
+  const withProtocol =
+    trimmed.startsWith("http://") || trimmed.startsWith("https://")
+      ? trimmed
+      : `https://${trimmed}`;
+  return withProtocol.replace(/\/+$/, "");
+}
+
+export const SITE_URL = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
 
 const DEFAULT_OG_IMAGE = `${SITE_URL}/opengraph-image`;
 
