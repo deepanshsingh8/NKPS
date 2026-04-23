@@ -29,6 +29,15 @@ export interface TransferCertificate {
   academic_year: string;
   upload_date: string;
   created_at: string;
+  student_id: string | null;
+  tc_number: string | null;
+  issue_date: string | null;
+  last_attended_date: string | null;
+  reason_for_leaving: string | null;
+  conduct: string | null;
+  class_last_attended: string | null;
+  remarks: string | null;
+  is_generated: boolean;
 }
 
 export interface SiteMedia {
@@ -303,6 +312,7 @@ export interface StudentEnrollment {
   roll_number: number | null;
   enrollment_date: string;
   status: EnrollmentStatus;
+  has_transport: boolean;
   created_at: string;
   updated_at: string;
 }

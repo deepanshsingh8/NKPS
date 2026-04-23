@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { adminFetch } from "@/lib/admin-api";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,8 @@ import {
   Download,
   ChevronDown,
   UserPlus,
+  FileSignature,
+  Receipt,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -138,6 +141,18 @@ export default function AdminStudentsPage() {
     warnings: string[];
   } | null>(null);
 
+  // Generate TC dialog
+  const [generateTcOpen, setGenerateTcOpen] = useState(false);
+  const [tcTargetStudent, setTcTargetStudent] = useState<StudentRow | null>(null);
+  const [tcSubmitting, setTcSubmitting] = useState(false);
+  const [tcForm, setTcForm] = useState({
+    reason_for_leaving: "",
+    last_attended_date: new Date().toISOString().split("T")[0],
+    conduct: "Good",
+    remarks: "",
+    issue_date: new Date().toISOString().split("T")[0],
+  });
+
   // Form state
   const [editingStudent, setEditingStudent] = useState<StudentRow | null>(null);
   const [formData, setFormData] = useState({
@@ -160,6 +175,7 @@ export default function AdminStudentsPage() {
   });
 
   const supabase = createClient();
+  const router = useRouter();
 
   const fetchClasses = useCallback(async () => {
     // Fetch classes for the current academic year
@@ -441,6 +457,68 @@ export default function AdminStudentsPage() {
 
   const updateField = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Open Generate TC dialog for a student
+  const openGenerateTcDialog = (student: StudentRow) => {
+    setTcTargetStudent(student);
+    const today = new Date().toISOString().split("T")[0];
+    setTcForm({
+      reason_for_leaving: "",
+      last_attended_date: today,
+      conduct: "Good",
+      remarks: "",
+      issue_date: today,
+    });
+    setGenerateTcOpen(true);
+  };
+
+  const handleGenerateTc = async () => {
+    if (!tcTargetStudent) return;
+    const reason = tcForm.reason_for_leaving.trim();
+    if (!reason) {
+      toast.error("Reason for leaving is required");
+      return;
+    }
+    if (!tcForm.last_attended_date) {
+      toast.error("Last attended date is required");
+      return;
+    }
+
+    setTcSubmitting(true);
+    try {
+      const res = await adminFetch(
+        "/api/erp/transfer-certificates/generate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            student_id: tcTargetStudent.id,
+            reason_for_leaving: reason,
+            last_attended_date: tcForm.last_attended_date,
+            conduct: tcForm.conduct || "Good",
+            remarks: tcForm.remarks.trim() || undefined,
+            issue_date: tcForm.issue_date || undefined,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to generate TC");
+        return;
+      }
+      toast.success(`TC generated (${data.tc?.tc_number ?? "saved"})`);
+      if (data.file_url) {
+        window.open(data.file_url, "_blank", "noopener");
+      }
+      setGenerateTcOpen(false);
+      setTcTargetStudent(null);
+      await fetchStudents();
+    } catch {
+      toast.error("Failed to generate TC");
+    } finally {
+      setTcSubmitting(false);
+    }
   };
 
   // Status update for a single student
@@ -1168,20 +1246,47 @@ export default function AdminStudentsPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => openEditDialog(student)}
                           className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                          title="Edit student"
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          onClick={() =>
+                            router.push(`/admin/fees?student_id=${student.id}`)
+                          }
+                          className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                          title="View fees / record payment"
+                        >
+                          <Receipt className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => openGenerateTcDialog(student)}
+                          disabled={!student.is_active}
+                          className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 disabled:opacity-40"
+                          title={
+                            student.is_active
+                              ? "Generate Transfer Certificate"
+                              : "TC already issued / student inactive"
+                          }
+                        >
+                          <FileSignature className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={() => handleDelete(student)}
                           className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                          title="Delete student"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1385,6 +1490,140 @@ export default function AdminStudentsPage() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate TC Dialog */}
+      <Dialog open={generateTcOpen} onOpenChange={setGenerateTcOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
+                <FileSignature className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <DialogTitle>Generate Transfer Certificate</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {tcTargetStudent
+                    ? `For ${tcTargetStudent.full_name} (${tcTargetStudent.admission_no})`
+                    : ""}
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-3 text-xs text-amber-800 dark:text-amber-300">
+              A PDF TC will be generated, uploaded to the public Transfer
+              Certificates page, and this student&apos;s record will be closed
+              (marked inactive &amp; enrollment terminated).
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Issue Date *</Label>
+                <Input
+                  type="date"
+                  value={tcForm.issue_date}
+                  onChange={(e) =>
+                    setTcForm({ ...tcForm, issue_date: e.target.value })
+                  }
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Last Attended Date *</Label>
+                <Input
+                  type="date"
+                  value={tcForm.last_attended_date}
+                  onChange={(e) =>
+                    setTcForm({ ...tcForm, last_attended_date: e.target.value })
+                  }
+                  className="h-9"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Reason for Leaving *</Label>
+              <Input
+                placeholder="e.g. Family relocation"
+                value={tcForm.reason_for_leaving}
+                onChange={(e) =>
+                  setTcForm({ ...tcForm, reason_for_leaving: e.target.value })
+                }
+                className="h-9"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Conduct</Label>
+              <Select
+                value={tcForm.conduct}
+                onValueChange={(val) =>
+                  setTcForm({ ...tcForm, conduct: val || "Good" })
+                }
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select conduct" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[
+                    "Excellent",
+                    "Very Good",
+                    "Good",
+                    "Satisfactory",
+                    "Needs Improvement",
+                  ].map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">
+                Remarks (optional)
+              </Label>
+              <Input
+                placeholder="Any additional remarks to be printed on the TC"
+                value={tcForm.remarks}
+                onChange={(e) =>
+                  setTcForm({ ...tcForm, remarks: e.target.value })
+                }
+                className="h-9"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setGenerateTcOpen(false)}
+              disabled={tcSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleGenerateTc}
+              disabled={tcSubmitting}
+              className="bg-navy-900 hover:bg-navy-800 text-white"
+            >
+              {tcSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <FileSignature className="h-4 w-4 mr-2" />
+                  Generate &amp; Publish TC
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

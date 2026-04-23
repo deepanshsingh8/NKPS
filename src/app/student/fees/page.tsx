@@ -17,7 +17,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CreditCard, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CreditCard, CheckCircle, AlertCircle, Loader2, Download } from "lucide-react";
 import type { FeeStructure, FeePayment } from "@/types";
 
 const formatCurrency = (amount: number) =>
@@ -234,6 +235,7 @@ export default function StudentFeesPage() {
                   <TableHead>Type</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Receipt</TableHead>
+                  <TableHead className="text-right">Download</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -246,6 +248,22 @@ export default function StudentFeesPage() {
                     <TableCell>{formatCurrency(p.amount_paid)}</TableCell>
                     <TableCell className="font-mono text-xs">
                       {p.receipt_number ?? "--"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() =>
+                          window.open(
+                            `/api/erp/fees/receipt?payment_id=${p.id}`,
+                            "_blank",
+                            "noopener"
+                          )
+                        }
+                        title="Download fee receipt"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

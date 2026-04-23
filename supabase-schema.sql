@@ -31,11 +31,22 @@ CREATE TABLE IF NOT EXISTS transfer_certificates (
   file_url text NOT NULL,
   academic_year text NOT NULL,
   upload_date date DEFAULT current_date,
-  created_at timestamptz DEFAULT now()
+  created_at timestamptz DEFAULT now(),
+  student_id uuid REFERENCES students(id) ON DELETE SET NULL,
+  tc_number text,
+  issue_date date,
+  last_attended_date date,
+  reason_for_leaving text,
+  conduct text,
+  class_last_attended text,
+  remarks text,
+  is_generated boolean NOT NULL DEFAULT false
 );
 
 CREATE INDEX IF NOT EXISTS idx_tc_admission_no ON transfer_certificates(admission_no);
 CREATE INDEX IF NOT EXISTS idx_tc_student_name ON transfer_certificates(student_name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tc_tc_number ON transfer_certificates(tc_number) WHERE tc_number IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_tc_student_id ON transfer_certificates(student_id);
 
 -- Contact Submissions
 CREATE TABLE IF NOT EXISTS contact_submissions (
@@ -385,6 +396,7 @@ CREATE TABLE student_enrollments (
   enrollment_date date DEFAULT CURRENT_DATE,
   status text NOT NULL DEFAULT 'active'
     CHECK (status IN ('active', 'passed', 'failed', 'terminated', 'exited')),
+  has_transport boolean NOT NULL DEFAULT false,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   UNIQUE(student_id, class_id)
