@@ -1094,9 +1094,21 @@ export default function AdminStudentsPage() {
                     <TableCell>{student.full_name}</TableCell>
                     {!selectedClassId && (
                       <TableCell className="text-gray-600 dark:text-gray-300">
-                        {student.class_name
-                          ? `${student.class_name}-${student.class_section ?? ""}`
-                          : "\u2014"}
+                        {student.class_name ? (
+                          <span>
+                            {student.class_name}
+                            {student.class_section ? `-${student.class_section}` : ""}
+                          </span>
+                        ) : (
+                          <Badge
+                            variant="secondary"
+                            className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-950/50"
+                            onClick={() => openEditDialog(student)}
+                            title="Click to assign a class"
+                          >
+                            Unassigned
+                          </Badge>
+                        )}
                       </TableCell>
                     )}
                     <TableCell className="text-gray-600 dark:text-gray-300">

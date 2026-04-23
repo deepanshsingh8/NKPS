@@ -28,15 +28,31 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ data: [] });
       }
 
-      // Fetch enrollments with class info for all students
+      // Fetch enrollments with class info for all students.
+      // Ordering: status 'active' sorts alphabetically first, then newest first by
+      // created_at — so the first match per student is the most relevant enrollment.
       const { data: enrollments } = await admin
         .from("student_enrollments")
-        .select("student_id, roll_number, id, class_id, stream_id, status, classes(name, section)")
-        .in("student_id", allStudents.map((s) => s.id));
+        .select("student_id, roll_number, id, class_id, stream_id, status, created_at, classes(name, section)")
+        .in("student_id", allStudents.map((s) => s.id))
+        .order("status", { ascending: true })
+        .order("created_at", { ascending: false });
+
+      const byStudent = new Map<string, (typeof enrollments extends (infer U)[] | null ? U : never)>();
+      for (const e of enrollments ?? []) {
+        if (!byStudent.has(e.student_id)) byStudent.set(e.student_id, e);
+      }
 
       const merged = allStudents.map((s) => {
-        const enrollment = (enrollments ?? []).find((e) => e.student_id === s.id);
-        const cls = enrollment?.classes as unknown as { name: string; section: string } | null;
+        const enrollment = byStudent.get(s.id);
+        // Supabase returns nested relations as object or array depending on FK
+        // inference — handle both shapes.
+        const rawCls = enrollment?.classes as
+          | { name: string; section: string }
+          | { name: string; section: string }[]
+          | null
+          | undefined;
+        const cls = Array.isArray(rawCls) ? (rawCls[0] ?? null) : (rawCls ?? null);
         return {
           ...s,
           roll_number: enrollment?.roll_number ?? null,
