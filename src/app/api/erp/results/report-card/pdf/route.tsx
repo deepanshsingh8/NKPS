@@ -5,7 +5,7 @@ import path from "path";
 import { createClient } from "@/lib/supabase/server";
 import { canViewReportCard, getReportCardData } from "@/lib/report-card";
 import { ReportCardPDF } from "@/components/pdf/ReportCardPDF";
-import { SCHOOL } from "@/lib/constants";
+import { getPdfTemplate } from "@/lib/pdf-templates";
 
 export const runtime = "nodejs";
 
@@ -75,19 +75,22 @@ export async function GET(request: Request) {
 
     const logoData = await loadLogo();
 
+    const { header, footer } = await getPdfTemplate(supabase, "report_card");
+
     const buffer = await renderToBuffer(
       <ReportCardPDF
         school={{
-          name: SCHOOL.name,
-          addressLine: SCHOOL.address.full,
-          affiliation: SCHOOL.affiliation,
-          affiliationNumber: SCHOOL.affiliationNumber,
+          name: header.school_name,
+          addressLine: header.address_line,
+          affiliation: header.affiliation ?? "",
+          affiliationNumber: header.affiliation_number ?? "",
         }}
         student={data.student}
         exam={exam}
         attendance={data.attendance}
         logoData={logoData ?? undefined}
         generatedOn={generatedOn}
+        footer={footer}
       />
     );
 

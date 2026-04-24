@@ -423,8 +423,15 @@ CREATE TABLE exam_types (
   max_marks integer NOT NULL DEFAULT 100,
   weightage numeric(5,2),
   sort_order integer DEFAULT 0,
+  kind text NOT NULL DEFAULT 'term_exam' CHECK (kind IN ('term_exam', 'class_test', 'practical')),
+  upper_header text,
+  class_level text NOT NULL DEFAULT 'all'
+    CHECK (class_level IN ('all', 'nursery_ukg', 'i_v', 'vi_viii', 'ix_x', 'xi_xii')),
   UNIQUE(name, academic_year_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_exam_types_year_level
+  ON exam_types(academic_year_id, class_level);
 
 -- 2o. Results
 CREATE TABLE results (
@@ -1812,6 +1819,273 @@ CREATE POLICY "Authenticated can read class_grade_scales"
 DROP POLICY IF EXISTS "Admins can manage class_grade_scales" ON class_grade_scales;
 CREATE POLICY "Admins can manage class_grade_scales"
   ON class_grade_scales FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+-- ============================================
+-- CLASS EXAM CONFIGS (per-class weightage / applicability / max-marks override)
+-- Final result composition reads from here; absence of a row = exam applies
+-- to the class with the defaults defined on exam_types.
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS class_exam_configs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  exam_type_id uuid NOT NULL REFERENCES exam_types(id) ON DELETE CASCADE,
+  is_applicable boolean NOT NULL DEFAULT true,
+  weightage numeric(5,2),
+  max_marks_override numeric(5,2),
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT class_exam_configs_unique UNIQUE (class_id, exam_type_id),
+  CONSTRAINT class_exam_configs_weightage_range
+    CHECK (weightage IS NULL OR (weightage >= 0 AND weightage <= 100)),
+  CONSTRAINT class_exam_configs_max_marks_positive
+    CHECK (max_marks_override IS NULL OR max_marks_override > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_class_exam_configs_class ON class_exam_configs(class_id);
+CREATE INDEX IF NOT EXISTS idx_class_exam_configs_exam ON class_exam_configs(exam_type_id);
+
+ALTER TABLE class_exam_configs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated can read class_exam_configs" ON class_exam_configs;
+CREATE POLICY "Authenticated can read class_exam_configs"
+  ON class_exam_configs FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage class_exam_configs" ON class_exam_configs;
+CREATE POLICY "Admins can manage class_exam_configs"
+  ON class_exam_configs FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+-- ============================================
+-- PDF TEMPLATE CONFIGS (per-template header/footer content for report cards,
+-- admit cards, etc. — admin-editable; fallback to SCHOOL constants if a row
+-- for the requested template_key is missing)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS pdf_header_configs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  template_key text NOT NULL UNIQUE,
+  school_name text NOT NULL,
+  address_line text NOT NULL,
+  affiliation text,
+  affiliation_number text,
+  logo_url text,
+  motto text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS pdf_footer_configs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  template_key text NOT NULL UNIQUE,
+  disclaimer_text text,
+  show_signatures boolean NOT NULL DEFAULT true,
+  signature_labels jsonb NOT NULL DEFAULT '["Class Teacher","Principal"]'::jsonb,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE pdf_header_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pdf_footer_configs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated can read pdf_header_configs" ON pdf_header_configs;
+CREATE POLICY "Authenticated can read pdf_header_configs"
+  ON pdf_header_configs FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage pdf_header_configs" ON pdf_header_configs;
+CREATE POLICY "Admins can manage pdf_header_configs"
+  ON pdf_header_configs FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Authenticated can read pdf_footer_configs" ON pdf_footer_configs;
+CREATE POLICY "Authenticated can read pdf_footer_configs"
+  ON pdf_footer_configs FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage pdf_footer_configs" ON pdf_footer_configs;
+CREATE POLICY "Admins can manage pdf_footer_configs"
+  ON pdf_footer_configs FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+-- ============================================
+-- NON-SCHOLASTIC MASTERS (co-scholastic subject + sub-subject taxonomy)
+-- Teachers grade students on these alongside academic subjects; entry grid
+-- is built in Phase 2.
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS non_scholastic_subjects (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name text NOT NULL UNIQUE,
+  sort_order integer NOT NULL DEFAULT 0,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS non_scholastic_sub_subjects (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  parent_subject_id uuid NOT NULL REFERENCES non_scholastic_subjects(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  grade_scale_id uuid REFERENCES grade_scales(id) ON DELETE SET NULL,
+  sort_order integer NOT NULL DEFAULT 0,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT non_scholastic_sub_subjects_parent_name_unique UNIQUE (parent_subject_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_non_scholastic_sub_subjects_parent
+  ON non_scholastic_sub_subjects(parent_subject_id);
+CREATE INDEX IF NOT EXISTS idx_non_scholastic_sub_subjects_scale
+  ON non_scholastic_sub_subjects(grade_scale_id);
+
+ALTER TABLE non_scholastic_subjects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE non_scholastic_sub_subjects ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated can read non_scholastic_subjects" ON non_scholastic_subjects;
+CREATE POLICY "Authenticated can read non_scholastic_subjects"
+  ON non_scholastic_subjects FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage non_scholastic_subjects" ON non_scholastic_subjects;
+CREATE POLICY "Admins can manage non_scholastic_subjects"
+  ON non_scholastic_subjects FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Authenticated can read non_scholastic_sub_subjects" ON non_scholastic_sub_subjects;
+CREATE POLICY "Authenticated can read non_scholastic_sub_subjects"
+  ON non_scholastic_sub_subjects FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage non_scholastic_sub_subjects" ON non_scholastic_sub_subjects;
+CREATE POLICY "Admins can manage non_scholastic_sub_subjects"
+  ON non_scholastic_sub_subjects FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+-- ============================================
+-- EXAM SCHEDULES (subject × class × date × time × room per exam type)
+-- Distinct from timetable_periods which models regular daily class periods.
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS exam_schedules (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  exam_type_id uuid NOT NULL REFERENCES exam_types(id) ON DELETE CASCADE,
+  class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  subject_id uuid NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  exam_date date NOT NULL,
+  start_time time,
+  end_time time,
+  room text,
+  invigilator_teacher_id uuid REFERENCES teachers(id) ON DELETE SET NULL,
+  sort_order integer NOT NULL DEFAULT 0,
+  notes text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT exam_schedules_unique UNIQUE (exam_type_id, class_id, subject_id),
+  CONSTRAINT exam_schedules_time_order CHECK (
+    start_time IS NULL OR end_time IS NULL OR start_time < end_time
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_schedules_exam_class ON exam_schedules(exam_type_id, class_id);
+CREATE INDEX IF NOT EXISTS idx_exam_schedules_date ON exam_schedules(exam_date);
+
+ALTER TABLE exam_schedules ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated can read exam_schedules" ON exam_schedules;
+CREATE POLICY "Authenticated can read exam_schedules"
+  ON exam_schedules FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage exam_schedules" ON exam_schedules;
+CREATE POLICY "Admins can manage exam_schedules"
+  ON exam_schedules FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+-- ============================================
+-- ADMIT CARD TEMPLATES (reusable PDF layouts for admit card generation)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS admit_card_templates (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name text NOT NULL UNIQUE,
+  is_default boolean NOT NULL DEFAULT false,
+  orientation text NOT NULL DEFAULT 'portrait'
+    CHECK (orientation IN ('portrait', 'landscape')),
+  background_image_url text,
+  show_photo boolean NOT NULL DEFAULT true,
+  show_admission_no boolean NOT NULL DEFAULT true,
+  show_roll_no boolean NOT NULL DEFAULT true,
+  show_class_section boolean NOT NULL DEFAULT true,
+  show_father_name boolean NOT NULL DEFAULT true,
+  show_mother_name boolean NOT NULL DEFAULT false,
+  show_dob boolean NOT NULL DEFAULT true,
+  show_phone boolean NOT NULL DEFAULT false,
+  show_address boolean NOT NULL DEFAULT false,
+  show_schedule boolean NOT NULL DEFAULT true,
+  show_instructions boolean NOT NULL DEFAULT true,
+  instructions_text text,
+  signature_labels jsonb NOT NULL DEFAULT '["Principal","Exam Controller"]'::jsonb,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_admit_card_templates_one_default
+  ON admit_card_templates(is_default)
+  WHERE is_default = true;
+
+ALTER TABLE admit_card_templates ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated can read admit_card_templates" ON admit_card_templates;
+CREATE POLICY "Authenticated can read admit_card_templates"
+  ON admit_card_templates FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage admit_card_templates" ON admit_card_templates;
+CREATE POLICY "Admins can manage admit_card_templates"
+  ON admit_card_templates FOR ALL
   USING (
     EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
   )

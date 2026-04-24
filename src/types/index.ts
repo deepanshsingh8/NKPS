@@ -338,6 +338,15 @@ export interface Attendance {
 // Exams & Results
 // =============================================================
 
+export type ExamKind = "term_exam" | "class_test" | "practical";
+export type ExamClassLevel =
+  | "all"
+  | "nursery_ukg"
+  | "i_v"
+  | "vi_viii"
+  | "ix_x"
+  | "xi_xii";
+
 export interface ExamType {
   id: string;
   name: string;
@@ -345,6 +354,9 @@ export interface ExamType {
   max_marks: number;
   weightage: number | null;
   sort_order: number;
+  kind: ExamKind;
+  upper_header: string | null;
+  class_level: ExamClassLevel;
 }
 
 export interface Result {

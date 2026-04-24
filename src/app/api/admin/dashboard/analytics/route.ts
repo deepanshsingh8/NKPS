@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@/lib/verify-admin";
+import { resolveEffectiveFeeStructures, sumAnnualized } from "@/lib/fees";
+import type { FeeStructure } from "@/types";
 
 export async function GET() {
   const admin = await verifyAdminOrEditor();
@@ -47,20 +49,27 @@ export async function GET() {
             .eq("fee_structures.academic_year_id", currentYearId)
         : Promise.resolve({ data: null }),
 
-      // Fee structures for current academic year (to calculate expected total)
+      // Active fee structures for current academic year (to calculate expected total)
       currentYearId
         ? admin
             .from("fee_structures")
-            .select("amount, class_name")
+            .select(
+              "id, academic_year_id, class_name, class_level, stream_id, fee_type, amount, due_date, frequency, is_active, description, created_at, updated_at"
+            )
             .eq("academic_year_id", currentYearId)
+            .eq("is_active", true)
         : Promise.resolve({ data: null }),
 
-      // Enrollment by class for current academic year
+      // Active enrollments for current academic year (with stream + transport flags
+      // so we can resolve each student's effective fees)
       currentYearId
         ? admin
             .from("student_enrollments")
-            .select("class_id, classes!inner(name, section, academic_year_id)")
+            .select(
+              "class_id, stream_id, has_transport, status, classes!inner(name, section, academic_year_id)"
+            )
             .eq("classes.academic_year_id", currentYearId)
+            .eq("status", "active")
         : Promise.resolve({ data: null }),
 
       // Students created in last 6 months
@@ -94,10 +103,40 @@ export async function GET() {
   const payments = (feePaymentsRes.data ?? []) as { amount_paid: number }[];
   const collected = payments.reduce((sum, p) => sum + Number(p.amount_paid), 0);
 
-  // Count active students per class for expected calculation
-  const structures = (feeStructuresRes.data ?? []) as { amount: number; class_name: string }[];
-  // Simple estimation: sum of all fee structure amounts (per student cost)
-  const totalExpected = structures.reduce((sum, s) => sum + Number(s.amount), 0);
+  // Enrollments shape (shared with enrollment-by-class below)
+  const enrollments = (enrollmentRes.data ?? []) as unknown as {
+    class_id: string;
+    stream_id: string | null;
+    has_transport: boolean | null;
+    classes:
+      | { name: string; section: string }
+      | { name: string; section: string }[]
+      | null;
+  }[];
+
+  // Expected total = sum over each active student of their annualized
+  // applicable fees (stream override + transport opt-in applied).
+  const structures = (feeStructuresRes.data ?? []) as FeeStructure[];
+  const structuresByClass = new Map<string, FeeStructure[]>();
+  for (const fs of structures) {
+    const list = structuresByClass.get(fs.class_name) ?? [];
+    list.push(fs);
+    structuresByClass.set(fs.class_name, list);
+  }
+
+  let totalExpected = 0;
+  for (const e of enrollments) {
+    const raw = e.classes;
+    const cls = Array.isArray(raw) ? raw[0] : raw;
+    if (!cls) continue;
+    const classStructures = structuresByClass.get(cls.name);
+    if (!classStructures || classStructures.length === 0) continue;
+    const effective = resolveEffectiveFeeStructures(classStructures, {
+      studentStreamId: e.stream_id ?? null,
+      hasTransport: Boolean(e.has_transport),
+    });
+    totalExpected += sumAnnualized(effective);
+  }
 
   const feeCollection = {
     collected,
@@ -106,10 +145,6 @@ export async function GET() {
   };
 
   // ── Process enrollment by class ──
-  const enrollments = (enrollmentRes.data ?? []) as unknown as {
-    class_id: string;
-    classes: { name: string; section: string } | { name: string; section: string }[] | null;
-  }[];
   const classCountMap: Record<string, { name: string; count: number }> = {};
   for (const e of enrollments) {
     const raw = e.classes;

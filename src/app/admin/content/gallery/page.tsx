@@ -38,6 +38,9 @@ import {
   X,
   Star,
   Check,
+  List as ListIcon,
+  LayoutGrid,
+  Grid3x3,
 } from "lucide-react";
 import { adminFetch, adminDelete, adminApi } from "@/lib/admin-api";
 import { uploadToStorage } from "@/lib/supabase/upload";
@@ -50,6 +53,9 @@ import type { GalleryImage, GalleryEvent } from "@/types";
 const CATEGORIES = ["academics", "sports", "cultural", "campus", "events"];
 
 type Tab = "images" | "events";
+type ViewMode = "list" | "small" | "large";
+
+const VIEW_MODE_STORAGE_KEY = "nkps-gallery-view-mode";
 
 async function applyCropToImage(src: string, percentCrop: Crop, fileName: string): Promise<File> {
   return new Promise((resolve, reject) => {
@@ -137,7 +143,7 @@ function PhotoStripCarousel({
       )}
       <div
         ref={scrollRef}
-        className="flex gap-3 overflow-x-auto pb-2"
+        className="flex gap-3 overflow-x-auto overflow-y-visible pt-3 pb-4 px-1"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {photos.map((img) => {
@@ -147,9 +153,11 @@ function PhotoStripCarousel({
               key={img.id}
               className={cn(
                 "relative group shrink-0 w-24 h-24 rounded-lg overflow-hidden border-2 bg-white dark:bg-card",
+                "transition-all duration-300 ease-out will-change-transform",
+                "hover:scale-110 hover:-translate-y-1 hover:z-20 hover:shadow-xl hover:shadow-black/20",
                 isCover
                   ? "border-gold-500 ring-2 ring-gold-500/30"
-                  : "border-gray-200 dark:border-border"
+                  : "border-gray-200 dark:border-border hover:border-navy-400 dark:hover:border-navy-500"
               )}
             >
               <Image
@@ -204,6 +212,22 @@ export default function AdminGalleryPage() {
   // ── Multi-select for bulk delete ──
   const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // ── View mode for images grid ──
+  const [viewMode, setViewMode] = useState<ViewMode>("large");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+    if (saved === "list" || saved === "small" || saved === "large") {
+      setViewMode(saved);
+    }
+  }, []);
+  const updateViewMode = (mode: ViewMode) => {
+    setViewMode(mode);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
+    }
+  };
 
   // ── Events state ──
   const [events, setEvents] = useState<GalleryEvent[]>([]);
@@ -765,6 +789,24 @@ export default function AdminGalleryPage() {
     });
   };
 
+  const formatDateTime = (iso: string) => {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const eventTitleById = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    events.forEach((e) => { map[e.id] = e.title; });
+    return map;
+  }, [events]);
+
   return (
     <div>
       {/* Header */}
@@ -952,9 +994,9 @@ export default function AdminGalleryPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Selection toolbar */}
+          {/* Selection + view-mode toolbar */}
           {!imagesLoading && images.length > 0 && (
-            <div className="flex items-center justify-between mb-4 text-sm">
+            <div className="flex items-center justify-between mb-4 text-sm gap-3">
               <label className="flex items-center gap-2 cursor-pointer text-gray-600 dark:text-gray-300 select-none">
                 <Checkbox
                   checked={selectedImageIds.size === images.length && images.length > 0}
@@ -966,38 +1008,92 @@ export default function AdminGalleryPage() {
                     : `Select all (${images.length})`}
                 </span>
               </label>
-              {selectedImageIds.size > 0 && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={clearImageSelection}
-                    disabled={bulkDeleting}
-                  >
-                    Clear
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={handleBulkImageDelete}
-                    disabled={bulkDeleting}
-                    className="gap-1.5"
-                  >
-                    {bulkDeleting ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3.5 w-3.5" />
+              <div className="flex items-center gap-2">
+                {selectedImageIds.size > 0 && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={clearImageSelection}
+                      disabled={bulkDeleting}
+                    >
+                      Clear
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleBulkImageDelete}
+                      disabled={bulkDeleting}
+                      className="gap-1.5"
+                    >
+                      {bulkDeleting ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                      Delete {selectedImageIds.size}
+                    </Button>
+                    <span className="h-5 w-px bg-gray-200 dark:bg-border mx-1" />
+                  </>
+                )}
+                {/* View mode toggle */}
+                <div className="flex items-center rounded-lg border border-gray-200 dark:border-border bg-white dark:bg-card p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => updateViewMode("list")}
+                    title="List view"
+                    aria-label="List view"
+                    aria-pressed={viewMode === "list"}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs font-medium transition-colors",
+                      viewMode === "list"
+                        ? "bg-navy-900 text-white"
+                        : "text-gray-500 dark:text-gray-400 hover:text-navy-900 dark:hover:text-white"
                     )}
-                    Delete {selectedImageIds.size}
-                  </Button>
+                  >
+                    <ListIcon className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">List</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateViewMode("small")}
+                    title="Small icons"
+                    aria-label="Small icons"
+                    aria-pressed={viewMode === "small"}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs font-medium transition-colors",
+                      viewMode === "small"
+                        ? "bg-navy-900 text-white"
+                        : "text-gray-500 dark:text-gray-400 hover:text-navy-900 dark:hover:text-white"
+                    )}
+                  >
+                    <Grid3x3 className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Small</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateViewMode("large")}
+                    title="Large icons"
+                    aria-label="Large icons"
+                    aria-pressed={viewMode === "large"}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs font-medium transition-colors",
+                      viewMode === "large"
+                        ? "bg-navy-900 text-white"
+                        : "text-gray-500 dark:text-gray-400 hover:text-navy-900 dark:hover:text-white"
+                    )}
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Large</span>
+                  </button>
                 </div>
-              )}
+              </div>
             </div>
           )}
 
-          {/* Images Grid */}
+          {/* Images Grid / List */}
           {imagesLoading ? (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                 <div
                   key={i}
@@ -1016,10 +1112,96 @@ export default function AdminGalleryPage() {
               <p className="text-lg">No gallery images yet.</p>
               <p className="text-sm mt-1">Click &quot;Add Images&quot; to get started.</p>
             </div>
+          ) : viewMode === "list" ? (
+            <div className="erp-table-container overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10" />
+                    <TableHead className="w-16">Preview</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Event</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {images.map((image) => {
+                    const isSelected = selectedImageIds.has(image.id);
+                    return (
+                      <TableRow
+                        key={image.id}
+                        onClick={() => toggleImageSelection(image.id)}
+                        className={cn(
+                          "cursor-pointer",
+                          isSelected && "bg-blue-50/60 dark:bg-blue-950/20"
+                        )}
+                      >
+                        <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleImageSelection(image.id)}
+                          />
+                        </TableCell>
+                        <TableCell className="w-16">
+                          <div className="relative h-12 w-12 rounded-md overflow-hidden bg-navy-100 border border-gray-200 dark:border-border">
+                            {image.src && (
+                              <Image
+                                src={image.src}
+                                alt={image.alt}
+                                fill
+                                className="object-cover"
+                                sizes="48px"
+                              />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium max-w-xs truncate">
+                          {image.alt}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                            {image.category}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-gray-600 dark:text-gray-300 text-sm">
+                          {image.gallery_event_id
+                            ? eventTitleById[image.gallery_event_id] ?? "—"
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="text-gray-600 dark:text-gray-300 text-sm whitespace-nowrap">
+                          {formatDateTime(image.created_at)}
+                        </TableCell>
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleImageDelete(image)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                            title="Delete image"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-3">
+            <div
+              className={cn(
+                "grid gap-4",
+                viewMode === "small"
+                  ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12"
+                  : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+              )}
+            >
               {images.map((image) => {
                 const isSelected = selectedImageIds.has(image.id);
+                const isSmall = viewMode === "small";
                 return (
                   <div
                     key={image.id}
@@ -1028,7 +1210,7 @@ export default function AdminGalleryPage() {
                       "relative group bg-white dark:bg-card rounded-lg overflow-hidden shadow-sm border cursor-pointer transition-all",
                       isSelected
                         ? "border-blue-500 ring-2 ring-blue-500/40"
-                        : "border-gray-200 dark:border-border hover:border-gray-300"
+                        : "border-gray-200 dark:border-border hover:border-gray-300 hover:shadow-md"
                     )}
                   >
                     <div className="aspect-square bg-navy-100 flex items-center justify-center relative">
@@ -1041,18 +1223,32 @@ export default function AdminGalleryPage() {
                             "object-cover transition-opacity",
                             isSelected && "opacity-80"
                           )}
-                          sizes="(max-width: 768px) 50vw, 20vw"
+                          sizes={isSmall ? "(max-width: 768px) 25vw, 12vw" : "(max-width: 768px) 50vw, 20vw"}
                         />
                       ) : (
                         <span className="text-gray-400 dark:text-gray-500 text-[10px]">{image.alt}</span>
                       )}
                     </div>
-                    <div className="p-1.5">
-                      <p className="text-[10px] font-medium truncate">{image.alt}</p>
-                      <span className="text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 px-1 py-0.5 rounded-full">
-                        {image.category}
-                      </span>
-                    </div>
+                    {isSmall ? (
+                      <div className="p-1.5">
+                        <p className="text-[10px] font-medium truncate">{image.alt}</p>
+                        <span className="text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 px-1 py-0.5 rounded-full">
+                          {image.category}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="p-3 space-y-1.5">
+                        <p className="text-sm font-medium truncate" title={image.alt}>{image.alt}</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 px-2 py-0.5 rounded-full capitalize">
+                            {image.category}
+                          </span>
+                          <span className="text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                            {formatDateTime(image.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     {/* Selection indicator (top-left) */}
                     <div
                       className={cn(
@@ -1369,8 +1565,8 @@ export default function AdminGalleryPage() {
                           {/* Expanded photo strip */}
                           {isExpanded && (
                             <tr>
-                              <td colSpan={7} className="p-0 overflow-hidden">
-                                <div className="bg-gray-50/80 dark:bg-muted/20 border-t border-b border-gray-100 dark:border-border px-6 py-4 max-w-[1px] min-w-full">
+                              <td colSpan={7} className="p-0 overflow-x-hidden">
+                                <div className="bg-gray-50/80 dark:bg-muted/20 border-t border-b border-gray-100 dark:border-border px-6 py-3 max-w-[1px] min-w-full">
                                   {isLoadingPhotos ? (
                                     <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500 text-sm py-2">
                                       <Loader2 className="h-4 w-4 animate-spin" />

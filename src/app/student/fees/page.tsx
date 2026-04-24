@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { CreditCard, CheckCircle, AlertCircle, Loader2, Download } from "lucide-react";
+import { resolveEffectiveFeeStructures, sumAnnualized } from "@/lib/fees";
 import type { FeeStructure, FeePayment } from "@/types";
 
 const formatCurrency = (amount: number) =>
@@ -56,24 +57,32 @@ export default function StudentFeesPage() {
         return;
       }
 
-      // Fetch enrollment to determine class
+      // Fetch enrollment to determine class + stream + transport flag
       const { data: enrollment } = await supabase
         .from("student_enrollments")
-        .select("class_id, classes(name)")
+        .select("class_id, stream_id, has_transport, classes(name)")
         .eq("student_id", studentId)
+        .order("enrollment_date", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       const className =
-        (enrollment?.classes as unknown as { name: string })?.name ?? "";
+        (enrollment?.classes as unknown as { name: string } | null)?.name ?? "";
+      const streamId = (enrollment?.stream_id as string | null) ?? null;
+      const hasTransport = Boolean(enrollment?.has_transport);
 
-      // Fetch fee structures for student's class
+      // Fetch fee structures for student's class, then resolve the effective
+      // set (stream-specific fees override class-wide ones per fee_type).
       if (className) {
         const { data: structures } = await supabase
           .from("fee_structures")
           .select("*")
           .eq("class_name", className);
-        setFeeStructures((structures as FeeStructure[]) ?? []);
+        const resolved = resolveEffectiveFeeStructures(
+          (structures as FeeStructure[]) ?? [],
+          { studentStreamId: streamId, hasTransport }
+        );
+        setFeeStructures(resolved);
       }
 
       // Fetch payments
@@ -100,8 +109,9 @@ export default function StudentFeesPage() {
     );
   }
 
-  // Compute summary
-  const totalFees = feeStructures.reduce((sum, fs) => sum + fs.amount, 0);
+  // Compute summary — annualize each structure so quarterly/monthly fees
+  // are counted correctly for the whole academic year.
+  const totalFees = sumAnnualized(feeStructures);
   const totalPaid = payments
     .filter((p) => p.status === "paid" || p.status === "partial")
     .reduce((sum, p) => sum + p.amount_paid, 0);

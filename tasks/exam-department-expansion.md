@@ -16,7 +16,7 @@ Goal: turn the existing basic exam/result surface into a comprehensive Exam Depa
 | Topic | Decision |
 |---|---|
 | Class Tests | Not a separate module. New `exam_types.kind` column (`term_exam` \| `class_test` \| `practical`). Class tests contribute weighted to final result. |
-| Weightage | Per-class-per-exam via new join table `class_exam_configs`. Not a single column on `exam_types`. |
+| Weightage | Per-class-level via `exam_types.class_level` (values mirror `FeeClassLevel`: `all`/`nursery_ukg`/`i_v`/`vi_viii`/`ix_x`/`xi_xii`). Per-class override remains available via `class_exam_configs` for rare exceptions, but the level column is the primary axis — one dropdown in the dialog instead of an N-class picker, and the 100% check is always scoped to (year, level). |
 | Final result composition | Admin-defined. No rigid term structure. Weightages can sum to any shape admin wants (warn if ≠ 100%). |
 | Upper Header | Text column `upper_header` on `exam_types`. |
 | Non-Scholastic | Subject → Sub-Subject → Grade (from a non-scholastic `grade_scale`). Flat two-level hierarchy. |
@@ -97,27 +97,56 @@ Tasks:
 - [x] Editor permission filtering preserved: group shows only if editor has at least one child permission; per-child checks unchanged.
 
 ### 0.3 Exam type extensions
-- [ ] `migration-016-exam-type-extensions.sql`
-  - Add to `exam_types`: `kind text default 'term_exam' check in ('term_exam','class_test','practical')`, `upper_header text`.
-  - Add `class_exam_configs(id, class_id, exam_type_id, is_applicable bool default true, weightage numeric, max_marks_override numeric, sort_order, UNIQUE(class_id, exam_type_id))`.
-- [ ] `/admin/exam-types` UI: add Kind dropdown + Upper Header text field.
+- [x] `migration-016-exam-type-extensions.sql`
+  - Added `kind text NOT NULL DEFAULT 'term_exam'` + CHECK constraint (`'term_exam' | 'class_test' | 'practical'`) — existing rows automatically classified as `term_exam`.
+  - Added `upper_header text` (nullable) for the per-exam banner string.
+  - Created `class_exam_configs(id, class_id, exam_type_id, is_applicable, weightage, max_marks_override, sort_order)` with UNIQUE(class_id, exam_type_id), CHECK(weightage BETWEEN 0 AND 100), CHECK(max_marks_override > 0), and RLS (authenticated read, admin write).
+  - Mirrored in `supabase-schema.sql`.
+- [x] `/admin/exams/types` UI:
+  - Kind dropdown (with hint descriptions per option: Term Exam / Class Test / Practical) in the add/edit dialog.
+  - Upper Header text input in the dialog with placeholder showing expected format.
+  - New Kind column (pill badge) and Upper Header column (truncated) in the table.
+- [x] Type updates: `ExamKind` union + `kind` / `upper_header` fields added to `ExamType` interface in `src/types/index.ts`.
+- [x] `migration-021-exam-class-level.sql` — `class_level text NOT NULL DEFAULT 'all'` on `exam_types` with CHECK over the six `FeeClassLevel`-style values + `idx_exam_types_year_level`. Mirrored in `supabase-schema.sql`.
+- [x] `ExamClassLevel` union + `class_level` field added to `ExamType` in `src/types/index.ts`.
+- [x] Level-based weightage UX on `/admin/exams/types`:
+  - Academic-year selector in header; filters everything below.
+  - Tab bar: All Levels + 5 scoped levels (Pre-Primary / Primary / Middle / Secondary / Sr. Sec.). Each scoped tab carries a colored dot (green=100%, amber=under, red=over) so imbalance is visible before clicking in.
+  - Top banner: "N levels unbalanced for {year}" with per-level sums, shown only when something's off.
+  - Per-tab coverage chip (Balanced · 100% / X% · Y% unallocated / X% · over by Y%) + Auto-balance button.
+  - Auto-balance treats `class_level='all'` exams as locked and distributes the remainder (100 − sum_all) evenly across the tab's level-specific exams; rounding drift is pushed to the first exam so the total lands exactly.
+  - Dialog gains one "Applies to level" dropdown; default pre-fills from current tab (falls back to `i_v` on the "All" tab). The old per-class picker is avoided entirely.
+  - "Applies To" pill column added to the table, `class_level='all'` exams tinted blue so the admin can spot the shared ones at a glance.
+- [x] Design decision updated in the "Locked design decisions" table above — Weightage is now per-class-level, not per-class-per-exam. `class_exam_configs` stays on the shelf as a latent override layer for rare exceptions.
+- [ ] Per-class override UI (class_exam_configs CRUD) — still deferred to Phase 3. Level-based weightage handles the 80% case; the override layer plugs in later for Result Master without re-litigating the base model.
 
 ### 0.4 PDF templates
-- [ ] `migration-017-pdf-templates.sql`
-  - `pdf_header_configs(id, template_key text, school_name, address_lines jsonb, logo_url, affiliation, motto, colors jsonb, is_active, timestamps)`
-  - `pdf_footer_configs(id, template_key, left_text, center_text, right_text, show_signatures, signature_labels jsonb, is_active, timestamps)`
-  - Seed `template_key='report_card'` with current hardcoded values.
-- [ ] `src/lib/pdf-templates.ts` — loader with hardcoded fallback.
-- [ ] `/admin/exams/header-footer` — CRUD UI + logo upload.
+- [x] `migration-017-pdf-templates.sql`
+  - `pdf_header_configs(id, template_key UNIQUE, school_name, address_line, affiliation, affiliation_number, logo_url, motto, is_active, timestamps)`.
+  - `pdf_footer_configs(id, template_key UNIQUE, disclaimer_text, show_signatures, signature_labels jsonb, is_active, timestamps)`.
+  - Seed `template_key='report_card'` with SCHOOL constant values byte-for-byte so first post-migration PDF is identical.
+  - RLS: authenticated read, admin write. Mirrored in `supabase-schema.sql`.
+- [x] `src/lib/pdf-templates.ts` — `getPdfHeader`, `getPdfFooter`, `getPdfTemplate(supabase, key)` helpers with hardcoded SCHOOL fallback when a row is missing or inactive.
+- [x] `ReportCardPDF` extended with optional `footer` prop (disclaimer + signatures), defaulting to current hardcoded values. Signature blocks now rendered from `signature_labels` array.
+- [x] `/api/erp/results/report-card/pdf` route fetches `getPdfTemplate(supabase, "report_card")` and passes both header + footer to the PDF component. No user-visible change until admin edits a row.
+- [x] `/api/erp/pdf-templates` admin API: GET (single template or list of all known keys) + PUT (upsert header and/or footer for a template_key).
+- [x] `/admin/exams/header-footer` page: template selector (Report Card / Admit Card / White Sheet / Green Sheet), two cards (Header + Footer), logo URL field, dynamic signature-label list (add/remove), active toggles. Admin-only.
+- [x] Discoverability: tile on `/admin/exams` hub (admin-only) + link in sidebar Exams group. `/admin/exams/header-footer` added to `ADMIN_ONLY_PREFIXES`.
 
 ### 0.5 Non-Scholastic masters
-- [ ] `migration-018-non-scholastic-masters.sql`
-  - `non_scholastic_subjects(id, name, sort_order, is_active, created_at)`
-  - `non_scholastic_sub_subjects(id, parent_subject_id, name, grade_scale_id, sort_order, is_active, created_at)`
-- [ ] `/admin/exams/non-scholastic-masters` — two-tab page.
+- [x] `migration-018-non-scholastic-masters.sql`
+  - `non_scholastic_subjects(id, name UNIQUE, sort_order, is_active, timestamps)`.
+  - `non_scholastic_sub_subjects(id, parent_subject_id, name, grade_scale_id nullable, sort_order, is_active, timestamps)` with UNIQUE(parent_subject_id, name).
+  - Seeded default `non_scholastic` grade scale "Default Co-Scholastic Scale" with CBSE-style A/B/C/D bands (Excellent / Good / Satisfactory / Needs Improvement) + their percentage metadata.
+  - RLS: authenticated read, admin write. Mirrored in `supabase-schema.sql`.
+- [x] API: `GET/POST /api/erp/non-scholastic/subjects`, `PATCH/DELETE /api/erp/non-scholastic/subjects/[id]`, `GET/POST /api/erp/non-scholastic/sub-subjects` (with `?parent_subject_id` filter), `PATCH/DELETE /api/erp/non-scholastic/sub-subjects/[id]`. All admin-only via `verifyAdmin`. POST/PATCH on sub-subjects guards `grade_scale_id` to only accept non-scholastic scales.
+- [x] `/admin/exams/non-scholastic-masters` page: Subjects tab (card grid with edit / add sub / delete) and Sub-Subjects tab (grouped by parent). Delete dialog warns about cascade to sub-subjects. Sub-subject grade scale defaults to "Use default (Default Co-Scholastic Scale)" with per-item override.
+- [x] Discoverability: tile on `/admin/exams` hub (admin-only) + link in sidebar Exams group. `/admin/exams/non-scholastic-masters` added to `ADMIN_ONLY_PREFIXES`.
 
-### 0.6 Permissions
-- [ ] Extend `src/lib/permissions.ts` with feature keys: `grade_master`, `pdf_templates`, `non_scholastic_master`.
+### 0.6 Permissions (deferred — admin-only is the right default here)
+- Grade Master, PDF Templates, and Non-Scholastic Masters are all admin-only for now. They touch sensitive school-wide config (grade cutoffs, report-card branding, co-scholastic taxonomy) — not features to delegate lightly to editors.
+- Feature keys (`grade_master`, `pdf_templates`, `non_scholastic_master`) can be added later if an admin explicitly asks to delegate. Migration is ~5 LOC in `permissions.ts` + removing the path from `ADMIN_ONLY_PREFIXES` + swapping `verifyAdmin` → `verifyAdminOrEditor(featureKey)` in the 6 API routes.
+- [ ] _Defer until asked._ Current access pattern: admin-only, admin sees everything, editors don't see these features at all (neither in sidebar nor via URL).
 
 ### Verification before marking Phase 0 done
 - [ ] Direct API POST with `marks_obtained > max_marks` returns 400.
@@ -130,25 +159,27 @@ Tasks:
 
 ## Phase 1 — Exam Timetable + Admit Card
 
-### Migrations
-- [ ] `migration-019-exam-schedules.sql`
-  - `exam_schedules(id, exam_type_id, class_id, subject_id, exam_date, start_time, end_time, room, invigilator_teacher_id, sort_order, timestamps, UNIQUE(exam_type_id, class_id, subject_id))`
-- [ ] `migration-020-admit-card-settings.sql`
-  - Seed `pdf_header_configs`/`pdf_footer_configs` rows for `template_key='admit_card'`.
-  - `admit_card_settings(id, exam_type_id, show_photo, show_dob, show_father_name, show_address, show_schedule, instructions text, signatures jsonb, is_active, UNIQUE(exam_type_id))`.
+### 1.1 Exam Schedules (migration + API + admin page) — DONE
+- [x] `migration-019-exam-schedules.sql`: `exam_schedules(exam_type_id, class_id, subject_id, exam_date, start_time, end_time, room, invigilator_teacher_id, sort_order, notes)` with UNIQUE(exam_type_id, class_id, subject_id) + CHECK(start_time < end_time).
+- [x] API: `GET /api/erp/exam-schedules` (filters by exam_type_id + class_id), POST, `PATCH/DELETE /api/erp/exam-schedules/[id]`. POST translates 23505 unique violations into a friendlier 409 message.
+- [x] `/admin/exams/timetable` — class + exam picker at top, sorted schedule table, add/edit dialog restricts subject picker to "class subjects not yet scheduled", time-order client validation. Schema mirrored.
 
-### Pages
-- [ ] `/admin/exams/timetable` — grid editor per exam+class, duplicate-checker, conflict warning.
-- [ ] `/admin/exams/admit-cards` — per-student or bulk (class-level) generation.
-- [ ] Student dashboard: "Download Admit Card" once `is_active` is true and schedule exists.
+### 1.2 Admit Card Templates (migration + API + admin page) — DONE
+- [x] `migration-020-admit-card-templates.sql`: `admit_card_templates` with 11 field toggles, orientation check constraint, signature_labels jsonb default, partial unique index for single default. Seeds a "Standard Admit Card" default template and cross-populates `pdf_header_configs`/`pdf_footer_configs` rows for `template_key='admit_card'` by copying the report_card values.
+- [x] API: `GET/POST /api/erp/admit-card-templates` + `PATCH/DELETE /api/erp/admit-card-templates/[id]`. Default-promotion + default-delete-guard with guided flow (same pattern as grade scales).
+- [x] `/admin/exams/admit-cards` — tabbed page (Templates active now, Generate stub reserved for Phase 1.3). Card grid with Default badge, Inactive badge, active-field count and preview chips. Edit dialog covers name, orientation, bg image URL, 11 field toggles, instructions textarea (conditional on `show_instructions`), signature-label list (add/remove inline), is_default + is_active toggles. Delete dialog handles default promotion via the same picker pattern.
 
-### PDF + API
-- [ ] `src/components/pdf/AdmitCardPDF.tsx` — driven from settings + schedule + header/footer configs.
-- [ ] `/api/erp/admit-cards/pdf` — single student.
-- [ ] `/api/erp/admit-cards/bulk` — class-level (multi-page PDF).
+### 1.3 Admit Card Generation (PDF + flows) — pending
+- [ ] `src/components/pdf/AdmitCardPDF.tsx` — renders from template + schedule + `pdf_header_configs`/`pdf_footer_configs` row for `admit_card`.
+- [ ] `/api/erp/admit-cards/pdf?student_id&template_id&exam_type_id` — single student PDF.
+- [ ] `/api/erp/admit-cards/bulk?class_id&template_id&exam_type_id&student_ids[]` — multi-page bulk PDF.
+- [ ] Generate tab on `/admin/exams/admit-cards`: class + section + exam + template picker → filtered student list with select-all → "Download selected" / "Download class PDF".
+- [ ] Student dashboard: "Download Admit Card" button when schedule exists and default template is active.
 
-### Permissions
-- [ ] Add `exam_timetable`, `admit_cards` feature keys.
+### Permissions + Discovery — DONE
+- [x] Added `exam_timetable` and `admit_cards` feature keys to `FeatureKey` union and `FEATURE_CATALOG`. Both are editor-grantable (these are operational, not sensitive config).
+- [x] Sidebar Exams group: Timetable + Admit Cards links added.
+- [x] `/admin/exams` hub tiles: Exam Timetable + Admit Cards tiles added, wired to per-feature visibility.
 
 ### Verification
 - [ ] Admit card renders for a sample student across different exams.
@@ -185,51 +216,111 @@ Tasks:
 
 ---
 
-## Phase 3 — Result Master + richer Report Card + Final Result
+## Phase 3 — Class Tests (dedicated module — sibling of exam_types)
 
-The biggest phase. Everything above plugs into the Report Card here.
+> **Why separate:** admin confirmed (post-planning) that class tests need their own frequent-entry flow: "simpler marking, may or may not appear in final report, own creation / marks entry / reports, linked to Result calculation via weightage." The `kind='class_test'` option on `exam_types` stays for schools that prefer the lightweight path — it coexists with this full module.
+>
+> **Migration-numbering note:** `migration-021-exam-class-level.sql` was landed independently (adds `exam_types.class_level` with the same taxonomy as `fee_structures`: all / nursery_ukg / i_v / vi_viii / ix_x / xi_xii). Pending migrations below renumber from 022 onward.
 
 ### Migrations
-- [ ] `migration-022-result-master.sql`
-  - `result_masters(id, class_id, academic_year_id, include_non_scholastic, show_rank, grade_scale_id, pass_mark_per_subject, grace_marks_max, show_extra_separately, timestamps, UNIQUE(class_id, academic_year_id))`
-  - `result_master_subjects(id, result_master_id, subject_id, role text check in ('main','extra'), sort_order, UNIQUE(result_master_id, subject_id))`
+- [ ] `migration-022-class-tests.sql`
+  - `class_tests(id, class_id, subject_id, name, test_date, max_marks, weightage, term_id nullable, is_published bool, created_by, timestamps)` — single test tied to a subject for a class. `name` is a short label like "Unit 1 Test" or "FA-1".
+  - `class_test_results(id, class_test_id, student_id, marks_obtained, grade nullable, remarks nullable, entered_by, timestamps, UNIQUE(class_test_id, student_id))` with `CHECK(marks_obtained >= 0 AND marks_obtained <= max_marks)` (same pattern as `results`).
+  - RLS mirrors `results`: teachers enter, admins manage, students/parents read their own when `is_published = true`.
 
-### Final Result computation
-- [ ] `src/lib/final-result.ts` — given (student_id, academic_year_id):
-  - Look up student's class → result_master → applicable exams via `class_exam_configs`.
-  - Per subject: weighted sum of (marks_obtained / max_marks × weightage).
-  - Apply grade scale from result_master (override) or default.
-  - Return per-subject + overall + rank.
-- [ ] Compute on-demand; add caching if slow (>500ms).
+### API
+- [ ] `GET/POST /api/erp/class-tests` (filter by class_id + subject_id + term_id).
+- [ ] `PATCH/DELETE /api/erp/class-tests/[id]`.
+- [ ] `POST /api/erp/class-tests/[id]/marks` — bulk marks upsert with same 0..max_marks validation + grade computation (uses `grading.ts` resolver, same as `results/bulk`).
 
-### Report Card PDF rewrite
-- [ ] `src/components/pdf/ReportCardPDF.tsx` — render from `result_masters`:
-  - Main vs Extra subject split
-  - Non-scholastic block (if enabled)
-  - Final Result section (cross-exam weighted summary)
-  - Rank (if enabled)
-  - Upper header banner from `exam_types.upper_header`
-  - Header/footer from configs
-- [ ] Fallback: if no result_master exists for the class, render old layout unchanged.
+### Teacher flow
+- [ ] `/teacher/class-tests` — teacher picks class → subject → lists their class tests with inline "Enter Marks" button → bulk grid like the existing results entry page. Default to "undefined grade" while marks blank; compute grade from the class's resolved scale.
 
 ### Admin UI
-- [ ] `/admin/exams/result-master` — per class+year config with subject picker (main/extra), weightage editor (with "sum ≠ 100%" warning), pass/grace marks, grade scale override, live preview pane.
+- [ ] `/admin/exams/class-tests` — admin CRUD across classes (list, create, delete). Admin can view any teacher's marks. Links into the Result Master so CT weightage contributes to term totals.
+- [ ] `/admin/exams/class-tests/[id]` — detail view: marks entry grid + publish toggle.
 
 ### Permissions
-- [ ] Add `result_master` feature key.
+- [ ] Add `class_tests` feature key (editor-grantable).
 
 ### Verification
-- [ ] Pre-config classes render identical PDFs to before.
-- [ ] Post-config: weighted final result matches hand-calculated example for ≥3 students.
-- [ ] Rank calculation stable for ties.
-- [ ] Non-scholastic block appears/disappears per `include_non_scholastic`.
+- [ ] Teacher can only see class tests for subjects they teach.
+- [ ] Student/parent see only published class test marks.
+- [ ] Deleting a class test cascades to class_test_results (FK ON DELETE CASCADE).
+- [ ] Marks validation rejects out-of-range writes at both API + DB layers.
 
 ---
 
-## Phase 4 — Publish workflow (two-stage)
+## Phase 4 — Result Master + Final Result + richer Report Card
+
+> **Two-level config** per explicit admin spec:
+> - **Result Master (Basic)** — subject inclusion, main/optional split, per-subject pass marks, overall pass criteria.
+> - **Result Advanced Settings (Power)** — weightage system (CT × Half-Yearly × Annual mixing, supports CCE term-wise composition), best-of rule (best of N class tests), grace marks (subject or total), include/exclude specific subjects from total, rounding, non-scholastic display (show / hide / placement).
+>
+> **Default composition pattern** (matches Indian CCE): Term 1 = FA-I + FA-II + SA-I; Term 2 = FA-III + FA-IV + SA-II; Final = Term 1 + Term 2. Modeled via a `terms` table + `exam_types.term_id` FK + `class_tests.term_id` FK. Admin can override the shape via weightages.
 
 ### Migrations
-- [ ] `migration-023-publish-workflow.sql`
+- [ ] `migration-023-terms.sql`
+  - `terms(id, academic_year_id, name, sort_order, UNIQUE(academic_year_id, name))`.
+  - Add `term_id uuid REFERENCES terms(id) ON DELETE SET NULL` to `exam_types` and `class_tests`.
+  - Backfill: for existing academic years, create "Term 1" + "Term 2" and leave `term_id` null on existing exam_types until admin assigns.
+- [ ] `migration-024-result-master.sql`
+  - `result_masters(id, class_id, academic_year_id, grade_scale_id nullable, pass_mark_per_subject, pass_mark_overall, grace_marks_per_subject, grace_marks_total, rounding_rule text check in ('none','round','floor','ceil','round_half_up'), non_scholastic_display text check in ('hide','inline','separate_page'), show_rank bool, show_extra_separately bool, best_of_class_tests int nullable, timestamps, UNIQUE(class_id, academic_year_id))`.
+  - `result_master_subjects(id, result_master_id, subject_id, role text check in ('main','extra','excluded_from_total'), sort_order, UNIQUE(result_master_id, subject_id))` — note the new `excluded_from_total` role (covers "exclude GK from total" case).
+
+### Final Result engine
+- [ ] `src/lib/final-result.ts` — term-aware computation:
+  - For each term, per subject: aggregate (class_tests + exam_types) weighted by `class_exam_configs.weightage` / `class_tests.weightage`. Apply "best of" rule if configured (e.g. best 2 of 4 class tests in Term 1).
+  - Apply grace marks per subject, then check pass criteria.
+  - Roll term totals into Final Result per the admin-configured aggregation.
+  - Apply rounding rule last.
+  - Rank: pluggable (optional — only if `show_rank`).
+  - Unit-testable pure functions; DB fetch is a thin layer on top.
+
+### Report Card PDF rewrite
+- [ ] `src/components/pdf/ReportCardPDF.tsx`:
+  - Main / Extra / Excluded-from-total subject groupings.
+  - Non-scholastic block placement per `non_scholastic_display` setting (hide / inline / separate page). Non-scholastic rows show letter grade only, never mark totals.
+  - Term-wise summary rows (T1 / T2) → Final Result block.
+  - Rank (if enabled).
+  - Upper header banner from `exam_types.upper_header`.
+  - Header/footer from `pdf_header_configs` / `pdf_footer_configs` (already wired in Phase 0.4).
+
+### Admin UI
+- [ ] `/admin/exams/terms` — CRUD terms per academic year + link exam_types / class_tests to terms.
+- [ ] `/admin/exams/result-master` — per class+year editor:
+  - Subject picker with role selector (Main / Extra / Excluded from total).
+  - Weightage matrix per exam_type × term with sum-to-100% warning.
+  - Best-of-class-tests selector (N).
+  - Grace marks (subject + total).
+  - Pass mark (subject + overall) editors.
+  - Rounding rule dropdown.
+  - Non-scholastic display control (hide / inline / separate page).
+  - Live preview pane rendering a sample student's report card.
+
+### Fallback
+- [ ] If no `result_masters` row exists for a class, PDF renders the legacy per-exam layout (the one that ships today). Result Master is opt-in per class — no regression for classes that haven't been configured.
+
+### Permissions
+- [ ] `result_master` feature key.
+
+### Verification
+- [ ] Pre-config classes render byte-identical PDFs vs today.
+- [ ] Post-config: weighted final result matches hand-calculated CCE example for ≥3 students.
+- [ ] Best-of rule: 4 class tests with marks [20,40,60,80] at max 100 each → best 2 sum = 140/200 = 70%.
+- [ ] Grace marks push a 39% subject to the configured pass threshold only when within grace budget.
+- [ ] "Excluded from total" subjects render on the card but don't contribute to term/final totals.
+- [ ] Non-scholastic block placement toggles correctly.
+- [ ] Rounding rules produce expected integers at the boundary cases.
+
+---
+
+## Phase 5 — Publish workflow (two-stage)
+
+> **Two actions** (confirmed): **Publish Result** = makes marks visible in the parent/student portal, still editable; **Publish Marksheet** = locks the data, generates the final PDF, used for printing & official distribution. Unpublishing a finalized marksheet requires a reason.
+
+### Migrations
+- [ ] `migration-025-publish-workflow.sql`
   - `marksheet_publications(id, student_id, exam_type_id, published_at, published_by, version int, snapshot jsonb, unpublished_at nullable, unpublish_reason text nullable, UNIQUE(student_id, exam_type_id, version))`
   - `publish_events(id, event_type text, class_id nullable, exam_type_id, actor_id, acted_at, note)`
 

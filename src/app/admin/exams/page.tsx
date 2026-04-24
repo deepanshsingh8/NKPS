@@ -6,6 +6,10 @@ import {
   ClipboardList,
   BarChart3,
   GraduationCap,
+  FileText,
+  Sparkles,
+  CalendarClock,
+  IdCard,
   ArrowRight,
   type LucideIcon,
 } from "lucide-react";
@@ -43,6 +47,44 @@ const tiles: ExamTile[] = [
     accentColor: "text-amber-600 bg-amber-100 dark:bg-amber-900/30",
     featureKey: null,
     adminOnly: true,
+  },
+  {
+    label: "Header / Footer",
+    description:
+      "School branding and signature blocks for report cards, admit cards, and other generated PDFs.",
+    href: "/admin/exams/header-footer",
+    icon: FileText,
+    accentColor: "text-teal-600 bg-teal-100 dark:bg-teal-900/30",
+    featureKey: null,
+    adminOnly: true,
+  },
+  {
+    label: "Non-Scholastic Masters",
+    description:
+      "Co-scholastic subjects and sub-skills (Discipline, Arts, Sports) that teachers grade alongside academics.",
+    href: "/admin/exams/non-scholastic-masters",
+    icon: Sparkles,
+    accentColor: "text-pink-600 bg-pink-100 dark:bg-pink-900/30",
+    featureKey: null,
+    adminOnly: true,
+  },
+  {
+    label: "Exam Timetable",
+    description:
+      "Schedule the date, time, and room for each subject's paper per class and exam.",
+    href: "/admin/exams/timetable",
+    icon: CalendarClock,
+    accentColor: "text-cyan-600 bg-cyan-100 dark:bg-cyan-900/30",
+    featureKey: "exam_timetable",
+  },
+  {
+    label: "Admit Cards",
+    description:
+      "Design reusable admit card templates and generate student-specific PDFs before each exam.",
+    href: "/admin/exams/admit-cards",
+    icon: IdCard,
+    accentColor: "text-fuchsia-600 bg-fuchsia-100 dark:bg-fuchsia-900/30",
+    featureKey: "admit_cards",
   },
   {
     label: "Results",

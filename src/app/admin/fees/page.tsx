@@ -32,6 +32,8 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, Bus, FileSpreadsheet } from "lucide-react";
 import { adminApi, adminFetch } from "@/lib/admin-api";
 import { downloadCSV } from "@/lib/csv-export";
+import { formatClassName } from "@/lib/utils";
+import { resolveEffectiveFeeStructures, FEE_FREQ_MULTIPLIER } from "@/lib/fees";
 import type { FeeStructure, FeePayment, Student, Stream } from "@/types";
 
 const CLASS_NAMES = [
@@ -76,6 +78,8 @@ interface ClassEntry {
   id: string;
   name: string;
   section: string;
+  stream_id: string | null;
+  streams: { name: string } | { name: string }[] | null;
 }
 
 interface DuesRow {
@@ -299,7 +303,7 @@ function AdminFeesContent() {
     (async () => {
       const { data } = await supabase
         .from("classes")
-        .select("id, name, section")
+        .select("id, name, section, stream_id, streams(name)")
         .eq("academic_year_id", academicYearId)
         .order("sort_order");
       setClassesList((data as ClassEntry[]) ?? []);
@@ -379,50 +383,42 @@ function AdminFeesContent() {
       type PayRow = {
         student_id: string;
         amount_paid: number;
-        status: string;
-        fee_structure: { academic_year_id: string } | null;
       };
       let payments: PayRow[] = [];
       if (studentIds.length > 0) {
+        // Filter to paid + current-year payments server-side. The nested
+        // academic-year filter uses an inner join on fee_structures so only
+        // payments whose fee_structure belongs to this academic year come
+        // back — avoids depending on the embed shape (object vs array) on the
+        // client.
         const { data: pays } = await supabase
           .from("fee_payments")
-          .select(
-            "student_id, amount_paid, status, fee_structure:fee_structures(academic_year_id)"
-          )
-          .in("student_id", studentIds);
+          .select("student_id, amount_paid, fee_structures!inner(academic_year_id)")
+          .in("student_id", studentIds)
+          .eq("status", "paid")
+          .eq("fee_structures.academic_year_id", academicYearId);
         payments = (pays as unknown as PayRow[]) ?? [];
       }
 
-      const freqMult: Record<string, number> = {
-        monthly: 12,
-        quarterly: 4,
-        annual: 1,
-        one_time: 1,
-      };
-      const classLabel = `${classMeta.name}${classMeta.section ? "-" + classMeta.section : ""}`;
+      const classLabel = formatClassName(classMeta);
+      const allStructures = (structures as FeeStructure[] | null) ?? [];
       const rows: DuesRow[] = (enrollments ?? []).map((e) => {
         const stu = e.students as unknown as {
           full_name: string;
           admission_no: string;
           father_name: string | null;
         } | null;
-        const applicable = (structures as FeeStructure[] | null)?.filter((fs) => {
-          if (fs.stream_id && e.stream_id !== fs.stream_id) return false;
-          if (fs.fee_type === "Transport" && !e.has_transport) return false;
-          return true;
-        }) ?? [];
+        const applicable = resolveEffectiveFeeStructures(allStructures, {
+          studentStreamId: (e.stream_id as string | null) ?? null,
+          hasTransport: Boolean(e.has_transport),
+        });
         const expected = applicable.reduce(
-          (sum, fs) => sum + Number(fs.amount) * (freqMult[fs.frequency] ?? 1),
+          (sum, fs) =>
+            sum + Number(fs.amount) * (FEE_FREQ_MULTIPLIER[fs.frequency] ?? 1),
           0
         );
         const paid = payments
-          .filter(
-            (p) =>
-              p.student_id === e.student_id &&
-              p.status === "paid" &&
-              (!p.fee_structure ||
-                p.fee_structure.academic_year_id === academicYearId)
-          )
+          .filter((p) => p.student_id === e.student_id)
           .reduce((sum, p) => sum + Number(p.amount_paid), 0);
         return {
           student_id: e.student_id as string,
@@ -485,12 +481,15 @@ function AdminFeesContent() {
     );
   };
 
-  // Fee structures filtered by per-student transport opt-in
+  // Effective fee structures for the selected student. Applies the
+  // section/stream override rule (a stream-specific structure hides the
+  // class-wide one for the same fee_type) plus the transport opt-in filter.
   const applicableFeeStructures = useMemo(() => {
-    return studentFeeStructures.filter(
-      (fs) => fs.fee_type !== "Transport" || studentHasTransport
-    );
-  }, [studentFeeStructures, studentHasTransport]);
+    return resolveEffectiveFeeStructures(studentFeeStructures, {
+      studentStreamId: selectedStudentStreamId,
+      hasTransport: studentHasTransport,
+    });
+  }, [studentFeeStructures, selectedStudentStreamId, studentHasTransport]);
 
   const openAddStructure = () => {
     setStructureDialogMode("add");
@@ -977,8 +976,7 @@ function AdminFeesContent() {
                     <option value="">Select a class…</option>
                     {classesList.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name}
-                        {c.section ? ` - ${c.section}` : ""}
+                        {formatClassName(c)}
                       </option>
                     ))}
                   </select>

@@ -22,6 +22,8 @@ export type FeatureKey =
   | "subjects"
   | "academic_years"
   | "exam_types"
+  | "exam_timetable"
+  | "admit_cards"
   | "fees"
   | "timetable"
   | "calendar"
@@ -51,6 +53,8 @@ export const FEATURE_CATALOG: readonly FeatureDef[] = [
   { key: "subjects", label: "Subjects", href: "/admin/academics/subjects", group: "erp" },
   { key: "academic_years", label: "Academic Years", href: "/admin/academics/years", group: "erp" },
   { key: "exam_types", label: "Exam Types", href: "/admin/exams/types", group: "erp" },
+  { key: "exam_timetable", label: "Exam Timetable", href: "/admin/exams/timetable", group: "erp" },
+  { key: "admit_cards", label: "Admit Cards", href: "/admin/exams/admit-cards", group: "erp" },
   { key: "fees", label: "Fees", href: "/admin/fees", group: "erp" },
   { key: "timetable", label: "Timetable", href: "/admin/timetable", group: "erp" },
   { key: "calendar", label: "Calendar", href: "/admin/calendar", group: "erp" },
@@ -71,6 +75,8 @@ export function isFeatureKey(value: unknown): value is FeatureKey {
 export const ADMIN_ONLY_PREFIXES = [
   "/admin/people/users",
   "/admin/exams/grade-master",
+  "/admin/exams/header-footer",
+  "/admin/exams/non-scholastic-masters",
 ] as const;
 
 export function isAdminOnlyPath(pathname: string): boolean {

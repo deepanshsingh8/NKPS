@@ -30,6 +30,9 @@ import {
   Newspaper,
   LayoutGrid,
   UserCog,
+  Sparkles,
+  CalendarClock,
+  IdCard,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -109,6 +112,10 @@ const erpItems: SidebarItem[] = [
     children: [
       { kind: "link", icon: ClipboardList, label: "Exam Types", href: "/admin/exams/types" },
       { kind: "link", icon: GraduationCap, label: "Grade Master", href: "/admin/exams/grade-master" },
+      { kind: "link", icon: Sparkles, label: "Non-Scholastic", href: "/admin/exams/non-scholastic-masters" },
+      { kind: "link", icon: CalendarClock, label: "Timetable", href: "/admin/exams/timetable" },
+      { kind: "link", icon: IdCard, label: "Admit Cards", href: "/admin/exams/admit-cards" },
+      { kind: "link", icon: FileText, label: "Header / Footer", href: "/admin/exams/header-footer" },
       { kind: "link", icon: BarChart3, label: "Results", href: "/admin/exams/results" },
     ],
   },
@@ -132,27 +139,27 @@ export function AdminSidebar() {
   const { unreadCount, pendingRegistrationCount } = useUnreadCount();
   const [userRole, setUserRole] = useState<UserRole>("admin");
   const [permissions, setPermissions] = useState<Set<FeatureKey> | null>(null);
-  const [manuallyOpenGroups, setManuallyOpenGroups] = useState<Set<string>>(
-    new Set()
+  const [groupOverrides, setGroupOverrides] = useState<Record<string, boolean>>(
+    {}
   );
 
+  useEffect(() => {
+    setGroupOverrides({});
+  }, [pathname]);
+
   const isGroupOpen = (group: SidebarGroup): boolean => {
-    if (
+    if (group.label in groupOverrides) {
+      return groupOverrides[group.label];
+    }
+    return (
       pathname === group.matchPrefix ||
       pathname.startsWith(group.matchPrefix + "/")
-    ) {
-      return true;
-    }
-    return manuallyOpenGroups.has(group.label);
+    );
   };
 
-  const toggleGroup = (label: string) => {
-    setManuallyOpenGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
-      return next;
-    });
+  const toggleGroup = (group: SidebarGroup) => {
+    const currentlyOpen = isGroupOpen(group);
+    setGroupOverrides((prev) => ({ ...prev, [group.label]: !currentlyOpen }));
   };
 
   useEffect(() => {
@@ -309,7 +316,7 @@ export function AdminSidebar() {
       <div key={group.label}>
         <button
           type="button"
-          onClick={() => toggleGroup(group.label)}
+          onClick={() => toggleGroup(group)}
           aria-expanded={open}
           className={cn(
             "flex items-center gap-3 rounded-lg text-sm transition-all duration-200 w-full px-3 py-2.5",

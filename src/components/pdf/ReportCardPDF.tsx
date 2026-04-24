@@ -221,6 +221,15 @@ interface ReportCardPDFProps {
    */
   logoData?: Buffer | Uint8Array;
   generatedOn: string;
+  /**
+   * Footer config from `pdf_footer_configs`. Optional — if omitted, sensible
+   * defaults matching the previous hardcoded footer are used.
+   */
+  footer?: {
+    disclaimer_text: string | null;
+    show_signatures: boolean;
+    signature_labels: string[];
+  };
 }
 
 export function ReportCardPDF({
@@ -230,10 +239,18 @@ export function ReportCardPDF({
   attendance,
   logoData,
   generatedOn,
+  footer,
 }: ReportCardPDFProps) {
   const classLabel = student.class
     ? `${student.class.name} — ${student.class.section}`
     : "—";
+  const disclaimer =
+    footer?.disclaimer_text ?? "This is a computer-generated document.";
+  const showSignatures = footer?.show_signatures ?? true;
+  const signatureLabels =
+    footer?.signature_labels && footer.signature_labels.length > 0
+      ? footer.signature_labels
+      : ["Class Teacher", "Principal"];
 
   return (
     <Document
@@ -359,18 +376,18 @@ export function ReportCardPDF({
         <View style={styles.footer} fixed>
           <View>
             <Text>Generated on {generatedOn}</Text>
-            <Text style={{ marginTop: 2 }}>
-              This is a computer-generated document.
-            </Text>
+            {disclaimer ? (
+              <Text style={{ marginTop: 2 }}>{disclaimer}</Text>
+            ) : null}
           </View>
-          <View style={styles.signatureBlock}>
-            <View style={styles.signatureLine} />
-            <Text style={styles.signatureLabel}>Class Teacher</Text>
-          </View>
-          <View style={styles.signatureBlock}>
-            <View style={styles.signatureLine} />
-            <Text style={styles.signatureLabel}>Principal</Text>
-          </View>
+          {showSignatures
+            ? signatureLabels.map((label, idx) => (
+                <View key={idx} style={styles.signatureBlock}>
+                  <View style={styles.signatureLine} />
+                  <Text style={styles.signatureLabel}>{label}</Text>
+                </View>
+              ))
+            : null}
         </View>
       </Page>
     </Document>

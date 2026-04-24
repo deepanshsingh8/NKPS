@@ -28,15 +28,28 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ data: [] });
       }
 
-      // Fetch enrollments with class info for all students.
-      // Ordering: status 'active' sorts alphabetically first, then newest first by
-      // created_at — so the first match per student is the most relevant enrollment.
-      const { data: enrollments } = await admin
+      // Restrict the enrollment lookup to the current academic year. Without
+      // this, historical enrollments pile up over years and the query can hit
+      // PostgREST's default row cap, dropping merges and making students show
+      // as "Unassigned" on the list view.
+      const { data: currentYear } = await admin
+        .from("academic_years")
+        .select("id")
+        .eq("is_current", true)
+        .maybeSingle();
+
+      let enrollmentQuery = admin
         .from("student_enrollments")
         .select("student_id, roll_number, id, class_id, stream_id, status, created_at, classes(name, section)")
         .in("student_id", allStudents.map((s) => s.id))
         .order("status", { ascending: true })
         .order("created_at", { ascending: false });
+
+      if (currentYear?.id) {
+        enrollmentQuery = enrollmentQuery.eq("academic_year_id", currentYear.id);
+      }
+
+      const { data: enrollments } = await enrollmentQuery;
 
       const byStudent = new Map<string, (typeof enrollments extends (infer U)[] | null ? U : never)>();
       for (const e of enrollments ?? []) {
