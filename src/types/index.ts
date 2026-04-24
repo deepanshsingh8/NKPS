@@ -376,6 +376,109 @@ export interface Result {
 }
 
 // =============================================================
+// Result Master (Phase 3 — admin-configurable per-class/year rules)
+// =============================================================
+
+export type ResultMasterPassMarkMode = 'percentage' | 'raw_marks';
+export type ResultMasterPassCriteriaType =
+  | 'all_main_subjects'
+  | 'overall_percentage'
+  | 'main_and_overall'
+  | 'pass_n_subjects'
+  | 'allow_one_fail';
+export type ResultMasterRoundingMode = 'none' | 'half_up' | 'half_down' | 'ceil' | 'floor';
+export type ResultMasterGraceCondition = 'failing_only' | 'any_subject';
+export type ResultMasterNonScholasticPlacement = 'below' | 'above' | 'separate_page';
+export type ResultMasterSubjectRole = 'main' | 'optional';
+
+export interface ResultMaster {
+  id: string;
+  class_id: string;
+  academic_year_id: string;
+  pass_mark_mode: ResultMasterPassMarkMode;
+  pass_mark_value: number;
+  // `string` fallback keeps the door open for new criteria types registered
+  // purely in the resolver without a DB migration.
+  pass_criteria_type: ResultMasterPassCriteriaType | string;
+  pass_criteria_config: Record<string, unknown>;
+  show_rank: boolean;
+  show_extra_separately: boolean;
+  include_non_scholastic: boolean;
+  non_scholastic_placement: ResultMasterNonScholasticPlacement;
+  grade_scale_id: string | null;
+  grace_marks_per_subject_max: number;
+  grace_marks_total_max: number;
+  grace_marks_condition: ResultMasterGraceCondition;
+  rounding_mode: ResultMasterRoundingMode;
+  rounding_precision: number;
+  round_raw_marks: boolean;
+  class_test_best_of: number | null;
+  practical_best_of: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResultMasterSubject {
+  id: string;
+  result_master_id: string;
+  subject_id: string;
+  role: ResultMasterSubjectRole;
+  pass_mark_value_override: number | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface FinalSubjectExamContribution {
+  exam_type_id: string;
+  exam_name: string;
+  marks_obtained: number;      // post raw-round if round_raw_marks=true
+  marks_obtained_pre_round: number; // audit field — always the DB value
+  max_marks: number;
+  pct: number;
+  weight: number;
+}
+
+export interface FinalSubject {
+  subject_id: string;
+  subject_name: string;
+  role: ResultMasterSubjectRole;
+  exam_contributions: FinalSubjectExamContribution[];
+  raw_pct: number;         // pre-grace, pre-rounding (weighted average of exam pcts)
+  grace_applied: number;   // percentage points added by the grace pass
+  final_pct: number;       // rounded, post-grace
+  effective_pass_mark_pct: number;
+  grade: string | null;
+  passed: boolean;
+}
+
+export interface FinalResultOverall {
+  main_total_pct: number;      // rounded
+  main_total_pct_raw: number;  // pre-rounding, for debugging
+  grade: string | null;
+  passed: boolean;
+  pass_reason: string;
+  grace_applied_total: number;
+}
+
+export interface FinalResultConfigApplied {
+  result_master_id: string;
+  grade_scale_name: string | null;
+  best_of_applied: boolean;
+  rounding_summary: string;
+}
+
+export interface FinalResult {
+  student_id: string;
+  class_id: string;
+  academic_year_id: string;
+  main_subjects: FinalSubject[];
+  optional_subjects: FinalSubject[];
+  overall: FinalResultOverall;
+  rank?: number | null;
+  config_applied: FinalResultConfigApplied;
+}
+
+// =============================================================
 // Fees & Payments
 // =============================================================
 

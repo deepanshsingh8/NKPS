@@ -7,6 +7,7 @@ import {
   CreditCard,
   Clock,
   CalendarDays,
+  IdCard,
 } from "lucide-react";
 import { PortalSidebar } from "./PortalSidebar";
 
@@ -25,6 +26,11 @@ const navLinks = [
     href: "/student/results",
     label: "Results",
     icon: <BarChart3 className="h-5 w-5 shrink-0" />,
+  },
+  {
+    href: "/student/admit-cards",
+    label: "Admit Cards",
+    icon: <IdCard className="h-5 w-5 shrink-0" />,
   },
   {
     href: "/student/fees",

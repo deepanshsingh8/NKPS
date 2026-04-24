@@ -2092,3 +2092,205 @@ CREATE POLICY "Admins can manage admit_card_templates"
   WITH CHECK (
     EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
   );
+
+-- ============================================
+-- RESULT MASTER (Phase 3 — admin-configurable result rules per class+year)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS result_masters (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  academic_year_id uuid NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+
+  -- Basic rules
+  pass_mark_mode text NOT NULL DEFAULT 'percentage',
+  pass_mark_value numeric(6,2) NOT NULL DEFAULT 33,
+  pass_criteria_type text NOT NULL DEFAULT 'all_main_subjects',
+  pass_criteria_config jsonb NOT NULL DEFAULT '{}'::jsonb,
+
+  -- Display
+  show_rank boolean NOT NULL DEFAULT false,
+  show_extra_separately boolean NOT NULL DEFAULT true,
+  include_non_scholastic boolean NOT NULL DEFAULT false,
+  non_scholastic_placement text NOT NULL DEFAULT 'below',
+
+  -- Grading override (NULL = use class_grade_scales or scope default)
+  grade_scale_id uuid REFERENCES grade_scales(id) ON DELETE SET NULL,
+
+  -- Grace marks (percentage points; applied before pass check; covers main + optional)
+  grace_marks_per_subject_max numeric(5,2) NOT NULL DEFAULT 0,
+  grace_marks_total_max numeric(5,2) NOT NULL DEFAULT 0,
+  grace_marks_condition text NOT NULL DEFAULT 'failing_only',
+
+  -- Rounding
+  rounding_mode text NOT NULL DEFAULT 'none',
+  rounding_precision integer NOT NULL DEFAULT 0,
+  round_raw_marks boolean NOT NULL DEFAULT false,
+
+  -- Best-of rules (NULL = use all exams of that kind)
+  class_test_best_of integer,
+  practical_best_of integer,
+
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+
+  CONSTRAINT result_masters_unique UNIQUE (class_id, academic_year_id),
+  CONSTRAINT result_masters_pass_mark_mode_check
+    CHECK (pass_mark_mode IN ('percentage', 'raw_marks')),
+  CONSTRAINT result_masters_pass_mark_value_check
+    CHECK (pass_mark_value >= 0),
+  CONSTRAINT result_masters_non_scholastic_placement_check
+    CHECK (non_scholastic_placement IN ('below', 'above', 'separate_page')),
+  CONSTRAINT result_masters_grace_per_subject_range
+    CHECK (grace_marks_per_subject_max >= 0 AND grace_marks_per_subject_max <= 100),
+  CONSTRAINT result_masters_grace_total_range
+    CHECK (grace_marks_total_max >= 0 AND grace_marks_total_max <= 100),
+  CONSTRAINT result_masters_grace_condition_check
+    CHECK (grace_marks_condition IN ('failing_only', 'any_subject')),
+  CONSTRAINT result_masters_rounding_mode_check
+    CHECK (rounding_mode IN ('none', 'half_up', 'half_down', 'ceil', 'floor')),
+  CONSTRAINT result_masters_rounding_precision_check
+    CHECK (rounding_precision BETWEEN 0 AND 2),
+  CONSTRAINT result_masters_class_test_best_of_positive
+    CHECK (class_test_best_of IS NULL OR class_test_best_of > 0),
+  CONSTRAINT result_masters_practical_best_of_positive
+    CHECK (practical_best_of IS NULL OR practical_best_of > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_result_masters_class_year
+  ON result_masters(class_id, academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_result_masters_academic_year
+  ON result_masters(academic_year_id);
+
+CREATE TABLE IF NOT EXISTS result_master_subjects (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  result_master_id uuid NOT NULL REFERENCES result_masters(id) ON DELETE CASCADE,
+  subject_id uuid NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  role text NOT NULL DEFAULT 'main',
+  pass_mark_value_override numeric(6,2),
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+
+  CONSTRAINT result_master_subjects_unique UNIQUE (result_master_id, subject_id),
+  CONSTRAINT result_master_subjects_role_check
+    CHECK (role IN ('main', 'optional')),
+  CONSTRAINT result_master_subjects_override_nonneg
+    CHECK (pass_mark_value_override IS NULL OR pass_mark_value_override >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_result_master_subjects_master
+  ON result_master_subjects(result_master_id);
+CREATE INDEX IF NOT EXISTS idx_result_master_subjects_subject
+  ON result_master_subjects(subject_id);
+
+ALTER TABLE result_masters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE result_master_subjects ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated can read result_masters" ON result_masters;
+CREATE POLICY "Authenticated can read result_masters"
+  ON result_masters FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage result_masters" ON result_masters;
+CREATE POLICY "Admins can manage result_masters"
+  ON result_masters FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Authenticated can read result_master_subjects" ON result_master_subjects;
+CREATE POLICY "Authenticated can read result_master_subjects"
+  ON result_master_subjects FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage result_master_subjects" ON result_master_subjects;
+CREATE POLICY "Admins can manage result_master_subjects"
+  ON result_master_subjects FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+-- ============================================
+-- NON-SCHOLASTIC ASSESSMENTS (Phase 2 — migration-023)
+-- Per-student grade for each non-scholastic sub-subject in a given exam.
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS non_scholastic_assessments (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  exam_type_id uuid NOT NULL REFERENCES exam_types(id) ON DELETE CASCADE,
+  sub_subject_id uuid NOT NULL REFERENCES non_scholastic_sub_subjects(id) ON DELETE CASCADE,
+  grade_label text NOT NULL,
+  remarks text,
+  entered_by uuid NOT NULL REFERENCES profiles(id),
+  is_published boolean NOT NULL DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT non_scholastic_assessments_unique
+    UNIQUE (student_id, exam_type_id, sub_subject_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nsa_student ON non_scholastic_assessments(student_id);
+CREATE INDEX IF NOT EXISTS idx_nsa_exam ON non_scholastic_assessments(exam_type_id);
+CREATE INDEX IF NOT EXISTS idx_nsa_class_exam ON non_scholastic_assessments(class_id, exam_type_id);
+CREATE INDEX IF NOT EXISTS idx_nsa_sub_subject ON non_scholastic_assessments(sub_subject_id);
+
+ALTER TABLE non_scholastic_assessments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins full access to non_scholastic_assessments"
+  ON non_scholastic_assessments;
+CREATE POLICY "Admins full access to non_scholastic_assessments"
+  ON non_scholastic_assessments FOR ALL
+  USING (public.get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Teachers can read assessments for their classes"
+  ON non_scholastic_assessments;
+CREATE POLICY "Teachers can read assessments for their classes"
+  ON non_scholastic_assessments FOR SELECT
+  USING (
+    public.get_user_role() = 'teacher'
+    AND class_id IN (SELECT public.get_my_class_ids())
+  );
+
+DROP POLICY IF EXISTS "Teachers can insert assessments for their classes"
+  ON non_scholastic_assessments;
+CREATE POLICY "Teachers can insert assessments for their classes"
+  ON non_scholastic_assessments FOR INSERT
+  WITH CHECK (
+    public.get_user_role() = 'teacher'
+    AND class_id IN (SELECT public.get_my_class_ids())
+  );
+
+DROP POLICY IF EXISTS "Teachers can update assessments for their classes"
+  ON non_scholastic_assessments;
+CREATE POLICY "Teachers can update assessments for their classes"
+  ON non_scholastic_assessments FOR UPDATE
+  USING (
+    public.get_user_role() = 'teacher'
+    AND class_id IN (SELECT public.get_my_class_ids())
+  );
+
+DROP POLICY IF EXISTS "Students can read own published assessments"
+  ON non_scholastic_assessments;
+CREATE POLICY "Students can read own published assessments"
+  ON non_scholastic_assessments FOR SELECT
+  USING (
+    student_id = public.get_my_student_id()
+    AND is_published = true
+  );
+
+DROP POLICY IF EXISTS "Parents can read children published assessments"
+  ON non_scholastic_assessments;
+CREATE POLICY "Parents can read children published assessments"
+  ON non_scholastic_assessments FOR SELECT
+  USING (
+    student_id IN (SELECT public.get_my_children_ids())
+    AND is_published = true
+  );

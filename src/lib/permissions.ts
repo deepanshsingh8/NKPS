@@ -29,6 +29,7 @@ export type FeatureKey =
   | "calendar"
   | "attendance"
   | "results"
+  | "non_scholastic_entry"
   | "registrations";
 
 export type FeatureGroup = "content" | "erp";
@@ -60,6 +61,7 @@ export const FEATURE_CATALOG: readonly FeatureDef[] = [
   { key: "calendar", label: "Calendar", href: "/admin/calendar", group: "erp" },
   { key: "attendance", label: "Attendance", href: "/admin/attendance", group: "erp" },
   { key: "results", label: "Results", href: "/admin/exams/results", group: "erp" },
+  { key: "non_scholastic_entry", label: "Non-Scholastic Entry", href: "/admin/exams/non-scholastic-assessments", group: "erp" },
   { key: "registrations", label: "Registrations", href: "/admin/registrations", group: "erp" },
 ] as const;
 
@@ -77,6 +79,7 @@ export const ADMIN_ONLY_PREFIXES = [
   "/admin/exams/grade-master",
   "/admin/exams/header-footer",
   "/admin/exams/non-scholastic-masters",
+  "/admin/exams/result-master",
 ] as const;
 
 export function isAdminOnlyPath(pathname: string): boolean {

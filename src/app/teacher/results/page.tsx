@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -24,19 +24,49 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Save, Loader2 } from "lucide-react";
+import { Save, Loader2, Download, Info } from "lucide-react";
 import { formatClassName } from "@/lib/utils";
 import { computeGrade, type GradeBand } from "@/lib/grading";
+import { MarksImportDialog } from "@/components/erp/MarksImportDialog";
 import type { Class, Subject, ExamType } from "@/types";
 
 interface EnrolledStudent {
   student_id: string;
   roll_number: number | null;
   full_name: string;
+  admission_no: string | null;
+}
+
+type OrderBy = "roll" | "name" | "admission";
+
+interface ExamScheduleInfo {
+  exam_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  room: string | null;
+  invigilator_name: string | null;
+  notes: string | null;
+}
+
+function formatDateShort(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 interface MarksEntry {
@@ -77,6 +107,11 @@ export default function TeacherResultsPage() {
 
   const [maxMarks, setMaxMarks] = useState(100);
   const [gradeBands, setGradeBands] = useState<GradeBand[]>([]);
+
+  const [orderBy, setOrderBy] = useState<OrderBy>("roll");
+  const [examInfoOpen, setExamInfoOpen] = useState(false);
+  const [examInfo, setExamInfo] = useState<ExamScheduleInfo | null>(null);
+  const [examInfoLoading, setExamInfoLoading] = useState(false);
 
   const [teacherId, setTeacherId] = useState<string | null>(null);
   const [classTeacherMap, setClassTeacherMap] = useState<
@@ -263,18 +298,23 @@ export default function TeacherResultsPage() {
     // Fetch enrolled students
     const { data: enrollments } = await supabase
       .from("student_enrollments")
-      .select("student_id, roll_number, students(full_name)")
+      .select("student_id, roll_number, students(full_name, admission_no)")
       .eq("class_id", selectedClassId)
       .order("roll_number", { ascending: true });
 
     const enrolledStudents: EnrolledStudent[] = (enrollments ?? []).map(
-      (e) => ({
-        student_id: e.student_id,
-        roll_number: e.roll_number,
-        full_name:
-          (e.students as unknown as { full_name: string })?.full_name ??
-          "Unknown",
-      })
+      (e) => {
+        const s = e.students as unknown as {
+          full_name: string;
+          admission_no: string;
+        };
+        return {
+          student_id: e.student_id,
+          roll_number: e.roll_number,
+          full_name: s?.full_name ?? "Unknown",
+          admission_no: s?.admission_no ?? null,
+        };
+      }
     );
 
     setStudents(enrolledStudents);
@@ -462,6 +502,33 @@ export default function TeacherResultsPage() {
     }
   }
 
+  const hasInvalidMarks = marksEntries.some((e) => {
+    if (e.marks_obtained === "") return false;
+    const n = Number(e.marks_obtained);
+    return n < 0 || n > maxMarks;
+  });
+
+  const marksByStudent = useMemo(() => {
+    const m = new Map<string, number | "">();
+    for (const e of marksEntries) m.set(e.student_id, e.marks_obtained);
+    return m;
+  }, [marksEntries]);
+
+  const sortedStudents = useMemo(() => {
+    const arr = [...students];
+    arr.sort((a, b) => {
+      if (orderBy === "name") return a.full_name.localeCompare(b.full_name);
+      if (orderBy === "admission") {
+        return (a.admission_no ?? "").localeCompare(b.admission_no ?? "");
+      }
+      // roll (default) — nulls go last
+      const ra = a.roll_number ?? Number.MAX_SAFE_INTEGER;
+      const rb = b.roll_number ?? Number.MAX_SAFE_INTEGER;
+      return ra - rb;
+    });
+    return arr;
+  }, [students, orderBy]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -470,11 +537,44 @@ export default function TeacherResultsPage() {
     );
   }
 
-  const hasInvalidMarks = marksEntries.some((e) => {
-    if (e.marks_obtained === "") return false;
-    const n = Number(e.marks_obtained);
-    return n < 0 || n > maxMarks;
-  });
+  async function openExamInfo() {
+    if (!selectedClassId || !selectedSubjectId || !selectedExamTypeId) return;
+    setExamInfoOpen(true);
+    setExamInfoLoading(true);
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("exam_schedules")
+        .select(
+          "exam_date, start_time, end_time, room, notes, teachers:invigilator_teacher_id(full_name)"
+        )
+        .eq("class_id", selectedClassId)
+        .eq("subject_id", selectedSubjectId)
+        .eq("exam_type_id", selectedExamTypeId)
+        .maybeSingle();
+      if (!data) {
+        setExamInfo(null);
+        return;
+      }
+      const teacher = data.teachers as unknown as { full_name: string } | null;
+      setExamInfo({
+        exam_date: (data.exam_date as string | null) ?? null,
+        start_time: (data.start_time as string | null) ?? null,
+        end_time: (data.end_time as string | null) ?? null,
+        room: (data.room as string | null) ?? null,
+        invigilator_name: teacher?.full_name ?? null,
+        notes: (data.notes as string | null) ?? null,
+      });
+    } finally {
+      setExamInfoLoading(false);
+    }
+  }
+
+  function downloadExport() {
+    if (!selectedClassId || !selectedSubjectId || !selectedExamTypeId) return;
+    const url = `/api/erp/results/export?class_id=${selectedClassId}&subject_id=${selectedSubjectId}&exam_type_id=${selectedExamTypeId}`;
+    window.open(url, "_blank");
+  }
 
   return (
     <div className="space-y-6">
@@ -562,8 +662,8 @@ export default function TeacherResultsPage() {
       {/* Marks Entry Table */}
       {selectedClassId && selectedSubjectId && selectedExamTypeId && (
         <Card className="bg-white dark:bg-card rounded-2xl">
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
-            <div>
+          <CardHeader className="flex flex-row items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
               <CardTitle className="text-navy-900 dark:text-white">
                 Marks Entry
                 <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
@@ -577,19 +677,75 @@ export default function TeacherResultsPage() {
                 </p>
               )}
             </div>
-            <div className="flex flex-col items-end gap-1">
-              <Button
-                onClick={handleSave}
-                disabled={saving || hasInvalidMarks}
-                className="bg-navy-900 text-white hover:bg-navy-900/90"
-              >
-                {saving ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Save className="h-4 w-4 mr-2" />
-                )}
-                Save All
-              </Button>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Order by
+                  </span>
+                  <Select
+                    value={orderBy}
+                    items={[
+                      { value: "roll", label: "Roll" },
+                      { value: "name", label: "Name" },
+                      { value: "admission", label: "Admission" },
+                    ]}
+                    onValueChange={(v) => v && setOrderBy(v as OrderBy)}
+                  >
+                    <SelectTrigger className="h-8 w-[110px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="roll" label="Roll">
+                        Roll
+                      </SelectItem>
+                      <SelectItem value="name" label="Name">
+                        Name
+                      </SelectItem>
+                      <SelectItem value="admission" label="Admission">
+                        Admission
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={openExamInfo}
+                >
+                  <Info className="h-4 w-4 mr-2" />
+                  Exam Info
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={downloadExport}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+                <MarksImportDialog
+                  classId={selectedClassId}
+                  examTypeId={selectedExamTypeId}
+                  subjectId={selectedSubjectId}
+                  onImported={fetchStudentsAndMarks}
+                />
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || hasInvalidMarks}
+                  className="bg-navy-900 text-white hover:bg-navy-900/90"
+                  size="sm"
+                >
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  Save All
+                </Button>
+              </div>
               {hasInvalidMarks && (
                 <span className="text-xs font-medium text-red-600 dark:text-red-400">
                   Fix marks exceeding {maxMarks} to save
@@ -623,12 +779,12 @@ export default function TeacherResultsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {students.map((student, idx) => {
-                      const entry = marksEntries[idx];
+                    {sortedStudents.map((student) => {
+                      const value = marksByStudent.get(student.student_id);
                       const marks =
-                        entry?.marks_obtained === ""
+                        value === undefined || value === ""
                           ? null
-                          : Number(entry?.marks_obtained);
+                          : Number(value);
                       const isInvalid =
                         marks !== null && (marks < 0 || marks > maxMarks);
                       const grade =
@@ -647,7 +803,7 @@ export default function TeacherResultsPage() {
                               type="number"
                               min={0}
                               max={maxMarks}
-                              value={entry?.marks_obtained ?? ""}
+                              value={value ?? ""}
                               onChange={(e) =>
                                 handleMarksChange(
                                   student.student_id,
@@ -704,6 +860,66 @@ export default function TeacherResultsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={examInfoOpen} onOpenChange={setExamInfoOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Exam Info</DialogTitle>
+          </DialogHeader>
+          {examInfoLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          ) : !examInfo ? (
+            <div className="py-4 text-sm text-gray-500 dark:text-gray-400">
+              No schedule found for this class · subject · exam. Ask the admin
+              to set one on the Timetable page.
+            </div>
+          ) : (
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-500 dark:text-gray-400">Date</span>
+                <span className="font-medium text-navy-900 dark:text-white">
+                  {formatDateShort(examInfo.exam_date)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-500 dark:text-gray-400">Time</span>
+                <span className="font-medium text-navy-900 dark:text-white">
+                  {examInfo.start_time && examInfo.end_time
+                    ? `${examInfo.start_time} – ${examInfo.end_time}`
+                    : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-500 dark:text-gray-400">Room</span>
+                <span className="font-medium text-navy-900 dark:text-white">
+                  {examInfo.room ?? "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-500 dark:text-gray-400">Invigilator</span>
+                <span className="font-medium text-navy-900 dark:text-white">
+                  {examInfo.invigilator_name ?? "—"}
+                </span>
+              </div>
+              {examInfo.notes && (
+                <div className="pt-2 border-t border-gray-100 dark:border-border">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    Notes
+                  </p>
+                  <p className="text-sm text-navy-900 dark:text-white whitespace-pre-wrap">
+                    {examInfo.notes}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Close</DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

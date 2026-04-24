@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { AdmitCardGenerateTab } from "@/components/admin/AdmitCardGenerateTab";
 import {
   Plus,
   Pencil,
@@ -257,8 +258,8 @@ export default function AdmitCardsPage() {
           Admit Cards
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Reusable admit card templates. Student-level generation lives in the
-          &quot;Generate&quot; tab (coming in the next phase).
+          Reusable admit card templates + per-student PDF generation. Pick a
+          class and exam in the Generate tab to create admit cards.
         </p>
       </div>
 
@@ -267,9 +268,7 @@ export default function AdmitCardsPage() {
           <TabsTrigger value="templates">
             Templates ({templates.length})
           </TabsTrigger>
-          <TabsTrigger value="generate" disabled>
-            Generate (Phase 1.3)
-          </TabsTrigger>
+          <TabsTrigger value="generate">Generate</TabsTrigger>
         </TabsList>
 
         <TabsContent value="templates" className="mt-4 space-y-3">
@@ -365,6 +364,17 @@ export default function AdmitCardsPage() {
               })}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="generate" className="mt-4">
+          <AdmitCardGenerateTab
+            templates={templates.map((t) => ({
+              id: t.id,
+              name: t.name,
+              is_default: t.is_default,
+              is_active: t.is_active,
+            }))}
+          />
         </TabsContent>
       </Tabs>
 

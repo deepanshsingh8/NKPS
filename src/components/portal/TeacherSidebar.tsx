@@ -7,6 +7,7 @@ import {
   Clock,
   Users,
   CalendarDays,
+  Sparkles,
 } from "lucide-react";
 import { PortalSidebar } from "./PortalSidebar";
 
@@ -25,6 +26,11 @@ const navLinks = [
     href: "/teacher/results",
     label: "Results",
     icon: <BarChart3 className="h-5 w-5 shrink-0" />,
+  },
+  {
+    href: "/teacher/non-scholastic",
+    label: "Non-Scholastic",
+    icon: <Sparkles className="h-5 w-5 shrink-0" />,
   },
   {
     href: "/teacher/timetable",

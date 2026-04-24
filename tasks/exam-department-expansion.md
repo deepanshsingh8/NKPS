@@ -169,12 +169,19 @@ Tasks:
 - [x] API: `GET/POST /api/erp/admit-card-templates` + `PATCH/DELETE /api/erp/admit-card-templates/[id]`. Default-promotion + default-delete-guard with guided flow (same pattern as grade scales).
 - [x] `/admin/exams/admit-cards` — tabbed page (Templates active now, Generate stub reserved for Phase 1.3). Card grid with Default badge, Inactive badge, active-field count and preview chips. Edit dialog covers name, orientation, bg image URL, 11 field toggles, instructions textarea (conditional on `show_instructions`), signature-label list (add/remove inline), is_default + is_active toggles. Delete dialog handles default promotion via the same picker pattern.
 
-### 1.3 Admit Card Generation (PDF + flows) — pending
-- [ ] `src/components/pdf/AdmitCardPDF.tsx` — renders from template + schedule + `pdf_header_configs`/`pdf_footer_configs` row for `admit_card`.
-- [ ] `/api/erp/admit-cards/pdf?student_id&template_id&exam_type_id` — single student PDF.
-- [ ] `/api/erp/admit-cards/bulk?class_id&template_id&exam_type_id&student_ids[]` — multi-page bulk PDF.
-- [ ] Generate tab on `/admin/exams/admit-cards`: class + section + exam + template picker → filtered student list with select-all → "Download selected" / "Download class PDF".
-- [ ] Student dashboard: "Download Admit Card" button when schedule exists and default template is active.
+### 1.3 Admit Card Generation (PDF + flows) — DONE
+- [x] `src/components/pdf/AdmitCardPDF.tsx` — A4 portrait/landscape per template.orientation, school header + upper_header banner + student details grid (field toggles respected), optional student photo slot, schedule table (subject/date/time/room), instructions block (split by newlines), footer with configurable signature labels from pdf_footer_configs or template fallback. Supports multi-page via `cards[]` array.
+- [x] `/api/erp/admit-cards/pdf?student_id&exam_type_id&template_id` — single student PDF. Auth: admin/teacher/editor any student, student self only, parent linked children (reuses `canViewReportCard`). Resolves template (explicit id → default → 404), student + enrollment + class, exam_type, schedule rows, pdf header/footer via `getPdfTemplate`, logo buffer, student photo (fetched from photo_url or null).
+- [x] `/api/erp/admit-cards/bulk?class_id&exam_type_id&template_id&student_ids=a,b,c` — admin+editor-with-`admit_cards` route. Supports both `?student_ids=a,b,c` and repeated `?student_ids=a&student_ids=b`. Empty student_ids means whole class. 200-student safety cap with `413` error message. Fetches schedule once, photos in parallel.
+- [x] Generate tab on `/admin/exams/admit-cards` (extracted to `src/components/admin/AdmitCardGenerateTab.tsx`): Exam + Class + Template pickers (default template preselected), "Display students" button loads enrollment list, schedule-missing warning banner with direct link to `/admin/exams/timetable`, per-student SR/Roll/Name/Father/Admission/Phone table with Select All checkbox, per-row quick download, "Download Selected (N)" and "Download Class (N)" actions. Uses browser blob + anchor-click download pattern.
+- [x] Student dashboard `/student/admit-cards` — lists exams with at least one schedule row for the student's active class, sorted by earliest exam_date, shows upper_header as a pill badge + date range + paper count + Download button per exam. Friendly empty state when no default template or no scheduled exams.
+- [x] Parent dashboard `/parent/admit-cards` — same layout with a child picker (auto-selects single child; dropdown if multiple); falls back on the same PDF endpoint (auth allows parent for linked students).
+- [x] Sidebar entries: Student sidebar gets "Admit Cards" link, Parent sidebar gets "Admit Cards" link.
+
+### Verification — done at code level
+- [x] `tsc --noEmit`: clean.
+- [x] Lint: baseline 21 → 25, the 4 additions match existing codebase patterns on other @react-pdf components (JSX-in-try/catch + Image-alt false positives on PDF Image). No genuine regressions.
+- [ ] **User smoke test needed** — see checklist below.
 
 ### Permissions + Discovery — DONE
 - [x] Added `exam_timetable` and `admit_cards` feature keys to `FeatureKey` union and `FEATURE_CATALOG`. Both are editor-grantable (these are operational, not sensitive config).
@@ -190,29 +197,42 @@ Tasks:
 
 ## Phase 2 — Non-Scholastic entries + Marks import/export
 
+> **Migration-numbering note:** 021 and 022 were already taken by
+> `exam-class-level` and `result-master`. Phase 2 migration lands at 023.
+
 ### Migrations
-- [ ] `migration-021-non-scholastic-assessments.sql`
-  - `non_scholastic_assessments(id, student_id, exam_type_id, sub_subject_id, grade_label, remarks, entered_by, timestamps, UNIQUE(student_id, exam_type_id, sub_subject_id))`
+- [x] `migration-023-non-scholastic-assessments.sql`
+  - `non_scholastic_assessments(id, student_id, class_id, exam_type_id, sub_subject_id, grade_label, remarks, entered_by, is_published, timestamps, UNIQUE(student_id, exam_type_id, sub_subject_id))`.
+  - Added `class_id` column (not in the original plan) so teacher RLS can reuse the `get_my_class_ids()` helper without a join.
+  - RLS mirrors `results`: admin full; teachers read/insert/update within their classes; students/parents read their own published rows (waiting on Phase 5 publish workflow to actually flip the flag).
+  - Mirrored in `supabase-schema.sql`.
 
 ### Non-Scholastic UI
-- [ ] `/teacher/non-scholastic` — per-class per-exam grid for selected sub-subjects.
-- [ ] `/admin/exams/non-scholastic-assessments` — admin override/view.
+- [x] `/teacher/non-scholastic` — Class + Exam + Parent-Subject pickers, grid with rows = students (by roll) × columns = sub-subjects, per-cell grade dropdown populated from the applicable scale (sub-subject override → non-scholastic default), Save All upserts everything in one API call (clear = delete). Teacher sidebar got a "Non-Scholastic" link (Sparkles icon).
+- [x] `/admin/exams/non-scholastic-assessments` — same grid, classes unfiltered (admin can grade any class). Added to the Exams sidebar group and `/admin/exams` hub tile (`featureKey: "non_scholastic_entry"`).
 
 ### Scholastic marks import/export
-- [ ] `/api/erp/results/export` — CSV/XLSX per class+exam+subject.
-- [ ] `/api/erp/results/import` — CSV upload with dry-run preview + row-level errors.
-  - Reuses Phase 0 `max_marks` validator so import cannot bypass bounds.
-- [ ] `src/components/erp/MarksImportDialog.tsx` — multi-step UI (upload → preview → confirm).
-- [ ] Template download next to import button.
+- [x] `/api/erp/results/export?class_id&exam_type_id&subject_id` — returns CSV (headers: `admission_no, roll_number, student_name, marks_obtained, max_marks, grade`). Blank rows when no mark is saved yet, so the same endpoint doubles as the import template.
+- [x] `/api/erp/results/import` — multipart upload (file, class_id, exam_type_id, subject_id, dry_run). Parses CSV/XLSX via the already-installed `xlsx` library. Matches students by `admission_no` first, falls back to `roll_number`. Rejects out-of-range marks (0..max_marks) and duplicate admission numbers. Commit is fail-closed: any row error → zero rows applied, even with dry_run=false. Applies grade via the existing `resolveGradeScaleForClass` + `computeGrade` helpers.
+- [x] `src/components/erp/MarksImportDialog.tsx` — reusable upload → preview → confirm dialog with per-row status badges (OK / blank / error) and a "Download template" shortcut that hits the export endpoint. Wired into `/teacher/results/page.tsx` alongside Export and Save All.
+- [x] Template download: reuses `/api/erp/results/export` (returning one row per enrolled student with blank marks), accessible from the dialog + from Export button in the results page header.
+
+### Marks-entry UX enhancements (Appendix E)
+- [x] **Order by** dropdown on `/teacher/results` — Roll / Name / Admission — sorts the in-memory table without refetching. `student_enrollments` query now pulls `admission_no` so the Admission sort works.
+- [x] **Exam Info** button on `/teacher/results` — opens a dialog with date, time, room, invigilator, and notes for the current (class × subject × exam) pulled from `exam_schedules`. Friendly empty state when no schedule row exists yet.
+- [x] **Default Max Marks** override — deferred to Phase 4 (Result Master). `result_master_exam_configs.max_marks_override` already models the override, so injecting it into the marks-entry flow becomes one line once Result Master ships. Keeping Phase 2 scoped.
 
 ### Permissions
-- [ ] Add `non_scholastic_entry`, `marks_import_export` feature keys.
+- [x] Added `non_scholastic_entry` to `FeatureKey` + `FEATURE_CATALOG` (maps to `/admin/exams/non-scholastic-assessments`). Editor-grantable.
+- [ ] `marks_import_export` — skipped for now. Teachers already have the capability via their existing class-subject grants, and there's no dedicated admin page to gate. Can add later if we expose a standalone admin import page.
 
 ### Verification
 - [ ] Import of 500-row CSV rejects invalid rows without corrupting valid ones.
 - [ ] Export → reimport produces no diff.
-- [ ] Non-scholastic does not leak into scholastic totals.
+- [ ] Non-scholastic does not leak into scholastic totals (Phase 4 final-result engine will exclude).
 - [ ] Import cannot save `marks_obtained > max_marks` (DB CHECK holds even if app logic misses).
+- [x] `tsc --noEmit`: clean.
+- [x] Lint: same total as Phase 1.3 end (25 problems), no new issues introduced.
 
 ---
 
@@ -345,7 +365,7 @@ Tasks:
 
 ---
 
-## Phase 5 — White Sheet, Green Sheet, PTM Format, Blank Marks List
+## Phase 6 — White Sheet, Green Sheet, PTM Notes, PTM Format, Blank Marks List
 
 ### White Sheet
 - [ ] `/admin/exams/white-sheet` — class+exam grid (rows = students by roll, cols = subjects), totals, grade.
@@ -357,46 +377,135 @@ Tasks:
 - [ ] Per-exam totals + final weighted result.
 - [ ] PDF + CSV export.
 
-### PTM Format
-- [ ] Admin-configurable template (`ptm_formats` table).
-- [ ] Generates per-student PTM sheet with marks + attendance + remarks.
+### PTM Notes (A.4 in original requirements — student-wise meeting records)
+- [ ] `migration-026-ptm-notes.sql`:
+  - `ptm_notes(id, student_id, exam_type_id nullable, meeting_date, attendance text check in ('present','absent'), teacher_remarks, parent_remarks nullable, action_points, recorded_by, created_at, updated_at, UNIQUE(student_id, meeting_date))`.
+  - `school_meeting_counts(id, academic_year_id, exam_type_id nullable, class_id nullable, total_meetings int, updated_at)` — mirrors the "Total School Meetings" counter field in the legacy platform.
+  - RLS: teachers/admins/editors with `ptm_notes` feature key write; parents can read their own children's notes.
+- [ ] API:
+  - `GET /api/erp/ptm-notes?class_id&exam_type_id&student_id` + POST bulk upsert.
+  - `POST /api/erp/ptm-notes/import` — CSV bulk import (legacy platform has "Import Meetings").
+  - `GET /api/erp/ptm-notes/report?class_id&exam_type_id` — PDF of all students' remarks (legacy "Report" button).
+- [ ] Teacher UI at `/teacher/ptm-notes` — Class + Section + Exam + "Total School Meetings" counter + Order by filters, bulk grid with per-student date/attendance/teacher remarks/parent remarks/action points columns.
+- [ ] Parent portal: expose the student's PTM notes under a new "PTM" tab — read-only.
+- [ ] Permission: `ptm_notes`.
+
+### PTM Format (printable template — distinct from PTM Notes)
+- [ ] Admin-configurable template (`ptm_formats` table) for the pre-meeting handout.
+- [ ] Per-student generation pulls: student details, subject-wise performance snapshot (from `results`), teacher remarks section (blank to write on), parent signature line.
+- [ ] PDF download from `/admin/exams/ptm-format` or teacher-initiated download.
+- [ ] Permission: `ptm_format`.
 
 ### Blank Marks List
 - [ ] Subject + class + exam → print-ready blank PDF with roll/name/empty-marks column.
 
 ### Permissions
-- [ ] Add `white_sheet`, `green_sheet`, `ptm_format`, `blank_marks_list` feature keys.
+- [ ] Add `white_sheet`, `green_sheet`, `ptm_notes`, `ptm_format`, `blank_marks_list` feature keys.
 
 ### Verification
 - [ ] Sheets respect result_master config (main vs extra, included/excluded exams).
 - [ ] Blank marks list paginates cleanly for 60+ student classes.
+- [ ] PTM note attendance persists through edits; parents see only their children.
 
 ---
 
-## Phase 6 — Roll Number dynamic reordering
+## Phase 7 — Roll Number dynamic reordering
+
+> **Scope expansion:** admin confirmed the requirement is broader than alphabetical-only. Needed: auto-generate on admission, re-assign annually, bulk reorder by admin-chosen sort key (Name / Admission No / Previous result rank), section-wise unique numbering, explicit "Generate Roll No" button per class.
 
 ### Migrations
-- [ ] `migration-024-roll-number-auto.sql`
+- [ ] `migration-027-roll-number-auto.sql`
   - Add `roll_number_manual bool default false` to `student_enrollments`.
-  - Function `recompute_roll_numbers(p_class_id uuid)`:
-    - Alphabetical by `students.full_name ASC` over active enrollments.
+  - Function `recompute_roll_numbers(p_class_id uuid, p_sort_key text DEFAULT 'name')`:
+    - `p_sort_key` accepts `'name'` (alphabetical), `'admission_no'` (ascending), `'previous_rank'` (from last applicable result).
+    - Sections get independent 1..N numbering.
     - Skip rows where `roll_number_manual = true`.
-  - Triggers:
-    - `AFTER INSERT OR DELETE ON student_enrollments` → recompute for affected class.
-    - `AFTER UPDATE OF full_name ON students` → recompute for all active-enrollment classes of that student.
-    - `AFTER UPDATE OF status ON student_enrollments` → recompute (status change adds/removes from active set).
+  - Triggers for auto-recompute on enrollment INSERT / DELETE, student name UPDATE, status UPDATE — all default to `'name'` sort, admin can manually override via the "Generate Roll No" button with a different sort key.
 
 ### Backfill
 - [ ] One-off: call `recompute_roll_numbers()` for every class with active enrollments.
 
 ### Admin UI
-- [ ] `/admin/students` enrollment edit: show "auto-assigned (alphabetical)" with toggle for manual override.
+- [ ] `/admin/people/students` enrollment edit: show "auto-assigned" with toggle for manual override.
+- [ ] "Generate Roll No" button on `/admin/academics/classes/[id]`: opens a small dialog with sort key picker (Name / Admission No / Previous result rank), confirms the impact, then runs `recompute_roll_numbers(class_id, sort_key)`.
 
 ### Verification
 - [ ] New student mid-year → subsequent roll numbers shift correctly.
 - [ ] Rename a student → roll order updates.
 - [ ] Set status='passed' → student drops, remaining compact.
 - [ ] Manual override persists through unrelated recomputes.
+- [ ] Admin-triggered re-sort by admission_no produces expected ordering for a sample class.
+- [ ] Different sections of the same class get independent 1..N series.
+
+---
+
+## Phase 8 — Supplementary Exam workflow (NEW — surfaced from legacy-platform screenshots)
+
+> Schools have students who fail some subjects but qualify for a retest ("supplementary"). Legacy platform's Result Advance Settings store `MinForSupplementary=25`, `SupplementarySubs=2` (max 2 subjects supplementary). Our Phase 4 Result Master captures division thresholds and grace marks; the *workflow* for managing supplementary attempts is separate.
+
+### Migrations
+- [ ] `migration-028-supplementary.sql`
+  - `supplementary_attempts(id, student_id, parent_exam_type_id, subject_id, retest_date, marks_obtained, max_marks, passed bool, entered_by, timestamps, UNIQUE(student_id, parent_exam_type_id, subject_id))`.
+  - FK on `exam_types` + `subjects`; cascade appropriately.
+
+### API + UI
+- [ ] List of students flagged supplementary (derived from Result Master rules).
+- [ ] Per-student retest marks entry.
+- [ ] Recompute final division after supplementary passes, update published marksheet.
+
+### Permission: `supplementary_exams`.
+
+_(Detailed design deferred until Phase 4 ships so we can see exactly how the division/grace flow emerges in practice.)_
+
+---
+
+## Appendix — Findings from Legacy Platform Screenshots (for reference)
+
+Reviewed 17 screenshots of an existing school ERP platform. Features already captured above, plus the following inflection points worth calling out separately so they don't get lost:
+
+### A. Marksheet Header/Footer is a rich HTML editor with keyword substitution
+Legacy admin builds report-card headers in a WYSIWYG editor using placeholders like `#STUDENTNAME#`, `#FATHERNAME#`, `#CLASS#`, `#Section#`, `#RollNo#`, `#SESSION#`, `#DOB#`, `#OverAllGrade#`, `#Rank#`, `#Division#`, `#ObtMaxMarks#`, `#CGPA#`, `#Remark#`, `#Photo#`, `#House#`, `#Top10Sec#` (top 10 in section photo), `#BoardRegNo#`, `#ATTENDANCE#`, `#AttendancePer#`. At render time the engine substitutes real values. Multiple footer templates exist per faculty ("PRIMARY FOOTER", "REPORT CARD XI", "III TO VIII REPORT CARD").
+
+This is substantially more flexible than our current hardcoded PDF layout. Potential future phase (tentatively after Phase 4):
+
+- **Phase 4a — Keyword-substitution PDF template designer**:
+  - Add `marksheet_templates(id, name, faculty_scope class_level, header_html, footer_html, body_html, is_default, timestamps)`.
+  - Build a keyword reference panel listing every placeholder + its source column / computed field.
+  - Extend `ReportCardPDF` with an HTML-template render path (using `html-pdf-node` or `@react-pdf` with an HTML-to-JSX converter) alongside the current code-driven layout.
+  - Admin picks: code template (current) OR HTML template (legacy-parity).
+- _Decision deferred until Phase 4 ships — may prove unnecessary if the code template with configurable blocks is sufficient._
+
+### B. Result Advance Setting as Key-Value store per (Session × Faculty × Category)
+The legacy Advance Setting page stores rules as name/value pairs grouped by Category ("Marks of Division", likely also "Grace", "Non-Scholastic Thresholds"). Example values:
+- `Distinction=75`, `FirstDiv=60`, `SecondDiv=45`, `ThirdDiv=36` (division thresholds)
+- `ByGraceSingleSub=5`, `ByGraceFirstSub=2`, `ByGraceSecondSub=2` (grace tiers)
+- `MinForPassInMainExam=24`, `MinForSupplementary=25`, `SupplementarySubs=2` (supplementary rules)
+
+**Design note for Phase 4:** consider modeling Result Advance Settings as `result_advance_settings(id, academic_year_id, class_level, category, name, value numeric, value_text text nullable, UNIQUE(academic_year_id, class_level, category, name))` rather than a fixed set of columns — gives admin extensibility to add new rules without schema changes.
+
+### C. Division system — a new output dimension
+Distinction / First Division / Second Division / Third Division is a computed classification per student (alongside letter grade + percentage) based on overall percentage thresholds. Needs to be surfaced on the report card. Fold into Phase 4 Result Master.
+
+### D. Supplementary Exam rules alongside Division
+Students who miss the pass mark by a narrow margin go to Supplementary. Tracked separately (Phase 8 above). Result Master decides who qualifies.
+
+### E. Marks Entry filter additions (Phase 2)
+- **"Default Max Marks"** text field: override `exam_types.max_marks` for a specific class+subject entry session (e.g., practicals might have 20 max in this exam instead of the default 100).
+- **"Order by"** dropdown: Name / Roll / Admission No — affects the order students appear in the marks grid.
+- **"Exam Info"** button: opens a side panel with the exam schedule (date/time/room for this subject) so the teacher can cross-check while entering marks.
+
+### F. "Import from Previous Year" button on masters
+Non-Scholastic Sub-Subject Master (at least) has a one-click import from last session. Implement as a cross-cutting feature on every master that typically carries forward: non-scholastic subjects/sub-subjects, exam types, exam schedules, result masters, grade scales. Ship alongside Phase 3/4 where it becomes most valuable.
+
+### G. Per-class Non-Scholastic sub-subjects
+Legacy UI filters sub-subjects per Class (`III` in the screenshot). Our current `non_scholastic_sub_subjects(parent_subject_id, name, …)` has no class scoping — currently global under a subject. Either:
+1. Add `class_id uuid nullable` to `non_scholastic_sub_subjects` (null = applies to all classes), OR
+2. Add a join table `class_non_scholastic_sub_subjects(class_id, sub_subject_id)`.
+
+Option 2 is cleaner if admins often share sub-subjects across classes (e.g. "Discipline → Punctuality" applies to all). Bring in when Phase 2 non-scholastic entry goes live, so teachers see the right sub-subjects per class.
+
+### H. Change-order UX on masters
+Legacy supports drag-to-reorder on masters (visible 4-direction-arrow handle on Non-Scholastic Sub-Subject rows). Our masters already have `sort_order` columns — just need the drag-and-drop UI, add as polish pass per master.
 
 ---
 

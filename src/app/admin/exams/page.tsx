@@ -10,6 +10,7 @@ import {
   Sparkles,
   CalendarClock,
   IdCard,
+  ClipboardCheck,
   ArrowRight,
   type LucideIcon,
 } from "lucide-react";
@@ -45,6 +46,16 @@ const tiles: ExamTile[] = [
     href: "/admin/exams/grade-master",
     icon: GraduationCap,
     accentColor: "text-amber-600 bg-amber-100 dark:bg-amber-900/30",
+    featureKey: null,
+    adminOnly: true,
+  },
+  {
+    label: "Result Master",
+    description:
+      "Configure pass criteria, weightage, grace marks, rounding, and report card rules per class.",
+    href: "/admin/exams/result-master",
+    icon: ClipboardCheck,
+    accentColor: "text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30",
     featureKey: null,
     adminOnly: true,
   },
@@ -94,6 +105,15 @@ const tiles: ExamTile[] = [
     icon: BarChart3,
     accentColor: "text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30",
     featureKey: "results",
+  },
+  {
+    label: "Non-Scholastic Entry",
+    description:
+      "Grade students on co-scholastic sub-skills per exam. Overrides teacher-entered grades.",
+    href: "/admin/exams/non-scholastic-assessments",
+    icon: Sparkles,
+    accentColor: "text-rose-600 bg-rose-100 dark:bg-rose-900/30",
+    featureKey: "non_scholastic_entry",
   },
 ];
 

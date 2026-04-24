@@ -33,6 +33,7 @@ import {
   Sparkles,
   CalendarClock,
   IdCard,
+  ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -112,7 +113,9 @@ const erpItems: SidebarItem[] = [
     children: [
       { kind: "link", icon: ClipboardList, label: "Exam Types", href: "/admin/exams/types" },
       { kind: "link", icon: GraduationCap, label: "Grade Master", href: "/admin/exams/grade-master" },
+      { kind: "link", icon: ClipboardCheck, label: "Result Master", href: "/admin/exams/result-master" },
       { kind: "link", icon: Sparkles, label: "Non-Scholastic", href: "/admin/exams/non-scholastic-masters" },
+      { kind: "link", icon: Sparkles, label: "Non-Scholastic Entry", href: "/admin/exams/non-scholastic-assessments" },
       { kind: "link", icon: CalendarClock, label: "Timetable", href: "/admin/exams/timetable" },
       { kind: "link", icon: IdCard, label: "Admit Cards", href: "/admin/exams/admit-cards" },
       { kind: "link", icon: FileText, label: "Header / Footer", href: "/admin/exams/header-footer" },

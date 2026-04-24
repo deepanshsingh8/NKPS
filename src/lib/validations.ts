@@ -72,6 +72,21 @@ export const resultsBulkSchema = z.object({
 
 export type ResultsBulkData = z.infer<typeof resultsBulkSchema>;
 
+export const nonScholasticAssessmentsBulkSchema = z.object({
+  class_id: z.string().uuid("Invalid class"),
+  exam_type_id: z.string().uuid("Invalid exam type"),
+  entries: z.array(
+    z.object({
+      student_id: z.string().uuid("Invalid student"),
+      sub_subject_id: z.string().uuid("Invalid sub-subject"),
+      grade_label: z.string().min(1).nullable(),
+      remarks: z.string().nullable().optional(),
+    })
+  ).min(1, "At least one assessment entry is required"),
+});
+
+export type NonScholasticAssessmentsBulkData = z.infer<typeof nonScholasticAssessmentsBulkSchema>;
+
 export const feePaymentSchema = z.object({
   student_id: z.string().uuid("Invalid student"),
   fee_structure_id: z.string().uuid("Invalid fee structure"),
@@ -309,3 +324,89 @@ export const paymentOrderSchema = z.object({
 });
 
 export type PaymentOrderData = z.infer<typeof paymentOrderSchema>;
+
+// =============================================================
+// Result Master (Phase 3)
+// =============================================================
+
+const passMarkModeEnum = z.enum(["percentage", "raw_marks"]);
+const roundingModeEnum = z.enum(["none", "half_up", "half_down", "ceil", "floor"]);
+const graceConditionEnum = z.enum(["failing_only", "any_subject"]);
+const nonScholasticPlacementEnum = z.enum(["below", "above", "separate_page"]);
+const subjectRoleEnum = z.enum(["main", "optional"]);
+
+// Create: class_id + academic_year_id required; everything else optional (DB defaults apply).
+// `pass_criteria_type` is intentionally `z.string()` so new types can ship without schema churn;
+// the route handler cross-checks it against SUPPORTED_PASS_CRITERIA_TYPES.
+export const resultMasterCreateSchema = z.object({
+  class_id: z.string().uuid("Invalid class_id"),
+  academic_year_id: z.string().uuid("Invalid academic_year_id"),
+  pass_mark_mode: passMarkModeEnum.optional(),
+  pass_mark_value: z.number().min(0).optional(),
+  pass_criteria_type: z.string().min(1).optional(),
+  pass_criteria_config: z.record(z.string(), z.unknown()).optional(),
+  show_rank: z.boolean().optional(),
+  show_extra_separately: z.boolean().optional(),
+  include_non_scholastic: z.boolean().optional(),
+  non_scholastic_placement: nonScholasticPlacementEnum.optional(),
+  grade_scale_id: z.string().uuid().nullable().optional(),
+  grace_marks_per_subject_max: z.number().min(0).max(100).optional(),
+  grace_marks_total_max: z.number().min(0).max(100).optional(),
+  grace_marks_condition: graceConditionEnum.optional(),
+  rounding_mode: roundingModeEnum.optional(),
+  rounding_precision: z.number().int().min(0).max(2).optional(),
+  round_raw_marks: z.boolean().optional(),
+  class_test_best_of: z.number().int().positive().nullable().optional(),
+  practical_best_of: z.number().int().positive().nullable().optional(),
+});
+
+// PATCH accepts the same optional fields but rejects immutable ones at the handler level.
+export const resultMasterUpdateSchema = z.object({
+  pass_mark_mode: passMarkModeEnum.optional(),
+  pass_mark_value: z.number().min(0).optional(),
+  pass_criteria_type: z.string().min(1).optional(),
+  pass_criteria_config: z.record(z.string(), z.unknown()).optional(),
+  show_rank: z.boolean().optional(),
+  show_extra_separately: z.boolean().optional(),
+  include_non_scholastic: z.boolean().optional(),
+  non_scholastic_placement: nonScholasticPlacementEnum.optional(),
+  grade_scale_id: z.string().uuid().nullable().optional(),
+  grace_marks_per_subject_max: z.number().min(0).max(100).optional(),
+  grace_marks_total_max: z.number().min(0).max(100).optional(),
+  grace_marks_condition: graceConditionEnum.optional(),
+  rounding_mode: roundingModeEnum.optional(),
+  rounding_precision: z.number().int().min(0).max(2).optional(),
+  round_raw_marks: z.boolean().optional(),
+  class_test_best_of: z.number().int().positive().nullable().optional(),
+  practical_best_of: z.number().int().positive().nullable().optional(),
+});
+
+export const resultMasterSubjectsPutSchema = z.object({
+  subjects: z
+    .array(
+      z.object({
+        subject_id: z.string().uuid("Invalid subject_id"),
+        role: subjectRoleEnum,
+        pass_mark_value_override: z.number().min(0).nullable(),
+        sort_order: z.number().int().min(0),
+      })
+    ),
+});
+
+export const resultMasterExamConfigsPutSchema = z.object({
+  exam_configs: z
+    .array(
+      z.object({
+        exam_type_id: z.string().uuid("Invalid exam_type_id"),
+        is_applicable: z.boolean(),
+        weightage: z.number().min(0).max(100).nullable(),
+        max_marks_override: z.number().positive().nullable(),
+        sort_order: z.number().int().min(0),
+      })
+    ),
+});
+
+export type ResultMasterCreateData = z.infer<typeof resultMasterCreateSchema>;
+export type ResultMasterUpdateData = z.infer<typeof resultMasterUpdateSchema>;
+export type ResultMasterSubjectsPutData = z.infer<typeof resultMasterSubjectsPutSchema>;
+export type ResultMasterExamConfigsPutData = z.infer<typeof resultMasterExamConfigsPutSchema>;
