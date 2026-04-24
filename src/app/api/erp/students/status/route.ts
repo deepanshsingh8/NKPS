@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
+import { verifyAdminOrEditor } from "@/lib/verify-admin";
 import { enrollmentStatusSchema } from "@/lib/validations";
 import { z } from "zod";
 
@@ -14,7 +14,7 @@ const bulkStatusSchema = z.object({
 
 export async function PATCH(request: NextRequest) {
   try {
-    const admin = await verifyAdmin();
+    const admin = await verifyAdminOrEditor("students");
     if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

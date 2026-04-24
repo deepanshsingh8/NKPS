@@ -71,7 +71,7 @@ interface ClassOption {
 
 interface AcademicYear {
   id: string;
-  year_name: string;
+  name: string;
   is_current: boolean;
 }
 
@@ -244,8 +244,8 @@ export default function AdminStudentsPage() {
     // Fetch all academic years for promotion
     const { data: allYears } = await supabase
       .from("academic_years")
-      .select("id, year_name, is_current")
-      .order("year_name", { ascending: false });
+      .select("id, name, is_current")
+      .order("name", { ascending: false });
     setAcademicYears((allYears as AcademicYear[]) ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1597,7 +1597,7 @@ export default function AdminStudentsPage() {
                   value={targetAcademicYearId || "choose"}
                   items={[
                     { value: "choose", label: "Select academic year..." },
-                    ...academicYears.map((y) => ({ value: y.id, label: y.year_name + (y.is_current ? " (Current)" : "") })),
+                    ...academicYears.map((y) => ({ value: y.id, label: y.name + (y.is_current ? " (Current)" : "") })),
                   ]}
                   onValueChange={(val) => setTargetAcademicYearId(!val || val === "choose" ? "" : val)}
                 >
@@ -1608,7 +1608,7 @@ export default function AdminStudentsPage() {
                     <SelectItem value="choose">Select academic year...</SelectItem>
                     {academicYears.map((y) => (
                       <SelectItem key={y.id} value={y.id}>
-                        {y.year_name}{y.is_current ? " (Current)" : ""}
+                        {y.name}{y.is_current ? " (Current)" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -129,6 +129,18 @@ const erpItems: SidebarItem[] = [
       { kind: "link", icon: FileText, label: "Header / Footer", href: "/admin/exams/header-footer" },
       { kind: "link", icon: BarChart3, label: "Results", href: "/admin/exams/results" },
       { kind: "link", icon: Lock, label: "Publish & Finalize", href: "/admin/exams/publish" },
+      {
+        kind: "group",
+        icon: FileText,
+        label: "Sheets & Prints",
+        landingHref: "/admin/exams",
+        hideOverview: true,
+        children: [
+          { kind: "link", icon: FileText, label: "Blank Marks List", href: "/admin/exams/blank-marks-list" },
+          { kind: "link", icon: FileText, label: "White Sheet", href: "/admin/exams/white-sheet" },
+          { kind: "link", icon: FileText, label: "Green Sheet", href: "/admin/exams/green-sheet" },
+        ],
+      },
     ],
   },
   { kind: "link", icon: CreditCard, label: "Fees", href: "/admin/fees" },

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
+import { verifyAdminOrEditor } from "@/lib/verify-admin";
 import { studentSchema } from "@/lib/validations";
 import { createPortalUser } from "@/lib/create-portal-user";
 
 export async function GET(request: NextRequest) {
   try {
-    const admin = await verifyAdmin();
+    const admin = await verifyAdminOrEditor("students");
     if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -28,43 +28,55 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ data: [] });
       }
 
-      // Scope by current academic year when one is set. If no current year is
-      // flagged, fall back to "most recent enrollment per student across all
-      // years" — otherwise every student shows Unassigned the moment someone
-      // forgets to mark a year current.
+      // Pick the "best" enrollment per student. Do NOT hard-filter by the
+      // current academic year — enrollments can legitimately live in any year
+      // (classes are year-scoped), and hard-filtering makes every student
+      // render "Unassigned" the moment the year mismatches the is_current flag
+      // (e.g., right after a year switch, or if the admin assigned classes
+      // before flipping is_current).
       //
-      // Do NOT pre-filter by student_id: `.in("student_id", [...])` with a few
-      // hundred UUIDs overruns PostgREST's URL length and the query silently
-      // returns nothing — which is what caused every student on the list view
-      // to render as "Unassigned". The academic-year filter is enough scoping
-      // on its own (roughly one row per student per year).
+      // Do NOT pre-filter by student_id either: `.in("student_id", [...])`
+      // with a few hundred UUIDs overruns PostgREST's URL length and silently
+      // returns nothing.
+      //
+      // Explicit .range(0, 9999) pushes past PostgREST's default 1000-row cap
+      // so schools with long enrollment history aren't silently truncated.
       const { data: currentYear } = await admin
         .from("academic_years")
         .select("id")
         .eq("is_current", true)
         .maybeSingle();
+      const currentYearId = currentYear?.id ?? null;
 
-      let enrollmentQuery = admin
+      const { data: enrollments, error: enrollError } = await admin
         .from("student_enrollments")
         .select(
           "student_id, roll_number, roll_number_manual, id, class_id, stream_id, status, academic_year_id, created_at, classes(name, section)"
         )
-        .order("status", { ascending: true })
-        .order("created_at", { ascending: false });
-
-      if (currentYear?.id) {
-        enrollmentQuery = enrollmentQuery.eq("academic_year_id", currentYear.id);
-      }
-
-      const { data: enrollments, error: enrollError } = await enrollmentQuery;
+        .range(0, 9999);
       if (enrollError) {
         console.error("Fetch enrollments error:", enrollError);
         // Continue with empty merge rather than failing the whole list — the
         // students table still renders, just without class/roll data.
       }
 
-      const byStudent = new Map<string, (typeof enrollments extends (infer U)[] | null ? U : never)>();
-      for (const e of enrollments ?? []) {
+      // Priority for picking a student's representative enrollment:
+      //   1. Current-year row (if a current year is flagged) beats other years.
+      //   2. status='active' beats past statuses (passed/failed/terminated/exited).
+      //   3. More recent created_at beats older.
+      type Enrollment = NonNullable<typeof enrollments>[number];
+      const sorted = (enrollments ?? []).slice().sort((a: Enrollment, b: Enrollment) => {
+        const aYear = currentYearId && a.academic_year_id === currentYearId ? 0 : 1;
+        const bYear = currentYearId && b.academic_year_id === currentYearId ? 0 : 1;
+        if (aYear !== bYear) return aYear - bYear;
+        const aStatus = a.status === "active" ? 0 : 1;
+        const bStatus = b.status === "active" ? 0 : 1;
+        if (aStatus !== bStatus) return aStatus - bStatus;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      const byStudent = new Map<string, Enrollment>();
+      for (const e of sorted) {
         if (!byStudent.has(e.student_id)) byStudent.set(e.student_id, e);
       }
 
@@ -149,7 +161,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const admin = await verifyAdmin();
+    const admin = await verifyAdminOrEditor("students");
     if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -264,7 +276,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const admin = await verifyAdmin();
+    const admin = await verifyAdminOrEditor("students");
     if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -401,7 +413,7 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const admin = await verifyAdmin();
+    const admin = await verifyAdminOrEditor("students");
     if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

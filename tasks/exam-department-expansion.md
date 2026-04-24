@@ -412,17 +412,19 @@ Tasks:
 
 ## Phase 6 — White Sheet, Green Sheet, PTM Notes, PTM Format, Blank Marks List
 
-### White Sheet
-- [ ] `/admin/exams/white-sheet` — class+exam grid (rows = students by roll, cols = subjects), totals, grade.
-- [ ] Driven by `result_masters` (main/extra split).
-- [ ] PDF + CSV export.
+> **Phased delivery:** Chunk A (print artifacts) ✅ shipped 2026-04-24. Chunks B (PTM Notes) and C (PTM Format) are still pending.
 
-### Green Sheet
-- [ ] `/admin/exams/green-sheet` — class, across all applicable exams in the year.
-- [ ] Per-exam totals + final weighted result.
-- [ ] PDF + CSV export.
+### White Sheet ✅ (Chunk A, 2026-04-24)
+- [x] `/admin/exams/white-sheet` — class+exam grid (rows = students by roll, cols = subjects), totals, grade.
+- [x] Driven by `result_masters` (main/optional split — note schema uses `main`/`optional` roles, not `extra`).
+- [x] PDF + CSV export.
 
-### PTM Notes (A.4 in original requirements — student-wise meeting records)
+### Green Sheet ✅ (Chunk A, 2026-04-24)
+- [x] `/admin/exams/green-sheet` — class, across all applicable exams in the year.
+- [x] Per-exam totals + final weighted result (via Phase 4 `computeFinalResult`).
+- [x] PDF + CSV export.
+
+### PTM Notes (A.4 in original requirements — student-wise meeting records) — Chunk B, pending
 - [ ] `migration-026-ptm-notes.sql`:
   - `ptm_notes(id, student_id, exam_type_id nullable, meeting_date, attendance text check in ('present','absent'), teacher_remarks, parent_remarks nullable, action_points, recorded_by, created_at, updated_at, UNIQUE(student_id, meeting_date))`.
   - `school_meeting_counts(id, academic_year_id, exam_type_id nullable, class_id nullable, total_meetings int, updated_at)` — mirrors the "Total School Meetings" counter field in the legacy platform.
@@ -435,22 +437,35 @@ Tasks:
 - [ ] Parent portal: expose the student's PTM notes under a new "PTM" tab — read-only.
 - [ ] Permission: `ptm_notes`.
 
-### PTM Format (printable template — distinct from PTM Notes)
+### PTM Format (printable template — distinct from PTM Notes) — Chunk C, pending
 - [ ] Admin-configurable template (`ptm_formats` table) for the pre-meeting handout.
 - [ ] Per-student generation pulls: student details, subject-wise performance snapshot (from `results`), teacher remarks section (blank to write on), parent signature line.
 - [ ] PDF download from `/admin/exams/ptm-format` or teacher-initiated download.
 - [ ] Permission: `ptm_format`.
 
-### Blank Marks List
-- [ ] Subject + class + exam → print-ready blank PDF with roll/name/empty-marks column.
+### Blank Marks List ✅ (Chunk A, 2026-04-24)
+- [x] Subject + class + exam → print-ready blank PDF with roll/name/empty-marks column + signature column, max-marks from `class_exam_configs.max_marks_override` (falls back to `exam_types.max_marks`). Exam date/room pulled from `exam_schedules` when available.
 
 ### Permissions
-- [ ] Add `white_sheet`, `green_sheet`, `ptm_notes`, `ptm_format`, `blank_marks_list` feature keys.
+- [x] `white_sheet`, `green_sheet`, `blank_marks_list` keys registered (Chunk A).
+- [ ] `ptm_notes`, `ptm_format` keys still pending (Chunks B/C).
 
 ### Verification
-- [ ] Sheets respect result_master config (main vs extra, included/excluded exams).
-- [ ] Blank marks list paginates cleanly for 60+ student classes.
-- [ ] PTM note attendance persists through edits; parents see only their children.
+- [x] Chunk A — sheets respect result_master main/optional split; `show_extra_separately` drives split totals columns; fallback renders every subject as main when no master is configured.
+- [x] Chunk A — `computeRanksForClass` only runs when `result_master.show_rank` is true (cost-gated).
+- [ ] Chunk A — blank marks list paginates cleanly for 60+ student classes (needs manual smoke test).
+- [ ] Chunk B — PTM note attendance persists through edits; parents see only their children.
+
+### Review — Chunk A (shipped 2026-04-24)
+
+- **Shared data builders:** `src/lib/white-sheet.ts` and `src/lib/green-sheet.ts` encapsulate the compute so both PDF + CSV + JSON-preview endpoints share one source of truth. Admin pages fetch the JSON endpoint to render an in-page preview grid before the user commits to downloading.
+- **Three routes each** (White Sheet + Green Sheet): `/api/erp/{white,green}-sheet` (JSON preview), `/{white,green}-sheet/pdf`, `/{white,green}-sheet/csv`. Blank Marks List ships PDF only.
+- **Sidebar grouping:** added a "Sheets & Prints" sub-group under Exams (per durable feedback rule about not bloating the flat list) — contains Blank Marks List, White Sheet, Green Sheet.
+- **Hub tiles:** 3 new tiles on `/admin/exams`, each gated on its feature key.
+- **Deviation — schema terminology:** plan calls the subject split "main vs extra", but `result_master_subjects.role` uses `main`/`optional`. Code follows the schema; UI labels say "Main" / "Optional".
+- **Deviation — no try/catch in PDF routes:** dropped the try/catch wrappers on `/white-sheet/pdf` and `/green-sheet/pdf` because ESLint's `react-hooks/error-boundaries` rule flags JSX constructed inside try/catch. Next.js's default 500 handler covers unhandled rejections.
+- **Migration number collision known:** both `migration-025-publish-workflow.sql` (Phase 5) and `migration-025-roll-number-auto.sql` (Phase 7) exist. Both have been applied; Phase 6 Chunk B will use `026`.
+- **Follow-up:** Chunks B (PTM Notes with parent surface) and C (PTM Format) still to ship.
 
 ---
 

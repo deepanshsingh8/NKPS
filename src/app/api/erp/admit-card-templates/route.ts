@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
+import { verifyAdminOrEditor } from "@/lib/verify-admin";
 import { z } from "zod";
 
 const templateSchema = z.object({
@@ -24,7 +24,7 @@ const templateSchema = z.object({
 });
 
 export async function GET() {
-  const admin = await verifyAdmin();
+  const admin = await verifyAdminOrEditor("admit_cards");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -40,7 +40,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const admin = await verifyAdmin();
+  const admin = await verifyAdminOrEditor("admit_cards");
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

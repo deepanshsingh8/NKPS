@@ -125,6 +125,33 @@ const tiles: ExamTile[] = [
     accentColor: "text-slate-600 bg-slate-100 dark:bg-slate-900/30",
     featureKey: "publish_results",
   },
+  {
+    label: "Blank Marks List",
+    description:
+      "Print-ready roster (roll, name, empty marks column) for invigilators to record marks during grading.",
+    href: "/admin/exams/blank-marks-list",
+    icon: FileText,
+    accentColor: "text-sky-600 bg-sky-100 dark:bg-sky-900/30",
+    featureKey: "blank_marks_list",
+  },
+  {
+    label: "White Sheet",
+    description:
+      "Class-wide marks grid for a single exam — subjects across, students down — with totals and grade.",
+    href: "/admin/exams/white-sheet",
+    icon: FileText,
+    accentColor: "text-zinc-600 bg-zinc-100 dark:bg-zinc-900/30",
+    featureKey: "white_sheet",
+  },
+  {
+    label: "Green Sheet",
+    description:
+      "Year-end consolidated view — per-exam totals plus weighted final result across all applicable exams.",
+    href: "/admin/exams/green-sheet",
+    icon: FileText,
+    accentColor: "text-green-700 bg-green-100 dark:bg-green-900/30",
+    featureKey: "green_sheet",
+  },
 ];
 
 export default function AdminExamsHubPage() {

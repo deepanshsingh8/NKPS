@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
+import { verifyAdminOrEditor } from "@/lib/verify-admin";
 
 const CLASS_ORDER = [
   "Nursery", "LKG", "UKG",
@@ -10,7 +10,7 @@ const CLASS_ORDER = [
 
 export async function POST(request: NextRequest) {
   try {
-    const admin = await verifyAdmin();
+    const admin = await verifyAdminOrEditor("students");
     if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     // 2. Fetch the source academic year name (for alumni passing year)
     const { data: sourceYear } = await admin
       .from("academic_years")
-      .select("id, year_name")
+      .select("id, name")
       .eq("id", sourceClass.academic_year_id)
       .single();
 
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
           .update({
             is_active: false,
             is_alumni: true,
-            alumni_passing_year: sourceYear?.year_name ?? null,
+            alumni_passing_year: sourceYear?.name ?? null,
             alumni_academic_year_id: sourceClass.academic_year_id,
             updated_at: new Date().toISOString(),
           })

@@ -286,8 +286,9 @@ export default function AdmitCardsPage() {
             <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 p-10 text-center">
               <IdCard className="h-8 w-8 mx-auto mb-3 text-gray-400" />
               <p className="text-sm text-gray-500">
-                No templates yet. The default &quot;Standard Admit Card&quot;
-                should have been seeded by migration 020. Run it if missing.
+                No admit card templates yet. Click{" "}
+                <span className="font-medium">New Template</span> to create
+                one.
               </p>
             </div>
           ) : (
