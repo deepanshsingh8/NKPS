@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
 
 export interface ReportCardSubject {
   subject_id: string;
@@ -85,15 +86,6 @@ export async function canViewReportCard(
   return false;
 }
 
-export function gradeFromPercent(pct: number): string {
-  if (pct >= 90) return "A+";
-  if (pct >= 80) return "A";
-  if (pct >= 70) return "B+";
-  if (pct >= 60) return "B";
-  if (pct >= 50) return "C";
-  if (pct >= 40) return "D";
-  return "F";
-}
 
 export async function getReportCardData(
   supabase: SupabaseClient,
@@ -114,6 +106,16 @@ export async function getReportCardData(
     .eq("student_id", studentId)
     .limit(1)
     .single();
+
+  // Resolve the grade scale for this student's class (falls back to the
+  // default scholastic scale if no per-class override exists). Subject and
+  // overall grades below are recomputed from the live scale so edits to the
+  // Grade Master are reflected on report cards immediately — even for marks
+  // saved under previous cutoffs.
+  const gradeScale = enrollment?.class_id
+    ? await resolveGradeScaleForClass(supabase, enrollment.class_id)
+    : null;
+  const gradeBands = gradeScale?.bands ?? [];
 
   // Current academic year — used for attendance window.
   const { data: academicYear } = await supabase
@@ -206,13 +208,18 @@ export async function getReportCardData(
     }
 
     const group = examGroups[examType.id];
+    const subjectPct =
+      r.max_marks > 0 ? (r.marks_obtained / r.max_marks) * 100 : 0;
     group.subjects.push({
       subject_id: subject.id,
       subject_name: subject.name,
       subject_code: subject.code,
       marks_obtained: r.marks_obtained,
       max_marks: r.max_marks,
-      grade: r.grade,
+      grade:
+        gradeBands.length > 0
+          ? computeGrade(subjectPct, gradeBands)
+          : r.grade,
     });
     group.total_obtained += r.marks_obtained;
     group.total_max += r.max_marks;
@@ -223,7 +230,8 @@ export async function getReportCardData(
       group.percentage = Math.round(
         (group.total_obtained / group.total_max) * 100
       );
-      group.overall_grade = gradeFromPercent(group.percentage);
+      group.overall_grade =
+        computeGrade(group.percentage, gradeBands) ?? "";
     }
   }
 

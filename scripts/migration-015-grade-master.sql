@@ -1,0 +1,109 @@
+-- Migration 015: Grade Master.
+-- Admin defines named grade scales (A+/A/B+ cutoffs) globally or per class.
+-- One scale per scope may be flagged is_default; a class without an override
+-- row falls back to its scope's default scale.
+
+-- 1. Scales: library of named grade schemes.
+CREATE TABLE grade_scales (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name text NOT NULL,
+  scope text NOT NULL CHECK (scope IN ('scholastic', 'non_scholastic')),
+  is_default boolean NOT NULL DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- At most one default per scope.
+CREATE UNIQUE INDEX idx_grade_scales_one_default_per_scope
+  ON grade_scales(scope)
+  WHERE is_default = true;
+
+-- 2. Bands: cutoff ranges per scale.
+CREATE TABLE grade_bands (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  grade_scale_id uuid NOT NULL REFERENCES grade_scales(id) ON DELETE CASCADE,
+  label text NOT NULL,
+  min_pct numeric(5,2) NOT NULL CHECK (min_pct >= 0 AND min_pct <= 100),
+  max_pct numeric(5,2) NOT NULL CHECK (max_pct >= 0 AND max_pct <= 100),
+  remark text,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+  CONSTRAINT grade_bands_pct_range CHECK (min_pct <= max_pct)
+);
+
+CREATE INDEX idx_grade_bands_scale ON grade_bands(grade_scale_id);
+
+-- 3. Per-class override. Absence of a row = class uses the scope's default scale.
+--    ON DELETE RESTRICT on grade_scale_id so we don't silently orphan a class.
+CREATE TABLE class_grade_scales (
+  class_id uuid PRIMARY KEY REFERENCES classes(id) ON DELETE CASCADE,
+  grade_scale_id uuid NOT NULL REFERENCES grade_scales(id) ON DELETE RESTRICT,
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX idx_class_grade_scales_scale ON class_grade_scales(grade_scale_id);
+
+-- 4. Seed the default scholastic scale matching the current hardcoded behavior
+--    (so nothing changes for existing reports until an admin edits it).
+INSERT INTO grade_scales (name, scope, is_default)
+VALUES ('Default Scale', 'scholastic', true);
+
+INSERT INTO grade_bands (grade_scale_id, label, min_pct, max_pct, sort_order)
+SELECT id, label, min_pct, max_pct, sort_order
+FROM grade_scales s
+CROSS JOIN (VALUES
+  ('A+', 90.00, 100.00, 1),
+  ('A',  80.00,  89.99, 2),
+  ('B+', 70.00,  79.99, 3),
+  ('B',  60.00,  69.99, 4),
+  ('C',  50.00,  59.99, 5),
+  ('D',  40.00,  49.99, 6),
+  ('F',   0.00,  39.99, 7)
+) AS bands(label, min_pct, max_pct, sort_order)
+WHERE s.scope = 'scholastic' AND s.is_default = true;
+
+-- 5. RLS: admins read/write; editors with the grade_master feature key
+--    can read; authenticated roles can read (needed by teacher + student views
+--    to compute/display grades consistently with what the admin set up).
+ALTER TABLE grade_scales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE grade_bands ENABLE ROW LEVEL SECURITY;
+ALTER TABLE class_grade_scales ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated can read grade_scales"
+  ON grade_scales FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage grade_scales"
+  ON grade_scales FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+CREATE POLICY "Authenticated can read grade_bands"
+  ON grade_bands FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage grade_bands"
+  ON grade_bands FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+CREATE POLICY "Authenticated can read class_grade_scales"
+  ON class_grade_scales FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage class_grade_scales"
+  ON class_grade_scales FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );

@@ -74,6 +74,7 @@ export const NAV_LINKS = [
   { label: "Student Life", href: "/student-life" },
   { label: "Facilities", href: "/facilities" },
   { label: "Gallery", href: "/gallery" },
+  { label: "Articles", href: "/articles" },
   { label: "Contact", href: "/contact" },
 ] as const;
 

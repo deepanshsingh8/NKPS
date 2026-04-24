@@ -441,7 +441,8 @@ CREATE TABLE results (
   is_published boolean DEFAULT false,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
-  UNIQUE(student_id, subject_id, exam_type_id)
+  UNIQUE(student_id, subject_id, exam_type_id),
+  CONSTRAINT results_marks_in_range CHECK (marks_obtained >= 0 AND marks_obtained <= max_marks)
 );
 
 -- 2p. Fee Structures
@@ -1728,4 +1729,92 @@ CREATE POLICY "Admins delete remarks"
   TO authenticated
   USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================
+-- GRADE MASTER (admin-defined grade scales, globally or per-class)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS grade_scales (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name text NOT NULL,
+  scope text NOT NULL CHECK (scope IN ('scholastic', 'non_scholastic')),
+  is_default boolean NOT NULL DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_grade_scales_one_default_per_scope
+  ON grade_scales(scope)
+  WHERE is_default = true;
+
+CREATE TABLE IF NOT EXISTS grade_bands (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  grade_scale_id uuid NOT NULL REFERENCES grade_scales(id) ON DELETE CASCADE,
+  label text NOT NULL,
+  min_pct numeric(5,2) NOT NULL CHECK (min_pct >= 0 AND min_pct <= 100),
+  max_pct numeric(5,2) NOT NULL CHECK (max_pct >= 0 AND max_pct <= 100),
+  remark text,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+  CONSTRAINT grade_bands_pct_range CHECK (min_pct <= max_pct)
+);
+
+CREATE INDEX IF NOT EXISTS idx_grade_bands_scale ON grade_bands(grade_scale_id);
+
+CREATE TABLE IF NOT EXISTS class_grade_scales (
+  class_id uuid PRIMARY KEY REFERENCES classes(id) ON DELETE CASCADE,
+  grade_scale_id uuid NOT NULL REFERENCES grade_scales(id) ON DELETE RESTRICT,
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_class_grade_scales_scale ON class_grade_scales(grade_scale_id);
+
+ALTER TABLE grade_scales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE grade_bands ENABLE ROW LEVEL SECURITY;
+ALTER TABLE class_grade_scales ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated can read grade_scales" ON grade_scales;
+CREATE POLICY "Authenticated can read grade_scales"
+  ON grade_scales FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage grade_scales" ON grade_scales;
+CREATE POLICY "Admins can manage grade_scales"
+  ON grade_scales FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Authenticated can read grade_bands" ON grade_bands;
+CREATE POLICY "Authenticated can read grade_bands"
+  ON grade_bands FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage grade_bands" ON grade_bands;
+CREATE POLICY "Admins can manage grade_bands"
+  ON grade_bands FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Authenticated can read class_grade_scales" ON class_grade_scales;
+CREATE POLICY "Authenticated can read class_grade_scales"
+  ON class_grade_scales FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage class_grade_scales" ON class_grade_scales;
+CREATE POLICY "Admins can manage class_grade_scales"
+  ON class_grade_scales FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
   );

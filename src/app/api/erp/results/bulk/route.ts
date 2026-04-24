@@ -1,17 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resultsBulkSchema } from "@/lib/validations";
-
-function calculateGrade(marks: number, maxMarks: number): string {
-  const pct = (marks / maxMarks) * 100;
-  if (pct >= 90) return "A+";
-  if (pct >= 80) return "A";
-  if (pct >= 70) return "B+";
-  if (pct >= 60) return "B";
-  if (pct >= 50) return "C";
-  if (pct >= 40) return "D";
-  return "F";
-}
+import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
 
 export async function POST(request: Request) {
   try {
@@ -66,6 +56,26 @@ export async function POST(request: Request) {
 
     const maxMarks = examType.max_marks;
 
+    const invalidEntries = entries.filter(
+      (entry) => entry.marks_obtained < 0 || entry.marks_obtained > maxMarks
+    );
+    if (invalidEntries.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Marks must be between 0 and ${maxMarks}`,
+          invalid_entries: invalidEntries.map((e) => ({
+            student_id: e.student_id,
+            marks_obtained: e.marks_obtained,
+          })),
+        },
+        { status: 400 }
+      );
+    }
+
+    // Resolve the grade scale for this class once (falls back to default scale).
+    const scale = await resolveGradeScaleForClass(supabase, class_id);
+    const bands = scale?.bands ?? [];
+
     // Build records for upsert
     const records = entries.map((entry) => ({
       student_id: entry.student_id,
@@ -74,7 +84,7 @@ export async function POST(request: Request) {
       exam_type_id,
       marks_obtained: entry.marks_obtained,
       max_marks: maxMarks,
-      grade: calculateGrade(entry.marks_obtained, maxMarks),
+      grade: computeGrade((entry.marks_obtained / maxMarks) * 100, bands),
       entered_by: user.id,
     }));
 

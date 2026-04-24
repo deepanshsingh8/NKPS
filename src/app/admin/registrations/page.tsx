@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function AdminRegistrationsPage() {
-  redirect("/admin/users?tab=registrations");
+  redirect("/admin/people/users?tab=registrations");
 }

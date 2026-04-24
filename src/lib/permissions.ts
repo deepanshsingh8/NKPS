@@ -7,7 +7,7 @@
 //
 // Admins bypass all of this — they always have full access.
 // /admin (dashboard) is always allowed for editors.
-// /admin/users is admin-only forever (preventing self-elevation).
+// /admin/people/users is admin-only forever (preventing self-elevation).
 
 export type FeatureKey =
   | "gallery"
@@ -39,23 +39,23 @@ export interface FeatureDef {
 }
 
 export const FEATURE_CATALOG: readonly FeatureDef[] = [
-  { key: "gallery", label: "Gallery", href: "/admin/gallery", group: "content" },
-  { key: "articles", label: "Articles", href: "/admin/articles", group: "content" },
+  { key: "gallery", label: "Gallery", href: "/admin/content/gallery", group: "content" },
+  { key: "articles", label: "Articles", href: "/admin/content/articles", group: "content" },
   { key: "transfer_certificates", label: "Transfer Certificates", href: "/admin/transfer-certificates", group: "content" },
   { key: "contact", label: "Contact Messages", href: "/admin/contact", group: "content" },
-  { key: "site_media", label: "Site Media", href: "/admin/site-media", group: "content" },
-  { key: "disclosure", label: "Disclosure", href: "/admin/disclosure", group: "content" },
-  { key: "staff", label: "Staff", href: "/admin/staff", group: "erp" },
-  { key: "students", label: "Students", href: "/admin/students", group: "erp" },
-  { key: "classes", label: "Classes", href: "/admin/classes", group: "erp" },
-  { key: "subjects", label: "Subjects", href: "/admin/subjects", group: "erp" },
-  { key: "academic_years", label: "Academic Years", href: "/admin/academic-years", group: "erp" },
-  { key: "exam_types", label: "Exam Types", href: "/admin/exam-types", group: "erp" },
+  { key: "site_media", label: "Site Media", href: "/admin/content/site-media", group: "content" },
+  { key: "disclosure", label: "Disclosure", href: "/admin/content/disclosure", group: "content" },
+  { key: "staff", label: "Staff", href: "/admin/people/staff", group: "erp" },
+  { key: "students", label: "Students", href: "/admin/people/students", group: "erp" },
+  { key: "classes", label: "Classes", href: "/admin/academics/classes", group: "erp" },
+  { key: "subjects", label: "Subjects", href: "/admin/academics/subjects", group: "erp" },
+  { key: "academic_years", label: "Academic Years", href: "/admin/academics/years", group: "erp" },
+  { key: "exam_types", label: "Exam Types", href: "/admin/exams/types", group: "erp" },
   { key: "fees", label: "Fees", href: "/admin/fees", group: "erp" },
   { key: "timetable", label: "Timetable", href: "/admin/timetable", group: "erp" },
   { key: "calendar", label: "Calendar", href: "/admin/calendar", group: "erp" },
   { key: "attendance", label: "Attendance", href: "/admin/attendance", group: "erp" },
-  { key: "results", label: "Results", href: "/admin/results", group: "erp" },
+  { key: "results", label: "Results", href: "/admin/exams/results", group: "erp" },
   { key: "registrations", label: "Registrations", href: "/admin/registrations", group: "erp" },
 ] as const;
 
@@ -68,7 +68,10 @@ export function isFeatureKey(value: unknown): value is FeatureKey {
 }
 
 // Routes editors can never access, regardless of permissions.
-export const ADMIN_ONLY_PREFIXES = ["/admin/users"] as const;
+export const ADMIN_ONLY_PREFIXES = [
+  "/admin/people/users",
+  "/admin/exams/grade-master",
+] as const;
 
 export function isAdminOnlyPath(pathname: string): boolean {
   return ADMIN_ONLY_PREFIXES.some(

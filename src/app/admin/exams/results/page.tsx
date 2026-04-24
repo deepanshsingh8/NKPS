@@ -26,6 +26,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { BarChart3, TrendingUp, Users, Award } from "lucide-react";
 import { formatClassName } from "@/lib/utils";
+import { computeGrade, type GradeBand } from "@/lib/grading";
 import type { Class, ExamType } from "@/types";
 
 interface SubjectBreakdown {
@@ -56,20 +57,14 @@ const GRADE_COLORS: Record<string, string> = {
   F: "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800",
 };
 
-function getGradeFromPct(pct: number): string {
-  if (pct >= 90) return "A+";
-  if (pct >= 80) return "A";
-  if (pct >= 70) return "B+";
-  if (pct >= 60) return "B";
-  if (pct >= 50) return "C";
-  if (pct >= 40) return "D";
-  return "F";
-}
 
 export default function AdminResultsPage() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [examTypes, setExamTypes] = useState<ExamType[]>([]);
   const [selectedClassId, setSelectedClassId] = useState("");
+  const [gradeBands, setGradeBands] = useState<GradeBand[]>([]);
+  const getGradeFromPct = (pct: number) =>
+    computeGrade(pct, gradeBands) ?? "";
   const [selectedExamTypeId, setSelectedExamTypeId] = useState("");
 
   const [summary, setSummary] = useState<ClassSummary | null>(null);
@@ -114,6 +109,49 @@ export default function AdminResultsPage() {
 
     fetchInitial();
   }, []);
+
+  // Load the grade scale (override → default scholastic) for the selected
+  // class so admin dashboards grade the same way report cards do.
+  useEffect(() => {
+    if (!selectedClassId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setGradeBands([]);
+      return;
+    }
+    async function fetchScale() {
+      const supabase = createClient();
+      const { data: override } = await supabase
+        .from("class_grade_scales")
+        .select("grade_scale_id")
+        .eq("class_id", selectedClassId)
+        .maybeSingle();
+
+      let scaleId = override?.grade_scale_id as string | undefined;
+      if (!scaleId) {
+        const { data: def } = await supabase
+          .from("grade_scales")
+          .select("id")
+          .eq("scope", "scholastic")
+          .eq("is_default", true)
+          .maybeSingle();
+        scaleId = def?.id as string | undefined;
+      }
+
+      if (!scaleId) {
+        setGradeBands([]);
+        return;
+      }
+
+      const { data: bands } = await supabase
+        .from("grade_bands")
+        .select("label, min_pct, max_pct, remark, sort_order")
+        .eq("grade_scale_id", scaleId)
+        .order("sort_order", { ascending: true });
+
+      setGradeBands((bands ?? []) as GradeBand[]);
+    }
+    fetchScale();
+  }, [selectedClassId]);
 
   // Fetch results data when class and exam type are selected
   const fetchResultsData = useCallback(async () => {

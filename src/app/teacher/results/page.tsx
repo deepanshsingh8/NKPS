@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Save, Loader2 } from "lucide-react";
 import { formatClassName } from "@/lib/utils";
+import { computeGrade, type GradeBand } from "@/lib/grading";
 import type { Class, Subject, ExamType } from "@/types";
 
 interface EnrolledStudent {
@@ -43,16 +44,6 @@ interface MarksEntry {
   marks_obtained: number | "";
 }
 
-function calculateGrade(marks: number, maxMarks: number): string {
-  const pct = (marks / maxMarks) * 100;
-  if (pct >= 90) return "A+";
-  if (pct >= 80) return "A";
-  if (pct >= 70) return "B+";
-  if (pct >= 60) return "B";
-  if (pct >= 50) return "C";
-  if (pct >= 40) return "D";
-  return "F";
-}
 
 const GRADE_COLORS: Record<string, string> = {
   "A+": "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800",
@@ -85,6 +76,7 @@ export default function TeacherResultsPage() {
   const [saving, setSaving] = useState(false);
 
   const [maxMarks, setMaxMarks] = useState(100);
+  const [gradeBands, setGradeBands] = useState<GradeBand[]>([]);
 
   const [teacherId, setTeacherId] = useState<string | null>(null);
   const [classTeacherMap, setClassTeacherMap] = useState<
@@ -213,6 +205,48 @@ export default function TeacherResultsPage() {
     }
 
     fetchSubjects();
+  }, [selectedClassId]);
+
+  // Resolve the grade scale for the selected class (override → default
+  // scholastic scale). Keeps grade chips in sync with the Grade Master.
+  useEffect(() => {
+    if (!selectedClassId) {
+      setGradeBands([]);
+      return;
+    }
+    async function fetchScale() {
+      const supabase = createClient();
+      const { data: override } = await supabase
+        .from("class_grade_scales")
+        .select("grade_scale_id")
+        .eq("class_id", selectedClassId)
+        .maybeSingle();
+
+      let scaleId = override?.grade_scale_id as string | undefined;
+      if (!scaleId) {
+        const { data: def } = await supabase
+          .from("grade_scales")
+          .select("id")
+          .eq("scope", "scholastic")
+          .eq("is_default", true)
+          .maybeSingle();
+        scaleId = def?.id as string | undefined;
+      }
+
+      if (!scaleId) {
+        setGradeBands([]);
+        return;
+      }
+
+      const { data: bands } = await supabase
+        .from("grade_bands")
+        .select("label, min_pct, max_pct, remark, sort_order")
+        .eq("grade_scale_id", scaleId)
+        .order("sort_order", { ascending: true });
+
+      setGradeBands((bands ?? []) as GradeBand[]);
+    }
+    fetchScale();
   }, [selectedClassId]);
 
   // Fetch students and existing marks when all 3 selectors are set
@@ -436,6 +470,12 @@ export default function TeacherResultsPage() {
     );
   }
 
+  const hasInvalidMarks = marksEntries.some((e) => {
+    if (e.marks_obtained === "") return false;
+    const n = Number(e.marks_obtained);
+    return n < 0 || n > maxMarks;
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -537,18 +577,25 @@ export default function TeacherResultsPage() {
                 </p>
               )}
             </div>
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-navy-900 text-white hover:bg-navy-900/90"
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                onClick={handleSave}
+                disabled={saving || hasInvalidMarks}
+                className="bg-navy-900 text-white hover:bg-navy-900/90"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save All
+              </Button>
+              {hasInvalidMarks && (
+                <span className="text-xs font-medium text-red-600 dark:text-red-400">
+                  Fix marks exceeding {maxMarks} to save
+                </span>
               )}
-              Save All
-            </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {loadingStudents || (isClassTeacher && remarksLoading) ? (
@@ -582,9 +629,11 @@ export default function TeacherResultsPage() {
                         entry?.marks_obtained === ""
                           ? null
                           : Number(entry?.marks_obtained);
+                      const isInvalid =
+                        marks !== null && (marks < 0 || marks > maxMarks);
                       const grade =
-                        marks !== null && marks >= 0
-                          ? calculateGrade(marks, maxMarks)
+                        marks !== null && !isInvalid
+                          ? computeGrade((marks / maxMarks) * 100, gradeBands)
                           : null;
 
                       return (
@@ -605,7 +654,12 @@ export default function TeacherResultsPage() {
                                   e.target.value
                                 )
                               }
-                              className="w-24 h-8"
+                              aria-invalid={isInvalid || undefined}
+                              className={`w-24 h-8 ${
+                                isInvalid
+                                  ? "border-red-500 text-red-600 focus-visible:ring-red-500 dark:text-red-400"
+                                  : ""
+                              }`}
                               placeholder="0"
                             />
                           </TableCell>
@@ -616,6 +670,10 @@ export default function TeacherResultsPage() {
                               >
                                 {grade}
                               </Badge>
+                            ) : isInvalid ? (
+                              <span className="text-xs font-medium text-red-600 dark:text-red-400">
+                                &gt; {maxMarks}
+                              </span>
                             ) : (
                               <span className="text-gray-300 dark:text-gray-500">--</span>
                             )}
