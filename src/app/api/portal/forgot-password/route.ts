@@ -21,27 +21,30 @@ export async function POST(request: Request) {
     // localhost) — falling back to the configured site URL.
     const { SITE_URL } = await import("@/lib/seo");
     const origin = request.headers.get("origin") || SITE_URL;
-    const redirectTo = `${origin}/auth/callback?next=/portal/reset-password`;
 
     const supabase = createAdminClient();
 
-    // Ask Supabase to generate a one-time recovery link for this email.
+    // Ask Supabase to generate a one-time recovery token for this email.
     // If the email isn't registered, Supabase returns an error — we swallow
     // it and return success so the endpoint doesn't leak membership info.
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "recovery",
       email: normalizedEmail,
-      options: { redirectTo },
     });
 
-    if (error || !data?.properties?.action_link) {
+    if (error || !data?.properties?.hashed_token) {
       if (error) {
         console.error("generateLink error:", error.message);
       }
       return NextResponse.json({ success: true });
     }
 
-    const resetLink = data.properties.action_link;
+    // Build our own link pointing at /auth/confirm. This avoids Supabase's
+    // /auth/v1/verify redirect entirely — which is fragile across flow types
+    // and redirect-allowlist configurations — and lets us verifyOtp
+    // server-side with full control over the final destination.
+    const tokenHash = data.properties.hashed_token;
+    const resetLink = `${origin}/auth/confirm?token_hash=${encodeURIComponent(tokenHash)}&type=recovery&next=${encodeURIComponent("/portal/reset-password")}`;
 
     // Best-effort: personalise the greeting using the user's profile name.
     let fullName: string | undefined;

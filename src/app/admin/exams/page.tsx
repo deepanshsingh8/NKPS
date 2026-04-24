@@ -12,6 +12,7 @@ import {
   IdCard,
   ClipboardCheck,
   Lock,
+  MessageSquare,
   ArrowRight,
   type LucideIcon,
 } from "lucide-react";
@@ -151,6 +152,15 @@ const tiles: ExamTile[] = [
     icon: FileText,
     accentColor: "text-green-700 bg-green-100 dark:bg-green-900/30",
     featureKey: "green_sheet",
+  },
+  {
+    label: "PTM Notes",
+    description:
+      "Record attendance, teacher and parent remarks, and action points from each parent-teacher meeting.",
+    href: "/admin/exams/ptm-notes",
+    icon: MessageSquare,
+    accentColor: "text-rose-600 bg-rose-100 dark:bg-rose-900/30",
+    featureKey: "ptm_notes",
   },
 ];
 

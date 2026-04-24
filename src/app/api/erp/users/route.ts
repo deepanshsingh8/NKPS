@@ -323,12 +323,27 @@ export async function DELETE(request: Request) {
       await supabase.from("parents").delete().eq("id", profile.parent_id);
     }
 
-    // Delete the auth user (this cascades to profiles via Supabase's built-in trigger)
+    // Delete the auth user (this cascades to profiles via Supabase's built-in
+    // trigger). If another table still has a NOT-NULL / RESTRICT FK to
+    // profiles(id), Postgres aborts the cascade and the auth-user deletion
+    // fails with a 23503 foreign_key_violation. Surface the actual message
+    // so admins see what's blocking instead of a generic "Failed to delete".
     const { error } = await supabase.auth.admin.deleteUser(id);
 
     if (error) {
       console.error("Delete user error:", error);
-      return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
+      const raw = error.message ?? "";
+      const isFkViolation =
+        raw.toLowerCase().includes("foreign key") ||
+        raw.toLowerCase().includes("violates");
+      return NextResponse.json(
+        {
+          error: isFkViolation
+            ? `Cannot delete user: this account is still referenced by other records (${raw}). Run migration 027 if you haven't already.`
+            : raw || "Failed to delete user",
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true });

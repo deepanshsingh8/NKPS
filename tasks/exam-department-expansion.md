@@ -424,18 +424,19 @@ Tasks:
 - [x] Per-exam totals + final weighted result (via Phase 4 `computeFinalResult`).
 - [x] PDF + CSV export.
 
-### PTM Notes (A.4 in original requirements — student-wise meeting records) — Chunk B, pending
-- [ ] `migration-026-ptm-notes.sql`:
+### PTM Notes (A.4 in original requirements — student-wise meeting records) ✅ Chunk B (2026-04-24)
+- [x] `migration-026-ptm-notes.sql`:
   - `ptm_notes(id, student_id, exam_type_id nullable, meeting_date, attendance text check in ('present','absent'), teacher_remarks, parent_remarks nullable, action_points, recorded_by, created_at, updated_at, UNIQUE(student_id, meeting_date))`.
-  - `school_meeting_counts(id, academic_year_id, exam_type_id nullable, class_id nullable, total_meetings int, updated_at)` — mirrors the "Total School Meetings" counter field in the legacy platform.
-  - RLS: teachers/admins/editors with `ptm_notes` feature key write; parents can read their own children's notes.
-- [ ] API:
-  - `GET /api/erp/ptm-notes?class_id&exam_type_id&student_id` + POST bulk upsert.
-  - `POST /api/erp/ptm-notes/import` — CSV bulk import (legacy platform has "Import Meetings").
-  - `GET /api/erp/ptm-notes/report?class_id&exam_type_id` — PDF of all students' remarks (legacy "Report" button).
-- [ ] Teacher UI at `/teacher/ptm-notes` — Class + Section + Exam + "Total School Meetings" counter + Order by filters, bulk grid with per-student date/attendance/teacher remarks/parent remarks/action points columns.
-- [ ] Parent portal: expose the student's PTM notes under a new "PTM" tab — read-only.
-- [ ] Permission: `ptm_notes`.
+  - `school_meeting_counts(id, academic_year_id, exam_type_id nullable, class_id nullable, total_meetings int, updated_at)` — mirrors the "Total School Meetings" counter field in the legacy platform. Uniqueness over nullable scope columns via a COALESCE'd unique index (expression-based, since Postgres UNIQUE constraints can't express it).
+  - RLS: admins full, teachers read/write for their class scope via `public.get_my_class_ids()`, parents read own children via `public.get_my_children_ids()`; editor permission enforced at API layer (matches existing Phase 2/3/5 convention).
+- [x] API:
+  - `GET /api/erp/ptm-notes?class_id&exam_type_id&student_id` + `POST` bulk upsert (onConflict `student_id,meeting_date`).
+  - `POST /api/erp/ptm-notes/import` — CSV bulk import with dry-run preview, columns: `admission_no` or `roll_number`, `meeting_date` (YYYY-MM-DD / DD-MM-YYYY / Excel date), `attendance`, optional remarks/action points.
+  - `GET /api/erp/ptm-notes/report?class_id&exam_type_id` — PDF per-student-card format with attendance badges and per-field labels.
+  - `GET/PUT /api/erp/school-meeting-counts` — read-then-write upsert (expression index can't back Supabase onConflict).
+- [x] Teacher UI at `/teacher/ptm-notes` + admin oversight at `/admin/exams/ptm-notes` — both mount the shared `PtmNotesWorkbench` component (`scope="teacher" | "admin"`). Class / exam / meeting-date / order-by filters, Total School Meetings counter with save button, bulk grid (attendance dropdown + three textareas), CSV import + PDF report buttons.
+- [x] Parent portal: new `/parent/ptm` route with child-selector and chronological meeting cards. Sidebar entry added with `MessageSquare` icon.
+- [x] Permission: `ptm_notes` — registered in `FEATURE_CATALOG`, wired into admin sidebar (flat link under Exams group), teacher sidebar, `/admin/exams` hub tile.
 
 ### PTM Format (printable template — distinct from PTM Notes) — Chunk C, pending
 - [ ] Admin-configurable template (`ptm_formats` table) for the pre-meeting handout.
@@ -448,13 +449,15 @@ Tasks:
 
 ### Permissions
 - [x] `white_sheet`, `green_sheet`, `blank_marks_list` keys registered (Chunk A).
-- [ ] `ptm_notes`, `ptm_format` keys still pending (Chunks B/C).
+- [x] `ptm_notes` key registered (Chunk B).
+- [ ] `ptm_format` key still pending (Chunk C).
 
 ### Verification
 - [x] Chunk A — sheets respect result_master main/optional split; `show_extra_separately` drives split totals columns; fallback renders every subject as main when no master is configured.
 - [x] Chunk A — `computeRanksForClass` only runs when `result_master.show_rank` is true (cost-gated).
 - [ ] Chunk A — blank marks list paginates cleanly for 60+ student classes (needs manual smoke test).
-- [ ] Chunk B — PTM note attendance persists through edits; parents see only their children.
+- [x] Chunk B — RLS parity: teachers read/write only their class; parents read only own children. SQL policies use `public.get_my_class_ids()` / `public.get_my_children_ids()` helpers; API-layer `editor_permissions` check mirrors Phase 2/3/5.
+- [ ] Chunk B — manual end-to-end test: teacher enters → parent sees; CSV import round-trip; PDF report pagination for 60+ student classes.
 
 ### Review — Chunk A (shipped 2026-04-24)
 
@@ -466,6 +469,21 @@ Tasks:
 - **Deviation — no try/catch in PDF routes:** dropped the try/catch wrappers on `/white-sheet/pdf` and `/green-sheet/pdf` because ESLint's `react-hooks/error-boundaries` rule flags JSX constructed inside try/catch. Next.js's default 500 handler covers unhandled rejections.
 - **Migration number collision known:** both `migration-025-publish-workflow.sql` (Phase 5) and `migration-025-roll-number-auto.sql` (Phase 7) exist. Both have been applied; Phase 6 Chunk B will use `026`.
 - **Follow-up:** Chunks B (PTM Notes with parent surface) and C (PTM Format) still to ship.
+
+### Review — Chunk B (shipped 2026-04-24)
+
+- **Migration 026** (`scripts/migration-026-ptm-notes.sql` + mirrored into `supabase-schema.sql`) creates `ptm_notes` and `school_meeting_counts` with RLS. The school counter's uniqueness uses a COALESCE'd expression unique index so `(year, NULL, NULL)`, `(year, exam, NULL)`, `(year, NULL, class)`, `(year, exam, class)` can coexist but duplicates within any slot are rejected.
+- **Shared workbench:** `src/components/erp/PtmNotesWorkbench.tsx` backs both `/teacher/ptm-notes` and `/admin/exams/ptm-notes`. The only diff is a `scope: "teacher" | "admin"` prop that toggles class loading between "classes I teach" and "all classes in current year". Saves ~500 lines of duplication.
+- **API layer:**
+  - `/api/erp/ptm-notes` GET/POST — POST uses Supabase onConflict upsert on `student_id,meeting_date`.
+  - `/api/erp/ptm-notes/import` — forked from the results-import pattern; adds date coercion supporting YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, native Excel date cells.
+  - `/api/erp/ptm-notes/report` — per-student-card PDF with attendance badges (`PtmNotesReportPDF.tsx`). Includes total-school-meetings counter resolution via most-specific-scope match.
+  - `/api/erp/school-meeting-counts` GET/PUT — read-then-write upsert (the expression index can't back Supabase onConflict).
+- **Parent surface:** new `/parent/ptm` route + sidebar entry (`MessageSquare` icon). Child selector, chronological note cards, colored attendance badges, labeled remark sections.
+- **Import dialog:** `src/components/erp/PtmImportDialog.tsx` — forked from `MarksImportDialog` (dropped the "Download template" button since there's no corresponding export endpoint for PTM). Same two-phase preview→commit UX.
+- **Deviation — RLS for editors:** PTM follows the same split as every other feature shipped since Phase 2 — SQL RLS knows about admin/teacher/parent/student roles only; editor access is gated at the API layer via `editor_permissions`. Consistency > SQL purity.
+- **Deviation — PDF template key:** there's no dedicated `ptm_notes` template key in `pdf-templates.ts`; the report PDF reuses `report_card` for the school header (falls back to hardcoded SCHOOL constants regardless). Can be added later if admins want to customize the PTM report header specifically.
+- **Follow-up:** Chunk C (PTM Format — the printable pre-meeting handout with keyword substitution) still to ship.
 
 ---
 

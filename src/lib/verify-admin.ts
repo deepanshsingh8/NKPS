@@ -82,6 +82,51 @@ export async function verifyAdminOrEditor(featureKey?: FeatureKey) {
 }
 
 /**
+ * Returns the admin/editor's effective access profile — used by dashboard-style
+ * endpoints that need to tailor the response to what the caller is allowed to
+ * see. `isAdmin=true` implies full access regardless of the permissions set.
+ * Returns null if the caller is not an admin or editor.
+ */
+export async function getCallerAccess(): Promise<
+  | { admin: ReturnType<typeof createAdminClient>; isAdmin: true; permissions: Set<FeatureKey> }
+  | { admin: ReturnType<typeof createAdminClient>; isAdmin: false; permissions: Set<FeatureKey> }
+  | null
+> {
+  const headersList = await headers();
+  const authHeader = headersList.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  const accessToken = authHeader.slice(7);
+  const admin = createAdminClient();
+
+  const {
+    data: { user },
+    error,
+  } = await admin.auth.getUser(accessToken);
+  if (error || !user) return null;
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  if (!profile) return null;
+  if (profile.role === "admin") {
+    return { admin, isAdmin: true, permissions: new Set() };
+  }
+  if (profile.role !== "editor") return null;
+
+  const { data: rows } = await admin
+    .from("editor_permissions")
+    .select("feature_key")
+    .eq("editor_id", user.id);
+  const permissions = new Set<FeatureKey>();
+  for (const r of rows ?? []) {
+    if (r.feature_key) permissions.add(r.feature_key as FeatureKey);
+  }
+  return { admin, isAdmin: false, permissions };
+}
+
+/**
  * Same as verifyAdminOrEditor but also returns the authenticated user so the
  * caller can log actor_id / set created_by / etc. Returns null if
  * unauthorized.

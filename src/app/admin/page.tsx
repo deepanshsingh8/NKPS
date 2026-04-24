@@ -21,14 +21,16 @@ import { DashboardAnalytics } from "@/components/admin/DashboardAnalytics";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/lib/constants/calendar";
 import type { CalendarEventType } from "@/types";
 
+// Server returns only the stat keys this caller is allowed to see — an editor
+// without "students" grant gets no totalStudents, etc. Every field is optional.
 interface Stats {
-  galleryCount: number;
-  tcCount: number;
-  unreadCount: number;
-  totalUsers: number;
-  totalStudents: number;
-  totalStaff: number;
-  pendingRegistrations: number;
+  galleryCount?: number;
+  tcCount?: number;
+  unreadCount?: number;
+  totalUsers?: number;
+  totalStudents?: number;
+  totalStaff?: number;
+  pendingRegistrations?: number;
 }
 
 interface UpcomingEvent {
@@ -102,6 +104,7 @@ const statCardConfig = [
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
+  const [canSeeEvents, setCanSeeEvents] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -113,6 +116,7 @@ export default function AdminDashboardPage() {
         if (res.ok) {
           setStats(data.stats);
           setUpcomingEvents(data.upcomingEvents ?? []);
+          setCanSeeEvents(!!data.canSeeEvents);
         }
       } catch {
         // Silently fail — dashboard will show empty state
@@ -147,36 +151,39 @@ export default function AdminDashboardPage() {
         </p>
       </div>
 
-      {/* Stat Cards */}
+      {/* Stat Cards — only render cards the caller is allowed to see.
+          While loading we render the full catalog so the layout doesn't jump. */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {statCardConfig.map(({ key, label, icon: Icon, iconBg, iconColor, accent }) => (
-          <div
-            key={key}
-            className="erp-stat-card relative overflow-hidden group"
-          >
-            <div className={cn("absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl rounded-bl-full opacity-60", accent)} />
-            <div className="relative flex items-center gap-4">
-              <div
-                className={cn(
-                  "h-12 w-12 rounded-xl flex items-center justify-center transition-transform duration-200 group-hover:scale-105",
-                  iconBg
-                )}
-              >
-                <Icon className={cn("h-5.5 w-5.5", iconColor)} />
-              </div>
-              <div>
-                {loading ? (
-                  <div className="h-8 w-16 bg-gray-100 dark:bg-muted rounded-lg animate-pulse" />
-                ) : (
-                  <p className="text-3xl font-bold text-navy-900 dark:text-white tracking-tight">
-                    {stats?.[key] ?? 0}
-                  </p>
-                )}
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{label}</p>
+        {statCardConfig
+          .filter(({ key }) => loading || stats?.[key] !== undefined)
+          .map(({ key, label, icon: Icon, iconBg, iconColor, accent }) => (
+            <div
+              key={key}
+              className="erp-stat-card relative overflow-hidden group"
+            >
+              <div className={cn("absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl rounded-bl-full opacity-60", accent)} />
+              <div className="relative flex items-center gap-4">
+                <div
+                  className={cn(
+                    "h-12 w-12 rounded-xl flex items-center justify-center transition-transform duration-200 group-hover:scale-105",
+                    iconBg
+                  )}
+                >
+                  <Icon className={cn("h-5.5 w-5.5", iconColor)} />
+                </div>
+                <div>
+                  {loading ? (
+                    <div className="h-8 w-16 bg-gray-100 dark:bg-muted rounded-lg animate-pulse" />
+                  ) : (
+                    <p className="text-3xl font-bold text-navy-900 dark:text-white tracking-tight">
+                      {stats?.[key] ?? 0}
+                    </p>
+                  )}
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{label}</p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
       </div>
 
       {/* Analytics */}
@@ -188,7 +195,8 @@ export default function AdminDashboardPage() {
         <DashboardAnalytics />
       </div>
 
-      {/* Upcoming Events */}
+      {/* Upcoming Events — hidden from editors without the calendar grant */}
+      {(loading || canSeeEvents) && (
       <div>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -274,6 +282,7 @@ export default function AdminDashboardPage() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

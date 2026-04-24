@@ -35,6 +35,7 @@ export type FeatureKey =
   | "blank_marks_list"
   | "white_sheet"
   | "green_sheet"
+  | "ptm_notes"
   | "registrations";
 
 export type FeatureGroup = "content" | "erp";
@@ -72,6 +73,7 @@ export const FEATURE_CATALOG: readonly FeatureDef[] = [
   { key: "blank_marks_list", label: "Blank Marks List", href: "/admin/exams/blank-marks-list", group: "erp" },
   { key: "white_sheet", label: "White Sheet", href: "/admin/exams/white-sheet", group: "erp" },
   { key: "green_sheet", label: "Green Sheet", href: "/admin/exams/green-sheet", group: "erp" },
+  { key: "ptm_notes", label: "PTM Notes", href: "/admin/exams/ptm-notes", group: "erp" },
   { key: "registrations", label: "Registrations", href: "/admin/registrations", group: "erp" },
 ] as const;
 

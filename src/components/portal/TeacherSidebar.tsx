@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Sparkles,
   FileText,
+  MessageSquare,
 } from "lucide-react";
 import { PortalSidebar } from "./PortalSidebar";
 
@@ -37,6 +38,11 @@ const navLinks = [
     href: "/teacher/non-scholastic",
     label: "Non-Scholastic",
     icon: <Sparkles className="h-5 w-5 shrink-0" />,
+  },
+  {
+    href: "/teacher/ptm-notes",
+    label: "PTM Notes",
+    icon: <MessageSquare className="h-5 w-5 shrink-0" />,
   },
   {
     href: "/teacher/timetable",

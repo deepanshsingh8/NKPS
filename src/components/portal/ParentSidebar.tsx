@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Clock,
   IdCard,
+  MessageSquare,
 } from "lucide-react";
 import { PortalSidebar } from "./PortalSidebar";
 
@@ -46,6 +47,11 @@ const navLinks = [
     href: "/parent/calendar",
     label: "Calendar",
     icon: <CalendarDays className="h-5 w-5 shrink-0" />,
+  },
+  {
+    href: "/parent/ptm",
+    label: "PTM Notes",
+    icon: <MessageSquare className="h-5 w-5 shrink-0" />,
   },
 ];
 

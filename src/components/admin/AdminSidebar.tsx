@@ -129,6 +129,7 @@ const erpItems: SidebarItem[] = [
       { kind: "link", icon: FileText, label: "Header / Footer", href: "/admin/exams/header-footer" },
       { kind: "link", icon: BarChart3, label: "Results", href: "/admin/exams/results" },
       { kind: "link", icon: Lock, label: "Publish & Finalize", href: "/admin/exams/publish" },
+      { kind: "link", icon: MessageSquare, label: "PTM Notes", href: "/admin/exams/ptm-notes" },
       {
         kind: "group",
         icon: FileText,

@@ -150,6 +150,41 @@ export type PublishResultsData = z.infer<typeof publishResultsSchema>;
 export type FinalizeMarksheetData = z.infer<typeof finalizeMarksheetSchema>;
 export type UnpublishMarksheetData = z.infer<typeof unpublishMarksheetSchema>;
 
+// =============================================================
+// PTM Notes (Phase 6 Chunk B)
+// =============================================================
+
+export const ptmNotesBulkSchema = z.object({
+  exam_type_id: z.string().uuid("Invalid exam type").nullable().optional(),
+  entries: z
+    .array(
+      z.object({
+        student_id: z.string().uuid("Invalid student"),
+        meeting_date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/, "meeting_date must be YYYY-MM-DD"),
+        attendance: z.enum(["present", "absent"]),
+        teacher_remarks: z.string().nullable().optional(),
+        parent_remarks: z.string().nullable().optional(),
+        action_points: z.string().nullable().optional(),
+      })
+    )
+    .min(1, "At least one entry is required"),
+});
+
+export const schoolMeetingCountSchema = z.object({
+  academic_year_id: z.string().uuid("Invalid academic year"),
+  exam_type_id: z.string().uuid().nullable().optional(),
+  class_id: z.string().uuid().nullable().optional(),
+  total_meetings: z
+    .number()
+    .int("Must be a whole number")
+    .min(0, "Cannot be negative"),
+});
+
+export type PtmNotesBulkData = z.infer<typeof ptmNotesBulkSchema>;
+export type SchoolMeetingCountData = z.infer<typeof schoolMeetingCountSchema>;
+
 export const feePaymentSchema = z.object({
   student_id: z.string().uuid("Invalid student"),
   fee_structure_id: z.string().uuid("Invalid fee structure"),
