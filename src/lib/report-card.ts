@@ -90,8 +90,10 @@ export async function canViewReportCard(
 export async function getReportCardData(
   supabase: SupabaseClient,
   studentId: string,
-  academicYearId?: string | null
+  academicYearId?: string | null,
+  options?: { includeUnpublished?: boolean }
 ): Promise<ReportCardData | null> {
+  const includeUnpublished = options?.includeUnpublished ?? false;
   const { data: studentProfile } = await supabase
     .from("students")
     .select("id, full_name, email")
@@ -159,8 +161,11 @@ export async function getReportCardData(
       "id, marks_obtained, max_marks, grade, remarks, subjects(id, name, code), exam_types(id, name, max_marks, sort_order, academic_year_id)"
     )
     .eq("student_id", studentId)
-    .eq("is_published", true)
     .order("created_at", { ascending: true });
+
+  if (!includeUnpublished) {
+    query = query.eq("is_published", true);
+  }
 
   if (academicYearId) {
     const { data: examTypes } = await supabase

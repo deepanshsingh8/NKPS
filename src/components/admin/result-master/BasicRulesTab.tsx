@@ -161,12 +161,12 @@ export function BasicRulesTab({
         <CardTitle className="text-base font-heading">Basic Rules</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Pass mark mode + value */}
-        <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4 md:items-end">
-          <div>
+        {/* Pass mark mode + value — side-by-side, start-aligned, independent helper text */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          <div className="space-y-1.5">
             <Label className="text-xs font-medium">Pass mark mode</Label>
             <div
-              className="mt-1 inline-flex rounded-lg border border-gray-200 dark:border-border p-[3px] bg-gray-50 dark:bg-muted/40"
+              className="inline-flex rounded-lg border border-gray-200 dark:border-border p-[3px] bg-gray-50 dark:bg-muted/40 h-10"
               role="radiogroup"
               aria-label="Pass mark mode"
             >
@@ -190,7 +190,7 @@ export function BasicRulesTab({
                       }))
                     }
                     className={[
-                      "px-3 py-1 text-sm rounded-md transition-colors",
+                      "px-3 text-sm rounded-md transition-colors",
                       active
                         ? "bg-white dark:bg-background shadow-sm text-navy-900 dark:text-white font-medium"
                         : "text-gray-500 hover:text-navy-900 dark:hover:text-white",
@@ -201,12 +201,15 @@ export function BasicRulesTab({
                 );
               })}
             </div>
+            <p className="text-[10px] text-gray-500 dark:text-gray-400">
+              Percentage: e.g. 33 → 33%. Raw marks: e.g. 33 → 33 out of the subject&apos;s total.
+            </p>
           </div>
-          <div>
+          <div className="space-y-1.5">
             <Label className="text-xs font-medium">
               Pass mark value ({unit})
             </Label>
-            <div className="mt-1 relative max-w-xs">
+            <div className="relative max-w-xs">
               <Input
                 type="number"
                 step="0.5"
@@ -220,13 +223,13 @@ export function BasicRulesTab({
                       e.target.value === "" ? "" : Number(e.target.value),
                   }))
                 }
-                className="pr-10 font-mono"
+                className="pr-10 font-mono h-10"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                 {unit}
               </span>
             </div>
-            <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-[10px] text-gray-500 dark:text-gray-400">
               Applied uniformly unless a subject override is set on the
               Subjects tab.
             </p>
@@ -235,9 +238,9 @@ export function BasicRulesTab({
 
         {/* Pass criteria */}
         <div className="space-y-3">
-          <div>
+          <div className="space-y-1.5">
             <Label className="text-xs font-medium">Pass criteria</Label>
-            <div className="mt-1 max-w-md">
+            <div className="max-w-md">
               <Select
                 value={form.pass_criteria_type}
                 items={SUPPORTED_PASS_CRITERIA_TYPES.map((t) => ({
@@ -246,10 +249,12 @@ export function BasicRulesTab({
                 }))}
                 onValueChange={(v) => v && changeCriteriaType(v)}
               >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pick a criteria..." />
+                <SelectTrigger className="w-full h-10">
+                  <SelectValue placeholder="Pick a criteria...">
+                    {labelForCriteriaType(form.pass_criteria_type)}
+                  </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent alignItemWithTrigger={false}>
                   {SUPPORTED_PASS_CRITERIA_TYPES.map((t) => (
                     <SelectItem
                       key={t}

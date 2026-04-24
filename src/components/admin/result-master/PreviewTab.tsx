@@ -271,9 +271,17 @@ export function PreviewTab({
                           ? "No enrolled students"
                           : "Choose a student..."
                     }
-                  />
+                  >
+                    {(() => {
+                      const r = roster.find(
+                        (r) => r.student_id === selectedStudentId
+                      );
+                      if (!r) return null;
+                      return `${r.roll_number !== null ? `#${r.roll_number} · ` : ""}${r.full_name}${r.admission_no ? ` (Adm ${r.admission_no})` : ""}`;
+                    })()}
+                  </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent alignItemWithTrigger={false}>
                   {roster.map((r) => {
                     const label = `${r.roll_number !== null ? `#${r.roll_number} · ` : ""}${r.full_name}${r.admission_no ? ` (Adm ${r.admission_no})` : ""}`;
                     return (

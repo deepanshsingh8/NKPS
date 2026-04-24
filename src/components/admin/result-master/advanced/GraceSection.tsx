@@ -99,9 +99,13 @@ export function GraceSection({
               }}
             >
               <SelectTrigger className="w-full">
-                <SelectValue />
+                <SelectValue>
+                  {condition === "failing_only"
+                    ? "Only to failing subjects"
+                    : "Any subject"}
+                </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent alignItemWithTrigger={false}>
                 <SelectItem
                   value="failing_only"
                   label="Only to failing subjects"

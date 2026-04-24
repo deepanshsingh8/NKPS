@@ -46,19 +46,42 @@ interface MasterForm {
 }
 
 function masterFormFromMaster(m: ResultMaster): MasterForm {
+  const numOrBlank = (v: unknown): number | "" => {
+    if (v === null || v === undefined || v === "") return "";
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : "";
+  };
+  const numOrZero = (v: unknown): number => {
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
   return {
-    class_test_best_of: m.class_test_best_of ?? "",
-    practical_best_of: m.practical_best_of ?? "",
-    grace_marks_per_subject_max: m.grace_marks_per_subject_max,
-    grace_marks_total_max: m.grace_marks_total_max,
+    class_test_best_of:
+      m.class_test_best_of === null || m.class_test_best_of === undefined
+        ? ""
+        : numOrBlank(m.class_test_best_of),
+    practical_best_of:
+      m.practical_best_of === null || m.practical_best_of === undefined
+        ? ""
+        : numOrBlank(m.practical_best_of),
+    grace_marks_per_subject_max: numOrZero(m.grace_marks_per_subject_max),
+    grace_marks_total_max: numOrZero(m.grace_marks_total_max),
     grace_marks_condition: m.grace_marks_condition,
     rounding_mode: m.rounding_mode,
-    rounding_precision: m.rounding_precision,
+    rounding_precision: numOrZero(m.rounding_precision),
     round_raw_marks: m.round_raw_marks,
     include_non_scholastic: m.include_non_scholastic,
     non_scholastic_placement: m.non_scholastic_placement,
     grade_scale_id: m.grade_scale_id,
   };
+}
+
+// Supabase returns `numeric` columns as strings by default. Coerce to number so
+// the <Input type="number"> bindings and weightage-sum math work correctly.
+function toNumberOrBlank(v: unknown): number | "" {
+  if (v === null || v === undefined || v === "") return "";
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : "";
 }
 
 function weightageRowsFromConfigs(
@@ -69,9 +92,9 @@ function weightageRowsFromConfigs(
     exam_name: c.exam_types?.name ?? "(unknown)",
     kind: c.exam_types?.kind ?? "term_exam",
     is_applicable: c.is_applicable,
-    weightage: c.weightage ?? "",
-    max_marks_override: c.max_marks_override ?? "",
-    sort_order: c.sort_order,
+    weightage: toNumberOrBlank(c.weightage),
+    max_marks_override: toNumberOrBlank(c.max_marks_override),
+    sort_order: Number(c.sort_order) || 0,
   }));
 }
 

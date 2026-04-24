@@ -80,3 +80,43 @@ export async function verifyAdminOrEditor(featureKey?: FeatureKey) {
 
   return admin;
 }
+
+/**
+ * Same as verifyAdminOrEditor but also returns the authenticated user so the
+ * caller can log actor_id / set created_by / etc. Returns null if
+ * unauthorized.
+ */
+export async function verifyAdminOrEditorWithUser(featureKey?: FeatureKey) {
+  const headersList = await headers();
+  const authHeader = headersList.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) return null;
+
+  const accessToken = authHeader.slice(7);
+  const admin = createAdminClient();
+
+  const {
+    data: { user },
+    error,
+  } = await admin.auth.getUser(accessToken);
+  if (error || !user) return null;
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  if (!profile) return null;
+  if (profile.role === "admin") return { admin, user };
+  if (profile.role !== "editor") return null;
+
+  if (featureKey) {
+    const { data: perm } = await admin
+      .from("editor_permissions")
+      .select("feature_key")
+      .eq("editor_id", user.id)
+      .eq("feature_key", featureKey)
+      .maybeSingle();
+    if (!perm) return null;
+  }
+  return { admin, user };
+}

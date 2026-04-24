@@ -11,6 +11,7 @@ import {
   CalendarClock,
   IdCard,
   ClipboardCheck,
+  Lock,
   ArrowRight,
   type LucideIcon,
 } from "lucide-react";
@@ -107,13 +108,22 @@ const tiles: ExamTile[] = [
     featureKey: "results",
   },
   {
-    label: "Non-Scholastic Entry",
+    label: "Class Tests",
     description:
-      "Grade students on co-scholastic sub-skills per exam. Overrides teacher-entered grades.",
-    href: "/admin/exams/non-scholastic-assessments",
-    icon: Sparkles,
-    accentColor: "text-rose-600 bg-rose-100 dark:bg-rose-900/30",
-    featureKey: "non_scholastic_entry",
+      "Unit tests and formative assessments — teachers create and grade, admin oversees across classes.",
+    href: "/admin/exams/class-tests",
+    icon: ClipboardCheck,
+    accentColor: "text-lime-600 bg-lime-100 dark:bg-lime-900/30",
+    featureKey: "class_tests",
+  },
+  {
+    label: "Publish & Finalize",
+    description:
+      "Flip online visibility for students/parents, then snapshot official marksheet PDFs that survive later edits.",
+    href: "/admin/exams/publish",
+    icon: Lock,
+    accentColor: "text-slate-600 bg-slate-100 dark:bg-slate-900/30",
+    featureKey: "publish_results",
   },
 ];
 

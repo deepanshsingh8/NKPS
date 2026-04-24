@@ -3,6 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { canViewReportCard, getReportCardData } from "@/lib/report-card";
 import type { ReportCardExamGroup } from "@/lib/report-card";
 import { ReportCardPDF } from "@/components/pdf/ReportCardPDF";
@@ -12,6 +13,7 @@ import {
   computeRanksForClass,
 } from "@/lib/final-result";
 import type { FinalResult } from "@/types";
+import type { MarksheetSnapshotV1 } from "@/lib/marksheet-snapshot";
 
 export const runtime = "nodejs";
 
@@ -86,6 +88,60 @@ export async function GET(request: Request) {
     // Legacy mode — byte-identical to the pre-Phase-3 path.
     // =============================================================
     if (examTypeId) {
+      // Phase 5: if a finalized marksheet exists for (student, exam), render
+      // from its stored snapshot so edits after finalization don't mutate
+      // distributed marksheets. Uses the admin client to bypass RLS — access
+      // was already gated via canViewReportCard above.
+      const adminClient = createAdminClient();
+      const { data: activeRow } = await adminClient
+        .from("marksheet_publications")
+        .select("snapshot, schema_version, version, published_at")
+        .eq("student_id", studentId)
+        .eq("exam_type_id", examTypeId)
+        .is("unpublished_at", null)
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (activeRow?.snapshot) {
+        const snap = activeRow.snapshot as MarksheetSnapshotV1;
+        const snapGeneratedOn = new Date(snap.generated_on_iso).toLocaleString(
+          "en-IN",
+          {
+            timeZone: "Asia/Kolkata",
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }
+        );
+        const buffer = await renderToBuffer(
+          <ReportCardPDF
+            school={snap.school}
+            student={snap.student}
+            exam={snap.exam}
+            attendance={snap.attendance}
+            logoData={logoData ?? undefined}
+            generatedOn={snapGeneratedOn}
+            footer={snap.footer}
+          />
+        );
+        const safeName = snap.student.name.replace(/[^\w\-]+/g, "_");
+        const safeExam = snap.exam.exam_type_name.replace(/[^\w\-]+/g, "_");
+        const filename = `report-card_${safeName}_${safeExam}_v${activeRow.version}.pdf`;
+        return new NextResponse(new Uint8Array(buffer), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `attachment; filename="${filename}"`,
+            "Cache-Control": "private, no-store",
+            "X-Marksheet-Source": "finalized-snapshot",
+            "X-Marksheet-Version": String(activeRow.version),
+          },
+        });
+      }
+
       const data = await getReportCardData(supabase, studentId, academicYearId);
       if (!data) {
         return NextResponse.json({ error: "Student not found" }, { status: 404 });

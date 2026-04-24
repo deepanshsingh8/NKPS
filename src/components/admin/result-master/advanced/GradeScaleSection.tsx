@@ -60,9 +60,11 @@ export function GradeScaleSection({
               }}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Use class default" />
+                <SelectValue placeholder="Use class default">
+                  {currentLabel}
+                </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent alignItemWithTrigger={false}>
                 <SelectItem value="__default__" label="Use class default">
                   Use class default
                 </SelectItem>

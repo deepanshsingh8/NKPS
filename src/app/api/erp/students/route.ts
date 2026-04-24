@@ -28,10 +28,16 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ data: [] });
       }
 
-      // Restrict the enrollment lookup to the current academic year. Without
-      // this, historical enrollments pile up over years and the query can hit
-      // PostgREST's default row cap, dropping merges and making students show
-      // as "Unassigned" on the list view.
+      // Scope by current academic year when one is set. If no current year is
+      // flagged, fall back to "most recent enrollment per student across all
+      // years" — otherwise every student shows Unassigned the moment someone
+      // forgets to mark a year current.
+      //
+      // Do NOT pre-filter by student_id: `.in("student_id", [...])` with a few
+      // hundred UUIDs overruns PostgREST's URL length and the query silently
+      // returns nothing — which is what caused every student on the list view
+      // to render as "Unassigned". The academic-year filter is enough scoping
+      // on its own (roughly one row per student per year).
       const { data: currentYear } = await admin
         .from("academic_years")
         .select("id")
@@ -40,8 +46,9 @@ export async function GET(request: NextRequest) {
 
       let enrollmentQuery = admin
         .from("student_enrollments")
-        .select("student_id, roll_number, id, class_id, stream_id, status, created_at, classes(name, section)")
-        .in("student_id", allStudents.map((s) => s.id))
+        .select(
+          "student_id, roll_number, roll_number_manual, id, class_id, stream_id, status, academic_year_id, created_at, classes(name, section)"
+        )
         .order("status", { ascending: true })
         .order("created_at", { ascending: false });
 
@@ -49,7 +56,12 @@ export async function GET(request: NextRequest) {
         enrollmentQuery = enrollmentQuery.eq("academic_year_id", currentYear.id);
       }
 
-      const { data: enrollments } = await enrollmentQuery;
+      const { data: enrollments, error: enrollError } = await enrollmentQuery;
+      if (enrollError) {
+        console.error("Fetch enrollments error:", enrollError);
+        // Continue with empty merge rather than failing the whole list — the
+        // students table still renders, just without class/roll data.
+      }
 
       const byStudent = new Map<string, (typeof enrollments extends (infer U)[] | null ? U : never)>();
       for (const e of enrollments ?? []) {
@@ -69,6 +81,8 @@ export async function GET(request: NextRequest) {
         return {
           ...s,
           roll_number: enrollment?.roll_number ?? null,
+          roll_number_manual:
+            (enrollment as { roll_number_manual?: boolean } | undefined)?.roll_number_manual ?? false,
           enrollment_id: enrollment?.id ?? null,
           class_id: enrollment?.class_id ?? null,
           stream_id: enrollment?.stream_id ?? null,
@@ -84,7 +98,7 @@ export async function GET(request: NextRequest) {
     // Get enrollments for the class
     const { data: enrollments, error: enrollError } = await admin
       .from("student_enrollments")
-      .select("id, student_id, roll_number, class_id, stream_id, status")
+      .select("id, student_id, roll_number, roll_number_manual, class_id, stream_id, status")
       .eq("class_id", classId);
 
     if (enrollError) {
@@ -114,6 +128,8 @@ export async function GET(request: NextRequest) {
       return {
         ...s,
         roll_number: enrollment?.roll_number ?? null,
+        roll_number_manual:
+          (enrollment as { roll_number_manual?: boolean } | undefined)?.roll_number_manual ?? false,
         enrollment_id: enrollment?.id ?? null,
         class_id: enrollment?.class_id ?? null,
         stream_id: enrollment?.stream_id ?? null,
@@ -139,7 +155,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { class_id, roll_number, stream_id, ...studentFields } = body;
+    const { class_id, roll_number, roll_number_manual, stream_id, ...studentFields } = body;
 
     const result = studentSchema.safeParse(studentFields);
     if (!result.success) {
@@ -204,6 +220,7 @@ export async function POST(request: NextRequest) {
           class_id,
           academic_year_id: classRow.academic_year_id,
           roll_number: roll_number ? parseInt(roll_number, 10) : null,
+          roll_number_manual: roll_number_manual === true,
           stream_id: stream_id || null,
         });
 
@@ -253,7 +270,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, enrollment_id, roll_number, class_id, stream_id, ...fields } = body;
+    const { id, enrollment_id, roll_number, roll_number_manual, class_id, stream_id, ...fields } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Student id required" }, { status: 400 });
@@ -269,11 +286,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Failed to update student" }, { status: 500 });
     }
 
-    // Update enrollment fields (roll_number, class_id, stream_id)
+    // Update enrollment fields (roll_number, roll_number_manual, class_id, stream_id)
     if (enrollment_id) {
       const enrollmentUpdate: Record<string, unknown> = {};
       if (roll_number !== undefined) {
         enrollmentUpdate.roll_number = roll_number ? parseInt(roll_number, 10) : null;
+      }
+      if (roll_number_manual !== undefined) {
+        enrollmentUpdate.roll_number_manual = roll_number_manual === true;
       }
       if (class_id) {
         enrollmentUpdate.class_id = class_id;
@@ -309,8 +329,11 @@ export async function PATCH(request: NextRequest) {
         }
       }
     } else if (class_id) {
-      // No prior enrollment — create one on edit (recovers students whose
-      // initial enrollment silently failed before the fix was in place).
+      // No prior current-year enrollment surfaced — recover on edit. A stale
+      // enrollment for this (student_id, class_id) may still exist (same class
+      // from a prior status like terminated/exited, or dropped from the list
+      // GET due to PostgREST row caps), so reuse it if present to avoid
+      // tripping the UNIQUE(student_id, class_id) constraint.
       const { data: classRow, error: classLookupError } = await admin
         .from("classes")
         .select("academic_year_id")
@@ -325,15 +348,37 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      const { error: enrollErr } = await admin
+      const { data: existing, error: existingLookupError } = await admin
         .from("student_enrollments")
-        .insert({
-          student_id: id,
-          class_id,
-          academic_year_id: classRow.academic_year_id,
-          roll_number: roll_number ? parseInt(roll_number, 10) : null,
-          stream_id: stream_id || null,
-        });
+        .select("id")
+        .eq("student_id", id)
+        .eq("class_id", class_id)
+        .maybeSingle();
+
+      if (existingLookupError) {
+        console.error("Existing enrollment lookup failed:", existingLookupError);
+        return NextResponse.json(
+          { error: "Student updated but enrollment lookup failed" },
+          { status: 500 }
+        );
+      }
+
+      const payload = {
+        academic_year_id: classRow.academic_year_id,
+        roll_number: roll_number ? parseInt(roll_number, 10) : null,
+        roll_number_manual: roll_number_manual === true,
+        stream_id: stream_id || null,
+        status: "active" as const,
+      };
+
+      const { error: enrollErr } = existing
+        ? await admin
+            .from("student_enrollments")
+            .update(payload)
+            .eq("id", existing.id)
+        : await admin
+            .from("student_enrollments")
+            .insert({ student_id: id, class_id, ...payload });
 
       if (enrollErr) {
         console.error("Recover enrollment error:", enrollErr);

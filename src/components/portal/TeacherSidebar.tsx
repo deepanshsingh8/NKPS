@@ -8,6 +8,7 @@ import {
   Users,
   CalendarDays,
   Sparkles,
+  FileText,
 } from "lucide-react";
 import { PortalSidebar } from "./PortalSidebar";
 
@@ -26,6 +27,11 @@ const navLinks = [
     href: "/teacher/results",
     label: "Results",
     icon: <BarChart3 className="h-5 w-5 shrink-0" />,
+  },
+  {
+    href: "/teacher/class-tests",
+    label: "Class Tests",
+    icon: <FileText className="h-5 w-5 shrink-0" />,
   },
   {
     href: "/teacher/non-scholastic",

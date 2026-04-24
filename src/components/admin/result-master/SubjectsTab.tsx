@@ -262,9 +262,11 @@ export function SubjectsTab({
                   disabled={!row.included}
                 >
                   <SelectTrigger size="sm" className="w-full">
-                    <SelectValue />
+                    <SelectValue>
+                      {row.role === "main" ? "Main" : "Optional"}
+                    </SelectValue>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent alignItemWithTrigger={false}>
                     <SelectItem value="main" label="Main">
                       Main
                     </SelectItem>

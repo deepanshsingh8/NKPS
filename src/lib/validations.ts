@@ -87,6 +87,69 @@ export const nonScholasticAssessmentsBulkSchema = z.object({
 
 export type NonScholasticAssessmentsBulkData = z.infer<typeof nonScholasticAssessmentsBulkSchema>;
 
+// =============================================================
+// Class Tests (Phase 3)
+// =============================================================
+
+export const classTestCreateSchema = z.object({
+  class_id: z.string().uuid("Invalid class"),
+  subject_id: z.string().uuid("Invalid subject"),
+  name: z.string().min(1, "Name is required"),
+  test_date: z.string().nullable().optional(),
+  max_marks: z.number().positive("Max marks must be positive"),
+  weightage: z.number().min(0).max(100).nullable().optional(),
+  is_published: z.boolean().optional(),
+});
+
+export const classTestUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
+  test_date: z.string().nullable().optional(),
+  max_marks: z.number().positive().optional(),
+  weightage: z.number().min(0).max(100).nullable().optional(),
+  is_published: z.boolean().optional(),
+});
+
+export const classTestMarksBulkSchema = z.object({
+  entries: z.array(
+    z.object({
+      student_id: z.string().uuid("Invalid student"),
+      marks_obtained: z.number().min(0, "Marks cannot be negative").nullable(),
+      remarks: z.string().nullable().optional(),
+    })
+  ).min(1, "At least one entry is required"),
+});
+
+export type ClassTestCreateData = z.infer<typeof classTestCreateSchema>;
+export type ClassTestUpdateData = z.infer<typeof classTestUpdateSchema>;
+export type ClassTestMarksBulkData = z.infer<typeof classTestMarksBulkSchema>;
+
+// =============================================================
+// Publish Workflow (Phase 5)
+// =============================================================
+
+export const publishResultsSchema = z.object({
+  class_id: z.string().uuid("Invalid class"),
+  exam_type_id: z.string().uuid("Invalid exam type"),
+  is_published: z.boolean(),
+});
+
+export const finalizeMarksheetSchema = z.object({
+  class_id: z.string().uuid("Invalid class"),
+  exam_type_id: z.string().uuid("Invalid exam type"),
+  student_ids: z.array(z.string().uuid()).optional(),
+});
+
+export const unpublishMarksheetSchema = z.object({
+  class_id: z.string().uuid("Invalid class"),
+  exam_type_id: z.string().uuid("Invalid exam type"),
+  unpublish_reason: z.string().min(1, "Reason is required"),
+  student_ids: z.array(z.string().uuid()).optional(),
+});
+
+export type PublishResultsData = z.infer<typeof publishResultsSchema>;
+export type FinalizeMarksheetData = z.infer<typeof finalizeMarksheetSchema>;
+export type UnpublishMarksheetData = z.infer<typeof unpublishMarksheetSchema>;
+
 export const feePaymentSchema = z.object({
   student_id: z.string().uuid("Invalid student"),
   fee_structure_id: z.string().uuid("Invalid fee structure"),

@@ -6,6 +6,7 @@ import {
   GraduationCap,
   BookOpen,
   CalendarDays,
+  Sparkles,
   ArrowRight,
   type LucideIcon,
 } from "lucide-react";
@@ -50,6 +51,15 @@ const tiles: AcademicsTile[] = [
     icon: CalendarDays,
     accentColor: "text-violet-600 bg-violet-100 dark:bg-violet-900/30",
     featureKey: "academic_years",
+  },
+  {
+    label: "Non-Scholastic Classes",
+    description:
+      "Grade students on co-scholastic sub-skills per class and exam. Overrides teacher-entered grades.",
+    href: "/admin/exams/non-scholastic-assessments",
+    icon: Sparkles,
+    accentColor: "text-rose-600 bg-rose-100 dark:bg-rose-900/30",
+    featureKey: "non_scholastic_entry",
   },
 ];
 

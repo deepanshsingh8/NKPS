@@ -2294,3 +2294,645 @@ CREATE POLICY "Parents can read children published assessments"
     student_id IN (SELECT public.get_my_children_ids())
     AND is_published = true
   );
+
+-- ============================================
+-- CLASS TESTS (Phase 3 — migration-024)
+-- Dedicated frequent-entry flow for class tests. Sibling of exam_types —
+-- exam_types.kind='class_test' lightweight path continues to work for
+-- schools that prefer that model.
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS class_tests (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  subject_id uuid NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  test_date date,
+  max_marks numeric(5,2) NOT NULL DEFAULT 100,
+  weightage numeric(5,2),
+  is_published boolean NOT NULL DEFAULT false,
+  created_by uuid REFERENCES profiles(id),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT class_tests_max_marks_positive CHECK (max_marks > 0),
+  CONSTRAINT class_tests_weightage_pct CHECK (
+    weightage IS NULL OR (weightage >= 0 AND weightage <= 100)
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_class_tests_class_subject
+  ON class_tests(class_id, subject_id);
+CREATE INDEX IF NOT EXISTS idx_class_tests_class
+  ON class_tests(class_id);
+CREATE INDEX IF NOT EXISTS idx_class_tests_date
+  ON class_tests(test_date);
+
+CREATE TABLE IF NOT EXISTS class_test_results (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  class_test_id uuid NOT NULL REFERENCES class_tests(id) ON DELETE CASCADE,
+  student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  marks_obtained numeric(5,2) NOT NULL,
+  max_marks numeric(5,2) NOT NULL,
+  grade text,
+  remarks text,
+  entered_by uuid NOT NULL REFERENCES profiles(id),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT class_test_results_unique UNIQUE (class_test_id, student_id),
+  CONSTRAINT class_test_results_marks_in_range CHECK (
+    marks_obtained >= 0 AND marks_obtained <= max_marks
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_class_test_results_test
+  ON class_test_results(class_test_id);
+CREATE INDEX IF NOT EXISTS idx_class_test_results_student
+  ON class_test_results(student_id);
+
+ALTER TABLE class_tests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins full access to class_tests" ON class_tests;
+CREATE POLICY "Admins full access to class_tests"
+  ON class_tests FOR ALL
+  USING (public.get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Teachers can read class_tests for their classes" ON class_tests;
+CREATE POLICY "Teachers can read class_tests for their classes"
+  ON class_tests FOR SELECT
+  USING (
+    public.get_user_role() = 'teacher'
+    AND class_id IN (SELECT public.get_my_class_ids())
+  );
+
+DROP POLICY IF EXISTS "Teachers can insert class_tests for their class-subject combos" ON class_tests;
+CREATE POLICY "Teachers can insert class_tests for their class-subject combos"
+  ON class_tests FOR INSERT
+  WITH CHECK (
+    public.get_user_role() = 'teacher'
+    AND class_id IN (SELECT public.get_my_class_ids())
+    AND subject_id IN (
+      SELECT subject_id FROM class_subjects WHERE teacher_id = public.get_my_teacher_id()
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers can update class_tests for their class-subject combos" ON class_tests;
+CREATE POLICY "Teachers can update class_tests for their class-subject combos"
+  ON class_tests FOR UPDATE
+  USING (
+    public.get_user_role() = 'teacher'
+    AND class_id IN (SELECT public.get_my_class_ids())
+    AND subject_id IN (
+      SELECT subject_id FROM class_subjects WHERE teacher_id = public.get_my_teacher_id()
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers can delete class_tests for their class-subject combos" ON class_tests;
+CREATE POLICY "Teachers can delete class_tests for their class-subject combos"
+  ON class_tests FOR DELETE
+  USING (
+    public.get_user_role() = 'teacher'
+    AND class_id IN (SELECT public.get_my_class_ids())
+    AND subject_id IN (
+      SELECT subject_id FROM class_subjects WHERE teacher_id = public.get_my_teacher_id()
+    )
+  );
+
+DROP POLICY IF EXISTS "Students can read own published class_tests" ON class_tests;
+CREATE POLICY "Students can read own published class_tests"
+  ON class_tests FOR SELECT
+  USING (
+    is_published = true
+    AND class_id IN (
+      SELECT class_id FROM student_enrollments
+      WHERE student_id = public.get_my_student_id()
+        AND status = 'active'
+    )
+  );
+
+DROP POLICY IF EXISTS "Parents can read children published class_tests" ON class_tests;
+CREATE POLICY "Parents can read children published class_tests"
+  ON class_tests FOR SELECT
+  USING (
+    is_published = true
+    AND class_id IN (
+      SELECT class_id FROM student_enrollments
+      WHERE student_id IN (SELECT public.get_my_children_ids())
+        AND status = 'active'
+    )
+  );
+
+ALTER TABLE class_test_results ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins full access to class_test_results" ON class_test_results;
+CREATE POLICY "Admins full access to class_test_results"
+  ON class_test_results FOR ALL
+  USING (public.get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Teachers can read class_test_results for their classes" ON class_test_results;
+CREATE POLICY "Teachers can read class_test_results for their classes"
+  ON class_test_results FOR SELECT
+  USING (
+    public.get_user_role() = 'teacher'
+    AND class_test_id IN (
+      SELECT id FROM class_tests
+      WHERE class_id IN (SELECT public.get_my_class_ids())
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers can insert class_test_results for their class-subject combos" ON class_test_results;
+CREATE POLICY "Teachers can insert class_test_results for their class-subject combos"
+  ON class_test_results FOR INSERT
+  WITH CHECK (
+    public.get_user_role() = 'teacher'
+    AND class_test_id IN (
+      SELECT id FROM class_tests
+      WHERE class_id IN (SELECT public.get_my_class_ids())
+        AND subject_id IN (
+          SELECT subject_id FROM class_subjects WHERE teacher_id = public.get_my_teacher_id()
+        )
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers can update class_test_results for their class-subject combos" ON class_test_results;
+CREATE POLICY "Teachers can update class_test_results for their class-subject combos"
+  ON class_test_results FOR UPDATE
+  USING (
+    public.get_user_role() = 'teacher'
+    AND class_test_id IN (
+      SELECT id FROM class_tests
+      WHERE class_id IN (SELECT public.get_my_class_ids())
+        AND subject_id IN (
+          SELECT subject_id FROM class_subjects WHERE teacher_id = public.get_my_teacher_id()
+        )
+    )
+  );
+
+DROP POLICY IF EXISTS "Students can read own published class_test_results" ON class_test_results;
+CREATE POLICY "Students can read own published class_test_results"
+  ON class_test_results FOR SELECT
+  USING (
+    student_id = public.get_my_student_id()
+    AND class_test_id IN (SELECT id FROM class_tests WHERE is_published = true)
+  );
+
+DROP POLICY IF EXISTS "Parents can read children published class_test_results" ON class_test_results;
+CREATE POLICY "Parents can read children published class_test_results"
+  ON class_test_results FOR SELECT
+  USING (
+    student_id IN (SELECT public.get_my_children_ids())
+    AND class_test_id IN (SELECT id FROM class_tests WHERE is_published = true)
+  );
+
+-- ============================================
+-- PUBLISH WORKFLOW (Phase 5 — migration-025)
+-- Two-stage publish: online is_published on `results` (stays editable) and
+-- finalized PDF snapshots stored in `marksheet_publications`.
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS marksheet_publications (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  exam_type_id uuid NOT NULL REFERENCES exam_types(id) ON DELETE CASCADE,
+  version int NOT NULL,
+  snapshot jsonb NOT NULL,
+  schema_version text NOT NULL DEFAULT 'v1',
+  published_at timestamptz NOT NULL DEFAULT now(),
+  published_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  unpublished_at timestamptz,
+  unpublish_reason text,
+  unpublished_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now(),
+  CONSTRAINT marksheet_publications_version_unique
+    UNIQUE (student_id, exam_type_id, version),
+  CONSTRAINT marksheet_publications_version_positive
+    CHECK (version > 0),
+  CONSTRAINT marksheet_publications_unpublish_consistent
+    CHECK (
+      (unpublished_at IS NULL AND unpublish_reason IS NULL)
+      OR (unpublished_at IS NOT NULL)
+    )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_marksheet_active_one
+  ON marksheet_publications(student_id, exam_type_id)
+  WHERE unpublished_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_marksheet_class_exam
+  ON marksheet_publications(class_id, exam_type_id);
+CREATE INDEX IF NOT EXISTS idx_marksheet_student
+  ON marksheet_publications(student_id);
+
+CREATE TABLE IF NOT EXISTS publish_events (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  event_type text NOT NULL CHECK (
+    event_type IN (
+      'publish_results',
+      'unpublish_results',
+      'finalize_marksheet',
+      'unpublish_marksheet',
+      're_finalize_marksheet'
+    )
+  ),
+  class_id uuid REFERENCES classes(id) ON DELETE SET NULL,
+  exam_type_id uuid REFERENCES exam_types(id) ON DELETE CASCADE,
+  student_id uuid REFERENCES students(id) ON DELETE SET NULL,
+  actor_id uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  acted_at timestamptz DEFAULT now(),
+  note text
+);
+
+CREATE INDEX IF NOT EXISTS idx_publish_events_exam
+  ON publish_events(exam_type_id, acted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_publish_events_student
+  ON publish_events(student_id, acted_at DESC);
+
+ALTER TABLE marksheet_publications ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins full access to marksheet_publications" ON marksheet_publications;
+CREATE POLICY "Admins full access to marksheet_publications"
+  ON marksheet_publications FOR ALL
+  USING (public.get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Teachers can read marksheet_publications for their classes" ON marksheet_publications;
+CREATE POLICY "Teachers can read marksheet_publications for their classes"
+  ON marksheet_publications FOR SELECT
+  USING (
+    public.get_user_role() = 'teacher'
+    AND class_id IN (SELECT public.get_my_class_ids())
+  );
+
+ALTER TABLE publish_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins read publish_events" ON publish_events;
+CREATE POLICY "Admins read publish_events"
+  ON publish_events FOR SELECT
+  USING (public.get_user_role() = 'admin');
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 025 — Roll Number dynamic reordering (mirrored from scripts/migration-025-roll-number-auto.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Migration 025: Roll Number dynamic reordering.
+--
+-- Replaces the historical NULL-by-default `student_enrollments.roll_number`
+-- with an auto-assigned system:
+--   * Column `roll_number_manual` lets admins pin a row so auto-recompute
+--     never touches it (conservative default for any row already set).
+--   * Function `recompute_roll_numbers(class_id, sort_key)` assigns
+--     sequential 1..N within the class (section is already baked into
+--     `class_id` via UNIQUE(name, section, academic_year_id, stream_id)).
+--   * Partial unique index enforces per-class uniqueness for active rows.
+--   * Triggers on enrollment INSERT / DELETE, status UPDATE, and student
+--     `full_name` UPDATE keep the numbering tight without manual intervention.
+--
+-- Sort key handling:
+--   * `'name'`            → `students.full_name ASC` (alphabetical, default).
+--   * `'admission_no'`    → `students.admission_no ASC`.
+--   * `'previous_rank'`   → computed by the caller (see
+--     `src/lib/final-result.ts::computeRanksForClass`) because rank depends
+--     on Phase 4 result-master configuration that is awkward to re-derive in
+--     plain SQL. The API route passes an ordered student id list to the
+--     companion function `apply_roll_numbers(class_id, ordered_student_ids)`.
+--
+-- Idempotent: safe to re-run. Triggers and functions use CREATE OR REPLACE.
+-- The backfill DO block at the bottom only touches classes that have active
+-- enrollments, and the conservative "mark manual on drift" step runs before
+-- the mass recompute so existing manual work is preserved.
+
+-- ─── Diagnostic reference (read-only; commented for reference) ──────────────
+-- Current roll_number distribution per class (uncomment to inspect):
+-- SELECT c.name, c.section, count(*) AS active,
+--        count(*) FILTER (WHERE se.roll_number IS NULL) AS null_roll
+-- FROM student_enrollments se
+-- JOIN classes c ON c.id = se.class_id
+-- WHERE se.status = 'active'
+-- GROUP BY c.id, c.name, c.section
+-- ORDER BY c.sort_order;
+
+-- ─── 1. Column + index ───────────────────────────────────────────────────────
+
+ALTER TABLE student_enrollments
+  ADD COLUMN IF NOT EXISTS roll_number_manual boolean NOT NULL DEFAULT false;
+
+-- Partial unique: (class_id, roll_number) must be unique among active rows.
+CREATE UNIQUE INDEX IF NOT EXISTS student_enrollments_class_rollno_active_unique
+  ON student_enrollments (class_id, roll_number)
+  WHERE status = 'active' AND roll_number IS NOT NULL;
+
+-- ─── 2. Core recompute function ─────────────────────────────────────────────
+-- Orders active enrollments for p_class_id by p_sort_key, then assigns
+-- sequential numbers 1..N skipping rows with roll_number_manual=true (those
+-- keep their current number; the running counter still increments over them
+-- to prevent collisions with manual pins).
+-- Two-phase update (null out first, then re-number) avoids transient unique
+-- violations on the partial index when rows swap numbers.
+-- Design choice: `previous_rank` sort is NOT implemented in this function —
+-- see apply_roll_numbers() below. Keeps this function dependency-free on the
+-- Phase 4 result engine.
+
+CREATE OR REPLACE FUNCTION recompute_roll_numbers(
+  p_class_id uuid,
+  p_sort_key text DEFAULT 'name'
+)
+RETURNS integer
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_counter integer := 0;
+  v_row RECORD;
+  v_taken_manual int[] := ARRAY[]::int[];
+  v_updated int := 0;
+BEGIN
+  IF p_sort_key NOT IN ('name', 'admission_no') THEN
+    RAISE EXCEPTION 'recompute_roll_numbers: unsupported sort_key %, allowed: name, admission_no (previous_rank uses apply_roll_numbers)', p_sort_key;
+  END IF;
+
+  -- Collect manual pins so the sequential counter can skip those numbers.
+  SELECT COALESCE(array_agg(roll_number ORDER BY roll_number), ARRAY[]::int[])
+    INTO v_taken_manual
+  FROM student_enrollments
+  WHERE class_id = p_class_id
+    AND status = 'active'
+    AND roll_number_manual = true
+    AND roll_number IS NOT NULL;
+
+  -- Phase 1: null out all non-manual roll numbers so we can reassign cleanly.
+  UPDATE student_enrollments
+     SET roll_number = NULL
+   WHERE class_id = p_class_id
+     AND status = 'active'
+     AND roll_number_manual = false;
+
+  -- Phase 2: walk the ordered list and assign the next free number.
+  FOR v_row IN
+    SELECT se.id, s.full_name, s.admission_no
+    FROM student_enrollments se
+    JOIN students s ON s.id = se.student_id
+    WHERE se.class_id = p_class_id
+      AND se.status = 'active'
+      AND se.roll_number_manual = false
+    ORDER BY
+      CASE WHEN p_sort_key = 'name'         THEN s.full_name    END ASC NULLS LAST,
+      CASE WHEN p_sort_key = 'admission_no' THEN s.admission_no END ASC NULLS LAST,
+      s.full_name ASC,
+      se.id ASC
+  LOOP
+    v_counter := v_counter + 1;
+    -- Skip any number a manual row already holds.
+    WHILE v_counter = ANY(v_taken_manual) LOOP
+      v_counter := v_counter + 1;
+    END LOOP;
+
+    UPDATE student_enrollments
+       SET roll_number = v_counter
+     WHERE id = v_row.id;
+    v_updated := v_updated + 1;
+  END LOOP;
+
+  RETURN v_updated;
+END;
+$$;
+
+-- Companion function for `previous_rank` — accepts a caller-computed ordered
+-- list of student_ids and applies 1..N to those rows' enrollments in that
+-- class. Shares the manual-pin skip logic with recompute_roll_numbers.
+
+CREATE OR REPLACE FUNCTION apply_roll_numbers(
+  p_class_id uuid,
+  p_ordered_student_ids uuid[]
+)
+RETURNS integer
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_counter integer := 0;
+  v_student_id uuid;
+  v_enrollment_id uuid;
+  v_taken_manual int[] := ARRAY[]::int[];
+  v_updated int := 0;
+BEGIN
+  SELECT COALESCE(array_agg(roll_number ORDER BY roll_number), ARRAY[]::int[])
+    INTO v_taken_manual
+  FROM student_enrollments
+  WHERE class_id = p_class_id
+    AND status = 'active'
+    AND roll_number_manual = true
+    AND roll_number IS NOT NULL;
+
+  UPDATE student_enrollments
+     SET roll_number = NULL
+   WHERE class_id = p_class_id
+     AND status = 'active'
+     AND roll_number_manual = false;
+
+  -- Apply in caller-supplied order first.
+  FOREACH v_student_id IN ARRAY p_ordered_student_ids
+  LOOP
+    SELECT id INTO v_enrollment_id
+    FROM student_enrollments
+    WHERE class_id = p_class_id
+      AND student_id = v_student_id
+      AND status = 'active'
+      AND roll_number_manual = false
+    LIMIT 1;
+
+    IF v_enrollment_id IS NULL THEN
+      CONTINUE;
+    END IF;
+
+    v_counter := v_counter + 1;
+    WHILE v_counter = ANY(v_taken_manual) LOOP
+      v_counter := v_counter + 1;
+    END LOOP;
+
+    UPDATE student_enrollments
+       SET roll_number = v_counter
+     WHERE id = v_enrollment_id;
+    v_updated := v_updated + 1;
+  END LOOP;
+
+  -- Any unranked active students (not in p_ordered_student_ids) get numbered
+  -- next, alphabetically by full_name — keeps ordering deterministic.
+  FOR v_enrollment_id IN
+    SELECT se.id
+    FROM student_enrollments se
+    JOIN students s ON s.id = se.student_id
+    WHERE se.class_id = p_class_id
+      AND se.status = 'active'
+      AND se.roll_number_manual = false
+      AND se.roll_number IS NULL
+    ORDER BY s.full_name ASC, se.id ASC
+  LOOP
+    v_counter := v_counter + 1;
+    WHILE v_counter = ANY(v_taken_manual) LOOP
+      v_counter := v_counter + 1;
+    END LOOP;
+
+    UPDATE student_enrollments
+       SET roll_number = v_counter
+     WHERE id = v_enrollment_id;
+    v_updated := v_updated + 1;
+  END LOOP;
+
+  RETURN v_updated;
+END;
+$$;
+
+-- ─── 3. Trigger functions ───────────────────────────────────────────────────
+
+-- INSERT: new enrollment → recompute that class alphabetically.
+CREATE OR REPLACE FUNCTION trg_enrollment_insert_recompute()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.status = 'active' THEN
+    PERFORM recompute_roll_numbers(NEW.class_id, 'name');
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- DELETE: removed enrollment → recompute that class.
+CREATE OR REPLACE FUNCTION trg_enrollment_delete_recompute()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF OLD.status = 'active' THEN
+    PERFORM recompute_roll_numbers(OLD.class_id, 'name');
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+-- UPDATE of status or class_id: recompute both the old and new class if
+-- anything affecting roll-number membership changed.
+CREATE OR REPLACE FUNCTION trg_enrollment_update_recompute()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF OLD.status IS DISTINCT FROM NEW.status OR OLD.class_id IS DISTINCT FROM NEW.class_id THEN
+    IF OLD.class_id IS NOT NULL THEN
+      PERFORM recompute_roll_numbers(OLD.class_id, 'name');
+    END IF;
+    IF NEW.class_id IS NOT NULL AND NEW.class_id IS DISTINCT FROM OLD.class_id THEN
+      PERFORM recompute_roll_numbers(NEW.class_id, 'name');
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- UPDATE of students.full_name: recompute every active class the student is
+-- currently enrolled in.
+CREATE OR REPLACE FUNCTION trg_student_name_recompute()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_class_id uuid;
+BEGIN
+  IF OLD.full_name IS DISTINCT FROM NEW.full_name THEN
+    FOR v_class_id IN
+      SELECT DISTINCT class_id FROM student_enrollments
+      WHERE student_id = NEW.id AND status = 'active'
+    LOOP
+      PERFORM recompute_roll_numbers(v_class_id, 'name');
+    END LOOP;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- ─── 4. Triggers ────────────────────────────────────────────────────────────
+
+DROP TRIGGER IF EXISTS enrollment_after_insert_recompute ON student_enrollments;
+CREATE TRIGGER enrollment_after_insert_recompute
+  AFTER INSERT ON student_enrollments
+  FOR EACH ROW EXECUTE FUNCTION trg_enrollment_insert_recompute();
+
+DROP TRIGGER IF EXISTS enrollment_after_delete_recompute ON student_enrollments;
+CREATE TRIGGER enrollment_after_delete_recompute
+  AFTER DELETE ON student_enrollments
+  FOR EACH ROW EXECUTE FUNCTION trg_enrollment_delete_recompute();
+
+DROP TRIGGER IF EXISTS enrollment_after_update_recompute ON student_enrollments;
+CREATE TRIGGER enrollment_after_update_recompute
+  AFTER UPDATE OF status, class_id ON student_enrollments
+  FOR EACH ROW
+  WHEN (OLD.status IS DISTINCT FROM NEW.status OR OLD.class_id IS DISTINCT FROM NEW.class_id)
+  EXECUTE FUNCTION trg_enrollment_update_recompute();
+
+DROP TRIGGER IF EXISTS student_after_name_update_recompute ON students;
+CREATE TRIGGER student_after_name_update_recompute
+  AFTER UPDATE OF full_name ON students
+  FOR EACH ROW
+  WHEN (OLD.full_name IS DISTINCT FROM NEW.full_name)
+  EXECUTE FUNCTION trg_student_name_recompute();
+
+-- ─── 5. Backfill (idempotent) ───────────────────────────────────────────────
+-- Step A: For each class with active enrollments whose current roll-number
+-- ordering diverges from alphabetical, mark every row in that class as manual.
+-- Conservative: preserves pre-existing manual work (the old NULL-default
+-- system allowed admins to hand-enter roll numbers; those numbers should
+-- survive the automated migration).
+-- Step B: Run recompute_roll_numbers() for every class with active
+-- enrollments. Rows now flagged manual keep their numbers; NULL rows get
+-- sequential numbers in whatever gaps remain.
+
+DO $$
+DECLARE
+  v_class RECORD;
+  v_alphabetical_order uuid[];
+  v_current_order uuid[];
+BEGIN
+  FOR v_class IN
+    SELECT DISTINCT c.id AS class_id
+    FROM classes c
+    JOIN student_enrollments se ON se.class_id = c.id
+    WHERE se.status = 'active'
+  LOOP
+    -- Alphabetical order of student_ids, nulls last.
+    SELECT COALESCE(array_agg(se.student_id ORDER BY s.full_name ASC, se.id ASC), ARRAY[]::uuid[])
+      INTO v_alphabetical_order
+    FROM student_enrollments se
+    JOIN students s ON s.id = se.student_id
+    WHERE se.class_id = v_class.class_id
+      AND se.status = 'active'
+      AND se.roll_number IS NOT NULL;
+
+    -- Current order by existing roll_number.
+    SELECT COALESCE(array_agg(se.student_id ORDER BY se.roll_number ASC), ARRAY[]::uuid[])
+      INTO v_current_order
+    FROM student_enrollments se
+    WHERE se.class_id = v_class.class_id
+      AND se.status = 'active'
+      AND se.roll_number IS NOT NULL;
+
+    -- If diverged (and non-empty), pin everyone in this class as manual.
+    IF array_length(v_current_order, 1) IS NOT NULL
+       AND v_current_order IS DISTINCT FROM v_alphabetical_order THEN
+      UPDATE student_enrollments
+         SET roll_number_manual = true
+       WHERE class_id = v_class.class_id
+         AND status = 'active'
+         AND roll_number IS NOT NULL;
+    END IF;
+  END LOOP;
+END $$;
+
+DO $$
+DECLARE
+  v_class_id uuid;
+BEGIN
+  FOR v_class_id IN
+    SELECT DISTINCT class_id
+    FROM student_enrollments
+    WHERE status = 'active'
+  LOOP
+    PERFORM recompute_roll_numbers(v_class_id, 'name');
+  END LOOP;
+END $$;

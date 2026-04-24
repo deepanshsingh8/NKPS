@@ -30,6 +30,8 @@ export type FeatureKey =
   | "attendance"
   | "results"
   | "non_scholastic_entry"
+  | "class_tests"
+  | "publish_results"
   | "registrations";
 
 export type FeatureGroup = "content" | "erp";
@@ -62,6 +64,8 @@ export const FEATURE_CATALOG: readonly FeatureDef[] = [
   { key: "attendance", label: "Attendance", href: "/admin/attendance", group: "erp" },
   { key: "results", label: "Results", href: "/admin/exams/results", group: "erp" },
   { key: "non_scholastic_entry", label: "Non-Scholastic Entry", href: "/admin/exams/non-scholastic-assessments", group: "erp" },
+  { key: "class_tests", label: "Class Tests", href: "/admin/exams/class-tests", group: "erp" },
+  { key: "publish_results", label: "Publish & Finalize", href: "/admin/exams/publish", group: "erp" },
   { key: "registrations", label: "Registrations", href: "/admin/registrations", group: "erp" },
 ] as const;
 

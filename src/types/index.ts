@@ -310,6 +310,7 @@ export interface StudentEnrollment {
   academic_year_id: string;
   stream_id: string | null;
   roll_number: number | null;
+  roll_number_manual: boolean;
   enrollment_date: string;
   status: EnrollmentStatus;
   has_transport: boolean;

@@ -28,9 +28,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, Loader2, Layers } from "lucide-react";
-import { adminApi } from "@/lib/admin-api";
+import { Plus, Trash2, Pencil, Loader2, Layers, ListOrdered } from "lucide-react";
+import { adminApi, adminFetch } from "@/lib/admin-api";
 import type { Class, AcademicYear, Teacher, Stream } from "@/types";
+
+type RollSortKey = "name" | "admission_no" | "previous_rank";
+
+const ROLL_SORT_OPTIONS: { value: RollSortKey; label: string }[] = [
+  { value: "name", label: "Name (alphabetical)" },
+  { value: "admission_no", label: "Admission Number" },
+  { value: "previous_rank", label: "Previous Result Rank" },
+];
 
 const CLASS_NAMES = [
   "Nursery",
@@ -71,6 +79,12 @@ export default function AdminClassesPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassWithRelations | null>(null);
+
+  // Generate Roll Numbers dialog state
+  const [rollDialogOpen, setRollDialogOpen] = useState(false);
+  const [rollTargetClass, setRollTargetClass] = useState<ClassWithRelations | null>(null);
+  const [rollSortKey, setRollSortKey] = useState<RollSortKey>("name");
+  const [rollSubmitting, setRollSubmitting] = useState(false);
 
   // Form state
   const [className, setClassName] = useState(CLASS_NAMES[0]);
@@ -201,6 +215,44 @@ export default function AdminClassesPage() {
     setEditDialogOpen(true);
   };
 
+  const openRollDialog = (cls: ClassWithRelations) => {
+    setRollTargetClass(cls);
+    setRollSortKey("name");
+    setRollDialogOpen(true);
+  };
+
+  const handleGenerateRollNumbers = async () => {
+    if (!rollTargetClass) return;
+    setRollSubmitting(true);
+    try {
+      const res = await adminFetch("/api/erp/roll-numbers/recompute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          class_id: rollTargetClass.id,
+          sort_key: rollSortKey,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to generate roll numbers");
+        return;
+      }
+      toast.success(
+        `Roll numbers generated (${data.updated_count ?? 0} student${
+          data.updated_count === 1 ? "" : "s"
+        } updated)`
+      );
+      setRollDialogOpen(false);
+      setRollTargetClass(null);
+      await fetchData();
+    } catch {
+      toast.error("Failed to generate roll numbers");
+    } finally {
+      setRollSubmitting(false);
+    }
+  };
+
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingClass) return;
@@ -286,6 +338,15 @@ export default function AdminClassesPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => openRollDialog(cls)}
+                        title="Generate Roll Numbers"
+                        className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                      >
+                        <ListOrdered className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon-sm"
@@ -438,6 +499,75 @@ export default function AdminClassesPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate Roll Numbers Dialog */}
+      <Dialog open={rollDialogOpen} onOpenChange={setRollDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
+                <ListOrdered className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <DialogTitle>Generate Roll Numbers</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {rollTargetClass
+                    ? `${rollTargetClass.name} — Section ${rollTargetClass.section}`
+                    : ""}
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Sort By</Label>
+              <Select
+                value={rollSortKey}
+                items={ROLL_SORT_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+                onValueChange={(val) => val && setRollSortKey(val as RollSortKey)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLL_SORT_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value} label={opt.label}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-3">
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                This will reassign roll numbers for all active students in this class.
+                Students with manual overrides will keep their current numbers.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRollDialogOpen(false)}
+              disabled={rollSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={rollSubmitting}
+              onClick={handleGenerateRollNumbers}
+              className="bg-navy-900 hover:bg-navy-800 text-white"
+            >
+              {rollSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Confirm
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -34,6 +34,8 @@ import {
   CalendarClock,
   IdCard,
   ClipboardCheck,
+  Settings2,
+  Lock,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -54,8 +56,8 @@ type SidebarGroup = {
   icon: LucideIcon;
   label: string;
   landingHref: string;
-  matchPrefix: string;
-  children: SidebarLink[];
+  children: SidebarItem[];
+  hideOverview?: boolean;
 };
 
 type SidebarItem = SidebarLink | SidebarGroup;
@@ -67,7 +69,6 @@ const contentLinks: SidebarItem[] = [
     icon: LayoutGrid,
     label: "Content Management",
     landingHref: "/admin/content",
-    matchPrefix: "/admin/content",
     children: [
       { kind: "link", icon: ImageIcon, label: "Gallery", href: "/admin/content/gallery" },
       { kind: "link", icon: Newspaper, label: "Articles", href: "/admin/content/articles" },
@@ -85,7 +86,6 @@ const erpItems: SidebarItem[] = [
     icon: Users,
     label: "People",
     landingHref: "/admin/people",
-    matchPrefix: "/admin/people",
     children: [
       { kind: "link", icon: Users, label: "Users", href: "/admin/people/users" },
       { kind: "link", icon: UserCheck, label: "Students", href: "/admin/people/students" },
@@ -97,11 +97,11 @@ const erpItems: SidebarItem[] = [
     icon: GraduationCap,
     label: "Academics",
     landingHref: "/admin/academics",
-    matchPrefix: "/admin/academics",
     children: [
       { kind: "link", icon: GraduationCap, label: "Classes", href: "/admin/academics/classes" },
       { kind: "link", icon: BookOpen, label: "Subjects", href: "/admin/academics/subjects" },
       { kind: "link", icon: CalendarDays, label: "Academic Years", href: "/admin/academics/years" },
+      { kind: "link", icon: Sparkles, label: "Non-Scholastic Classes", href: "/admin/exams/non-scholastic-assessments" },
     ],
   },
   {
@@ -109,17 +109,26 @@ const erpItems: SidebarItem[] = [
     icon: ClipboardList,
     label: "Exams",
     landingHref: "/admin/exams",
-    matchPrefix: "/admin/exams",
     children: [
+      {
+        kind: "group",
+        icon: Settings2,
+        label: "Master",
+        landingHref: "/admin/exams",
+        hideOverview: true,
+        children: [
+          { kind: "link", icon: GraduationCap, label: "Grade Master", href: "/admin/exams/grade-master" },
+          { kind: "link", icon: ClipboardCheck, label: "Result Master", href: "/admin/exams/result-master" },
+          { kind: "link", icon: Sparkles, label: "Non-Scholastic Masters", href: "/admin/exams/non-scholastic-masters" },
+        ],
+      },
       { kind: "link", icon: ClipboardList, label: "Exam Types", href: "/admin/exams/types" },
-      { kind: "link", icon: GraduationCap, label: "Grade Master", href: "/admin/exams/grade-master" },
-      { kind: "link", icon: ClipboardCheck, label: "Result Master", href: "/admin/exams/result-master" },
-      { kind: "link", icon: Sparkles, label: "Non-Scholastic", href: "/admin/exams/non-scholastic-masters" },
-      { kind: "link", icon: Sparkles, label: "Non-Scholastic Entry", href: "/admin/exams/non-scholastic-assessments" },
       { kind: "link", icon: CalendarClock, label: "Timetable", href: "/admin/exams/timetable" },
       { kind: "link", icon: IdCard, label: "Admit Cards", href: "/admin/exams/admit-cards" },
+      { kind: "link", icon: ClipboardCheck, label: "Class Tests", href: "/admin/exams/class-tests" },
       { kind: "link", icon: FileText, label: "Header / Footer", href: "/admin/exams/header-footer" },
       { kind: "link", icon: BarChart3, label: "Results", href: "/admin/exams/results" },
+      { kind: "link", icon: Lock, label: "Publish & Finalize", href: "/admin/exams/publish" },
     ],
   },
   { kind: "link", icon: CreditCard, label: "Fees", href: "/admin/fees" },
@@ -150,14 +159,21 @@ export function AdminSidebar() {
     setGroupOverrides({});
   }, [pathname]);
 
+  const groupContainsActive = (group: SidebarGroup): boolean => {
+    if (pathname === group.landingHref) return true;
+    return group.children.some((child) => {
+      if (child.kind === "link") {
+        return pathname === child.href || pathname.startsWith(child.href + "/");
+      }
+      return groupContainsActive(child);
+    });
+  };
+
   const isGroupOpen = (group: SidebarGroup): boolean => {
     if (group.label in groupOverrides) {
       return groupOverrides[group.label];
     }
-    return (
-      pathname === group.matchPrefix ||
-      pathname.startsWith(group.matchPrefix + "/")
-    );
+    return groupContainsActive(group);
   };
 
   const toggleGroup = (group: SidebarGroup) => {
@@ -212,9 +228,9 @@ export function AdminSidebar() {
     if (item.kind === "link") {
       return isEditor && !isEditorAllowed(item.href) ? null : item;
     }
-    const visibleChildren = isEditor
-      ? item.children.filter((c) => isEditorAllowed(c.href))
-      : item.children;
+    const visibleChildren = item.children
+      .map(filterItem)
+      .filter((c): c is SidebarItem => c !== null);
     if (visibleChildren.length === 0) return null;
     return { ...item, children: visibleChildren };
   };
@@ -288,9 +304,7 @@ export function AdminSidebar() {
   };
 
   const renderGroup = (group: SidebarGroup) => {
-    const hasActiveDescendant =
-      pathname === group.matchPrefix ||
-      pathname.startsWith(group.matchPrefix + "/");
+    const hasActiveDescendant = groupContainsActive(group);
 
     if (collapsed) {
       const iconContent = (
@@ -339,37 +353,95 @@ export function AdminSidebar() {
         </button>
         {open && (
           <div className="mt-0.5 ml-4 pl-3 border-l border-white/10 space-y-0.5">
-            <Link
-              href={group.landingHref}
-              className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-colors",
-                pathname === group.landingHref
-                  ? "bg-white/10 text-white font-semibold"
-                  : "text-white/50 hover:bg-white/5 hover:text-white"
-              )}
-            >
-              <span className="truncate">Overview</span>
-            </Link>
-            {group.children.map((child) => {
-              const isActive =
-                pathname === child.href ||
-                pathname.startsWith(child.href + "/");
-              return (
-                <Link
-                  key={child.href}
-                  href={child.href}
-                  className={cn(
-                    "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-colors",
-                    isActive
-                      ? "bg-white/10 text-white font-semibold"
-                      : "text-white/50 hover:bg-white/5 hover:text-white"
-                  )}
-                >
-                  <child.icon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{child.label}</span>
-                </Link>
-              );
-            })}
+            {!group.hideOverview && (
+              <Link
+                href={group.landingHref}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-colors",
+                  pathname === group.landingHref
+                    ? "bg-white/10 text-white font-semibold"
+                    : "text-white/50 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <span className="truncate">Overview</span>
+              </Link>
+            )}
+            {group.children.map((child) =>
+              child.kind === "link"
+                ? renderNestedLink(child)
+                : renderNestedGroup(child)
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderNestedLink = (link: SidebarLink) => {
+    const isActive =
+      pathname === link.href || pathname.startsWith(link.href + "/");
+    return (
+      <Link
+        key={link.href}
+        href={link.href}
+        className={cn(
+          "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-colors",
+          isActive
+            ? "bg-white/10 text-white font-semibold"
+            : "text-white/50 hover:bg-white/5 hover:text-white"
+        )}
+      >
+        <link.icon className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{link.label}</span>
+      </Link>
+    );
+  };
+
+  const renderNestedGroup = (group: SidebarGroup) => {
+    const open = isGroupOpen(group);
+    const hasActiveDescendant = groupContainsActive(group);
+    return (
+      <div key={group.label}>
+        <button
+          type="button"
+          onClick={() => toggleGroup(group)}
+          aria-expanded={open}
+          className={cn(
+            "flex items-center gap-2 rounded-lg w-full px-3 py-1.5 text-xs transition-colors",
+            hasActiveDescendant
+              ? "text-white font-semibold"
+              : "text-white/50 hover:bg-white/5 hover:text-white"
+          )}
+        >
+          <group.icon className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate flex-1 text-left">{group.label}</span>
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+              !open && "-rotate-90"
+            )}
+          />
+        </button>
+        {open && (
+          <div className="mt-0.5 ml-3 pl-3 border-l border-white/10 space-y-0.5">
+            {!group.hideOverview && (
+              <Link
+                href={group.landingHref}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-colors",
+                  pathname === group.landingHref
+                    ? "bg-white/10 text-white font-semibold"
+                    : "text-white/50 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <span className="truncate">Overview</span>
+              </Link>
+            )}
+            {group.children.map((child) =>
+              child.kind === "link"
+                ? renderNestedLink(child)
+                : renderNestedGroup(child)
+            )}
           </div>
         )}
       </div>

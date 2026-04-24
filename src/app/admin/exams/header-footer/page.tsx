@@ -198,7 +198,7 @@ export default function HeaderFooterPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
             PDF Header &amp; Footer
@@ -208,17 +208,20 @@ export default function HeaderFooterPage() {
             generated PDFs. Changes apply on the next render.
           </p>
         </div>
-        <div className="w-64">
+        <div className="w-64 space-y-1.5">
           <Label className="text-xs font-medium">Template</Label>
           <Select
             value={templateKey}
             items={TEMPLATE_OPTIONS.map((t) => ({ value: t.value, label: t.label }))}
             onValueChange={(v) => v && setTemplateKey(v)}
           >
-            <SelectTrigger className="w-full h-9">
-              <SelectValue placeholder="Select template" />
+            <SelectTrigger className="w-full h-10">
+              <SelectValue placeholder="Select template">
+                {TEMPLATE_OPTIONS.find((t) => t.value === templateKey)?.label ??
+                  null}
+              </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent alignItemWithTrigger={false}>
               {TEMPLATE_OPTIONS.map((t) => (
                 <SelectItem key={t.value} value={t.value} label={t.label}>
                   <div className="flex flex-col">

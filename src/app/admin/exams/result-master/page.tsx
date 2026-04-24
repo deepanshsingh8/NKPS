@@ -279,9 +279,11 @@ function AdminResultMasterContent() {
             onValueChange={(v) => v && setSelector("class_id", v)}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select a class..." />
+              <SelectValue placeholder="Select a class...">
+                {selectedClass ? formatClassName(selectedClass) : null}
+              </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent alignItemWithTrigger={false}>
               {classes.map((c) => (
                 <SelectItem
                   key={c.id}
@@ -302,9 +304,11 @@ function AdminResultMasterContent() {
             onValueChange={(v) => v && setSelector("academic_year_id", v)}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select a year..." />
+              <SelectValue placeholder="Select a year...">
+                {selectedYear ? selectedYear.name : null}
+              </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent alignItemWithTrigger={false}>
               {years.map((y) => (
                 <SelectItem key={y.id} value={y.id} label={y.name}>
                   {y.name}

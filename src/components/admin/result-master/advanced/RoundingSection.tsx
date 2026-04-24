@@ -41,6 +41,13 @@ export function RoundingSection({
   const previewRaw = previewRound(previewRawIn, mode, precision);
   const previewPct = previewRound(previewPctIn, mode, precision);
   const noRounding = mode === "none";
+  const MODE_LABEL: Record<ResultMasterRoundingMode, string> = {
+    none: "None",
+    half_up: "Half-up (39.5 → 40)",
+    half_down: "Half-down (39.5 → 39)",
+    ceil: "Ceiling (always up)",
+    floor: "Floor (always down)",
+  };
 
   return (
     <Card className="bg-white dark:bg-card rounded-2xl">
@@ -73,9 +80,9 @@ export function RoundingSection({
                 }}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>{MODE_LABEL[mode]}</SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent alignItemWithTrigger={false}>
                   <SelectItem value="none" label="None">
                     None
                   </SelectItem>

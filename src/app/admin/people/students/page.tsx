@@ -47,6 +47,7 @@ import {
   UserPlus,
   FileSignature,
   Receipt,
+  User,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -78,6 +79,7 @@ const HIGHER_CLASSES = ["XI", "XII"];
 
 interface StudentRow extends Student {
   roll_number: number | null;
+  roll_number_manual?: boolean;
   enrollment_id: string | null;
   class_id?: string | null;
   stream_id?: string | null;
@@ -105,6 +107,29 @@ const STATUS_BADGE_STYLES: Record<EnrollmentStatus, string> = {
 
 function classLabel(c: ClassOption): string {
   return formatClassName(c);
+}
+
+function DetailField({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value?: string | number | null;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+        {label}
+      </p>
+      {children ?? (
+        <p className="text-sm text-gray-800 dark:text-gray-100 break-words">
+          {value ?? "—"}
+        </p>
+      )}
+    </div>
+  );
 }
 
 export default function AdminStudentsPage() {
@@ -141,6 +166,9 @@ export default function AdminStudentsPage() {
     warnings: string[];
   } | null>(null);
 
+  // Detail view dialog (read-only quick peek, separate from edit)
+  const [detailStudent, setDetailStudent] = useState<StudentRow | null>(null);
+
   // Generate TC dialog
   const [generateTcOpen, setGenerateTcOpen] = useState(false);
   const [tcTargetStudent, setTcTargetStudent] = useState<StudentRow | null>(null);
@@ -172,6 +200,7 @@ export default function AdminStudentsPage() {
     aadhar_number: "",
     previous_school: "",
     roll_number: "",
+    roll_number_manual: false,
   });
 
   const supabase = createClient();
@@ -286,6 +315,7 @@ export default function AdminStudentsPage() {
       aadhar_number: "",
       previous_school: "",
       roll_number: "",
+      roll_number_manual: false,
     });
     setEditingStudent(null);
   };
@@ -315,6 +345,7 @@ export default function AdminStudentsPage() {
       aadhar_number: student.aadhar_number ?? "",
       previous_school: student.previous_school ?? "",
       roll_number: student.roll_number?.toString() ?? "",
+      roll_number_manual: student.roll_number_manual ?? false,
     });
     setEditDialogOpen(true);
   };
@@ -338,6 +369,7 @@ export default function AdminStudentsPage() {
         body: JSON.stringify({
           class_id: formData.class_id,
           roll_number: formData.roll_number || undefined,
+          roll_number_manual: formData.roll_number_manual,
           stream_id: formData.stream_id || undefined,
           admission_no: formData.admission_no,
           full_name: formData.full_name,
@@ -396,6 +428,7 @@ export default function AdminStudentsPage() {
           class_id: formData.class_id || undefined,
           stream_id: formData.stream_id,
           roll_number: formData.roll_number || undefined,
+          roll_number_manual: formData.roll_number_manual,
           admission_no: formData.admission_no.trim(),
           full_name: formData.full_name.trim(),
           father_name: formData.father_name.trim() || null,
@@ -882,7 +915,31 @@ export default function AdminStudentsPage() {
             value={formData.roll_number}
             onChange={(e) => updateField("roll_number", e.target.value)}
             placeholder="Roll number"
+            disabled={!formData.roll_number_manual}
           />
+          <div className="mt-2 flex items-start gap-2">
+            <Checkbox
+              id="roll_number_manual"
+              checked={formData.roll_number_manual}
+              onCheckedChange={(val) =>
+                setFormData((prev) => ({ ...prev, roll_number_manual: val === true }))
+              }
+              className="mt-0.5"
+            />
+            <div className="flex-1">
+              <Label
+                htmlFor="roll_number_manual"
+                className="text-xs font-medium cursor-pointer"
+              >
+                Manual override
+              </Label>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight">
+                {formData.roll_number_manual
+                  ? "Manual — will not be changed by auto-recompute"
+                  : "Auto-assigned alphabetically (default)"}
+              </p>
+            </div>
+          </div>
         </div>
         <div>
           <Label htmlFor="category" className="text-xs font-medium">Category</Label>
@@ -1149,18 +1206,20 @@ export default function AdminStudentsPage() {
                   <TableHead>Adm No</TableHead>
                   <TableHead>Name</TableHead>
                   {!selectedClassId && <TableHead>Class</TableHead>}
+                  {selectedClassId && <TableHead>Roll No</TableHead>}
                   <TableHead>Father&apos;s Name</TableHead>
-                  <TableHead>Roll No</TableHead>
-                  <TableHead>Gender</TableHead>
-                  <TableHead>Phone</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredStudents.map((student) => (
-                  <TableRow key={student.id}>
-                    <TableCell>
+                  <TableRow
+                    key={student.id}
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-muted/30"
+                    onClick={() => setDetailStudent(student)}
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={selectedIds.has(student.id)}
                         onCheckedChange={() => toggleSelection(student.id)}
@@ -1181,7 +1240,10 @@ export default function AdminStudentsPage() {
                           <Badge
                             variant="secondary"
                             className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-950/50"
-                            onClick={() => openEditDialog(student)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditDialog(student);
+                            }}
                             title="Click to assign a class"
                           >
                             Unassigned
@@ -1189,19 +1251,15 @@ export default function AdminStudentsPage() {
                         )}
                       </TableCell>
                     )}
+                    {selectedClassId && (
+                      <TableCell className="text-gray-600 dark:text-gray-300">
+                        {student.roll_number ?? "\u2014"}
+                      </TableCell>
+                    )}
                     <TableCell className="text-gray-600 dark:text-gray-300">
                       {student.father_name || "\u2014"}
                     </TableCell>
-                    <TableCell className="text-gray-600 dark:text-gray-300">
-                      {student.roll_number ?? "\u2014"}
-                    </TableCell>
-                    <TableCell className="text-gray-600 dark:text-gray-300 capitalize">
-                      {student.gender || "\u2014"}
-                    </TableCell>
-                    <TableCell className="text-gray-600 dark:text-gray-300">
-                      {student.phone || "\u2014"}
-                    </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       {student.enrollment_id && selectedClassId ? (
                         <Select
                           value={student.enrollment_status || "active"}
@@ -1245,7 +1303,7 @@ export default function AdminStudentsPage() {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
@@ -1333,6 +1391,100 @@ export default function AdminStudentsPage() {
             </div>
           </DialogHeader>
           {renderStudentForm(handleEditStudent, true)}
+        </DialogContent>
+      </Dialog>
+
+      {/* Student Detail Dialog (read-only quick peek) */}
+      <Dialog
+        open={!!detailStudent}
+        onOpenChange={(open) => {
+          if (!open) setDetailStudent(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          {detailStudent && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-navy-900/10 dark:bg-navy-900/30">
+                    <User className="h-5 w-5 text-navy-900 dark:text-gold-400" />
+                  </div>
+                  <div>
+                    <DialogTitle>{detailStudent.full_name}</DialogTitle>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Admission No: {detailStudent.admission_no}
+                      {detailStudent.class_name
+                        ? ` • Class ${detailStudent.class_name}${detailStudent.class_section ? `-${detailStudent.class_section}` : ""}`
+                        : " • Unassigned"}
+                    </p>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                <DetailField label="Roll Number" value={detailStudent.roll_number ?? "—"} />
+                <DetailField label="Status">
+                  <Badge
+                    variant="secondary"
+                    className={
+                      detailStudent.enrollment_status
+                        ? STATUS_BADGE_STYLES[detailStudent.enrollment_status]
+                        : detailStudent.is_active
+                          ? STATUS_BADGE_STYLES.active
+                          : STATUS_BADGE_STYLES.exited
+                    }
+                  >
+                    {detailStudent.enrollment_status
+                      ? detailStudent.enrollment_status.charAt(0).toUpperCase() +
+                        detailStudent.enrollment_status.slice(1)
+                      : detailStudent.is_active
+                        ? "Active"
+                        : "Inactive"}
+                  </Badge>
+                </DetailField>
+                <DetailField label="Father's Name" value={detailStudent.father_name || "—"} />
+                <DetailField label="Mother's Name" value={detailStudent.mother_name || "—"} />
+                <DetailField
+                  label="Gender"
+                  value={
+                    detailStudent.gender
+                      ? detailStudent.gender.charAt(0).toUpperCase() + detailStudent.gender.slice(1)
+                      : "—"
+                  }
+                />
+                <DetailField label="Date of Birth" value={detailStudent.date_of_birth || "—"} />
+                <DetailField label="Phone" value={detailStudent.phone || "—"} />
+                <DetailField label="Email" value={detailStudent.email || "—"} />
+                <DetailField label="Blood Group" value={detailStudent.blood_group || "—"} />
+                <DetailField label="Category" value={detailStudent.category || "—"} />
+                <DetailField label="Aadhar" value={detailStudent.aadhar_number || "—"} />
+                <DetailField label="Previous School" value={detailStudent.previous_school || "—"} />
+                <div className="col-span-2">
+                  <DetailField label="Address" value={detailStudent.address || "—"} />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const s = detailStudent;
+                    setDetailStudent(null);
+                    openEditDialog(s);
+                  }}
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+                <Button
+                  onClick={() => setDetailStudent(null)}
+                  className="bg-navy-900 hover:bg-navy-800 text-white"
+                >
+                  Close
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

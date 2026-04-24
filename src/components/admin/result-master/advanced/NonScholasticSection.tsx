@@ -80,9 +80,15 @@ export function NonScholasticSection({
               disabled={!include}
             >
               <SelectTrigger className="w-full">
-                <SelectValue />
+                <SelectValue>
+                  {placement === "below"
+                    ? "Below scholastic"
+                    : placement === "above"
+                      ? "Above scholastic"
+                      : "Separate page"}
+                </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent alignItemWithTrigger={false}>
                 <SelectItem value="below" label="Below scholastic">
                   Below scholastic
                 </SelectItem>
