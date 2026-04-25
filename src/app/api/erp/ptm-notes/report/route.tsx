@@ -4,6 +4,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { createClient } from "@/lib/supabase/server";
 import { getPdfTemplate } from "@/lib/pdf-templates";
+import { contentDispositionAttachment } from "@/lib/utils";
 import {
   PtmNotesReportPDF,
   type PtmReportStudentBlock,
@@ -210,7 +211,7 @@ export async function GET(request: Request) {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Disposition": contentDispositionAttachment(filename),
       "Cache-Control": "private, no-store",
     },
   });

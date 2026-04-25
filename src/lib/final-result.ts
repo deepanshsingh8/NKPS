@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
 import type { GradeBand, GradeScale } from "@/lib/grading";
+import { applySupplementarySubstitution } from "@/lib/supplementary";
 import type {
   ExamKind,
   FinalResult,
@@ -39,6 +40,11 @@ interface RMSubjectRow {
 interface ExamConfigRow {
   exam_type_id: string;
   weightage: number | null;
+  // Per-class override for the exam's `max_marks`. When set, the result
+  // engine rescales every student's row for this exam: their `marks_obtained`
+  // is treated as the numerator over `max_marks_override` instead of the raw
+  // `results.max_marks`. Null = no override (use the raw value).
+  max_marks_override: number | null;
   sort_order: number;
   exam_name: string;
   kind: ExamKind;
@@ -388,6 +394,11 @@ function coerceMaster(row: Record<string, unknown>): ResultMaster {
     round_raw_marks: Boolean(row.round_raw_marks),
     class_test_best_of: nOrNull(row.class_test_best_of),
     practical_best_of: nOrNull(row.practical_best_of),
+    min_for_supplementary: nOrNull(row.min_for_supplementary),
+    max_supplementary_subjects: n(row.max_supplementary_subjects, 2),
+    supplementary_pass_action:
+      (row.supplementary_pass_action as ResultMaster["supplementary_pass_action"]) ??
+      "cap_at_pass_mark",
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
   };
@@ -456,7 +467,7 @@ export async function computeFinalResult(
     supabase
       .from("class_exam_configs")
       .select(
-        "exam_type_id, weightage, sort_order, is_applicable, exam_types(name, kind, academic_year_id)"
+        "exam_type_id, weightage, max_marks_override, sort_order, is_applicable, exam_types(name, kind, academic_year_id)"
       )
       .eq("class_id", classId)
       .eq("is_applicable", true),
@@ -489,6 +500,7 @@ export async function computeFinalResult(
       return {
         exam_type_id: row.exam_type_id as string,
         weightage: nOrNull(row.weightage),
+        max_marks_override: nOrNull(row.max_marks_override),
         sort_order: row.sort_order as number,
         exam_name: et.name,
         kind: et.kind,
@@ -506,12 +518,151 @@ export async function computeFinalResult(
       .eq("student_id", student_id)
       .in("exam_type_id", examTypeIds)
       .in("subject_id", subjectIds);
-    results = (resRows ?? []).map((r) => ({
-      exam_type_id: r.exam_type_id as string,
-      subject_id: r.subject_id as string,
-      marks_obtained: Number(r.marks_obtained),
-      max_marks: Number(r.max_marks),
+    // Apply per-class max_marks_override (if any). For an exam configured with
+    // an override, every result row for that exam_type is treated as if its
+    // max were the override — this is what the admin UI promises and what
+    // makes "Class IX uses 50-mark English papers but Class X uses 100" work
+    // without splitting the exam_type.
+    const maxOverrideByExam = new Map<string, number>();
+    for (const ec of examConfigs) {
+      if (ec.max_marks_override !== null) {
+        maxOverrideByExam.set(ec.exam_type_id, ec.max_marks_override);
+      }
+    }
+    results = (resRows ?? []).map((r) => {
+      const override = maxOverrideByExam.get(r.exam_type_id as string);
+      return {
+        exam_type_id: r.exam_type_id as string,
+        subject_id: r.subject_id as string,
+        marks_obtained: Number(r.marks_obtained),
+        max_marks: override !== undefined ? override : Number(r.max_marks),
+      };
+    });
+  }
+
+  // Class tests stored in the dedicated `class_tests` + `class_test_results`
+  // tables (not in the `results` table) are folded into the engine here so
+  // they participate in best-of selection, per-subject aggregates, and the
+  // pass/fail decision exactly like exam_types-based contributions.
+  //
+  // The synthetic exam_type_id `ct:<uuid>` keeps the rest of the engine
+  // unchanged — it just sees more rows. Only published, non-null-marks
+  // class tests count.
+  if (subjectIds.length > 0) {
+    const { data: ctRows } = await supabase
+      .from("class_tests")
+      .select(
+        "id, subject_id, name, max_marks, weightage, test_date"
+      )
+      .eq("class_id", classId)
+      .in("subject_id", subjectIds)
+      .eq("is_published", true);
+
+    type CTRow = {
+      id: string;
+      subject_id: string;
+      name: string;
+      max_marks: number | string;
+      weightage: number | string | null;
+      test_date: string | null;
+    };
+    const tests = (ctRows ?? []) as CTRow[];
+
+    if (tests.length > 0) {
+      const testIds = tests.map((t) => t.id);
+      const { data: ctResRows } = await supabase
+        .from("class_test_results")
+        .select("class_test_id, marks_obtained, max_marks")
+        .eq("student_id", student_id)
+        .in("class_test_id", testIds);
+
+      const ctRes = new Map<
+        string,
+        { marks_obtained: number; max_marks: number }
+      >();
+      for (const r of ctResRows ?? []) {
+        const m = r.marks_obtained;
+        if (m === null || m === undefined) continue;
+        ctRes.set(r.class_test_id as string, {
+          marks_obtained: Number(m),
+          max_marks: Number(r.max_marks),
+        });
+      }
+
+      // Push class tests *after* the real exam configs so existing exams
+      // keep their sort_order ranking when best-of compares them. Within
+      // class tests, order by test_date ascending (older first), then by
+      // synthetic id for determinism.
+      tests.sort((a, b) => {
+        if (a.test_date && b.test_date)
+          return a.test_date.localeCompare(b.test_date);
+        if (a.test_date) return -1;
+        if (b.test_date) return 1;
+        return a.id.localeCompare(b.id);
+      });
+      let synthSort = 1_000_000;
+      for (const t of tests) {
+        const synthId = `ct:${t.id}`;
+        examConfigs.push({
+          exam_type_id: synthId,
+          weightage:
+            t.weightage !== null && t.weightage !== undefined
+              ? Number(t.weightage)
+              : null,
+          max_marks_override: null,
+          sort_order: synthSort++,
+          exam_name: t.name,
+          kind: "class_test",
+        });
+        const matched = ctRes.get(t.id);
+        if (matched) {
+          results.push({
+            exam_type_id: synthId,
+            subject_id: t.subject_id,
+            marks_obtained: matched.marks_obtained,
+            max_marks: matched.max_marks,
+          });
+        }
+      }
+    }
+  }
+
+  // Phase 8: substitute passed supplementary attempts into the results
+  // feed before per-subject pct compute. Only applies when at least one
+  // attempt exists for this student in the relevant exam set.
+  if (examTypeIds.length > 0 && subjectIds.length > 0) {
+    const { data: suppRows } = await supabase
+      .from("supplementary_attempts")
+      .select(
+        "student_id, parent_exam_type_id, subject_id, marks_obtained, passed"
+      )
+      .eq("student_id", student_id)
+      .in("parent_exam_type_id", examTypeIds)
+      .in("subject_id", subjectIds);
+    const attempts = (suppRows ?? []).map((a) => ({
+      student_id: a.student_id as string,
+      parent_exam_type_id: a.parent_exam_type_id as string,
+      subject_id: a.subject_id as string,
+      passed: Boolean(a.passed),
+      marks_obtained: Number(a.marks_obtained),
     }));
+    if (attempts.length > 0) {
+      const subjectOverride = new Map(
+        subjects.map((s) => [s.subject_id, s.pass_mark_value_override])
+      );
+      const passThresholdLookup = (subjectId: string, maxMarks: number) => {
+        const raw = subjectOverride.get(subjectId) ?? master.pass_mark_value;
+        return master.pass_mark_mode === "percentage"
+          ? (raw / 100) * maxMarks
+          : raw;
+      };
+      results = applySupplementarySubstitution(
+        results,
+        attempts,
+        master.supplementary_pass_action,
+        passThresholdLookup
+      ) as ResultRow[];
+    }
   }
 
   return computeFromFixtures({

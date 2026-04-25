@@ -1,9 +1,42 @@
 import { z } from "zod";
 
+// Indian mobile: 10 digits starting with 6-9. We accept either the bare 10
+// digits or a `+91` / `0` / `91` prefix (then strip it for storage).
+//
+// Why we don't go fully E.164: the school's user base is 99% domestic, the
+// rest of the app assumes 10-digit numbers, and a stricter regex would mass-
+// reject existing rows. If international parents become a real cohort, swap
+// in `libphonenumber-js`.
+const indianMobileRegex = /^[6-9]\d{9}$/;
+function normalizeIndianMobile(raw: string): string | null {
+  const stripped = raw.replace(/[\s\-()]/g, "");
+  // Accept and strip common prefixes.
+  let candidate = stripped;
+  if (candidate.startsWith("+91")) candidate = candidate.slice(3);
+  else if (candidate.startsWith("91") && candidate.length === 12) candidate = candidate.slice(2);
+  else if (candidate.startsWith("0") && candidate.length === 11) candidate = candidate.slice(1);
+  return indianMobileRegex.test(candidate) ? candidate : null;
+}
+
+const phoneRequiredSchema = z
+  .string()
+  .min(1, "Phone number is required")
+  .refine((v) => normalizeIndianMobile(v) !== null, {
+    message: "Enter a valid 10-digit Indian mobile number",
+  });
+
+const phoneOptionalSchema = z
+  .string()
+  .refine((v) => v === "" || normalizeIndianMobile(v) !== null, {
+    message: "Enter a valid 10-digit Indian mobile number",
+  })
+  .optional()
+  .or(z.literal(""));
+
 export const contactFormSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
-  phone: z.string().min(10, "Please enter a valid phone number"),
+  phone: phoneRequiredSchema,
   subject: z.string().min(1, "Please select a subject"),
   message: z.string().min(10, "Message must be at least 10 characters"),
 });
@@ -37,7 +70,7 @@ export type TCUploadData = z.infer<typeof tcUploadSchema>;
 export const createUserSchema = z.object({
   full_name: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
-  phone: z.string().min(10, "Please enter a valid phone number").optional().or(z.literal("")),
+  phone: phoneOptionalSchema,
   role: z.enum(["admin", "editor", "teacher", "student", "parent"], {
     message: "Please select a role",
   }),
@@ -53,7 +86,7 @@ export const attendanceBulkSchema = z.object({
       student_id: z.string().uuid("Invalid student"),
       status: z.enum(["present", "absent", "late", "half_day"]),
     })
-  ).min(1, "At least one attendance entry is required"),
+  ).min(1, "At least one attendance entry is required").max(5000, "Too many entries in one request"),
 });
 
 export type AttendanceBulkData = z.infer<typeof attendanceBulkSchema>;
@@ -65,9 +98,9 @@ export const resultsBulkSchema = z.object({
   entries: z.array(
     z.object({
       student_id: z.string().uuid("Invalid student"),
-      marks_obtained: z.number().min(0, "Marks cannot be negative"),
+      marks_obtained: z.number().finite("Marks must be a valid number").min(0, "Marks cannot be negative"),
     })
-  ).min(1, "At least one result entry is required"),
+  ).min(1, "At least one result entry is required").max(5000, "Too many entries in one request"),
 });
 
 export type ResultsBulkData = z.infer<typeof resultsBulkSchema>;
@@ -79,10 +112,10 @@ export const nonScholasticAssessmentsBulkSchema = z.object({
     z.object({
       student_id: z.string().uuid("Invalid student"),
       sub_subject_id: z.string().uuid("Invalid sub-subject"),
-      grade_label: z.string().min(1).nullable(),
-      remarks: z.string().nullable().optional(),
+      grade_label: z.string().min(1).max(50).nullable(),
+      remarks: z.string().max(500).nullable().optional(),
     })
-  ).min(1, "At least one assessment entry is required"),
+  ).min(1, "At least one assessment entry is required").max(5000, "Too many entries in one request"),
 });
 
 export type NonScholasticAssessmentsBulkData = z.infer<typeof nonScholasticAssessmentsBulkSchema>;
@@ -94,18 +127,18 @@ export type NonScholasticAssessmentsBulkData = z.infer<typeof nonScholasticAsses
 export const classTestCreateSchema = z.object({
   class_id: z.string().uuid("Invalid class"),
   subject_id: z.string().uuid("Invalid subject"),
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Name is required").max(200),
   test_date: z.string().nullable().optional(),
-  max_marks: z.number().positive("Max marks must be positive"),
-  weightage: z.number().min(0).max(100).nullable().optional(),
+  max_marks: z.number().finite().positive("Max marks must be positive"),
+  weightage: z.number().finite().min(0).max(100).nullable().optional(),
   is_published: z.boolean().optional(),
 });
 
 export const classTestUpdateSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().min(1).max(200).optional(),
   test_date: z.string().nullable().optional(),
-  max_marks: z.number().positive().optional(),
-  weightage: z.number().min(0).max(100).nullable().optional(),
+  max_marks: z.number().finite().positive().optional(),
+  weightage: z.number().finite().min(0).max(100).nullable().optional(),
   is_published: z.boolean().optional(),
 });
 
@@ -113,10 +146,10 @@ export const classTestMarksBulkSchema = z.object({
   entries: z.array(
     z.object({
       student_id: z.string().uuid("Invalid student"),
-      marks_obtained: z.number().min(0, "Marks cannot be negative").nullable(),
-      remarks: z.string().nullable().optional(),
+      marks_obtained: z.number().finite("Marks must be a valid number").min(0, "Marks cannot be negative").nullable(),
+      remarks: z.string().max(500).nullable().optional(),
     })
-  ).min(1, "At least one entry is required"),
+  ).min(1, "At least one entry is required").max(5000, "Too many entries in one request"),
 });
 
 export type ClassTestCreateData = z.infer<typeof classTestCreateSchema>;
@@ -137,6 +170,18 @@ export const finalizeMarksheetSchema = z.object({
   class_id: z.string().uuid("Invalid class"),
   exam_type_id: z.string().uuid("Invalid exam type"),
   student_ids: z.array(z.string().uuid()).optional(),
+  // Required only when a prior active snapshot exists for at least one of
+  // the target students — the route validates that conditionally so first-
+  // time finalize calls don't have to supply a meaningless reason.
+  unpublish_reason_on_refinalize: z.string().min(1).max(500).optional(),
+});
+
+// Year-final variant: same shape but keyed on academic_year_id (no exam).
+export const finalizeYearFinalSchema = z.object({
+  class_id: z.string().uuid("Invalid class"),
+  academic_year_id: z.string().uuid("Invalid academic year"),
+  student_ids: z.array(z.string().uuid()).optional(),
+  unpublish_reason_on_refinalize: z.string().min(1).max(500).optional(),
 });
 
 export const unpublishMarksheetSchema = z.object({
@@ -164,12 +209,13 @@ export const ptmNotesBulkSchema = z.object({
           .string()
           .regex(/^\d{4}-\d{2}-\d{2}$/, "meeting_date must be YYYY-MM-DD"),
         attendance: z.enum(["present", "absent"]),
-        teacher_remarks: z.string().nullable().optional(),
-        parent_remarks: z.string().nullable().optional(),
-        action_points: z.string().nullable().optional(),
+        teacher_remarks: z.string().max(2000).nullable().optional(),
+        parent_remarks: z.string().max(2000).nullable().optional(),
+        action_points: z.string().max(2000).nullable().optional(),
       })
     )
-    .min(1, "At least one entry is required"),
+    .min(1, "At least one entry is required")
+    .max(5000, "Too many entries in one request"),
 });
 
 export const schoolMeetingCountSchema = z.object({
@@ -178,6 +224,7 @@ export const schoolMeetingCountSchema = z.object({
   class_id: z.string().uuid().nullable().optional(),
   total_meetings: z
     .number()
+    .finite("Must be a valid number")
     .int("Must be a whole number")
     .min(0, "Cannot be negative"),
 });
@@ -185,10 +232,59 @@ export const schoolMeetingCountSchema = z.object({
 export type PtmNotesBulkData = z.infer<typeof ptmNotesBulkSchema>;
 export type SchoolMeetingCountData = z.infer<typeof schoolMeetingCountSchema>;
 
+// =============================================================
+// Supplementary Exam (Phase 8)
+// =============================================================
+
+export const supplementaryAttemptsBulkSchema = z.object({
+  class_id: z.string().uuid("Invalid class"),
+  parent_exam_type_id: z.string().uuid("Invalid exam type"),
+  retest_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "retest_date must be YYYY-MM-DD")
+    .nullable()
+    .optional(),
+  entries: z
+    .array(
+      z.object({
+        student_id: z.string().uuid("Invalid student"),
+        subject_id: z.string().uuid("Invalid subject"),
+        marks_obtained: z.number().min(0, "Marks cannot be negative"),
+        max_marks: z.number().positive("Max marks must be positive"),
+        passed: z.boolean(),
+      })
+    )
+    .min(1, "At least one entry is required")
+    .max(2000, "Too many entries in one request"),
+});
+
+export type SupplementaryAttemptsBulkData = z.infer<
+  typeof supplementaryAttemptsBulkSchema
+>;
+
+export const ptmFormatSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100),
+  is_default: z.boolean().optional(),
+  is_active: z.boolean().optional(),
+  intro_text: z.string().nullable().optional(),
+  closing_text: z.string().nullable().optional(),
+  show_student_details: z.boolean().optional(),
+  show_photo: z.boolean().optional(),
+  show_father_name: z.boolean().optional(),
+  show_mother_name: z.boolean().optional(),
+  show_performance_snapshot: z.boolean().optional(),
+  show_teacher_remarks_section: z.boolean().optional(),
+  teacher_remarks_lines: z.number().int().min(0).max(20).optional(),
+  show_parent_signature: z.boolean().optional(),
+  signature_labels: z.array(z.string()).optional(),
+});
+
+export type PtmFormatData = z.infer<typeof ptmFormatSchema>;
+
 export const feePaymentSchema = z.object({
   student_id: z.string().uuid("Invalid student"),
   fee_structure_id: z.string().uuid("Invalid fee structure"),
-  amount_paid: z.number().positive("Amount must be positive"),
+  amount_paid: z.number().finite("Amount must be a valid number").positive("Amount must be positive"),
   payment_method: z.enum(["cash", "online", "cheque", "bank_transfer", "upi", "gateway"], {
     message: "Please select a payment method",
   }),
@@ -234,7 +330,7 @@ export const feeStructureSchema = z.object({
   class_name: z.string().min(1, "Class name is required"),
   class_level: z.enum(["all", "nursery_ukg", "i_v", "vi_viii", "ix_x", "xi_xii"]).optional(),
   fee_type: z.string().min(1, "Fee type is required"),
-  amount: z.number().positive("Amount must be positive"),
+  amount: z.number().finite("Amount must be a valid number").positive("Amount must be positive"),
   frequency: z.enum(["monthly", "quarterly", "annual", "one_time"], {
     message: "Please select a frequency",
   }),
@@ -275,7 +371,7 @@ export type CalendarEventData = z.infer<typeof calendarEventSchema>;
 export const registrationRequestSchema = z.object({
   full_name: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
-  phone: z.string().min(10, "Please enter a valid phone number").optional().or(z.literal("")),
+  phone: phoneOptionalSchema,
   role: z.enum(["teacher", "student", "parent"], {
     message: "Please select a role",
   }),
@@ -347,7 +443,7 @@ export const studentBulkUploadSchema = z.object({
       aadhar_number: z.string().optional().or(z.literal("")),
       previous_school: z.string().optional().or(z.literal("")),
     })
-  ).min(1, "At least one student is required"),
+  ).min(1, "At least one student is required").max(5000, "Too many rows in one upload"),
 });
 
 export type StudentBulkUploadData = z.infer<typeof studentBulkUploadSchema>;
@@ -366,7 +462,7 @@ export const staffBulkUploadSchema = z.object({
       address: z.string().optional().or(z.literal("")),
       qualifications: z.string().optional().or(z.literal("")),
     })
-  ).min(1, "At least one staff member is required"),
+  ).min(1, "At least one staff member is required").max(5000, "Too many rows in one upload"),
 });
 
 export type StaffBulkUploadData = z.infer<typeof staffBulkUploadSchema>;
@@ -398,7 +494,7 @@ export type TeacherData = z.infer<typeof teacherSchema>;
 export const parentSchema = z.object({
   full_name: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
-  phone: z.string().min(10, "Please enter a valid phone number"),
+  phone: phoneRequiredSchema,
   alternate_phone: z.string().optional().or(z.literal("")),
   occupation: z.string().optional().or(z.literal("")),
   address: z.string().optional().or(z.literal("")),
@@ -416,7 +512,7 @@ export type ParentData = z.infer<typeof parentSchema>;
 export const paymentOrderSchema = z.object({
   student_id: z.string().uuid("Invalid student"),
   fee_structure_id: z.string().uuid("Invalid fee structure"),
-  amount: z.number().positive("Amount must be positive"),
+  amount: z.number().finite("Amount must be a valid number").positive("Amount must be positive"),
   month: z.string().optional().or(z.literal("")),
   gateway: z.enum(["razorpay", "stripe", "manual"]).optional(),
 });
@@ -497,8 +593,8 @@ export const resultMasterExamConfigsPutSchema = z.object({
       z.object({
         exam_type_id: z.string().uuid("Invalid exam_type_id"),
         is_applicable: z.boolean(),
-        weightage: z.number().min(0).max(100).nullable(),
-        max_marks_override: z.number().positive().nullable(),
+        weightage: z.number().finite().min(0).max(100).nullable(),
+        max_marks_override: z.number().finite().positive().nullable(),
         sort_order: z.number().int().min(0),
       })
     ),

@@ -176,8 +176,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       user: newUser.user,
-      generated_password: password,
       email_warning: emailWarning,
+      ...(emailWarning ? { generated_password: password } : {}),
     });
   } catch (err) {
     console.error("API error:", err);

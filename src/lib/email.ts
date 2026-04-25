@@ -1,29 +1,55 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { SCHOOL } from "@/lib/constants";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const GMAIL_USER = process.env.GMAIL_USER;
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 
-const FROM_EMAIL = process.env.FROM_EMAIL || `${SCHOOL.name} <onboarding@resend.dev>`;
+// Display name + Gmail address. Gmail rewrites the envelope sender to the
+// authenticated account, so the address part must match GMAIL_USER.
+const FROM_EMAIL = process.env.FROM_EMAIL || `${SCHOOL.name} <${GMAIL_USER}>`;
 // Where replies should be routed. Defaults to the school's primary inbox so
 // that parents/students/staff replying to any transactional email reach us.
 const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || SCHOOL.email[0];
 
-export async function sendEmail(to: string, subject: string, html: string) {
-  const { data, error } = await resend.emails.send({
-    from: FROM_EMAIL,
-    to,
-    subject,
-    html,
-    replyTo: REPLY_TO_EMAIL,
-  });
+let cachedTransporter: nodemailer.Transporter | null = null;
 
-  if (error) {
-    console.error("Resend API error:", JSON.stringify(error));
-    throw new Error(`Email send failed: ${error.message}`);
+function getTransporter(): nodemailer.Transporter {
+  if (cachedTransporter) return cachedTransporter;
+
+  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
+    throw new Error(
+      "Email is not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD in the environment."
+    );
   }
 
-  console.log("Email sent successfully:", data?.id);
-  return { data, error };
+  cachedTransporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: GMAIL_USER,
+      pass: GMAIL_APP_PASSWORD,
+    },
+  });
+
+  return cachedTransporter;
+}
+
+export async function sendEmail(to: string, subject: string, html: string) {
+  try {
+    const info = await getTransporter().sendMail({
+      from: FROM_EMAIL,
+      to,
+      subject,
+      html,
+      replyTo: REPLY_TO_EMAIL,
+    });
+
+    console.log("Email sent successfully:", info.messageId);
+    return { data: { id: info.messageId }, error: null };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Gmail SMTP error:", message);
+    throw new Error(`Email send failed: ${message}`);
+  }
 }
 
 // ---------------------------------------------------------------------------

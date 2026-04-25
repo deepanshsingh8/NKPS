@@ -16,7 +16,6 @@ interface TC {
   student_name: string;
   admission_no: string | null;
   academic_year: string;
-  file_url: string;
 }
 
 export function TransferCertificatesPageClient() {
@@ -28,9 +27,12 @@ export function TransferCertificatesPageClient() {
   useEffect(() => {
     async function fetchTCs() {
       const supabase = createClient();
+      // file_url intentionally not selected — the page links to the
+      // signed-URL download endpoint instead so the storage path stays
+      // hidden and downloads stay rate-limited.
       const { data, error } = await supabase
         .from("transfer_certificates")
-        .select("id, student_name, admission_no, academic_year, file_url")
+        .select("id, student_name, admission_no, academic_year")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -163,7 +165,7 @@ export function TransferCertificatesPageClient() {
 
                         {/* Download Button */}
                         <a
-                          href={tc.file_url}
+                          href={`/api/transfer-certificates/${tc.id}/download`}
                           className={cn(
                             "flex-shrink-0 inline-flex items-center gap-2 rounded-full px-5 py-2.5",
                             "bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900",

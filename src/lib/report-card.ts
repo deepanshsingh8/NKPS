@@ -122,7 +122,7 @@ export async function getReportCardData(
   // Current academic year — used for attendance window.
   const { data: academicYear } = await supabase
     .from("academic_years")
-    .select("id, label, start_date, end_date")
+    .select("id, name, start_date, end_date")
     .eq("is_current", true)
     .limit(1)
     .maybeSingle();
@@ -151,7 +151,7 @@ export async function getReportCardData(
       total_days: total,
       present_days: attended,
       percentage: total > 0 ? Math.round((attended / total) * 100) : 0,
-      academic_year_label: academicYear?.label ?? null,
+      academic_year_label: academicYear?.name ?? null,
     };
   }
 

@@ -23,7 +23,7 @@ import type { GreenSheetData } from "@/lib/green-sheet";
 
 interface AcademicYear {
   id: string;
-  label: string;
+  name: string;
   is_current: boolean;
 }
 
@@ -44,8 +44,8 @@ export default function AdminGreenSheetPage() {
       const supabase = createClient();
       const { data } = await supabase
         .from("academic_years")
-        .select("id, label, is_current")
-        .order("label", { ascending: false });
+        .select("id, name, is_current")
+        .order("name", { ascending: false });
       const rows = (data ?? []) as AcademicYear[];
       setYears(rows);
       const current = rows.find((y) => y.is_current) ?? rows[0];
@@ -182,7 +182,7 @@ export default function AdminGreenSheetPage() {
                 <SelectContent>
                   {years.map((y) => (
                     <SelectItem key={y.id} value={y.id}>
-                      {y.label}
+                      {y.name}
                       {y.is_current ? " (current)" : ""}
                     </SelectItem>
                   ))}

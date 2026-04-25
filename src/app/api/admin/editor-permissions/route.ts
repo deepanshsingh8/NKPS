@@ -90,6 +90,18 @@ export async function PUT(request: NextRequest) {
       (request.headers.get("authorization") ?? "").slice(7)
     );
 
+    // Self-elevation guard: even though `verifyAdmin()` rules out editors
+    // calling this today, an admin (or future code path) editing their own
+    // row can lock themselves out of the admin role or grant their second
+    // editor identity unbounded power. Block it; admins manage their own
+    // role via /api/erp/users.
+    if (user?.id && user.id === editorId) {
+      return NextResponse.json(
+        { error: "You cannot modify your own permissions" },
+        { status: 400 }
+      );
+    }
+
     // Replace: delete existing rows, then insert new set.
     const { error: delError } = await admin
       .from("editor_permissions")

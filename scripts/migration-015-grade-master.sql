@@ -4,7 +4,7 @@
 -- row falls back to its scope's default scale.
 
 -- 1. Scales: library of named grade schemes.
-CREATE TABLE grade_scales (
+CREATE TABLE IF NOT EXISTS grade_scales (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   name text NOT NULL,
   scope text NOT NULL CHECK (scope IN ('scholastic', 'non_scholastic')),
@@ -14,12 +14,12 @@ CREATE TABLE grade_scales (
 );
 
 -- At most one default per scope.
-CREATE UNIQUE INDEX idx_grade_scales_one_default_per_scope
+CREATE UNIQUE INDEX IF NOT EXISTS idx_grade_scales_one_default_per_scope
   ON grade_scales(scope)
   WHERE is_default = true;
 
 -- 2. Bands: cutoff ranges per scale.
-CREATE TABLE grade_bands (
+CREATE TABLE IF NOT EXISTS grade_bands (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   grade_scale_id uuid NOT NULL REFERENCES grade_scales(id) ON DELETE CASCADE,
   label text NOT NULL,
@@ -31,25 +31,29 @@ CREATE TABLE grade_bands (
   CONSTRAINT grade_bands_pct_range CHECK (min_pct <= max_pct)
 );
 
-CREATE INDEX idx_grade_bands_scale ON grade_bands(grade_scale_id);
+CREATE INDEX IF NOT EXISTS idx_grade_bands_scale ON grade_bands(grade_scale_id);
 
 -- 3. Per-class override. Absence of a row = class uses the scope's default scale.
 --    ON DELETE RESTRICT on grade_scale_id so we don't silently orphan a class.
-CREATE TABLE class_grade_scales (
+CREATE TABLE IF NOT EXISTS class_grade_scales (
   class_id uuid PRIMARY KEY REFERENCES classes(id) ON DELETE CASCADE,
   grade_scale_id uuid NOT NULL REFERENCES grade_scales(id) ON DELETE RESTRICT,
   updated_at timestamptz DEFAULT now()
 );
 
-CREATE INDEX idx_class_grade_scales_scale ON class_grade_scales(grade_scale_id);
+CREATE INDEX IF NOT EXISTS idx_class_grade_scales_scale ON class_grade_scales(grade_scale_id);
 
 -- 4. Seed the default scholastic scale matching the current hardcoded behavior
 --    (so nothing changes for existing reports until an admin edits it).
+--    Wrapped in a "no default exists" guard so the migration is safe to re-run.
 INSERT INTO grade_scales (name, scope, is_default)
-VALUES ('Default Scale', 'scholastic', true);
+SELECT 'Default Scale', 'scholastic', true
+WHERE NOT EXISTS (
+  SELECT 1 FROM grade_scales WHERE scope = 'scholastic' AND is_default = true
+);
 
 INSERT INTO grade_bands (grade_scale_id, label, min_pct, max_pct, sort_order)
-SELECT id, label, min_pct, max_pct, sort_order
+SELECT s.id, b.label, b.min_pct, b.max_pct, b.sort_order
 FROM grade_scales s
 CROSS JOIN (VALUES
   ('A+', 90.00, 100.00, 1),
@@ -59,8 +63,12 @@ CROSS JOIN (VALUES
   ('C',  50.00,  59.99, 5),
   ('D',  40.00,  49.99, 6),
   ('F',   0.00,  39.99, 7)
-) AS bands(label, min_pct, max_pct, sort_order)
-WHERE s.scope = 'scholastic' AND s.is_default = true;
+) AS b(label, min_pct, max_pct, sort_order)
+WHERE s.scope = 'scholastic'
+  AND s.is_default = true
+  AND NOT EXISTS (
+    SELECT 1 FROM grade_bands gb WHERE gb.grade_scale_id = s.id
+  );
 
 -- 5. RLS: admins read/write; editors with the grade_master feature key
 --    can read; authenticated roles can read (needed by teacher + student views
@@ -69,10 +77,12 @@ ALTER TABLE grade_scales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE grade_bands ENABLE ROW LEVEL SECURITY;
 ALTER TABLE class_grade_scales ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Authenticated can read grade_scales" ON grade_scales;
 CREATE POLICY "Authenticated can read grade_scales"
   ON grade_scales FOR SELECT
   USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Admins can manage grade_scales" ON grade_scales;
 CREATE POLICY "Admins can manage grade_scales"
   ON grade_scales FOR ALL
   USING (
@@ -82,10 +92,12 @@ CREATE POLICY "Admins can manage grade_scales"
     EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
   );
 
+DROP POLICY IF EXISTS "Authenticated can read grade_bands" ON grade_bands;
 CREATE POLICY "Authenticated can read grade_bands"
   ON grade_bands FOR SELECT
   USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Admins can manage grade_bands" ON grade_bands;
 CREATE POLICY "Admins can manage grade_bands"
   ON grade_bands FOR ALL
   USING (
@@ -95,10 +107,12 @@ CREATE POLICY "Admins can manage grade_bands"
     EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
   );
 
+DROP POLICY IF EXISTS "Authenticated can read class_grade_scales" ON class_grade_scales;
 CREATE POLICY "Authenticated can read class_grade_scales"
   ON class_grade_scales FOR SELECT
   USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Admins can manage class_grade_scales" ON class_grade_scales;
 CREATE POLICY "Admins can manage class_grade_scales"
   ON class_grade_scales FOR ALL
   USING (

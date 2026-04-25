@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
+import { verifyAdminOrEditorWithUser } from "@/lib/verify-admin";
 import type { FeatureKey } from "@/lib/permissions";
 
 // Map each proxied table to the editor feature_key required to write it.
@@ -62,10 +62,12 @@ export async function POST(request: NextRequest) {
     }
 
     const featureKey = TABLE_FEATURE_KEY[table];
-    const admin = await verifyAdminOrEditor(featureKey);
-    if (!admin) {
+    const auth = await verifyAdminOrEditorWithUser(featureKey);
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const { admin: _admin, user } = auth;
+    const admin = _admin;
 
     const allowedCols = ALLOWED_COLUMNS[table];
 
@@ -134,16 +136,31 @@ export async function POST(request: NextRequest) {
     }
 
     if (result.error) {
-      console.error(`Admin proxy error [${table}/${action}]:`, result.error);
+      console.error(
+        `[admin-proxy] error actor=${user.id} table=${table} action=${action}:`,
+        result.error
+      );
       if (result.error.code === "23505") {
         return NextResponse.json(
           { error: "This record already exists. Duplicate entries are not allowed." },
           { status: 409 }
         );
       }
-      return NextResponse.json({ error: result.error.message || "Operation failed" }, { status: 500 });
+      // Don't echo Supabase's error.message — it can leak column/table names
+      // and constraint hints. The detailed log above is enough for debugging.
+      return NextResponse.json(
+        { error: "Operation failed. Please check your input and try again." },
+        { status: 500 }
+      );
     }
 
+    // Cheap structured audit trail. Real audit_log table is the bigger fix
+    // tracked separately in the bug audit (H22 follow-up).
+    console.info(
+      `[admin-proxy] ok actor=${user.id} table=${table} action=${action} match=${
+        match ? `${match.column}=${match.value}` : "(none)"
+      }`
+    );
     return NextResponse.json({ success: true, data: result.data });
   } catch {
     return NextResponse.json(

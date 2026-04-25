@@ -415,6 +415,10 @@ export interface ResultMaster {
   round_raw_marks: boolean;
   class_test_best_of: number | null;
   practical_best_of: number | null;
+  // Phase 8 — supplementary settings (nullable thresholds default to "off")
+  min_for_supplementary: number | null;
+  max_supplementary_subjects: number;
+  supplementary_pass_action: "cap_at_pass_mark" | "use_retest_marks";
   created_at: string;
   updated_at: string;
 }

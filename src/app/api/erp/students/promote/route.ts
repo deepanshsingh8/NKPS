@@ -157,17 +157,42 @@ export async function POST(request: NextRequest) {
         }));
 
         if (newEnrollments.length > 0) {
-          const { error, count } = await admin
+          // Pre-check: which of these students are already enrolled in the
+          // target class? Skip them — and surface their admission_nos so the
+          // admin sees what was *actually* moved vs. what was a no-op. Without
+          // this, ignoreDuplicates returns count=null and the response would
+          // claim every row was promoted.
+          const studentIds = newEnrollments.map((n) => n.student_id);
+          const { data: existing } = await admin
             .from("student_enrollments")
-            .upsert(newEnrollments, {
-              onConflict: "student_id,class_id",
-              ignoreDuplicates: true,
-            });
+            .select("student_id")
+            .eq("class_id", targetClass.id)
+            .in("student_id", studentIds);
+          const alreadyEnrolled = new Set(
+            (existing ?? []).map((r) => r.student_id as string)
+          );
+          const toInsert = newEnrollments.filter(
+            (n) => !alreadyEnrolled.has(n.student_id)
+          );
 
-          if (error) {
-            summary.errors.push(`Failed to create promotion enrollments: ${error.message}`);
-          } else {
-            summary.promoted = count ?? newEnrollments.length;
+          if (alreadyEnrolled.size > 0) {
+            summary.errors.push(
+              `${alreadyEnrolled.size} student(s) already enrolled in the target class — skipped`
+            );
+          }
+
+          if (toInsert.length > 0) {
+            const { error } = await admin
+              .from("student_enrollments")
+              .insert(toInsert);
+
+            if (error) {
+              summary.errors.push(
+                `Failed to create promotion enrollments: ${error.message}`
+              );
+            } else {
+              summary.promoted = toInsert.length;
+            }
           }
         }
 
@@ -189,17 +214,39 @@ export async function POST(request: NextRequest) {
           status: "active" as const,
         }));
 
-        const { error, count } = await admin
-          .from("student_enrollments")
-          .upsert(retainEnrollments, {
-            onConflict: "student_id,class_id",
-            ignoreDuplicates: true,
-          });
+        if (retainEnrollments.length > 0) {
+          const studentIds = retainEnrollments.map((n) => n.student_id);
+          const { data: existing } = await admin
+            .from("student_enrollments")
+            .select("student_id")
+            .eq("class_id", retainClass.id)
+            .in("student_id", studentIds);
+          const alreadyEnrolled = new Set(
+            (existing ?? []).map((r) => r.student_id as string)
+          );
+          const toInsert = retainEnrollments.filter(
+            (n) => !alreadyEnrolled.has(n.student_id)
+          );
 
-        if (error) {
-          summary.errors.push(`Failed to create retained enrollments: ${error.message}`);
-        } else {
-          summary.retained = count ?? retainEnrollments.length;
+          if (alreadyEnrolled.size > 0) {
+            summary.errors.push(
+              `${alreadyEnrolled.size} student(s) already retained in this class — skipped`
+            );
+          }
+
+          if (toInsert.length > 0) {
+            const { error } = await admin
+              .from("student_enrollments")
+              .insert(toInsert);
+
+            if (error) {
+              summary.errors.push(
+                `Failed to create retained enrollments: ${error.message}`
+              );
+            } else {
+              summary.retained = toInsert.length;
+            }
+          }
         }
 
       }

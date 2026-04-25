@@ -5,6 +5,7 @@ import path from "path";
 import { createClient } from "@/lib/supabase/server";
 import { canViewReportCard } from "@/lib/report-card";
 import { getPdfTemplate } from "@/lib/pdf-templates";
+import { contentDispositionAttachment } from "@/lib/utils";
 import {
   AdmitCardPDF,
   type AdmitCardPayload,
@@ -27,19 +28,13 @@ async function loadLogo(): Promise<Buffer | null> {
   }
 }
 
-// Fetch an external URL (e.g. Supabase Storage) and return bytes.
-// Returns null on any failure — admit card renders without photo rather than
-// failing the whole generation.
+import { safeFetchBuffer } from "@/lib/safe-fetch";
+
+// Fetch a student photo URL through the SSRF-resistant helper. Returns null
+// on any failure — admit card renders without the photo rather than failing
+// the whole generation.
 async function fetchPhoto(url: string | null): Promise<Buffer | null> {
-  if (!url) return null;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const arrayBuf = await res.arrayBuffer();
-    return Buffer.from(arrayBuf);
-  } catch {
-    return null;
-  }
+  return safeFetchBuffer(url);
 }
 
 export async function GET(request: Request) {
@@ -242,7 +237,7 @@ export async function GET(request: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": contentDispositionAttachment(filename),
         "Cache-Control": "private, no-store",
       },
     });

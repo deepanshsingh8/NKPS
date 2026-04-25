@@ -36,7 +36,9 @@ export type FeatureKey =
   | "white_sheet"
   | "green_sheet"
   | "ptm_notes"
-  | "registrations";
+  | "ptm_format"
+  | "supplementary_exams"
+  | "teacher_substitutions";
 
 export type FeatureGroup = "content" | "erp";
 
@@ -74,7 +76,9 @@ export const FEATURE_CATALOG: readonly FeatureDef[] = [
   { key: "white_sheet", label: "White Sheet", href: "/admin/exams/white-sheet", group: "erp" },
   { key: "green_sheet", label: "Green Sheet", href: "/admin/exams/green-sheet", group: "erp" },
   { key: "ptm_notes", label: "PTM Notes", href: "/admin/exams/ptm-notes", group: "erp" },
-  { key: "registrations", label: "Registrations", href: "/admin/registrations", group: "erp" },
+  { key: "ptm_format", label: "PTM Format", href: "/admin/exams/ptm-format", group: "erp" },
+  { key: "supplementary_exams", label: "Supplementary Exams", href: "/admin/exams/supplementary", group: "erp" },
+  { key: "teacher_substitutions", label: "Substitutions", href: "/admin/timetable/substitutions", group: "erp" },
 ] as const;
 
 export const FEATURE_KEYS: readonly FeatureKey[] = FEATURE_CATALOG.map((f) => f.key);
@@ -86,8 +90,12 @@ export function isFeatureKey(value: unknown): value is FeatureKey {
 }
 
 // Routes editors can never access, regardless of permissions.
+// /admin/registrations lives under the admin-only /admin/people/users page,
+// so no editor-facing feature key exists for it — this prefix keeps any
+// bookmarked editor nav from slipping through.
 export const ADMIN_ONLY_PREFIXES = [
   "/admin/people/users",
+  "/admin/registrations",
   "/admin/exams/grade-master",
   "/admin/exams/header-footer",
   "/admin/exams/non-scholastic-masters",

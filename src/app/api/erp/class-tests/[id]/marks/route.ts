@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { classTestMarksBulkSchema } from "@/lib/validations";
 import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
+import {
+  getTeacherIdForUser,
+  teacherTeachesClassSubject,
+} from "@/lib/teacher-scope";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -64,10 +68,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  // Fetch the class_test row for max_marks + class_id (needed for grade scale).
+  // Fetch the class_test row for max_marks + class_id + subject_id.
   const { data: ct } = await supabase
     .from("class_tests")
-    .select("id, class_id, max_marks")
+    .select("id, class_id, subject_id, max_marks")
     .eq("id", id)
     .maybeSingle();
   if (!ct) {
@@ -75,6 +79,23 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
   const maxMarks = Number(ct.max_marks);
   const classId = ct.class_id as string;
+  const subjectId = ct.subject_id as string;
+
+  // Teacher ownership: the role gate above lets any teacher through, but
+  // the URL [id] is user-controlled — without this check a teacher could
+  // mutate marks for any class_test in the school.
+  if (profile.role === "teacher") {
+    const teacherId = await getTeacherIdForUser(supabase, user.id);
+    if (
+      !teacherId ||
+      !(await teacherTeachesClassSubject(supabase, teacherId, classId, subjectId))
+    ) {
+      return NextResponse.json(
+        { error: "You don't teach this class/subject" },
+        { status: 403 }
+      );
+    }
+  }
 
   const invalid = parsed.data.entries.filter(
     (e) => e.marks_obtained !== null && (e.marks_obtained < 0 || e.marks_obtained > maxMarks)

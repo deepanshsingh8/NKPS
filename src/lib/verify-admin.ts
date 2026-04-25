@@ -3,35 +3,51 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { FeatureKey } from "@/lib/permissions";
 
 /**
- * Verifies the current request is from an authenticated admin user.
- * Reads the access token from the Authorization header (sent by the browser client).
- * Returns the admin (service role) Supabase client if verified, null otherwise.
+ * Why we re-check `must_change_password` here even though middleware does it:
+ *  - Middleware redirects only browser navigations.
+ *  - These helpers gate API routes hit by direct fetch, scripts, or admin
+ *    tools, where there's no redirect to fall back on.
+ *
+ * The forced-change flow itself talks to Supabase Auth directly with the user
+ * token, so it is NOT routed through these helpers.
  */
-export async function verifyAdmin() {
-  const headersList = await headers();
-  const authHeader = headersList.get("authorization");
 
+function readBearerToken(authHeader: string | null) {
   if (!authHeader?.startsWith("Bearer ")) return null;
+  return authHeader.slice(7);
+}
 
-  const accessToken = authHeader.slice(7);
+async function loadCaller(accessToken: string) {
   const admin = createAdminClient();
-
-  // Validate the token and get the user
   const {
     data: { user },
     error,
   } = await admin.auth.getUser(accessToken);
-
-  if (error || !user) return null;
-
-  // Verify user is an admin
+  if (error || !user) return { admin, user: null, profile: null } as const;
   const { data: profile } = await admin
     .from("profiles")
-    .select("role")
+    .select("role, must_change_password")
     .eq("id", user.id)
     .single();
+  return { admin, user, profile } as const;
+}
 
-  if (!profile || profile.role !== "admin") return null;
+/**
+ * Verifies the current request is from an authenticated admin user.
+ * Reads the access token from the Authorization header (sent by the browser client).
+ * Returns the admin (service role) Supabase client if verified, null otherwise.
+ *
+ * Fails closed if `must_change_password = true`.
+ */
+export async function verifyAdmin() {
+  const headersList = await headers();
+  const accessToken = readBearerToken(headersList.get("authorization"));
+  if (!accessToken) return null;
+
+  const { admin, user, profile } = await loadCaller(accessToken);
+  if (!user || !profile) return null;
+  if (profile.must_change_password) return null;
+  if (profile.role !== "admin") return null;
   return admin;
 }
 
@@ -39,34 +55,20 @@ export async function verifyAdmin() {
  * Like verifyAdmin but also allows the "editor" role.
  * If a featureKey is provided, editors must have that feature granted in
  * editor_permissions; admins always pass.
+ *
+ * Fails closed if `must_change_password = true`.
  */
 export async function verifyAdminOrEditor(featureKey?: FeatureKey) {
   const headersList = await headers();
-  const authHeader = headersList.get("authorization");
+  const accessToken = readBearerToken(headersList.get("authorization"));
+  if (!accessToken) return null;
 
-  if (!authHeader?.startsWith("Bearer ")) return null;
-
-  const accessToken = authHeader.slice(7);
-  const admin = createAdminClient();
-
-  const {
-    data: { user },
-    error,
-  } = await admin.auth.getUser(accessToken);
-
-  if (error || !user) return null;
-
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile) return null;
+  const { admin, user, profile } = await loadCaller(accessToken);
+  if (!user || !profile) return null;
+  if (profile.must_change_password) return null;
   if (profile.role === "admin") return admin;
   if (profile.role !== "editor") return null;
 
-  // Editor — check feature permission if a key was supplied.
   if (featureKey) {
     const { data: perm } = await admin
       .from("editor_permissions")
@@ -74,10 +76,8 @@ export async function verifyAdminOrEditor(featureKey?: FeatureKey) {
       .eq("editor_id", user.id)
       .eq("feature_key", featureKey)
       .maybeSingle();
-
     if (!perm) return null;
   }
-
   return admin;
 }
 
@@ -86,6 +86,8 @@ export async function verifyAdminOrEditor(featureKey?: FeatureKey) {
  * endpoints that need to tailor the response to what the caller is allowed to
  * see. `isAdmin=true` implies full access regardless of the permissions set.
  * Returns null if the caller is not an admin or editor.
+ *
+ * Fails closed if `must_change_password = true`.
  */
 export async function getCallerAccess(): Promise<
   | { admin: ReturnType<typeof createAdminClient>; isAdmin: true; permissions: Set<FeatureKey> }
@@ -93,23 +95,12 @@ export async function getCallerAccess(): Promise<
   | null
 > {
   const headersList = await headers();
-  const authHeader = headersList.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const accessToken = authHeader.slice(7);
-  const admin = createAdminClient();
+  const accessToken = readBearerToken(headersList.get("authorization"));
+  if (!accessToken) return null;
 
-  const {
-    data: { user },
-    error,
-  } = await admin.auth.getUser(accessToken);
-  if (error || !user) return null;
-
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  if (!profile) return null;
+  const { admin, user, profile } = await loadCaller(accessToken);
+  if (!user || !profile) return null;
+  if (profile.must_change_password) return null;
   if (profile.role === "admin") {
     return { admin, isAdmin: true, permissions: new Set() };
   }
@@ -130,27 +121,17 @@ export async function getCallerAccess(): Promise<
  * Same as verifyAdminOrEditor but also returns the authenticated user so the
  * caller can log actor_id / set created_by / etc. Returns null if
  * unauthorized.
+ *
+ * Fails closed if `must_change_password = true`.
  */
 export async function verifyAdminOrEditorWithUser(featureKey?: FeatureKey) {
   const headersList = await headers();
-  const authHeader = headersList.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
+  const accessToken = readBearerToken(headersList.get("authorization"));
+  if (!accessToken) return null;
 
-  const accessToken = authHeader.slice(7);
-  const admin = createAdminClient();
-
-  const {
-    data: { user },
-    error,
-  } = await admin.auth.getUser(accessToken);
-  if (error || !user) return null;
-
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  if (!profile) return null;
+  const { admin, user, profile } = await loadCaller(accessToken);
+  if (!user || !profile) return null;
+  if (profile.must_change_password) return null;
   if (profile.role === "admin") return { admin, user };
   if (profile.role !== "editor") return null;
 

@@ -241,6 +241,40 @@
     @apply dark:text-gray-400;
   }
 
+  /* Dashboard mount animations — staggered fade-up */
+  @keyframes dash-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .dash-fade-up {
+    animation: dash-fade-up 420ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  @keyframes dash-grow-w {
+    from { width: 0%; }
+  }
+  .dash-grow-w {
+    animation: dash-grow-w 700ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes dash-grow-h {
+    from { height: 0%; }
+  }
+  .dash-grow-h {
+    animation: dash-grow-h 700ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dash-fade-up,
+    .dash-grow-w,
+    .dash-grow-h {
+      animation: none !important;
+    }
+  }
+
   /* ── Article body (markdown-rendered) ── */
   .article-prose {
     @apply text-gray-700 leading-relaxed text-base;

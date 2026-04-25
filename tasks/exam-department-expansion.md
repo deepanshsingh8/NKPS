@@ -410,9 +410,9 @@ Tasks:
 
 ---
 
-## Phase 6 — White Sheet, Green Sheet, PTM Notes, PTM Format, Blank Marks List
+## Phase 6 — White Sheet, Green Sheet, PTM Notes, PTM Format, Blank Marks List ✅ COMPLETE (2026-04-24)
 
-> **Phased delivery:** Chunk A (print artifacts) ✅ shipped 2026-04-24. Chunks B (PTM Notes) and C (PTM Format) are still pending.
+> **Phased delivery:** Chunk A (print artifacts) ✅ shipped 2026-04-24. Chunk B (PTM Notes with parent surface) ✅ shipped 2026-04-24. Chunk C (PTM Format template + PDF) ✅ shipped 2026-04-24.
 
 ### White Sheet ✅ (Chunk A, 2026-04-24)
 - [x] `/admin/exams/white-sheet` — class+exam grid (rows = students by roll, cols = subjects), totals, grade.
@@ -438,11 +438,12 @@ Tasks:
 - [x] Parent portal: new `/parent/ptm` route with child-selector and chronological meeting cards. Sidebar entry added with `MessageSquare` icon.
 - [x] Permission: `ptm_notes` — registered in `FEATURE_CATALOG`, wired into admin sidebar (flat link under Exams group), teacher sidebar, `/admin/exams` hub tile.
 
-### PTM Format (printable template — distinct from PTM Notes) — Chunk C, pending
-- [ ] Admin-configurable template (`ptm_formats` table) for the pre-meeting handout.
-- [ ] Per-student generation pulls: student details, subject-wise performance snapshot (from `results`), teacher remarks section (blank to write on), parent signature line.
-- [ ] PDF download from `/admin/exams/ptm-format` or teacher-initiated download.
-- [ ] Permission: `ptm_format`.
+### PTM Format (printable template — distinct from PTM Notes) ✅ Chunk C (2026-04-24)
+- [x] `migration-027-ptm-formats.sql`: `ptm_formats` table modeled on `admit_card_templates` — name, `is_default` (partial unique index enforces single default), `is_active`, intro/closing text, 7 section toggles, configurable blank remark lines (0–20), signature labels JSONB. RLS: authenticated read, admin manage. Seeded one "Default PTM Format" row so the generate flow works out of the box.
+- [x] Per-student generation pulls: student details (name, class, roll, admission, father/mother), subject-wise performance snapshot from `results` for the selected exam (with class grade scale applied via `resolveGradeScaleForClass`), blank teacher-remarks section (N dashed lines), parent signature line. One PDF page per enrolled student.
+- [x] Admin page at `/admin/exams/ptm-format` with three-column layout: template list (with default star + inactive badge) + template editor (name, intro/closing, toggles, remark lines, signature labels) + generator widget (class + exam + template pickers → Download).
+- [x] API routes: `/api/erp/ptm-formats` (GET list, POST create — admin-only, auto-clears existing default when creating a new default), `/api/erp/ptm-formats/[id]` (PATCH, DELETE — blocks deleting the last remaining template), `/api/erp/ptm-format/pdf` (GET — admin+teacher+editor with `ptm_format`).
+- [x] Permission: `ptm_format` — registered in catalog, admin sidebar (flat link under Exams), and hub tile.
 
 ### Blank Marks List ✅ (Chunk A, 2026-04-24)
 - [x] Subject + class + exam → print-ready blank PDF with roll/name/empty-marks column + signature column, max-marks from `class_exam_configs.max_marks_override` (falls back to `exam_types.max_marks`). Exam date/room pulled from `exam_schedules` when available.
@@ -450,7 +451,7 @@ Tasks:
 ### Permissions
 - [x] `white_sheet`, `green_sheet`, `blank_marks_list` keys registered (Chunk A).
 - [x] `ptm_notes` key registered (Chunk B).
-- [ ] `ptm_format` key still pending (Chunk C).
+- [x] `ptm_format` key registered (Chunk C).
 
 ### Verification
 - [x] Chunk A — sheets respect result_master main/optional split; `show_extra_separately` drives split totals columns; fallback renders every subject as main when no master is configured.
@@ -483,7 +484,16 @@ Tasks:
 - **Import dialog:** `src/components/erp/PtmImportDialog.tsx` — forked from `MarksImportDialog` (dropped the "Download template" button since there's no corresponding export endpoint for PTM). Same two-phase preview→commit UX.
 - **Deviation — RLS for editors:** PTM follows the same split as every other feature shipped since Phase 2 — SQL RLS knows about admin/teacher/parent/student roles only; editor access is gated at the API layer via `editor_permissions`. Consistency > SQL purity.
 - **Deviation — PDF template key:** there's no dedicated `ptm_notes` template key in `pdf-templates.ts`; the report PDF reuses `report_card` for the school header (falls back to hardcoded SCHOOL constants regardless). Can be added later if admins want to customize the PTM report header specifically.
-- **Follow-up:** Chunk C (PTM Format — the printable pre-meeting handout with keyword substitution) still to ship.
+
+### Review — Chunk C (shipped 2026-04-24)
+
+- **Migration 027** (`scripts/migration-027-ptm-formats.sql`, mirrored into `supabase-schema.sql`): `ptm_formats` table modeled on `admit_card_templates`. Partial unique index enforces a single default template; a seed row ("Default PTM Format") keeps the generate flow working from the first boot.
+- **API** (3 route files): `/api/erp/ptm-formats` GET+POST, `/api/erp/ptm-formats/[id]` PATCH+DELETE (blocks deleting the last template, and automatically clears the previous default when flipping `is_default` on a different row — Postgres's partial unique index would otherwise reject the insert/update). `/api/erp/ptm-format/pdf` generates the per-student pages.
+- **PDF layout** (`PtmFormatPDF.tsx`): one A4 page per student — school header, intro text, student details (with optional photo slot), performance snapshot table (subject / obtained / max / grade + totals row), blank dashed lines for teacher remarks (template-configured count), closing text, two-column signature footer.
+- **Admin UI** (`/admin/exams/ptm-format`): three-panel layout — template list (left, with default-star + inactive-badge indicators), template editor (center, with all toggles and signature-labels string input), generator widget (bottom, class + exam + template pickers → Download). Generator accepts `__default__` and `__none__` sentinel values to avoid forcing users to pick a specific template or exam.
+- **Deviation — signature_labels as comma-separated text input:** the array is edited as a single comma-separated string rather than a list editor. Lower UI cost and matches the existing `admit_card_templates` pattern closely enough.
+- **Deviation — no teacher-portal button:** the plan mentioned "teacher-initiated download" but Chunk C ships admin-only for now. Teachers can be added later by lifting the admin-only gate on the PDF route (it already accepts teacher role) and adding a button on `/teacher/ptm-notes`. Flagged for future Phase 6 polish.
+- **Follow-up:** all Phase 6 chunks now shipped. Still outstanding across the wider plan — Phase 5 + 6 end-to-end smoke tests, Phase 8 (Supplementary Exam workflow), Phase 4a (HTML template designer — deferred).
 
 ---
 
@@ -529,23 +539,35 @@ Tasks:
 
 ---
 
-## Phase 8 — Supplementary Exam workflow (NEW — surfaced from legacy-platform screenshots)
+## Phase 8 — Supplementary Exam workflow ✅ COMPLETE (2026-04-25)
 
 > Schools have students who fail some subjects but qualify for a retest ("supplementary"). Legacy platform's Result Advance Settings store `MinForSupplementary=25`, `SupplementarySubs=2` (max 2 subjects supplementary). Our Phase 4 Result Master captures division thresholds and grace marks; the *workflow* for managing supplementary attempts is separate.
 
 ### Migrations
-- [ ] `migration-028-supplementary.sql`
-  - `supplementary_attempts(id, student_id, parent_exam_type_id, subject_id, retest_date, marks_obtained, max_marks, passed bool, entered_by, timestamps, UNIQUE(student_id, parent_exam_type_id, subject_id))`.
-  - FK on `exam_types` + `subjects`; cascade appropriately.
+- [x] `migration-028-supplementary.sql`
+  - `supplementary_attempts(id, student_id, parent_exam_type_id, subject_id, class_id, retest_date, marks_obtained, max_marks, passed, entered_by, timestamps, UNIQUE(student_id, parent_exam_type_id, subject_id))`. FK + RLS for admin/teacher/parent (read-own-children).
+  - Added 3 columns on `result_masters`: `min_for_supplementary` (nullable threshold, same units as `pass_mark_value`), `max_supplementary_subjects` (default 2), `supplementary_pass_action` (`cap_at_pass_mark` default | `use_retest_marks`).
 
 ### API + UI
-- [ ] List of students flagged supplementary (derived from Result Master rules).
-- [ ] Per-student retest marks entry.
-- [ ] Recompute final division after supplementary passes, update published marksheet.
+- [x] `/api/erp/supplementary/eligible?class_id&exam_type_id` — eligibility list (failing + within supplementary range, capped per-student to `max_supplementary_subjects` keeping the smallest-gap candidates).
+- [x] `/api/erp/supplementary` — GET filter + POST bulk upsert with onConflict on `(student_id, parent_exam_type_id, subject_id)`.
+- [x] Per-student retest marks entry at `/admin/exams/supplementary` — class+exam pickers, eligibility table with original marks/pass cutoff/gap, retest marks + max + outcome columns with auto-pass detection.
+- [x] Final-result recompute: `computeFinalResult` fetches passed `supplementary_attempts` for the student×examConfigs and substitutes via `applySupplementarySubstitution` before per-subject pct compute. Substituted mark = pass threshold (`cap_at_pass_mark`) or actual retest marks (`use_retest_marks`).
+- [x] Diagnostic JSON endpoint `/api/erp/results/final-result` exposing the computed FinalResult (auth gated by `canViewReportCard`).
 
-### Permission: `supplementary_exams`.
+### Permission: `supplementary_exams` ✅ — registered in `FEATURE_CATALOG`, sidebar (`RefreshCw` icon under Exams), hub tile.
 
-_(Detailed design deferred until Phase 4 ships so we can see exactly how the division/grace flow emerges in practice.)_
+### Verification
+- [x] e2e harness `scripts/_e2e-test.mjs` adds 16 Phase 8 assertions covering eligibility flagging, attempt insert, idempotent re-upsert (UNIQUE constraint), and the substitution outcome (asserts subject `passed: false → true` and main aggregate moves up after a passing supplementary).
+- [x] Full harness pass count: **83/83 passed** across Phases 5, 6A, 6B, 6C, 8.
+
+### Review (shipped 2026-04-25)
+
+- **Substitution boundary:** supplementary substitution applies inside `computeFinalResult` only — it does NOT mutate per-exam marksheet snapshots. Phase 5 marksheets remain immutable historical records of that one exam; supplementary affects the rolled-up final result that the report-card final-result mode renders.
+- **Pass-action knob:** defaulted to `cap_at_pass_mark` (substituted mark = pass threshold) — discourages students banking high scores by intentionally failing the main exam. Schools that want the actual retest score to count switch to `use_retest_marks` on the Result Master.
+- **Eligibility cap behaviour:** if a student has more failing subjects than `max_supplementary_subjects`, the lib keeps the `N` with the smallest gap-to-pass (most likely to pass on retest). Existing attempt rows are always kept in the response so admins can audit historical entries even after settings change.
+- **Deviation — pass decision in payload, not derived:** `passed` is part of the POST body rather than computed server-side. Lets admins manually override edge cases (e.g. student missed retest but school waives) without needing a separate "manual override" flag.
+- **No teacher-portal page:** admin-only for v1. Teachers can be added later by lifting the page gate (RLS already permits teacher writes for their own classes).
 
 ---
 

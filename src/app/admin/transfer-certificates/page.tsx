@@ -125,6 +125,7 @@ export default function AdminTransferCertificatesPage() {
           studentName: studentName.trim(),
           academicYear: academicYear.trim(),
           admissionNo: admissionNo.trim() || null,
+          studentId: selectedStudent?.id ?? null,
         }),
       });
 
@@ -135,7 +136,15 @@ export default function AdminTransferCertificatesPage() {
         return;
       }
 
-      toast.success("Transfer certificate uploaded successfully");
+      if (selectedStudent) {
+        toast.success(
+          data.studentClosed
+            ? "TC uploaded — student marked terminated"
+            : "TC uploaded — but student could not be closed. Please update status manually."
+        );
+      } else {
+        toast.success("Transfer certificate uploaded successfully");
+      }
       setDialogOpen(false);
       setStudentName("");
       setAdmissionNo("");
@@ -244,7 +253,13 @@ export default function AdminTransferCertificatesPage() {
                     Change
                   </Button>
                 </div>
-              ) : (
+              ) : null}
+              {selectedStudent && (
+                <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                  On upload, this student will be marked inactive and their active enrollment terminated.
+                </p>
+              )}
+              {!selectedStudent && (
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
@@ -391,7 +406,7 @@ export default function AdminTransferCertificatesPage() {
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       <a
-                        href={tc.file_url}
+                        href={`/api/transfer-certificates/${tc.id}/download`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 dark:hover:bg-muted transition-colors"

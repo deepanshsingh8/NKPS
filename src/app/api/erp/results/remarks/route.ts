@@ -115,7 +115,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Teachers can only submit remarks for classes they teach as class teacher.
+    // Remarks are intentionally class-level (a single holistic comment per
+    // student per exam type), not subject-scoped — so the gate is "class
+    // teacher of the target class" rather than "teaches the subject". A
+    // class teacher writes one remark covering the whole report card; subject
+    // teachers leave their feedback through individual marks/grades.
     // Admins bypass this check.
     if (profile.role === "teacher") {
       if (!classId) {

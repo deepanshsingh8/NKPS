@@ -2,9 +2,25 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { contactFormSchema } from "@/lib/validations";
 import { SCHOOL } from "@/lib/constants";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    // Cap contact form to 5 submissions / IP / hour to keep the admin inbox
+    // clean. Honest visitors rarely submit twice in a row.
+    const ipLimit = rateLimit({
+      name: "contact:ip",
+      key: clientIp(request),
+      max: 5,
+      windowSeconds: 60 * 60,
+    });
+    if (!ipLimit.ok) {
+      return NextResponse.json(
+        { error: "Too many submissions. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
 
     const result = contactFormSchema.safeParse(body);

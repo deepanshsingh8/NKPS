@@ -75,6 +75,18 @@ export function nowMinutes(date: Date = new Date()): number {
 }
 
 /**
+ * Build a safe Content-Disposition header value. Strips CRLF (prevents header
+ * injection), limits the ASCII form to word/hyphen/dot, and adds a UTF-8
+ * filename* form so non-ASCII names still land correctly in modern browsers.
+ */
+export function contentDispositionAttachment(rawName: string): string {
+  const cleaned = rawName.replace(/[\r\n]/g, "");
+  const ascii = cleaned.replace(/[^\w\-.]+/g, "_") || "download";
+  const utf8 = encodeURIComponent(cleaned);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`;
+}
+
+/**
  * Convert "HH:MM" / "HH:MM:SS" to a 12-hour "h:MM am/pm" display.
  */
 export function formatTime12(time: string | null | undefined): string {

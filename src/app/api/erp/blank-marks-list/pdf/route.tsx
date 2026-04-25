@@ -5,6 +5,7 @@ import path from "path";
 import { createClient } from "@/lib/supabase/server";
 import { getPdfTemplate } from "@/lib/pdf-templates";
 import { BlankMarksListPDF } from "@/components/pdf/BlankMarksListPDF";
+import { contentDispositionAttachment } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -178,7 +179,7 @@ export async function GET(request: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": contentDispositionAttachment(filename),
         "Cache-Control": "private, no-store",
       },
     });

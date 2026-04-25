@@ -13,6 +13,7 @@ import {
   ClipboardCheck,
   Lock,
   MessageSquare,
+  RefreshCw,
   ArrowRight,
   type LucideIcon,
 } from "lucide-react";
@@ -161,6 +162,24 @@ const tiles: ExamTile[] = [
     icon: MessageSquare,
     accentColor: "text-rose-600 bg-rose-100 dark:bg-rose-900/30",
     featureKey: "ptm_notes",
+  },
+  {
+    label: "PTM Format",
+    description:
+      "Design and print the pre-meeting handout: student details, performance snapshot, and remarks space.",
+    href: "/admin/exams/ptm-format",
+    icon: FileText,
+    accentColor: "text-rose-700 bg-rose-50 dark:bg-rose-950/30",
+    featureKey: "ptm_format",
+  },
+  {
+    label: "Supplementary Exams",
+    description:
+      "Identify students close to passing, record retest marks, and let final results recompute automatically.",
+    href: "/admin/exams/supplementary",
+    icon: RefreshCw,
+    accentColor: "text-amber-700 bg-amber-100 dark:bg-amber-900/30",
+    featureKey: "supplementary_exams",
   },
 ];
 

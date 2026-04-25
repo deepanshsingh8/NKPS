@@ -56,7 +56,7 @@ export async function GET() {
           .order("start_date", { ascending: true })
           .limit(8)
       : Promise.resolve({ data: [] }),
-    can("registrations")
+    isAdmin
       ? admin
           .from("registration_requests")
           .select("*", { count: "exact", head: true })
@@ -88,7 +88,7 @@ export async function GET() {
   if (can("contact")) stats.unreadCount = unreadRes.count ?? 0;
   if (can("students")) stats.totalStudents = studentsRes.count ?? 0;
   if (can("staff")) stats.totalStaff = staffRes.count ?? 0;
-  if (can("registrations")) stats.pendingRegistrations = pendingRegsRes.count ?? 0;
+  if (isAdmin) stats.pendingRegistrations = pendingRegsRes.count ?? 0;
   if (isAdmin) stats.totalUsers = profilesRes.count ?? 0;
 
   return NextResponse.json({

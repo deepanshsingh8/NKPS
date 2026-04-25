@@ -127,10 +127,17 @@ export function Footer() {
         </div>
 
         {/* Divider + Copyright */}
-        <div className="mt-12 border-t border-gold-500/20 pt-8 text-center">
+        <div className="mt-12 border-t border-gold-500/20 pt-8 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-center">
           <p className="text-sm text-gray-400">
             &copy; {year} NK Public School. All rights reserved.
           </p>
+          <span className="hidden sm:inline text-gray-600">·</span>
+          <Link
+            href="/mandatory-public-disclosure"
+            className="text-xs text-gray-500 hover:text-gold-400 transition-colors"
+          >
+            Mandatory Public Disclosure
+          </Link>
         </div>
       </div>
     </footer>

@@ -17,6 +17,8 @@ import type {
 import { getReportCardData } from "@/lib/report-card";
 import { getPdfTemplate } from "@/lib/pdf-templates";
 import type { PdfFooter } from "@/lib/pdf-templates";
+import { computeFinalResult, computeRanksForClass } from "@/lib/final-result";
+import type { FinalResult } from "@/types";
 
 export const MARKSHEET_SCHEMA_VERSION = "v1";
 
@@ -32,6 +34,27 @@ export interface MarksheetSnapshotV1 {
   student: ReportCardStudent;
   exam: ReportCardExamGroup;
   attendance: ReportCardAttendance | null;
+  school: MarksheetSnapshotSchool;
+  footer: PdfFooter;
+  generated_on_iso: string;
+}
+
+// V2 — year-final aggregate. Captures the result-master computation and the
+// metadata the PDF route needs to render in final-result mode without
+// recomputing.
+export interface MarksheetSnapshotV2 {
+  schema_version: "v2";
+  kind: "year_final";
+  student: ReportCardStudent;
+  attendance: ReportCardAttendance | null;
+  final_result: FinalResult;
+  result_master: {
+    include_non_scholastic: boolean;
+    non_scholastic_placement: "below" | "above" | "separate_page";
+    show_extra_separately: boolean;
+    show_rank: boolean;
+  };
+  year_label: string;
   school: MarksheetSnapshotSchool;
   footer: PdfFooter;
   generated_on_iso: string;
@@ -64,6 +87,101 @@ export async function buildMarksheetSnapshot(
     student: data.student,
     exam,
     attendance: data.attendance,
+    school: {
+      name: header.school_name,
+      addressLine: header.address_line,
+      affiliation: header.affiliation ?? "",
+      affiliationNumber: header.affiliation_number ?? "",
+    },
+    footer,
+    generated_on_iso: new Date().toISOString(),
+  };
+}
+
+/**
+ * Build a year-final snapshot. Returns null when:
+ *   - the student isn't actively enrolled in any class for `academicYearId`,
+ *   - no `result_master` is configured for that (class, year), or
+ *   - `computeFinalResult` returns null (no marks recorded yet, or zero main
+ *     subjects in the master).
+ *
+ * The snapshot deliberately captures rank-as-of-finalize-time. A student
+ * whose rank changes due to peers being re-graded later won't see their
+ * frozen marksheet update — which is the whole point of finalize.
+ */
+export async function buildYearFinalSnapshot(
+  supabase: SupabaseClient,
+  studentId: string,
+  academicYearId: string
+): Promise<MarksheetSnapshotV2 | null> {
+  const { data: enrollment } = await supabase
+    .from("student_enrollments")
+    .select("class_id")
+    .eq("student_id", studentId)
+    .eq("academic_year_id", academicYearId)
+    .eq("status", "active")
+    .maybeSingle();
+  const classId = (enrollment?.class_id as string | undefined) ?? null;
+  if (!classId) return null;
+
+  const { data: master } = await supabase
+    .from("result_masters")
+    .select(
+      "id, include_non_scholastic, non_scholastic_placement, show_extra_separately, show_rank"
+    )
+    .eq("class_id", classId)
+    .eq("academic_year_id", academicYearId)
+    .maybeSingle();
+  if (!master) return null;
+
+  const finalResult = await computeFinalResult(supabase, {
+    student_id: studentId,
+    academic_year_id: academicYearId,
+  });
+  if (!finalResult) return null;
+
+  let withRank: FinalResult = finalResult;
+  if (master.show_rank) {
+    const ranks = await computeRanksForClass(supabase, {
+      class_id: classId,
+      academic_year_id: academicYearId,
+    });
+    withRank = { ...finalResult, rank: ranks.get(studentId) ?? null };
+  }
+
+  // Reuse getReportCardData for the student/attendance shape. We pass the
+  // year explicitly so attendance is filtered correctly even after the
+  // current academic-year flag rolls over.
+  const data = await getReportCardData(supabase, studentId, academicYearId, {
+    includeUnpublished: true,
+  });
+  if (!data) return null;
+
+  const { data: yearRow } = await supabase
+    .from("academic_years")
+    .select("name")
+    .eq("id", academicYearId)
+    .maybeSingle();
+  const yearLabel = (yearRow?.name as string | undefined) ?? "year";
+
+  const { header, footer } = await getPdfTemplate(supabase, "report_card");
+
+  return {
+    schema_version: "v2",
+    kind: "year_final",
+    student: data.student,
+    attendance: data.attendance,
+    final_result: withRank,
+    result_master: {
+      include_non_scholastic: Boolean(master.include_non_scholastic),
+      non_scholastic_placement: master.non_scholastic_placement as
+        | "below"
+        | "above"
+        | "separate_page",
+      show_extra_separately: Boolean(master.show_extra_separately),
+      show_rank: Boolean(master.show_rank),
+    },
+    year_label: yearLabel,
     school: {
       name: header.school_name,
       addressLine: header.address_line,

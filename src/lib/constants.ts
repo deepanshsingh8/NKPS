@@ -183,3 +183,9 @@ export const FACILITIES = [
     icon: "Bus" as const,
   },
 ] as const;
+
+// Half-day cutoff for teacher absences. Periods 1..N are "first_half", N+1..end
+// are "second_half". Centralised here so the substitution planner and any
+// future per-period attendance feature share one definition. Promote to a DB
+// config row if a school ever needs it variable per day.
+export const HALF_DAY_CUTOFF_PERIOD = 4;

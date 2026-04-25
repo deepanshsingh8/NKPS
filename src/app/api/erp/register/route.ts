@@ -2,9 +2,26 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { registrationRequestSchema } from "@/lib/validations";
 import { sendEmail, buildRegistrationReceivedEmail } from "@/lib/email";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    // Public endpoint — cap at 5 registrations per IP per hour to keep the
+    // admin queue clean. The window is generous enough to absorb a family of
+    // siblings registering from one home network.
+    const ipLimit = rateLimit({
+      name: "register:ip",
+      key: clientIp(request),
+      max: 5,
+      windowSeconds: 60 * 60,
+    });
+    if (!ipLimit.ok) {
+      return NextResponse.json(
+        { error: "Too many registration attempts. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const result = registrationRequestSchema.safeParse(body);
 

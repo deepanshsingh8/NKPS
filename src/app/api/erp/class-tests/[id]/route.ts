@@ -1,9 +1,74 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { classTestUpdateSchema } from "@/lib/validations";
+import {
+  getTeacherIdForUser,
+  teacherTeachesClassSubject,
+} from "@/lib/teacher-scope";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
+}
+
+/**
+ * Loads the class_test row addressed by [id] and, when the caller is a
+ * teacher, confirms they teach the (class_id, subject_id) pair. Admins skip
+ * the ownership check.
+ */
+async function loadClassTestAndAuthorize(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  testId: string
+): Promise<
+  | { ok: true; classId: string; subjectId: string }
+  | { ok: false; status: number; error: string }
+> {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .single();
+  if (!profile || (profile.role !== "teacher" && profile.role !== "admin")) {
+    return {
+      ok: false,
+      status: 403,
+      error: "Forbidden: teacher or admin access required",
+    };
+  }
+
+  const { data: ct } = await supabase
+    .from("class_tests")
+    .select("id, class_id, subject_id")
+    .eq("id", testId)
+    .maybeSingle();
+  if (!ct) {
+    return { ok: false, status: 404, error: "Class test not found" };
+  }
+
+  if (profile.role === "teacher") {
+    const teacherId = await getTeacherIdForUser(supabase, userId);
+    if (
+      !teacherId ||
+      !(await teacherTeachesClassSubject(
+        supabase,
+        teacherId,
+        ct.class_id as string,
+        ct.subject_id as string
+      ))
+    ) {
+      return {
+        ok: false,
+        status: 403,
+        error: "You don't teach this class/subject",
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    classId: ct.class_id as string,
+    subjectId: ct.subject_id as string,
+  };
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
@@ -16,16 +81,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  if (!profile || (profile.role !== "teacher" && profile.role !== "admin")) {
-    return NextResponse.json(
-      { error: "Forbidden: teacher or admin access required" },
-      { status: 403 }
-    );
+  const auth = await loadClassTestAndAuthorize(supabase, user.id, id);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   const body = await request.json();
@@ -61,7 +119,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (error) {
     console.error("Class test update error:", error);
     return NextResponse.json(
-      { error: error.message ?? "Failed to update class test" },
+      { error: "Failed to update class test" },
       { status: 500 }
     );
   }
@@ -78,23 +136,16 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  if (!profile || (profile.role !== "teacher" && profile.role !== "admin")) {
-    return NextResponse.json(
-      { error: "Forbidden: teacher or admin access required" },
-      { status: 403 }
-    );
+  const auth = await loadClassTestAndAuthorize(supabase, user.id, id);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   const { error } = await supabase.from("class_tests").delete().eq("id", id);
   if (error) {
     console.error("Class test delete error:", error);
     return NextResponse.json(
-      { error: error.message ?? "Failed to delete class test" },
+      { error: "Failed to delete class test" },
       { status: 500 }
     );
   }

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { attendanceBulkSchema } from "@/lib/validations";
+import {
+  getTeacherIdForUser,
+  teacherCanAccessClass,
+} from "@/lib/teacher-scope";
 
 export async function POST(request: Request) {
   try {
@@ -38,6 +42,40 @@ export async function POST(request: Request) {
     }
 
     const { class_id, date, entries } = result.data;
+
+    // Reject future-dated attendance — there is no school day in the future.
+    // (M7 partial: leaves Sunday/holiday handling to a follow-up since those
+    // require pulling the calendar.)
+    const today = new Date();
+    today.setUTCHours(23, 59, 59, 999);
+    const reqDate = new Date(`${date}T00:00:00Z`);
+    if (Number.isNaN(reqDate.getTime())) {
+      return NextResponse.json(
+        { error: "Invalid date" },
+        { status: 400 }
+      );
+    }
+    if (reqDate.getTime() > today.getTime()) {
+      return NextResponse.json(
+        { error: "Cannot mark attendance for a future date" },
+        { status: 400 }
+      );
+    }
+
+    // Teacher ownership: a teacher can only mark attendance for classes
+    // they teach (subject teacher) or are class teacher of. Admins skip.
+    if (profile.role === "teacher") {
+      const teacherId = await getTeacherIdForUser(supabase, user.id);
+      if (
+        !teacherId ||
+        !(await teacherCanAccessClass(supabase, teacherId, class_id))
+      ) {
+        return NextResponse.json(
+          { error: "You don't have access to this class" },
+          { status: 403 }
+        );
+      }
+    }
 
     // Build records for upsert
     const records = entries.map((entry) => ({

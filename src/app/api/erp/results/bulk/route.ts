@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resultsBulkSchema } from "@/lib/validations";
 import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
+import {
+  getTeacherIdForUser,
+  teacherTeachesClassSubject,
+} from "@/lib/teacher-scope";
 
 export async function POST(request: Request) {
   try {
@@ -39,6 +43,26 @@ export async function POST(request: Request) {
     }
 
     const { class_id, subject_id, exam_type_id, entries } = result.data;
+
+    // Teacher ownership: stop a teacher from posting marks to a class/subject
+    // they don't teach. Admins skip the check.
+    if (profile.role === "teacher") {
+      const teacherId = await getTeacherIdForUser(supabase, user.id);
+      if (
+        !teacherId ||
+        !(await teacherTeachesClassSubject(
+          supabase,
+          teacherId,
+          class_id,
+          subject_id
+        ))
+      ) {
+        return NextResponse.json(
+          { error: "You don't teach this class/subject" },
+          { status: 403 }
+        );
+      }
+    }
 
     // Fetch exam type to get max_marks
     const { data: examType } = await supabase

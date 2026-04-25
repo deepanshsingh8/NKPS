@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { linkChildSchema } from "@/lib/validations";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+
+const MAX_CHILDREN_PER_PARENT = 10;
 
 export async function POST(request: Request) {
   try {
@@ -33,6 +36,38 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Parent profile not set up. Please contact the school administration." },
         { status: 403 }
+      );
+    }
+
+    // Two-tier rate limit:
+    //  - Per-parent: stops a stolen account from sweeping the directory.
+    //  - Per-IP: stops account-rotation attempts from the same machine.
+    // Generous enough that a parent linking a few siblings will never hit it.
+    const parentLimit = rateLimit({
+      name: "link-child:parent",
+      key: profile.parent_id,
+      max: 5,
+      windowSeconds: 30 * 60,
+    });
+    if (!parentLimit.ok) {
+      return NextResponse.json(
+        {
+          error:
+            "Too many attempts. Please wait a few minutes before trying again.",
+        },
+        { status: 429 }
+      );
+    }
+    const ipLimit = rateLimit({
+      name: "link-child:ip",
+      key: clientIp(request),
+      max: 20,
+      windowSeconds: 30 * 60,
+    });
+    if (!ipLimit.ok) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please try again later." },
+        { status: 429 }
       );
     }
 
@@ -93,6 +128,23 @@ export async function POST(request: Request) {
     if (existingLink) {
       return NextResponse.json(
         { error: "This child is already linked to your account" },
+        { status: 409 }
+      );
+    }
+
+    // Cap children per parent. Real families don't have ten children at the
+    // school; if they do, an admin can lift the cap manually. This stops a
+    // compromised parent account from sweeping the whole student directory.
+    const { count: ownChildrenCount } = await supabase
+      .from("student_parents")
+      .select("id", { count: "exact", head: true })
+      .eq("parent_id", profile.parent_id);
+    if ((ownChildrenCount ?? 0) >= MAX_CHILDREN_PER_PARENT) {
+      return NextResponse.json(
+        {
+          error:
+            "You've linked the maximum number of children to this account. Please contact the school administration to add more.",
+        },
         { status: 409 }
       );
     }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { contentDispositionAttachment } from "@/lib/utils";
 
 function csvEscape(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
@@ -145,7 +146,7 @@ export async function GET(request: NextRequest) {
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${filename}.csv"`,
+      "Content-Disposition": contentDispositionAttachment(`${filename}.csv`),
       "Cache-Control": "no-store",
     },
   });

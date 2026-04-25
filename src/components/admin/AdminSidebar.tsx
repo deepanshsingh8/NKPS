@@ -36,6 +36,7 @@ import {
   ClipboardCheck,
   Settings2,
   Lock,
+  RefreshCw,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -130,6 +131,8 @@ const erpItems: SidebarItem[] = [
       { kind: "link", icon: BarChart3, label: "Results", href: "/admin/exams/results" },
       { kind: "link", icon: Lock, label: "Publish & Finalize", href: "/admin/exams/publish" },
       { kind: "link", icon: MessageSquare, label: "PTM Notes", href: "/admin/exams/ptm-notes" },
+      { kind: "link", icon: FileText, label: "PTM Format", href: "/admin/exams/ptm-format" },
+      { kind: "link", icon: RefreshCw, label: "Supplementary Exams", href: "/admin/exams/supplementary" },
       {
         kind: "group",
         icon: FileText,
@@ -145,7 +148,17 @@ const erpItems: SidebarItem[] = [
     ],
   },
   { kind: "link", icon: CreditCard, label: "Fees", href: "/admin/fees" },
-  { kind: "link", icon: Clock, label: "Timetable", href: "/admin/timetable" },
+  {
+    kind: "group",
+    icon: Clock,
+    label: "Timetable",
+    landingHref: "/admin/timetable",
+    children: [
+      { kind: "link", icon: Clock, label: "Class Timetable", href: "/admin/timetable" },
+      { kind: "link", icon: UserCog, label: "Teacher Timetable", href: "/admin/timetable/teachers" },
+      { kind: "link", icon: RefreshCw, label: "Substitutions", href: "/admin/timetable/substitutions" },
+    ],
+  },
   { kind: "link", icon: Calendar, label: "Calendar", href: "/admin/calendar" },
   { kind: "link", icon: CheckSquare, label: "Attendance", href: "/admin/attendance" },
 ];

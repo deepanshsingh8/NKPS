@@ -29,7 +29,12 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  const { class_id, exam_type_id, student_ids } = parsed.data;
+  const {
+    class_id,
+    exam_type_id,
+    student_ids,
+    unpublish_reason_on_refinalize,
+  } = parsed.data;
 
   // Resolve the student list. student_ids override is filtered against the
   // class's active enrollment so we never finalize for someone unrelated.
@@ -54,6 +59,30 @@ export async function POST(request: Request) {
     );
   }
 
+  // Up-front check: do any of the target students already have an active
+  // marksheet row? If yes, force the caller to supply a reason — silently
+  // unpublishing finalized marksheets with the hardcoded "re-finalized"
+  // string buries the audit trail of *why* the data was changed.
+  const { data: priorActive } = await admin
+    .from("marksheet_publications")
+    .select("student_id")
+    .eq("class_id", class_id)
+    .eq("exam_type_id", exam_type_id)
+    .in("student_id", targetStudents)
+    .is("unpublished_at", null);
+  const hasPriorActive = (priorActive?.length ?? 0) > 0;
+  if (hasPriorActive && !unpublish_reason_on_refinalize) {
+    return NextResponse.json(
+      {
+        error:
+          "Re-finalize requires a reason. Pass unpublish_reason_on_refinalize describing why the prior marksheets are being replaced.",
+        prior_active_count: priorActive?.length ?? 0,
+      },
+      { status: 400 }
+    );
+  }
+  const refinalizeReason = unpublish_reason_on_refinalize ?? "re-finalized";
+
   let finalized = 0;
   let refinalized = 0;
   let skipped = 0;
@@ -67,48 +96,38 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // Look for the latest version (active or not) to compute version+1,
-      // and the active one (if any) to auto-unpublish.
-      const { data: prior } = await admin
-        .from("marksheet_publications")
-        .select("id, version, unpublished_at")
-        .eq("student_id", studentId)
-        .eq("exam_type_id", exam_type_id)
-        .order("version", { ascending: false });
-
-      const latestVersion = prior?.[0]?.version ?? 0;
-      const activePrior = (prior ?? []).find((p) => !p.unpublished_at);
-      if (activePrior) {
-        const { error: unpubErr } = await admin
-          .from("marksheet_publications")
-          .update({
-            unpublished_at: new Date().toISOString(),
-            unpublish_reason: "re-finalized",
-            unpublished_by: user.id,
-          })
-          .eq("id", activePrior.id);
-        if (unpubErr) {
-          errors.push({ student_id: studentId, error: unpubErr.message });
-          continue;
+      // Atomic per-student: the RPC wraps the unpublish-prior + insert-new
+      // pair in a single statement so a failure of the insert can't leave
+      // the prior row unpublished (audit M4). The function returns
+      // { new_id, version, refinalized } so we still get the counts.
+      const { data: rpcResult, error: rpcErr } = await admin.rpc(
+        "finalize_marksheet_one",
+        {
+          p_student_id: studentId,
+          p_class_id: class_id,
+          p_exam_type_id: exam_type_id,
+          p_snapshot: snapshot,
+          p_schema_version: snapshot.schema_version,
+          p_published_by: user.id,
+          p_unpublish_reason: refinalizeReason,
         }
-        refinalized++;
-      }
+      );
 
-      const { error: insErr } = await admin
-        .from("marksheet_publications")
-        .insert({
+      if (rpcErr) {
+        errors.push({
           student_id: studentId,
-          class_id,
-          exam_type_id,
-          version: latestVersion + 1,
-          snapshot,
-          schema_version: snapshot.schema_version,
-          published_by: user.id,
+          error: "Failed to finalize",
         });
-      if (insErr) {
-        errors.push({ student_id: studentId, error: insErr.message });
+        console.error(
+          `[finalize] rpc error for student=${studentId}:`,
+          rpcErr
+        );
         continue;
       }
+      const result = (rpcResult as {
+        refinalized?: boolean;
+      } | null) ?? null;
+      if (result?.refinalized) refinalized++;
       finalized++;
     } catch (err) {
       errors.push({

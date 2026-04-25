@@ -32,10 +32,22 @@ export interface GradeScale {
 }
 
 /**
- * Pick the grade label whose [min_pct, max_pct] range contains the given
- * percentage. Returns null if no band matches (e.g. scale has gaps).
+ * Pick the grade label that owns a given percentage.
  *
- * When bands overlap (admin misconfiguration), the lowest sort_order wins.
+ * Lookup rule: take the band with the largest `min_pct` that is still ≤ `pct`.
+ * In effect each band claims `[min_pct, next_band.min_pct)` regardless of what
+ * the admin keyed in `max_pct`. This avoids two real-world failure modes:
+ *
+ *  1. Inclusive-inclusive overlap ambiguity. The seeded defaults use ranges
+ *     like A 80–89.99 / A+ 90–100. With `<= max_pct` matching, a value of
+ *     exactly 89.99 is in *both* bands; the iteration order then decides the
+ *     letter (a rounding precision change can flip A → A+ silently).
+ *  2. Tiny gaps from the `.99` trick. A value like 89.995 falls between
+ *     89.99 and 90.0, so a strict-interval lookup would return null.
+ *
+ * Tiebreak on equal `min_pct` is `sort_order` ascending. Returns null only
+ * when `pct` sits below the lowest band's `min_pct` (e.g. an admin scale
+ * that doesn't go down to 0).
  */
 export function computeGrade(
   pct: number,
@@ -43,11 +55,12 @@ export function computeGrade(
 ): string | null {
   if (bands.length === 0) return null;
   const clamped = Math.min(100, Math.max(0, pct));
-  const sorted = [...bands].sort((a, b) => a.sort_order - b.sort_order);
+  const sorted = [...bands].sort((a, b) => {
+    if (b.min_pct !== a.min_pct) return b.min_pct - a.min_pct;
+    return a.sort_order - b.sort_order;
+  });
   for (const band of sorted) {
-    if (clamped >= band.min_pct && clamped <= band.max_pct) {
-      return band.label;
-    }
+    if (clamped >= band.min_pct) return band.label;
   }
   return null;
 }

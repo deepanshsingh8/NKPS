@@ -2,19 +2,55 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail, buildPasswordResetEmail } from "@/lib/email";
 import { SCHOOL } from "@/lib/constants";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+
+// Always wait at least this long before responding so an attacker can't tell
+// from latency whether the email was registered or not.
+const MIN_RESPONSE_MS = 600;
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+  const finalize = async <T>(payload: T, status = 200) => {
+    const elapsed = Date.now() - startedAt;
+    if (elapsed < MIN_RESPONSE_MS) {
+      await new Promise((r) => setTimeout(r, MIN_RESPONSE_MS - elapsed));
+    }
+    return NextResponse.json(payload as object, { status });
+  };
+
   try {
     const { email } = await request.json();
 
     if (!email || typeof email !== "string") {
-      return NextResponse.json(
-        { error: "Email is required" },
-        { status: 400 }
-      );
+      return finalize({ error: "Email is required" }, 400);
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+
+    // Two-tier rate limit: prevents both per-IP floods and per-target spamming.
+    const ipLimit = rateLimit({
+      name: "forgot-password:ip",
+      key: clientIp(request),
+      max: 10,
+      windowSeconds: 15 * 60,
+    });
+    if (!ipLimit.ok) {
+      return finalize(
+        { error: "Too many requests. Try again later." },
+        429
+      );
+    }
+    const emailLimit = rateLimit({
+      name: "forgot-password:email",
+      key: normalizedEmail,
+      max: 3,
+      windowSeconds: 15 * 60,
+    });
+    if (!emailLimit.ok) {
+      // Don't reveal that this specific email is throttled — return the
+      // standard success shape so we don't leak which addresses are registered.
+      return finalize({ success: true });
+    }
 
     // Derive the site origin from the request so the reset link always points
     // at the same host the user is currently on (production, Vercel preview,
@@ -36,7 +72,7 @@ export async function POST(request: Request) {
       if (error) {
         console.error("generateLink error:", error.message);
       }
-      return NextResponse.json({ success: true });
+      return finalize({ success: true });
     }
 
     // Build our own link pointing at /auth/confirm. This avoids Supabase's
@@ -72,18 +108,15 @@ export async function POST(request: Request) {
       );
     } catch (emailError) {
       console.error("Failed to send password reset email:", emailError);
-      return NextResponse.json(
+      return finalize(
         { error: "We couldn't send the reset email. Please try again in a moment." },
-        { status: 500 }
+        500
       );
     }
 
-    return NextResponse.json({ success: true });
+    return finalize({ success: true });
   } catch (err) {
     console.error("Forgot password API error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return finalize({ error: "Internal server error" }, 500);
   }
 }

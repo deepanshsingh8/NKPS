@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getPdfTemplate } from "@/lib/pdf-templates";
 import { GreenSheetPDF } from "@/components/pdf/GreenSheetPDF";
 import { buildGreenSheetData } from "@/lib/green-sheet";
+import { contentDispositionAttachment } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -106,7 +107,7 @@ export async function GET(request: Request) {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Disposition": contentDispositionAttachment(filename),
       "Cache-Control": "private, no-store",
     },
   });

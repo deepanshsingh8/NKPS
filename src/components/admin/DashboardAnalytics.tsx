@@ -77,18 +77,107 @@ function SkeletonCard() {
   );
 }
 
+type AttendanceTone = "emerald" | "amber" | "rose";
+
+const CHIP_TONES: Record<AttendanceTone, { wrap: string; dot: string; value: string }> = {
+  emerald: {
+    wrap: "bg-emerald-50/80 dark:bg-emerald-900/20 border-emerald-200/70 dark:border-emerald-800/40",
+    dot: "bg-emerald-500",
+    value: "text-emerald-700 dark:text-emerald-300",
+  },
+  amber: {
+    wrap: "bg-amber-50/80 dark:bg-amber-900/20 border-amber-200/70 dark:border-amber-800/40",
+    dot: "bg-amber-400",
+    value: "text-amber-700 dark:text-amber-300",
+  },
+  rose: {
+    wrap: "bg-rose-50/80 dark:bg-rose-900/20 border-rose-200/70 dark:border-rose-800/40",
+    dot: "bg-rose-400",
+    value: "text-rose-700 dark:text-rose-300",
+  },
+};
+
+function AttendanceChip({
+  label,
+  value,
+  pct,
+  tone,
+}: {
+  label: string;
+  value: number;
+  pct: number;
+  tone: AttendanceTone;
+}) {
+  const t = CHIP_TONES[tone];
+  return (
+    <div className={cn("rounded-lg border px-3 py-2", t.wrap)}>
+      <div className="flex items-center gap-1.5 mb-1">
+        <span className={cn("h-2 w-2 rounded-sm", t.dot)} />
+        <span className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 font-medium">
+          {label}
+        </span>
+      </div>
+      <div className="flex items-baseline gap-1.5">
+        <span className={cn("text-lg font-bold tabular-nums leading-none", t.value)}>
+          {value.toLocaleString("en-IN")}
+        </span>
+        <span className="text-[10px] text-gray-400 tabular-nums">{pct}%</span>
+      </div>
+    </div>
+  );
+}
+
+function DetailStat({ tone, label, value }: { tone: AttendanceTone; label: string; value: number }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className={cn("h-2 w-2 rounded-sm", CHIP_TONES[tone].dot)} />
+      <span className="text-gray-500 dark:text-gray-400">{label}</span>
+      <span className="font-semibold text-navy-900 dark:text-white tabular-nums">{value}</span>
+    </div>
+  );
+}
+
 function AttendanceBlock({ data }: { data: AttendanceData }) {
   const { daily, totals } = data;
-  // Tallest column sets the bar scale.
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Default focus: today if it has records, else the most recent day with data.
+  const initialIdx = (() => {
+    const todayIdx = daily.findIndex((d) => d.date === todayStr);
+    if (todayIdx >= 0 && daily[todayIdx].total > 0) return todayIdx;
+    for (let i = daily.length - 1; i >= 0; i--) {
+      if (daily[i].total > 0) return i;
+    }
+    return -1;
+  })();
+
+  const [selectedIdx, setSelectedIdx] = useState<number>(initialIdx);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const activeIdx = hoverIdx ?? selectedIdx;
+  const activeDay = activeIdx >= 0 ? daily[activeIdx] : null;
+
   const maxTotal = Math.max(...daily.map((d) => d.total), 1);
   const monthLabel = new Date().toLocaleDateString("en-IN", {
     month: "long",
     year: "numeric",
   });
 
+  const totalPct = (n: number) =>
+    totals.total > 0 ? Math.round((n / totals.total) * 100) : 0;
+
+  const formatActiveDate = (dateStr: string) => {
+    const d = new Date(dateStr + "T00:00:00");
+    return d.toLocaleDateString("en-IN", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+  };
+
   return (
     <div className="erp-stat-card md:col-span-2">
-      <div className="flex items-center justify-between gap-3 mb-4">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
             <CheckSquare className="h-5 w-5 text-emerald-600" />
@@ -99,22 +188,21 @@ function AttendanceBlock({ data }: { data: AttendanceData }) {
             </h3>
             <p className="text-[11px] text-gray-400">
               {totals.total > 0
-                ? `${totals.percentage}% overall · ${totals.total} records`
+                ? `${totals.total.toLocaleString("en-IN")} records this month`
                 : "No records yet"}
             </p>
           </div>
         </div>
-        <div className="hidden sm:flex gap-3 text-[11px] text-gray-500 dark:text-gray-400">
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-sm bg-emerald-500" /> Present
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-sm bg-amber-400" /> Late
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-sm bg-red-400" /> Absent
-          </span>
-        </div>
+        {totals.total > 0 && (
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums leading-none">
+              {totals.percentage}%
+            </span>
+            <span className="text-[10px] uppercase tracking-wider text-gray-400">
+              on time
+            </span>
+          </div>
+        )}
       </div>
 
       {totals.total === 0 ? (
@@ -122,76 +210,151 @@ function AttendanceBlock({ data }: { data: AttendanceData }) {
           No attendance recorded this month yet.
         </p>
       ) : (
-        <div>
+        <>
+          {/* Summary chips */}
+          <div className="grid grid-cols-3 gap-2 mb-5">
+            <AttendanceChip
+              label="Present"
+              value={totals.present}
+              pct={totalPct(totals.present)}
+              tone="emerald"
+            />
+            <AttendanceChip
+              label="Late"
+              value={totals.late}
+              pct={totalPct(totals.late)}
+              tone="amber"
+            />
+            <AttendanceChip
+              label="Absent"
+              value={totals.absent}
+              pct={totalPct(totals.absent)}
+              tone="rose"
+            />
+          </div>
+
           {/* Chart area */}
-          <div className="flex items-end gap-[3px] h-40">
-            {daily.map((d) => {
+          <div
+            className="flex items-end gap-[3px] h-40"
+            onMouseLeave={() => setHoverIdx(null)}
+          >
+            {daily.map((d, i) => {
               const hPresent = (d.present / maxTotal) * 100;
               const hLate = (d.late / maxTotal) * 100;
               const hAbsent = (d.absent / maxTotal) * 100;
               const hasData = d.total > 0;
-              const pct =
-                hasData
-                  ? Math.round(((d.present + d.late) / d.total) * 100)
-                  : null;
+              const isActive = i === activeIdx;
+              const isToday = d.date === todayStr;
+              const dimmed = activeIdx >= 0 && !isActive;
+
               return (
-                <div
+                <button
                   key={d.date}
-                  className="flex-1 flex flex-col justify-end h-full group relative"
-                  title={
-                    hasData
-                      ? `Day ${d.day} · ${pct}% present\nPresent ${d.present} · Late ${d.late} · Absent ${d.absent}`
-                      : `Day ${d.day} · no data`
-                  }
+                  type="button"
+                  onMouseEnter={() => setHoverIdx(i)}
+                  onClick={() => setSelectedIdx(i)}
+                  aria-label={`Day ${d.day}${hasData ? ` — ${d.present} present, ${d.late} late, ${d.absent} absent` : " — no records"}`}
+                  className={cn(
+                    "flex-1 flex flex-col justify-end h-full rounded-t-md cursor-pointer outline-none transition-opacity duration-150",
+                    "focus-visible:ring-2 focus-visible:ring-emerald-500/40",
+                    dimmed ? "opacity-40 hover:opacity-100" : "opacity-100",
+                    isToday && "ring-1 ring-emerald-400/40 ring-offset-1 ring-offset-white dark:ring-offset-card"
+                  )}
                 >
-                  {/* Stacked segments: absent (top) → late → present (bottom).
-                      Rendered top-down so the tallest totals land at the top
-                      of the column. */}
+                  {/* Stacked: absent (top) → late → present (bottom). */}
                   <div
-                    className="w-full bg-red-400 rounded-t-sm transition-colors group-hover:bg-red-500"
-                    style={{ height: `${hAbsent}%` }}
-                  />
-                  <div
-                    className="w-full bg-amber-400 transition-colors group-hover:bg-amber-500"
-                    style={{ height: `${hLate}%` }}
+                    className="w-full bg-rose-400 rounded-t-sm dash-grow-h"
+                    style={{
+                      height: `${hAbsent}%`,
+                      animationDelay: `${i * 12}ms`,
+                    }}
                   />
                   <div
                     className={cn(
-                      "w-full bg-emerald-500 transition-colors group-hover:bg-emerald-600",
+                      "w-full bg-amber-400 dash-grow-h",
+                      hAbsent === 0 && "rounded-t-sm"
+                    )}
+                    style={{
+                      height: `${hLate}%`,
+                      animationDelay: `${i * 12}ms`,
+                    }}
+                  />
+                  <div
+                    className={cn(
+                      "w-full bg-emerald-500 dash-grow-h",
                       hAbsent === 0 && hLate === 0 && "rounded-t-sm"
                     )}
-                    style={{ height: `${hPresent}%` }}
+                    style={{
+                      height: `${hPresent}%`,
+                      animationDelay: `${i * 12}ms`,
+                    }}
                   />
+                  {!hasData && (
+                    <div className="w-full h-1 bg-gray-100 dark:bg-muted/40 rounded-t-sm" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Day axis — labels on 1, every 5th, today, and the active day. */}
+          <div className="flex gap-[3px] mt-1.5">
+            {daily.map((d, i) => {
+              const isToday = d.date === todayStr;
+              const isActive = i === activeIdx;
+              const showLabel =
+                d.day === 1 || d.day % 5 === 0 || isToday || isActive;
+              return (
+                <div key={d.date} className="flex-1 text-center">
+                  {showLabel && (
+                    <span
+                      className={cn(
+                        "text-[9px] tabular-nums",
+                        isActive
+                          ? "font-bold text-navy-900 dark:text-white"
+                          : isToday
+                            ? "font-bold text-emerald-600"
+                            : "text-gray-400"
+                      )}
+                    >
+                      {d.day}
+                    </span>
+                  )}
                 </div>
               );
             })}
           </div>
 
-          {/* Day axis — show every 5th day so the strip stays readable. */}
-          <div className="flex gap-[3px] mt-1.5">
-            {daily.map((d) => (
-              <div
-                key={d.date}
-                className="flex-1 text-center text-[9px] text-gray-400"
-              >
-                {d.day % 5 === 0 || d.day === 1 ? d.day : ""}
+          {/* Detail strip — updates with hover, persists with click. */}
+          {activeDay && (
+            <div className="mt-4 rounded-xl bg-gray-50/80 dark:bg-muted/30 border border-gray-100 dark:border-border/60 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-navy-900 dark:text-white flex items-center gap-1.5">
+                    {formatActiveDate(activeDay.date)}
+                    {activeDay.date === todayStr && (
+                      <span className="text-[9px] font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                        Today
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {activeDay.total > 0
+                      ? `${Math.round(((activeDay.present + activeDay.late) / activeDay.total) * 100)}% on time · ${activeDay.total} record${activeDay.total === 1 ? "" : "s"}`
+                      : "No records recorded"}
+                  </p>
+                </div>
+                {activeDay.total > 0 && (
+                  <div className="flex items-center gap-3 text-[11px]">
+                    <DetailStat tone="emerald" label="Present" value={activeDay.present} />
+                    <DetailStat tone="amber" label="Late" value={activeDay.late} />
+                    <DetailStat tone="rose" label="Absent" value={activeDay.absent} />
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-
-          {/* Mobile legend (hidden on sm+) */}
-          <div className="sm:hidden flex gap-3 text-[11px] text-gray-500 dark:text-gray-400 mt-3">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm bg-emerald-500" /> Present
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm bg-amber-400" /> Late
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm bg-red-400" /> Absent
-            </span>
-          </div>
-        </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -284,7 +447,7 @@ export function DashboardAnalytics() {
               </div>
               <div className="h-2.5 w-full rounded-full bg-gray-100 dark:bg-muted overflow-hidden mb-3">
                 <div
-                  className="h-full rounded-full bg-blue-500 transition-all duration-500"
+                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-500 dash-grow-w"
                   style={{
                     width: `${Math.min(data.feeCollection.percentage, 100)}%`,
                   }}
@@ -329,25 +492,43 @@ export function DashboardAnalytics() {
             </p>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-              {data.enrollmentByClass.map((item) => (
-                <div key={item.name} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-600 dark:text-gray-400 w-20 shrink-0 truncate">
-                    {item.name}
-                  </span>
-                  <div className="flex-1 h-5 rounded bg-gray-100 dark:bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded bg-violet-500/80 transition-all duration-500 flex items-center justify-end pr-1.5"
-                      style={{
-                        width: `${Math.max((item.count / maxEnrollment) * 100, 8)}%`,
-                      }}
-                    >
-                      <span className="text-[10px] font-semibold text-white">
-                        {item.count}
-                      </span>
+              {data.enrollmentByClass.map((item, i) => {
+                const totalEnrollment = data.enrollmentByClass!.reduce(
+                  (s, it) => s + it.count,
+                  0
+                );
+                const sharePct =
+                  totalEnrollment > 0
+                    ? Math.round((item.count / totalEnrollment) * 100)
+                    : 0;
+                return (
+                  <div
+                    key={item.name}
+                    className="flex items-center gap-2 group"
+                    title={`${item.name} — ${item.count} students (${sharePct}% of total)`}
+                  >
+                    <span className="text-xs text-gray-600 dark:text-gray-400 w-20 shrink-0 truncate group-hover:text-navy-900 dark:group-hover:text-white transition-colors">
+                      {item.name}
+                    </span>
+                    <div className="flex-1 h-5 rounded bg-gray-100 dark:bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded bg-gradient-to-r from-violet-500 to-violet-400 transition-all duration-300 group-hover:from-violet-600 group-hover:to-violet-500 flex items-center justify-end pr-1.5 dash-grow-w"
+                        style={{
+                          width: `${Math.max((item.count / maxEnrollment) * 100, 8)}%`,
+                          animationDelay: `${i * 35}ms`,
+                        }}
+                      >
+                        <span className="text-[10px] font-semibold text-white tabular-nums">
+                          {item.count}
+                        </span>
+                      </div>
                     </div>
+                    <span className="text-[10px] text-gray-400 tabular-nums w-8 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                      {sharePct}%
+                    </span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -373,26 +554,30 @@ export function DashboardAnalytics() {
             </p>
           ) : (
             <div className="flex items-end gap-2 h-28">
-              {data.admissionTrend.map((item) => (
+              {data.admissionTrend.map((item, i) => (
                 <div
                   key={item.month}
-                  className="flex-1 flex flex-col items-center gap-1"
+                  className="flex-1 flex flex-col items-center gap-1 group"
+                  title={`${item.month}: ${item.count} admission${item.count === 1 ? "" : "s"}`}
                 >
-                  <span className="text-[10px] font-semibold text-navy-900 dark:text-white">
+                  <span className="text-[10px] font-semibold text-navy-900 dark:text-white tabular-nums">
                     {item.count > 0 ? item.count : ""}
                   </span>
                   <div
                     className={cn(
-                      "w-full rounded-t transition-all duration-500",
+                      "w-full rounded-t transition-all duration-200 dash-grow-h",
                       item.count > 0
-                        ? "bg-amber-400/80"
+                        ? "bg-gradient-to-t from-amber-500 to-amber-300 group-hover:from-amber-600 group-hover:to-amber-400"
                         : "bg-gray-100 dark:bg-muted"
                     )}
                     style={{
                       height: `${item.count > 0 ? Math.max((item.count / maxAdmission) * 100, 10) : 5}%`,
+                      animationDelay: `${i * 70}ms`,
                     }}
                   />
-                  <span className="text-[10px] text-gray-400">{item.month}</span>
+                  <span className="text-[10px] text-gray-400 group-hover:text-navy-900 dark:group-hover:text-white transition-colors">
+                    {item.month}
+                  </span>
                 </div>
               ))}
             </div>

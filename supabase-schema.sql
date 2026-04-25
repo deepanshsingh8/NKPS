@@ -665,6 +665,11 @@ CREATE INDEX idx_stream_subjects_subject_id ON stream_subjects(subject_id);
 -- Timetable
 CREATE INDEX idx_timetable_class_day ON timetable_periods(class_id, day_of_week);
 CREATE INDEX idx_timetable_teacher_id ON timetable_periods(teacher_id);
+-- A teacher cannot be in two places at the same slot. Partial because
+-- teacher_id is nullable (e.g. break/free period rows).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_timetable_teacher_slot_unique
+  ON timetable_periods (teacher_id, day_of_week, period_number)
+  WHERE teacher_id IS NOT NULL;
 
 -- Calendar Events
 CREATE INDEX idx_calendar_events_dates ON calendar_events(start_date, end_date);
@@ -743,6 +748,123 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Atomic per-student finalize: unpublish any active prior + insert new
+-- version in a single transaction. Used by /api/erp/results/finalize-marksheet.
+-- See migration 032 for full context.
+CREATE OR REPLACE FUNCTION public.finalize_marksheet_one(
+  p_student_id uuid,
+  p_class_id uuid,
+  p_exam_type_id uuid,
+  p_snapshot jsonb,
+  p_schema_version text,
+  p_published_by uuid,
+  p_unpublish_reason text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_active_id uuid;
+  v_latest_version int;
+  v_new_id uuid;
+  v_new_version int;
+BEGIN
+  SELECT COALESCE(MAX(version), 0) INTO v_latest_version
+  FROM marksheet_publications
+  WHERE student_id = p_student_id AND exam_type_id = p_exam_type_id;
+  v_new_version := v_latest_version + 1;
+
+  SELECT id INTO v_active_id
+  FROM marksheet_publications
+  WHERE student_id = p_student_id
+    AND exam_type_id = p_exam_type_id
+    AND unpublished_at IS NULL
+  LIMIT 1;
+
+  IF v_active_id IS NOT NULL THEN
+    UPDATE marksheet_publications
+    SET unpublished_at = now(),
+        unpublish_reason = p_unpublish_reason,
+        unpublished_by = p_published_by
+    WHERE id = v_active_id;
+  END IF;
+
+  INSERT INTO marksheet_publications (
+    student_id, class_id, exam_type_id, version, snapshot, schema_version, published_by
+  ) VALUES (
+    p_student_id, p_class_id, p_exam_type_id, v_new_version,
+    p_snapshot, p_schema_version, p_published_by
+  )
+  RETURNING id INTO v_new_id;
+
+  RETURN jsonb_build_object(
+    'new_id', v_new_id,
+    'version', v_new_version,
+    'refinalized', v_active_id IS NOT NULL
+  );
+END;
+$$;
+
+-- Year-final variant of finalize_marksheet_one (migration 033). Same shape,
+-- but keyed on academic_year_id and forces kind='year_final'.
+CREATE OR REPLACE FUNCTION public.finalize_year_final_one(
+  p_student_id uuid,
+  p_class_id uuid,
+  p_academic_year_id uuid,
+  p_snapshot jsonb,
+  p_schema_version text,
+  p_published_by uuid,
+  p_unpublish_reason text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_active_id uuid;
+  v_latest_version int;
+  v_new_id uuid;
+  v_new_version int;
+BEGIN
+  SELECT COALESCE(MAX(version), 0) INTO v_latest_version
+  FROM marksheet_publications
+  WHERE student_id = p_student_id
+    AND academic_year_id = p_academic_year_id
+    AND kind = 'year_final';
+  v_new_version := v_latest_version + 1;
+
+  SELECT id INTO v_active_id
+  FROM marksheet_publications
+  WHERE student_id = p_student_id
+    AND academic_year_id = p_academic_year_id
+    AND kind = 'year_final'
+    AND unpublished_at IS NULL
+  LIMIT 1;
+
+  IF v_active_id IS NOT NULL THEN
+    UPDATE marksheet_publications
+    SET unpublished_at = now(),
+        unpublish_reason = p_unpublish_reason,
+        unpublished_by = p_published_by
+    WHERE id = v_active_id;
+  END IF;
+
+  INSERT INTO marksheet_publications (
+    student_id, class_id, exam_type_id, academic_year_id, kind,
+    version, snapshot, schema_version, published_by
+  ) VALUES (
+    p_student_id, p_class_id, NULL, p_academic_year_id, 'year_final',
+    v_new_version, p_snapshot, p_schema_version, p_published_by
+  )
+  RETURNING id INTO v_new_id;
+
+  RETURN jsonb_build_object(
+    'new_id', v_new_id,
+    'version', v_new_version,
+    'refinalized', v_active_id IS NOT NULL
+  );
+END;
+$$;
+
 -- Apply set_updated_at trigger to all tables with updated_at
 CREATE TRIGGER trg_profiles_updated_at
   BEFORE UPDATE ON profiles
@@ -783,6 +905,79 @@ CREATE TRIGGER trg_payment_orders_updated_at
 CREATE TRIGGER trg_calendar_events_updated_at
   BEFORE UPDATE ON calendar_events
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- Phase 4+ tables added via migration 031. Wrapped in DO so re-running is
+-- idempotent: drop-if-exists, then recreate.
+DO $$
+DECLARE
+  t text;
+  tables text[] := ARRAY[
+    'gallery_events',
+    'section_cards',
+    'staff_members',
+    'grade_scales',
+    'class_exam_configs',
+    'pdf_header_configs',
+    'pdf_footer_configs',
+    'non_scholastic_subjects',
+    'non_scholastic_sub_subjects',
+    'exam_schedules',
+    'admit_card_templates',
+    'result_masters',
+    'class_tests',
+    'student_remarks',
+    'articles'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tables LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = t
+    ) AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = t AND column_name = 'updated_at'
+    ) THEN
+      EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', 'set_updated_at_' || t, t);
+      EXECUTE format(
+        'CREATE TRIGGER %I BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION public.set_updated_at()',
+        'set_updated_at_' || t,
+        t
+      );
+    END IF;
+  END LOOP;
+END $$;
+
+-- Money / max-marks CHECK constraints (migration 031). DROP IF EXISTS keeps
+-- this idempotent across re-runs.
+ALTER TABLE exam_types
+  DROP CONSTRAINT IF EXISTS exam_types_max_marks_positive;
+ALTER TABLE exam_types
+  ADD CONSTRAINT exam_types_max_marks_positive CHECK (max_marks > 0);
+
+ALTER TABLE fee_structures
+  DROP CONSTRAINT IF EXISTS fee_structures_amount_positive;
+ALTER TABLE fee_structures
+  ADD CONSTRAINT fee_structures_amount_positive CHECK (amount > 0);
+
+ALTER TABLE fee_payments
+  DROP CONSTRAINT IF EXISTS fee_payments_amount_positive;
+ALTER TABLE fee_payments
+  ADD CONSTRAINT fee_payments_amount_positive CHECK (amount_paid > 0);
+
+ALTER TABLE payment_orders
+  DROP CONSTRAINT IF EXISTS payment_orders_amount_positive;
+ALTER TABLE payment_orders
+  ADD CONSTRAINT payment_orders_amount_positive CHECK (amount > 0);
+
+-- Audit / filter indexes (migration 031).
+CREATE INDEX IF NOT EXISTS idx_results_entered_by ON results(entered_by);
+CREATE INDEX IF NOT EXISTS idx_class_test_results_entered_by ON class_test_results(entered_by);
+CREATE INDEX IF NOT EXISTS idx_non_scholastic_assessments_entered_by ON non_scholastic_assessments(entered_by);
+CREATE INDEX IF NOT EXISTS idx_student_remarks_author_id ON student_remarks(author_id);
+CREATE INDEX IF NOT EXISTS idx_class_tests_created_by ON class_tests(created_by);
+CREATE INDEX IF NOT EXISTS idx_results_is_published ON results(is_published) WHERE is_published = true;
+CREATE INDEX IF NOT EXISTS idx_class_tests_is_published ON class_tests(is_published) WHERE is_published = true;
+CREATE INDEX IF NOT EXISTS idx_payment_orders_expires_at ON payment_orders(expires_at);
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -2489,11 +2684,18 @@ CREATE POLICY "Parents can read children published class_test_results"
 -- finalized PDF snapshots stored in `marksheet_publications`.
 -- ============================================
 
+-- `kind = 'per_exam'` (legacy default): one snapshot per exam_type_id,
+-- academic_year_id is NULL.
+-- `kind = 'year_final'` (migration 033): year-end aggregate; exam_type_id is
+-- NULL, academic_year_id carries the year. CHECK enforces the relationship.
 CREATE TABLE IF NOT EXISTS marksheet_publications (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
-  exam_type_id uuid NOT NULL REFERENCES exam_types(id) ON DELETE CASCADE,
+  exam_type_id uuid REFERENCES exam_types(id) ON DELETE CASCADE,
+  academic_year_id uuid REFERENCES academic_years(id) ON DELETE CASCADE,
+  kind text NOT NULL DEFAULT 'per_exam'
+    CHECK (kind IN ('per_exam', 'year_final')),
   version int NOT NULL,
   snapshot jsonb NOT NULL,
   schema_version text NOT NULL DEFAULT 'v1',
@@ -2503,24 +2705,43 @@ CREATE TABLE IF NOT EXISTS marksheet_publications (
   unpublish_reason text,
   unpublished_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
   created_at timestamptz DEFAULT now(),
-  CONSTRAINT marksheet_publications_version_unique
-    UNIQUE (student_id, exam_type_id, version),
   CONSTRAINT marksheet_publications_version_positive
     CHECK (version > 0),
   CONSTRAINT marksheet_publications_unpublish_consistent
     CHECK (
       (unpublished_at IS NULL AND unpublish_reason IS NULL)
       OR (unpublished_at IS NOT NULL)
+    ),
+  CONSTRAINT marksheet_publications_kind_consistent
+    CHECK (
+      (kind = 'per_exam'
+        AND exam_type_id IS NOT NULL
+        AND academic_year_id IS NULL)
+      OR (kind = 'year_final'
+        AND exam_type_id IS NULL
+        AND academic_year_id IS NOT NULL)
     )
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_marksheet_active_one
+CREATE UNIQUE INDEX IF NOT EXISTS idx_marksheet_version_unique_per_exam
+  ON marksheet_publications(student_id, exam_type_id, version)
+  WHERE kind = 'per_exam';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_marksheet_version_unique_year_final
+  ON marksheet_publications(student_id, academic_year_id, version)
+  WHERE kind = 'year_final';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_marksheet_active_one_per_exam
   ON marksheet_publications(student_id, exam_type_id)
-  WHERE unpublished_at IS NULL;
+  WHERE kind = 'per_exam' AND unpublished_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_marksheet_active_one_year_final
+  ON marksheet_publications(student_id, academic_year_id)
+  WHERE kind = 'year_final' AND unpublished_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_marksheet_class_exam
   ON marksheet_publications(class_id, exam_type_id);
 CREATE INDEX IF NOT EXISTS idx_marksheet_student
   ON marksheet_publications(student_id);
+CREATE INDEX IF NOT EXISTS idx_marksheet_year_final_year
+  ON marksheet_publications(academic_year_id, class_id)
+  WHERE kind = 'year_final';
 
 CREATE TABLE IF NOT EXISTS publish_events (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -2530,7 +2751,10 @@ CREATE TABLE IF NOT EXISTS publish_events (
       'unpublish_results',
       'finalize_marksheet',
       'unpublish_marksheet',
-      're_finalize_marksheet'
+      're_finalize_marksheet',
+      'finalize_year_final',
+      'unpublish_year_final',
+      're_finalize_year_final'
     )
   ),
   class_id uuid REFERENCES classes(id) ON DELETE SET NULL,
@@ -3128,3 +3352,314 @@ CREATE POLICY "Teachers manage school_meeting_counts for own classes"
     class_id IS NULL
     OR class_id IN (SELECT public.get_my_class_ids())
   );
+-- Migration 027: PTM Format templates (Phase 6 Chunk C).
+--
+-- Admin-configurable template for the printable handout given to parents
+-- BEFORE a parent-teacher meeting. Separate from `ptm_notes` (which stores
+-- post-meeting records) — this is the pre-meeting artifact with:
+--   - student header (name, roll, admission no, father/mother, photo)
+--   - subject-wise performance snapshot from `results` for a chosen exam
+--   - blank space for teacher's face-to-face remarks
+--   - parent signature line
+--
+-- Model mirrors `admit_card_templates` — a thin row of boolean toggles +
+-- text knobs, one row per template, with an `is_default` flag so a
+-- one-click "generate for class X using the default template" flow works
+-- without forcing the admin to pick a template every time. Multiple
+-- templates coexist (e.g. one for primary and one for senior) and the
+-- default can be toggled via a partial unique index.
+
+CREATE TABLE IF NOT EXISTS ptm_formats (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name text NOT NULL UNIQUE,
+  is_default boolean NOT NULL DEFAULT false,
+  is_active boolean NOT NULL DEFAULT true,
+
+  intro_text text,
+  closing_text text,
+
+  show_student_details boolean NOT NULL DEFAULT true,
+  show_photo boolean NOT NULL DEFAULT false,
+  show_father_name boolean NOT NULL DEFAULT true,
+  show_mother_name boolean NOT NULL DEFAULT true,
+  show_performance_snapshot boolean NOT NULL DEFAULT true,
+  show_teacher_remarks_section boolean NOT NULL DEFAULT true,
+  teacher_remarks_lines integer NOT NULL DEFAULT 6,
+  show_parent_signature boolean NOT NULL DEFAULT true,
+
+  signature_labels jsonb NOT NULL DEFAULT '["Class Teacher","Parent Signature"]'::jsonb,
+
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+
+  CONSTRAINT ptm_formats_remarks_lines_positive
+    CHECK (teacher_remarks_lines >= 0 AND teacher_remarks_lines <= 20)
+);
+
+-- Only one default row can be active at a time.
+CREATE UNIQUE INDEX IF NOT EXISTS ptm_formats_single_default
+  ON ptm_formats(is_default)
+  WHERE is_default = true;
+
+CREATE OR REPLACE FUNCTION public.ptm_formats_touch_updated_at()
+RETURNS trigger AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS ptm_formats_set_updated_at ON ptm_formats;
+CREATE TRIGGER ptm_formats_set_updated_at
+  BEFORE UPDATE ON ptm_formats
+  FOR EACH ROW EXECUTE FUNCTION public.ptm_formats_touch_updated_at();
+
+ALTER TABLE ptm_formats ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated read ptm_formats" ON ptm_formats;
+CREATE POLICY "Authenticated read ptm_formats"
+  ON ptm_formats FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins manage ptm_formats" ON ptm_formats;
+CREATE POLICY "Admins manage ptm_formats"
+  ON ptm_formats FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+-- Seed one default template so the "Download" flow works out of the box
+-- before an admin ever opens the Settings page.
+INSERT INTO ptm_formats (name, is_default, intro_text, closing_text)
+VALUES (
+  'Default PTM Format',
+  true,
+  'Dear Parent, this handout summarises your child''s recent performance. Please bring it to the upcoming parent-teacher meeting for reference and signature.',
+  'Thank you for your continued support. We look forward to discussing your child''s progress.'
+)
+ON CONFLICT (name) DO NOTHING;
+-- Migration 028: Supplementary Exam workflow (Phase 8).
+--
+-- Schools allow students who fail one or two subjects in a main exam to
+-- retest those subjects only. Pass criteria for supplementary is usually
+-- "minimum X marks in original" (eligibility) and "pass in retest"
+-- (qualification). Legacy platform stores these as
+--   MinForSupplementary=25, SupplementarySubs=2
+-- per Result Master configuration.
+--
+-- The retest is recorded against the *same* parent_exam_type_id (it's not
+-- a new exam type — the supplementary marks substitute into the original
+-- exam's slot for purposes of final-result recompute).
+--
+-- supplementary_pass_action controls how the substitution flows into the
+-- final result:
+--   - 'cap_at_pass_mark': substitute = pass_mark (most schools — discourages
+--     the "save your scores" gaming pattern). Default.
+--   - 'use_retest_marks': substitute = actual retest marks_obtained.
+
+-- =============================================================
+-- Result Masters: supplementary settings columns
+-- =============================================================
+ALTER TABLE result_masters
+  ADD COLUMN IF NOT EXISTS min_for_supplementary numeric(6,2);
+ALTER TABLE result_masters
+  ADD COLUMN IF NOT EXISTS max_supplementary_subjects integer NOT NULL DEFAULT 2;
+ALTER TABLE result_masters
+  ADD COLUMN IF NOT EXISTS supplementary_pass_action text
+    NOT NULL DEFAULT 'cap_at_pass_mark';
+
+ALTER TABLE result_masters
+  DROP CONSTRAINT IF EXISTS result_masters_supp_threshold_nonneg;
+ALTER TABLE result_masters
+  ADD CONSTRAINT result_masters_supp_threshold_nonneg
+  CHECK (min_for_supplementary IS NULL OR min_for_supplementary >= 0);
+
+ALTER TABLE result_masters
+  DROP CONSTRAINT IF EXISTS result_masters_max_supp_subs_nonneg;
+ALTER TABLE result_masters
+  ADD CONSTRAINT result_masters_max_supp_subs_nonneg
+  CHECK (max_supplementary_subjects >= 0);
+
+ALTER TABLE result_masters
+  DROP CONSTRAINT IF EXISTS result_masters_supp_pass_action_check;
+ALTER TABLE result_masters
+  ADD CONSTRAINT result_masters_supp_pass_action_check
+  CHECK (supplementary_pass_action IN ('cap_at_pass_mark', 'use_retest_marks'));
+
+-- =============================================================
+-- supplementary_attempts
+-- =============================================================
+CREATE TABLE IF NOT EXISTS supplementary_attempts (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  parent_exam_type_id uuid NOT NULL REFERENCES exam_types(id) ON DELETE CASCADE,
+  subject_id uuid NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  retest_date date,
+  marks_obtained numeric(6,2) NOT NULL,
+  max_marks numeric(6,2) NOT NULL,
+  passed boolean NOT NULL,
+  entered_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+
+  CONSTRAINT supplementary_attempts_unique
+    UNIQUE (student_id, parent_exam_type_id, subject_id),
+  CONSTRAINT supplementary_attempts_marks_range
+    CHECK (marks_obtained >= 0 AND marks_obtained <= max_marks),
+  CONSTRAINT supplementary_attempts_max_positive
+    CHECK (max_marks > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_supplementary_attempts_student
+  ON supplementary_attempts(student_id);
+CREATE INDEX IF NOT EXISTS idx_supplementary_attempts_exam_subject
+  ON supplementary_attempts(parent_exam_type_id, subject_id);
+CREATE INDEX IF NOT EXISTS idx_supplementary_attempts_class
+  ON supplementary_attempts(class_id);
+
+CREATE OR REPLACE FUNCTION public.supplementary_attempts_touch_updated_at()
+RETURNS trigger AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS supplementary_attempts_set_updated_at ON supplementary_attempts;
+CREATE TRIGGER supplementary_attempts_set_updated_at
+  BEFORE UPDATE ON supplementary_attempts
+  FOR EACH ROW EXECUTE FUNCTION public.supplementary_attempts_touch_updated_at();
+
+ALTER TABLE supplementary_attempts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins manage supplementary_attempts" ON supplementary_attempts;
+CREATE POLICY "Admins manage supplementary_attempts"
+  ON supplementary_attempts FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Teachers read supplementary_attempts for own classes" ON supplementary_attempts;
+CREATE POLICY "Teachers read supplementary_attempts for own classes"
+  ON supplementary_attempts FOR SELECT
+  USING (class_id IN (SELECT public.get_my_class_ids()));
+
+DROP POLICY IF EXISTS "Teachers write supplementary_attempts for own classes" ON supplementary_attempts;
+CREATE POLICY "Teachers write supplementary_attempts for own classes"
+  ON supplementary_attempts FOR INSERT
+  WITH CHECK (class_id IN (SELECT public.get_my_class_ids()));
+
+DROP POLICY IF EXISTS "Teachers update supplementary_attempts for own classes" ON supplementary_attempts;
+CREATE POLICY "Teachers update supplementary_attempts for own classes"
+  ON supplementary_attempts FOR UPDATE
+  USING (class_id IN (SELECT public.get_my_class_ids()));
+
+DROP POLICY IF EXISTS "Teachers delete supplementary_attempts for own classes" ON supplementary_attempts;
+CREATE POLICY "Teachers delete supplementary_attempts for own classes"
+  ON supplementary_attempts FOR DELETE
+  USING (class_id IN (SELECT public.get_my_class_ids()));
+
+DROP POLICY IF EXISTS "Parents read supplementary_attempts for own children" ON supplementary_attempts;
+CREATE POLICY "Parents read supplementary_attempts for own children"
+  ON supplementary_attempts FOR SELECT
+  USING (student_id IN (SELECT public.get_my_children_ids()));
+
+-- ============================================
+-- TEACHER ABSENCES + SUBSTITUTIONS (migration 031)
+-- ============================================
+-- Planning layer on top of timetable_periods. teacher_absences records who
+-- is absent on which date (with optional half_day flag). substitutions
+-- records the per-period substitute assignments (one row per affected
+-- period once an admin assigns a substitute; absence of a row = unassigned).
+-- Substitute-availability is computed by the API via time-range overlap on
+-- timetable_periods.start_time/end_time, since classes can run staggered
+-- schedules (period_number alone is not a reliable shared time key).
+
+CREATE TABLE IF NOT EXISTS teacher_absences (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  teacher_id uuid NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  absence_date date NOT NULL,
+  half_day text NOT NULL DEFAULT 'full'
+    CHECK (half_day IN ('full', 'first_half', 'second_half')),
+  reason text,
+  marked_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (teacher_id, absence_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_absences_date
+  ON teacher_absences(absence_date);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_absences_teacher
+  ON teacher_absences(teacher_id);
+
+CREATE TABLE IF NOT EXISTS substitutions (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  absence_id uuid NOT NULL REFERENCES teacher_absences(id) ON DELETE CASCADE,
+  timetable_period_id uuid NOT NULL REFERENCES timetable_periods(id) ON DELETE CASCADE,
+  substitute_teacher_id uuid REFERENCES teachers(id) ON DELETE SET NULL,
+  note text,
+  assigned_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (absence_id, timetable_period_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_substitutions_absence
+  ON substitutions(absence_id);
+
+CREATE INDEX IF NOT EXISTS idx_substitutions_substitute_teacher
+  ON substitutions(substitute_teacher_id);
+
+CREATE INDEX IF NOT EXISTS idx_substitutions_period
+  ON substitutions(timetable_period_id);
+
+CREATE OR REPLACE FUNCTION public.teacher_absences_touch_updated_at()
+RETURNS trigger AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS teacher_absences_set_updated_at ON teacher_absences;
+CREATE TRIGGER teacher_absences_set_updated_at
+  BEFORE UPDATE ON teacher_absences
+  FOR EACH ROW EXECUTE FUNCTION public.teacher_absences_touch_updated_at();
+
+CREATE OR REPLACE FUNCTION public.substitutions_touch_updated_at()
+RETURNS trigger AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS substitutions_set_updated_at ON substitutions;
+CREATE TRIGGER substitutions_set_updated_at
+  BEFORE UPDATE ON substitutions
+  FOR EACH ROW EXECUTE FUNCTION public.substitutions_touch_updated_at();
+
+ALTER TABLE teacher_absences ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins manage teacher_absences" ON teacher_absences;
+CREATE POLICY "Admins manage teacher_absences"
+  ON teacher_absences FOR ALL
+  USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');
+
+ALTER TABLE substitutions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins manage substitutions" ON substitutions;
+CREATE POLICY "Admins manage substitutions"
+  ON substitutions FOR ALL
+  USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');

@@ -65,7 +65,7 @@ export async function buildGreenSheetData(
       .maybeSingle(),
     supabase
       .from("academic_years")
-      .select("id, label")
+      .select("id, name")
       .eq("id", academicYearId)
       .maybeSingle(),
   ]);
@@ -236,7 +236,7 @@ export async function buildGreenSheetData(
       class_name: cls.name as string,
       section: (cls.section as string | null) ?? null,
       academic_year_id: year.id as string,
-      academic_year_label: (year.label as string) ?? "",
+      academic_year_label: (year.name as string) ?? "",
       has_result_master: Boolean(masterRow?.id),
       show_rank: Boolean(masterRow?.show_rank),
     },

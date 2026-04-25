@@ -227,10 +227,11 @@ export function PreviewTab({
     (r) => r.student_id === selectedStudentId
   );
 
-  // Legacy PDF link — the PDF API requires exam_type_id, so we can't link
-  // to a "final-result" variant until Steps 8-9 land. Surfacing the button
-  // with a clear note is per the build spec.
-  const legacyPdfHref = selectedStudent
+  // Final-result PDF link. The route auto-routes to its final-result branch
+  // when academic_year_id is present and exam_type_id is omitted, so this
+  // URL works as long as a result_master exists for the class/year (which
+  // is guaranteed inside this tab).
+  const previewPdfHref = selectedStudent
     ? `/api/erp/results/report-card/pdf?student_id=${selectedStudent.student_id}&academic_year_id=${academicYearId}`
     : undefined;
 
@@ -372,7 +373,7 @@ export function PreviewTab({
               admissionNo={selectedStudent?.admission_no ?? null}
               classLabel={classLabel}
               yearLabel={yearLabel}
-              legacyPdfHref={legacyPdfHref}
+              previewPdfHref={previewPdfHref}
             />
           ) : null}
         </div>
@@ -392,7 +393,7 @@ function PreviewBody({
   admissionNo,
   classLabel,
   yearLabel,
-  legacyPdfHref,
+  previewPdfHref,
 }: {
   finalResult: FinalResult;
   studentName: string;
@@ -400,7 +401,7 @@ function PreviewBody({
   admissionNo: string | null;
   classLabel: string;
   yearLabel: string;
-  legacyPdfHref?: string;
+  previewPdfHref?: string;
 }) {
   const overall = finalResult.overall;
   const cfg = finalResult.config_applied;
@@ -517,8 +518,8 @@ function PreviewBody({
           </div>
           <div className="flex justify-between items-end pt-2 gap-3 flex-wrap">
             <div className="space-y-1">
-              {legacyPdfHref && (
-                <a href={legacyPdfHref} target="_blank" rel="noopener noreferrer">
+              {previewPdfHref && (
+                <a href={previewPdfHref} target="_blank" rel="noopener noreferrer">
                   <Button
                     variant="outline"
                     className="text-navy-900 dark:text-white"
@@ -529,10 +530,9 @@ function PreviewBody({
                 </a>
               )}
               <p className="text-[11px] text-gray-500 dark:text-gray-400 max-w-md">
-                PDF currently uses the legacy per-exam layout; the
-                final-result layout lands in Steps 8-9. The link also requires
-                an <span className="font-mono">exam_type_id</span> query param
-                today, so a direct click may 400 until that wiring is in place.
+                Renders the final-result layout for this student using the
+                same engine the public report card will use. Useful for
+                eyeballing rounding, grace, and grade-scale config end-to-end.
               </p>
             </div>
             <p className="text-[10px] font-mono text-gray-400 dark:text-gray-500 break-all">

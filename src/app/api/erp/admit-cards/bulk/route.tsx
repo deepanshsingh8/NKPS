@@ -4,6 +4,8 @@ import { promises as fs } from "fs";
 import path from "path";
 import { verifyAdminOrEditor } from "@/lib/verify-admin";
 import { getPdfTemplate } from "@/lib/pdf-templates";
+import { contentDispositionAttachment } from "@/lib/utils";
+import { safeFetchBuffer } from "@/lib/safe-fetch";
 import {
   AdmitCardPDF,
   type AdmitCardPayload,
@@ -26,15 +28,7 @@ async function loadLogo(): Promise<Buffer | null> {
 }
 
 async function fetchPhoto(url: string | null): Promise<Buffer | null> {
-  if (!url) return null;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const arrayBuf = await res.arrayBuffer();
-    return Buffer.from(arrayBuf);
-  } catch {
-    return null;
-  }
+  return safeFetchBuffer(url);
 }
 
 export async function GET(request: Request) {
@@ -277,7 +271,7 @@ export async function GET(request: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": contentDispositionAttachment(filename),
         "Cache-Control": "private, no-store",
       },
     });

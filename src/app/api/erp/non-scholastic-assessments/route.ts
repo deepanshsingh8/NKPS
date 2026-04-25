@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { nonScholasticAssessmentsBulkSchema } from "@/lib/validations";
+import {
+  getTeacherIdForUser,
+  teacherCanAccessClass,
+} from "@/lib/teacher-scope";
 
 // GET /api/erp/non-scholastic-assessments?class_id=&exam_type_id=&sub_subject_id=&student_id=
 // Returns assessments matching the filters. RLS handles role-based access.
@@ -71,6 +75,23 @@ export async function POST(request: Request) {
       );
     }
     const { class_id, exam_type_id, entries } = parsed.data;
+
+    // Teacher ownership: a teacher can only enter non-scholastic grades for
+    // classes they teach. Non-scholastic isn't tied to a single subject, so
+    // we use the broader class-access check (class teacher OR teaches any
+    // subject in the class).
+    if (profile.role === "teacher") {
+      const teacherId = await getTeacherIdForUser(supabase, user.id);
+      if (
+        !teacherId ||
+        !(await teacherCanAccessClass(supabase, teacherId, class_id))
+      ) {
+        return NextResponse.json(
+          { error: "You don't have access to this class" },
+          { status: 403 }
+        );
+      }
+    }
 
     // Resolve applicable grade scale per sub_subject_id referenced in this batch.
     // Preference order: sub_subject.grade_scale_id → non-scholastic default scale.

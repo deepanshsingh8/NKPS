@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -161,6 +162,26 @@ Here is everything about NK Public School:
 
 export async function POST(request: NextRequest) {
   try {
+    // Anonymous endpoint that pays per-token to Anthropic — must rate limit
+    // or a single attacker can rack up real cost. 20 messages / IP / minute
+    // is generous for a human chatting and an order of magnitude below
+    // anything that would be expensive.
+    const ipLimit = rateLimit({
+      name: "chat:ip",
+      key: clientIp(request),
+      max: 20,
+      windowSeconds: 60,
+    });
+    if (!ipLimit.ok) {
+      return NextResponse.json(
+        {
+          reply:
+            "You're sending messages too quickly. Please wait a moment and try again.",
+        },
+        { status: 429 }
+      );
+    }
+
     const { message, history } = await request.json();
 
     if (!message || typeof message !== "string") {

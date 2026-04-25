@@ -16,5 +16,8 @@
 -- WHERE r.marks_obtained < 0 OR r.marks_obtained > r.max_marks;
 
 ALTER TABLE results
+  DROP CONSTRAINT IF EXISTS results_marks_in_range;
+
+ALTER TABLE results
   ADD CONSTRAINT results_marks_in_range
   CHECK (marks_obtained >= 0 AND marks_obtained <= max_marks);

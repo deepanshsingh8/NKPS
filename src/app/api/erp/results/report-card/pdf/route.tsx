@@ -8,12 +8,16 @@ import { canViewReportCard, getReportCardData } from "@/lib/report-card";
 import type { ReportCardExamGroup } from "@/lib/report-card";
 import { ReportCardPDF } from "@/components/pdf/ReportCardPDF";
 import { getPdfTemplate } from "@/lib/pdf-templates";
+import { contentDispositionAttachment } from "@/lib/utils";
 import {
   computeFinalResult,
   computeRanksForClass,
 } from "@/lib/final-result";
 import type { FinalResult } from "@/types";
-import type { MarksheetSnapshotV1 } from "@/lib/marksheet-snapshot";
+import type {
+  MarksheetSnapshotV1,
+  MarksheetSnapshotV2,
+} from "@/lib/marksheet-snapshot";
 
 export const runtime = "nodejs";
 
@@ -104,6 +108,23 @@ export async function GET(request: Request) {
         .maybeSingle();
 
       if (activeRow?.snapshot) {
+        // Reject snapshots whose schema version we don't know how to render.
+        // The marksheet_publications.schema_version column is the source of
+        // truth (the JSON's own field is informational); falling back to the
+        // JSON if the column is null lets older rows still render.
+        const snapRaw = activeRow.snapshot as { schema_version?: string };
+        const declaredVersion =
+          (activeRow.schema_version as string | null) ??
+          snapRaw.schema_version ??
+          null;
+        if (declaredVersion !== "v1") {
+          return NextResponse.json(
+            {
+              error: `Unsupported marksheet snapshot version (${declaredVersion ?? "unknown"}). Re-finalize this marksheet to upgrade.`,
+            },
+            { status: 422 }
+          );
+        }
         const snap = activeRow.snapshot as MarksheetSnapshotV1;
         const snapGeneratedOn = new Date(snap.generated_on_iso).toLocaleString(
           "en-IN",
@@ -134,7 +155,7 @@ export async function GET(request: Request) {
           status: 200,
           headers: {
             "Content-Type": "application/pdf",
-            "Content-Disposition": `attachment; filename="${filename}"`,
+            "Content-Disposition": contentDispositionAttachment(filename),
             "Cache-Control": "private, no-store",
             "X-Marksheet-Source": "finalized-snapshot",
             "X-Marksheet-Version": String(activeRow.version),
@@ -142,7 +163,11 @@ export async function GET(request: Request) {
         });
       }
 
-      const data = await getReportCardData(supabase, studentId, academicYearId);
+      // Legacy per-exam branch: attendance is computed via
+      // `academic_years.is_current` inside getReportCardData; passing an
+      // explicit academicYearId here would mis-filter attendance to a year
+      // that may not be the current one. Always pass null in legacy mode.
+      const data = await getReportCardData(supabase, studentId, null);
       if (!data) {
         return NextResponse.json({ error: "Student not found" }, { status: 404 });
       }
@@ -193,6 +218,86 @@ export async function GET(request: Request) {
     // (400 guard above rejects the both-absent case, legacy branch handles
     // examTypeId).
     const yearId = academicYearId!;
+
+    // Year-final snapshot has priority. If an admin has finalized for this
+    // (student, year), serve from the snapshot so the PDF is frozen — even
+    // if marks have changed since.
+    {
+      const adminClient = createAdminClient();
+      const { data: yfRow } = await adminClient
+        .from("marksheet_publications")
+        .select("snapshot, schema_version, version, published_at")
+        .eq("student_id", studentId)
+        .eq("academic_year_id", yearId)
+        .eq("kind", "year_final")
+        .is("unpublished_at", null)
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (yfRow?.snapshot) {
+        const declared =
+          (yfRow.schema_version as string | null) ??
+          (yfRow.snapshot as { schema_version?: string }).schema_version ??
+          null;
+        if (declared !== "v2") {
+          return NextResponse.json(
+            {
+              error: `Unsupported year-final snapshot version (${declared ?? "unknown"}). Re-finalize this marksheet to upgrade.`,
+            },
+            { status: 422 }
+          );
+        }
+        const snap = yfRow.snapshot as MarksheetSnapshotV2;
+        const generatedOnLabel = new Date(snap.generated_on_iso).toLocaleString(
+          "en-IN",
+          {
+            timeZone: "Asia/Kolkata",
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }
+        );
+        const virtualExamForSnap: ReportCardExamGroup = {
+          exam_type_id: "__final_result__",
+          exam_type_name: "Final Result",
+          sort_order: 0,
+          subjects: [],
+          total_obtained: 0,
+          total_max: 0,
+          percentage: 0,
+          overall_grade: snap.final_result.overall.grade ?? "",
+          remark: null,
+        };
+        const buffer = await renderToBuffer(
+          <ReportCardPDF
+            school={snap.school}
+            student={snap.student}
+            exam={virtualExamForSnap}
+            attendance={snap.attendance}
+            logoData={logoData ?? undefined}
+            generatedOn={generatedOnLabel}
+            footer={snap.footer}
+            finalResult={snap.final_result}
+            resultMaster={snap.result_master}
+          />
+        );
+        const safeName = snap.student.name.replace(/[^\w\-]+/g, "_");
+        const safeYear = snap.year_label.replace(/[^\w\-]+/g, "_");
+        const filename = `report-card_${safeName}_final-result_${safeYear}_v${yfRow.version}.pdf`;
+        return new NextResponse(new Uint8Array(buffer), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": contentDispositionAttachment(filename),
+            "Cache-Control": "private, no-store",
+            "X-Marksheet-Source": "year-final-snapshot",
+            "X-Marksheet-Version": String(yfRow.version),
+          },
+        });
+      }
+    }
 
     // Resolve active enrollment for this (student, year). Missing enrollment
     // = 404 since we can't locate the student's class for this year.
@@ -286,10 +391,10 @@ export async function GET(request: Request) {
     // Resolve the academic year label for the filename.
     const { data: yearRow } = await supabase
       .from("academic_years")
-      .select("label")
+      .select("name")
       .eq("id", yearId)
       .maybeSingle();
-    const yearLabel = (yearRow?.label as string | undefined) ?? "year";
+    const yearLabel = (yearRow?.name as string | undefined) ?? "year";
 
     const resultMasterProp = {
       include_non_scholastic: Boolean(masterRow.include_non_scholastic),

@@ -211,8 +211,11 @@ export default function AdminUsersPage() {
       toast.success("User created successfully");
       if (data.email_warning) {
         toast.warning(data.email_warning, { duration: 10000 });
+        // Email delivery failed — show password so admin can share manually.
+        setGeneratedPassword(data.generated_password ?? null);
+      } else {
+        toast.success("Login details sent to the user via email");
       }
-      setGeneratedPassword(data.generated_password);
       await fetchProfiles();
     } catch {
       toast.error("Failed to create user");
@@ -304,10 +307,15 @@ export default function AdminUsersPage() {
         return;
       }
 
-      toast.success("Registration approved — user account created");
       setApprovedName(name);
-      setApprovePassword(data.generated_password);
-      setApproveDialogOpen(true);
+      if (data.email_delivered === false && data.generated_password) {
+        // Fallback path — email failed, surface password so admin can share manually.
+        toast.warning("Registration approved, but sending the welcome email failed. Share the password below with the user.", { duration: 10000 });
+        setApprovePassword(data.generated_password);
+        setApproveDialogOpen(true);
+      } else {
+        toast.success("Registration approved — login details sent via email");
+      }
       await fetchRequests();
       await fetchProfiles();
     } catch {

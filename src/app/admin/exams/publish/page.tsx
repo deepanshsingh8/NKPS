@@ -209,7 +209,10 @@ export default function AdminPublishPage() {
     }
   }
 
-  async function finalize(studentIds?: string[]) {
+  async function finalize(
+    studentIds?: string[],
+    refinalizeReason?: string
+  ) {
     if (!selectedClassId || !selectedExamTypeId) return;
     setBusy(true);
     try {
@@ -231,10 +234,29 @@ export default function AdminPublishPage() {
           class_id: selectedClassId,
           exam_type_id: selectedExamTypeId,
           ...(studentIds && studentIds.length > 0 ? { student_ids: studentIds } : {}),
+          ...(refinalizeReason ? { unpublish_reason_on_refinalize: refinalizeReason } : {}),
         }),
       });
       const data = await res.json();
       if (!res.ok) {
+        // The route returns 400 + prior_active_count when a reason is needed.
+        // Prompt for it and retry once so the admin gets a one-step flow.
+        if (
+          res.status === 400 &&
+          typeof data?.prior_active_count === "number" &&
+          data.prior_active_count > 0 &&
+          !refinalizeReason
+        ) {
+          const reason = window.prompt(
+            `${data.prior_active_count} marksheet(s) are already finalized. Why are you re-finalizing? (e.g. "Marks corrected for English")`
+          );
+          if (reason && reason.trim()) {
+            await finalize(studentIds, reason.trim());
+            return;
+          }
+          toast.error("Re-finalize cancelled — reason required");
+          return;
+        }
         toast.error(data.error ?? "Finalize failed");
         return;
       }
