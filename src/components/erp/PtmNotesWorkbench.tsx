@@ -431,7 +431,7 @@ export function PtmNotesWorkbench({
                 </SelectTrigger>
                 <SelectContent>
                   {classes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
+                    <SelectItem key={c.id} value={c.id} label={formatClassName(c)}>
                       {formatClassName(c)}
                     </SelectItem>
                   ))}
@@ -452,7 +452,7 @@ export function PtmNotesWorkbench({
                     (Not tied to an exam)
                   </SelectItem>
                   {examTypes.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
+                    <SelectItem key={e.id} value={e.id} label={e.name}>
                       {e.name}
                     </SelectItem>
                   ))}

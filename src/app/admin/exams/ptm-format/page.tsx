@@ -530,7 +530,7 @@ export default function AdminPtmFormatPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {classes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
+                    <SelectItem key={c.id} value={c.id} label={formatClassName(c)}>
                       {formatClassName(c)}
                     </SelectItem>
                   ))}
@@ -553,7 +553,7 @@ export default function AdminPtmFormatPage() {
                     (Skip performance snapshot)
                   </SelectItem>
                   {examTypes.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
+                    <SelectItem key={e.id} value={e.id} label={e.name}>
                       {e.name}
                     </SelectItem>
                   ))}
@@ -576,7 +576,11 @@ export default function AdminPtmFormatPage() {
                   {templates
                     .filter((t) => t.is_active)
                     .map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
+                      <SelectItem
+                        key={t.id}
+                        value={t.id}
+                        label={`${t.name}${t.is_default ? " · default" : ""}`}
+                      >
                         {t.name}
                         {t.is_default ? " · default" : ""}
                       </SelectItem>

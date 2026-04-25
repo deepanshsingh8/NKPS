@@ -852,7 +852,7 @@ function DeleteScaleDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {candidates.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
+                    <SelectItem key={c.id} value={c.id} label={c.name}>
                       {c.name}
                     </SelectItem>
                   ))}

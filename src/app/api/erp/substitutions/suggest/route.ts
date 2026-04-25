@@ -161,13 +161,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: dateSubsErr.message }, { status: 500 });
   }
 
-  // 7. Subject expertise: who teaches what subject (any class).
-  const { data: classSubjects, error: csErr } = await admin
-    .from("class_subjects")
-    .select("teacher_id, class_id, subject_id")
-    .not("teacher_id", "is", null);
+  // 7. Subject + class expertise: who teaches what, across ALL weekdays.
+  // We pull from class_subjects (the canonical assignment table) AND from
+  // every timetable_periods row, because in practice class_subjects.teacher_id
+  // is often unpopulated — teachers are assigned via the timetable instead.
+  // Without the timetable fallback, every candidate would score 0.
+  const [{ data: classSubjects, error: csErr }, { data: weeklyTeaching, error: wtErr }] =
+    await Promise.all([
+      admin
+        .from("class_subjects")
+        .select("teacher_id, class_id, subject_id")
+        .not("teacher_id", "is", null),
+      admin
+        .from("timetable_periods")
+        .select("teacher_id, class_id, subject_id")
+        .eq("is_break", false)
+        .not("teacher_id", "is", null),
+    ]);
   if (csErr) {
     return NextResponse.json({ error: csErr.message }, { status: 500 });
+  }
+  if (wtErr) {
+    return NextResponse.json({ error: wtErr.message }, { status: 500 });
   }
 
   // 8. Fairness: count this week's substitutions per teacher.
@@ -232,28 +247,27 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // teacher_id → Set<subject_id> they teach
+  // teacher_id → Set<subject_id> they teach (any class, any day)
   const subjectsByTeacher = new Map<string, Set<string>>();
-  // teacher_id → Set<class_id> they teach
-  const classesByTeacherFromCS = new Map<string, Set<string>>();
+  // teacher_id → Set<class_id> they teach (any subject, any day)
+  const classesByTeacher = new Map<string, Set<string>>();
+  const seedSubject = (tid: string, sid: string) => {
+    if (!subjectsByTeacher.has(tid)) subjectsByTeacher.set(tid, new Set());
+    subjectsByTeacher.get(tid)!.add(sid);
+  };
+  const seedClass = (tid: string, cid: string) => {
+    if (!classesByTeacher.has(tid)) classesByTeacher.set(tid, new Set());
+    classesByTeacher.get(tid)!.add(cid);
+  };
   for (const cs of classSubjects ?? []) {
     if (!cs.teacher_id) continue;
-    if (cs.subject_id) {
-      if (!subjectsByTeacher.has(cs.teacher_id)) subjectsByTeacher.set(cs.teacher_id, new Set());
-      subjectsByTeacher.get(cs.teacher_id)!.add(cs.subject_id);
-    }
-    if (cs.class_id) {
-      if (!classesByTeacherFromCS.has(cs.teacher_id)) classesByTeacherFromCS.set(cs.teacher_id, new Set());
-      classesByTeacherFromCS.get(cs.teacher_id)!.add(cs.class_id);
-    }
+    if (cs.subject_id) seedSubject(cs.teacher_id, cs.subject_id);
+    if (cs.class_id) seedClass(cs.teacher_id, cs.class_id);
   }
-  // Augment with timetable_periods (a teacher may be timetabled to a class
-  // without a class_subjects row — defensive).
-  const classesByTeacher = new Map<string, Set<string>>(classesByTeacherFromCS);
-  for (const row of dayBusy ?? []) {
-    if (!row.teacher_id || !row.class_id) continue;
-    if (!classesByTeacher.has(row.teacher_id)) classesByTeacher.set(row.teacher_id, new Set());
-    classesByTeacher.get(row.teacher_id)!.add(row.class_id);
+  for (const tp of weeklyTeaching ?? []) {
+    if (!tp.teacher_id) continue;
+    if (tp.subject_id) seedSubject(tp.teacher_id, tp.subject_id);
+    if (tp.class_id) seedClass(tp.teacher_id, tp.class_id);
   }
 
   const subCountByTeacher = new Map<string, number>();

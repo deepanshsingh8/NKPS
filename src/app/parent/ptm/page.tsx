@@ -227,14 +227,22 @@ export default function ParentPtmPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {children.map((c) => (
-                    <SelectItem key={c.student_id} value={c.student_id}>
-                      {c.full_name}
-                      {c.class_name
+                  {children.map((c) => {
+                    const childLabel =
+                      c.full_name +
+                      (c.class_name
                         ? ` · ${c.class_name}${c.section ? ` - ${c.section}` : ""}`
-                        : ""}
-                    </SelectItem>
-                  ))}
+                        : "");
+                    return (
+                      <SelectItem
+                        key={c.student_id}
+                        value={c.student_id}
+                        label={childLabel}
+                      >
+                        {childLabel}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </CardContent>

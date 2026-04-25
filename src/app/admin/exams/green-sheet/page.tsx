@@ -181,7 +181,11 @@ export default function AdminGreenSheetPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {years.map((y) => (
-                    <SelectItem key={y.id} value={y.id}>
+                    <SelectItem
+                      key={y.id}
+                      value={y.id}
+                      label={`${y.name}${y.is_current ? " (current)" : ""}`}
+                    >
                       {y.name}
                       {y.is_current ? " (current)" : ""}
                     </SelectItem>
@@ -206,7 +210,7 @@ export default function AdminGreenSheetPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {classes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
+                    <SelectItem key={c.id} value={c.id} label={formatClassName(c)}>
                       {formatClassName(c)}
                     </SelectItem>
                   ))}

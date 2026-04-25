@@ -1518,7 +1518,11 @@ export default function AdminStudentsPage() {
                   <SelectContent>
                     <SelectItem value="choose">Select academic year...</SelectItem>
                     {academicYears.map((y) => (
-                      <SelectItem key={y.id} value={y.id}>
+                      <SelectItem
+                        key={y.id}
+                        value={y.id}
+                        label={`${y.name}${y.is_current ? " (Current)" : ""}`}
+                      >
                         {y.name}{y.is_current ? " (Current)" : ""}
                       </SelectItem>
                     ))}

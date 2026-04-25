@@ -485,7 +485,7 @@ export default function AdminStaffPage() {
           </SelectTrigger>
           <SelectContent>
             {CATEGORIES.map((c) => (
-              <SelectItem key={c.value} value={c.value}>
+              <SelectItem key={c.value} value={c.value} label={c.label}>
                 {c.label}
               </SelectItem>
             ))}
@@ -684,7 +684,7 @@ export default function AdminStaffPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {CATEGORY_OPTIONS.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
+                    <SelectItem key={c.value} value={c.value} label={c.label}>
                       {c.label}
                     </SelectItem>
                   ))}
