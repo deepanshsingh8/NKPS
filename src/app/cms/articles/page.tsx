@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { adminFetch, adminDelete, adminPatch } from "@/shared/lib/admin-api";
 import { uploadToStorage } from "@/shared/lib/supabase/upload";
-import { slugify } from "@/lib/articles";
+import { slugify } from "@/shared/lib/articles";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";

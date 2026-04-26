@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
     let systemPrompt = BASE_SYSTEM_PROMPT;
     try {
       const { getDisclosureItems, getDisclosureDocuments, getDisclosureBoardResults } =
-        await import("@/lib/disclosure");
+        await import("@/shared/lib/disclosure");
       const [discItems, discDocs, discResults] = await Promise.all([
         getDisclosureItems(),
         getDisclosureDocuments(),

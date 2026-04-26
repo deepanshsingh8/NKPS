@@ -1,6 +1,6 @@
 "use client";
 
-import { CmsSidebar } from "@/components/cms/CmsSidebar";
+import { CmsSidebar } from "@/cms/components/CmsSidebar";
 import { SidebarProvider, useSidebar } from "@/shared/components/providers/SidebarProvider";
 import { cn } from "@/shared/lib/utils";
 

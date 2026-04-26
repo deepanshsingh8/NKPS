@@ -12,7 +12,7 @@ import {
   getDisclosureItems,
   getDisclosureDocuments,
   getDisclosureBoardResults,
-} from "@/lib/disclosure";
+} from "@/shared/lib/disclosure";
 import { ExternalLink, FileText, Download } from "lucide-react";
 import type { DisclosureItem, DisclosureBoardResult } from "@/shared/types";
 import { buildMetadata } from "@/shared/lib/seo";

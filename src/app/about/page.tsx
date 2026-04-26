@@ -9,7 +9,7 @@ import { AchievementsCounter } from "@/components/about/AchievementsCounter";
 import { PageTransition } from "@/shared/components/PageTransition";
 import { SectionDivider } from "@/shared/components/SectionDivider";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getPageMedia, mediaUrl, getSectionCards } from "@/lib/site-media";
+import { getPageMedia, mediaUrl, getSectionCards } from "@/shared/lib/site-media";
 import { buildMetadata, breadcrumbJsonLd } from "@/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({

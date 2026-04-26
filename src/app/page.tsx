@@ -9,8 +9,8 @@ import { SchoolEvents } from "@/components/home/SchoolEvents";
 import { SectionDivider } from "@/shared/components/SectionDivider";
 import { MarqueeStrip } from "@/shared/components/MarqueeStrip";
 import { PageTransition } from "@/shared/components/PageTransition";
-import { getPageMedia, mediaUrl, getSectionCards } from "@/lib/site-media";
-import { getLatestArticles } from "@/lib/articles";
+import { getPageMedia, mediaUrl, getSectionCards } from "@/shared/lib/site-media";
+import { getLatestArticles } from "@/shared/lib/articles";
 import { buildMetadata } from "@/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
