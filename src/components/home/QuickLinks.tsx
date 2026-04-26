@@ -17,14 +17,14 @@ const links = [
     icon: GraduationCap,
     title: "ERP Login",
     description: "Students, parents, teachers & staff — academic records, results, fees, attendance",
-    href: "/portal/login",
+    href: "/erp/login",
     featured: true,
   },
   {
     icon: LayoutGrid,
     title: "CMS Login",
     description: "Admins & editors — manage gallery, articles, transfer certificates, and site content",
-    href: "/admin/login",
+    href: "/cms/login",
     featured: false,
   },
   {

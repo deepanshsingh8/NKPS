@@ -64,8 +64,21 @@ export async function canViewReportCard(
 
   if (!profile) return false;
 
-  if (profile.role === "admin" || profile.role === "teacher" || profile.role === "editor") {
+  // Admins and teachers see every student's report card. Editors are gated
+  // on the `results` feature key (audit H3): a permissionless editor or one
+  // with only e.g. `gallery` rights can no longer pull a student's
+  // marksheet by URL.
+  if (profile.role === "admin" || profile.role === "teacher") {
     return true;
+  }
+  if (profile.role === "editor") {
+    const { data: perm } = await supabase
+      .from("editor_permissions")
+      .select("feature_key")
+      .eq("editor_id", userId)
+      .eq("feature_key", "results")
+      .maybeSingle();
+    return !!perm;
   }
 
   if (profile.role === "student") {
@@ -102,12 +115,21 @@ export async function getReportCardData(
 
   if (!studentProfile) return null;
 
-  const { data: enrollment } = await supabase
+  // Audit H7: scope the enrollment lookup to the requested academic year
+  // when one is provided. Without this, an alumni or transferred student
+  // would surface their first-ever enrollment row (`limit(1)` was effectively
+  // arbitrary), which then bled into snapshot V2 student.class fields.
+  let enrollmentQuery = supabase
     .from("student_enrollments")
-    .select("class_id, roll_number, classes(name, section)")
-    .eq("student_id", studentId)
+    .select("class_id, roll_number, academic_year_id, classes(name, section)")
+    .eq("student_id", studentId);
+  if (academicYearId) {
+    enrollmentQuery = enrollmentQuery.eq("academic_year_id", academicYearId);
+  }
+  const { data: enrollment } = await enrollmentQuery
+    .order("created_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   // Resolve the grade scale for this student's class (falls back to the
   // default scholastic scale if no per-class override exists). Subject and

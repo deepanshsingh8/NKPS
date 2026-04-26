@@ -114,15 +114,24 @@ export async function buildYearFinalSnapshot(
   studentId: string,
   academicYearId: string
 ): Promise<MarksheetSnapshotV2 | null> {
-  const { data: enrollment } = await supabase
+  // Multi-enrollment guard: if the student has more than one active row for
+  // the year, the finalize path MUST stop and force the admin to resolve
+  // before snapshotting. Silently picking one would freeze the wrong class
+  // into the snapshot. Throw a recognizable error so the finalize loop can
+  // catch it and surface a per-student message instead of failing silently.
+  const { data: enrollments } = await supabase
     .from("student_enrollments")
     .select("class_id")
     .eq("student_id", studentId)
     .eq("academic_year_id", academicYearId)
-    .eq("status", "active")
-    .maybeSingle();
-  const classId = (enrollment?.class_id as string | undefined) ?? null;
-  if (!classId) return null;
+    .eq("status", "active");
+  if (!enrollments || enrollments.length === 0) return null;
+  if (enrollments.length > 1) {
+    throw new Error(
+      `Student has ${enrollments.length} active enrollments for this year — set all but one to inactive before finalizing.`
+    );
+  }
+  const classId = enrollments[0].class_id as string;
 
   const { data: master } = await supabase
     .from("result_masters")

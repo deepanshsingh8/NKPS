@@ -360,10 +360,15 @@ export function applySupplementarySubstitution(
   return results.map((r) => {
     const a = lookup.get(`${r.exam_type_id}|${r.subject_id}`);
     if (!a) return r;
+    // Audit H8: clamp the substituted mark to the parent exam's max so a
+    // supplementary paper sat at /100 can't poison a /80 row into > 100%.
+    // The DB CHECK on supplementary_attempts.marks_obtained constrains the
+    // attempt against ITS OWN max, not the parent's, so the clamp must
+    // happen here at substitution time.
     const sub =
       passAction === "cap_at_pass_mark"
         ? passThresholdLookup(r.subject_id, r.max_marks)
-        : a.marks_obtained;
+        : Math.min(a.marks_obtained, r.max_marks);
     return { ...r, marks_obtained: sub };
   });
 }

@@ -467,19 +467,49 @@ async function loadScaleById(
 
 export async function computeFinalResult(
   supabase: SupabaseClient,
-  params: { student_id: string; academic_year_id: string }
+  params: {
+    student_id: string;
+    academic_year_id: string;
+    /**
+     * Privacy gate (audit H2). When false, only `is_published=true` results
+     * and `is_published=true` class_test_results are pulled — the live
+     * compute path is what students/parents see when no finalized snapshot
+     * exists, and they must NOT see marks a teacher just typed.
+     *
+     * Defaults to `true` to preserve admin/teacher behavior (live preview,
+     * rank compute, finalize-time snapshot building all need the full set).
+     * Privacy-sensitive callers (the public report-card PDF route, the
+     * student/parent final-result endpoint) MUST pass `false` when the
+     * caller is a student or parent.
+     */
+    includeUnpublished?: boolean;
+  }
 ): Promise<FinalResult | null> {
   const { student_id, academic_year_id } = params;
+  const includeUnpublished = params.includeUnpublished ?? true;
 
-  const { data: enrollment } = await supabase
+  // Multi-active-enrollment safety: a student who transferred mid-year may
+  // have two `status='active'` rows for the same year. Pick the most recent
+  // (created_at desc) and surface a console warning so the admin knows the
+  // year-final compute used a specific enrollment. We deliberately don't
+  // throw here — `computeFinalResult` is called from many low-stakes places
+  // (live preview, rank compute) where one-of-many is fine. The finalize
+  // path wraps this with `buildYearFinalSnapshot`, which DOES throw on
+  // multi-enrollment so the finalize loop can surface a per-student error.
+  const { data: enrollments } = await supabase
     .from("student_enrollments")
-    .select("class_id")
+    .select("class_id, created_at")
     .eq("student_id", student_id)
     .eq("academic_year_id", academic_year_id)
     .eq("status", "active")
-    .maybeSingle();
-  if (!enrollment?.class_id) return null;
-  const classId = enrollment.class_id as string;
+    .order("created_at", { ascending: false });
+  if (!enrollments || enrollments.length === 0) return null;
+  if (enrollments.length > 1) {
+    console.warn(
+      `[computeFinalResult] student ${student_id} has ${enrollments.length} active enrollments for year ${academic_year_id}; using most recent`
+    );
+  }
+  const classId = enrollments[0].class_id as string;
 
   const { data: masterRow } = await supabase
     .from("result_masters")
@@ -543,12 +573,19 @@ export async function computeFinalResult(
   const subjectIds = subjects.map((s) => s.subject_id);
   let results: ResultRow[] = [];
   if (examTypeIds.length > 0 && subjectIds.length > 0) {
-    const { data: resRows } = await supabase
+    let resQuery = supabase
       .from("results")
       .select("exam_type_id, subject_id, marks_obtained, max_marks")
       .eq("student_id", student_id)
       .in("exam_type_id", examTypeIds)
       .in("subject_id", subjectIds);
+    if (!includeUnpublished) {
+      // Privacy gate: students/parents only see published rows. The live-
+      // compute path returns whatever is published right now — teachers'
+      // unsaved or unpublished entries stay hidden.
+      resQuery = resQuery.eq("is_published", true);
+    }
+    const { data: resRows } = await resQuery;
     // Apply per-class max_marks_override (if any). For an exam configured with
     // an override, every result row for that exam_type is treated as if its
     // max were the override — this is what the admin UI promises and what
@@ -562,11 +599,28 @@ export async function computeFinalResult(
     }
     results = (resRows ?? []).map((r) => {
       const override = maxOverrideByExam.get(r.exam_type_id as string);
+      const originalMax = Number(r.max_marks);
+      const originalMarks = Number(r.marks_obtained);
+      // Audit H9: when an override is set, rescale BOTH marks and max so
+      // percentage is preserved. Previously only `max_marks` was replaced,
+      // which meant a 60/100 row became 60/50 = 120% — phantom over-marks.
+      // The override is conceptually "treat this exam as if it were out of
+      // N for this class"; the student's percentage stays identical, the
+      // raw_marks threshold (e.g. "needs 33 marks") now lives in the
+      // override's marks-space.
+      if (override !== undefined && originalMax > 0) {
+        return {
+          exam_type_id: r.exam_type_id as string,
+          subject_id: r.subject_id as string,
+          marks_obtained: (originalMarks / originalMax) * override,
+          max_marks: override,
+        };
+      }
       return {
         exam_type_id: r.exam_type_id as string,
         subject_id: r.subject_id as string,
-        marks_obtained: Number(r.marks_obtained),
-        max_marks: override !== undefined ? override : Number(r.max_marks),
+        marks_obtained: originalMarks,
+        max_marks: originalMax,
       };
     });
   }

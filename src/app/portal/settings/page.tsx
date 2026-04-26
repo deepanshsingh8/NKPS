@@ -217,7 +217,7 @@ export default function SettingsPage() {
     switch (profile?.role) {
       case "admin":
       case "editor":
-        return "/admin";
+        return "/erp";
       case "teacher": return "/teacher";
       default: return "/student";
     }

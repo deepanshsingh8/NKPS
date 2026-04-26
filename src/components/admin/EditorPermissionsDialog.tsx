@@ -57,7 +57,7 @@ export function EditorPermissionsDialog({
     });
   };
 
-  const setGroup = (group: "content" | "erp", checked: boolean) => {
+  const setGroup = (group: "cms" | "erp", checked: boolean) => {
     setGranted((prev) => {
       const next = new Set(prev);
       for (const f of FEATURE_CATALOG) {
@@ -95,7 +95,7 @@ export function EditorPermissionsDialog({
     }
   };
 
-  const contentFeatures = FEATURE_CATALOG.filter((f) => f.group === "content");
+  const contentFeatures = FEATURE_CATALOG.filter((f) => f.group === "cms");
   const erpFeatures = FEATURE_CATALOG.filter((f) => f.group === "erp");
 
   const contentAllChecked = contentFeatures.every((f) => granted.has(f.key));
@@ -125,12 +125,12 @@ export function EditorPermissionsDialog({
         ) : (
           <div className="space-y-6">
             <FeatureGroup
-              title="Content"
+              title="CMS"
               features={contentFeatures}
               granted={granted}
               toggle={toggle}
               allChecked={contentAllChecked}
-              onToggleAll={(checked) => setGroup("content", checked)}
+              onToggleAll={(checked) => setGroup("cms", checked)}
             />
             <FeatureGroup
               title="ERP"

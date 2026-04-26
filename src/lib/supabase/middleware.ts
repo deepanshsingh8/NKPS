@@ -1,16 +1,24 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { featureKeyForPath, isAdminOnlyPath } from "@/lib/permissions";
+import {
+  featureKeyForPath,
+  featureGroupForPath,
+  isAdminOnlyPath,
+} from "@/lib/permissions";
 
-const LOGIN_PAGES = ["/portal/login", "/admin/login"];
+const LOGIN_PAGES = [
+  "/portal/login",
+  "/cms/login",
+  "/erp/login",
+];
 
-const PROTECTED_PREFIXES = ["/admin", "/teacher", "/student", "/parent"];
+const PROTECTED_PREFIXES = ["/cms", "/erp", "/teacher", "/student", "/parent"];
 
 function getDashboardPath(role: string): string {
   switch (role) {
     case "admin":
     case "editor":
-      return "/admin";
+      return "/erp";
     case "teacher":
       return "/teacher";
     case "student":
@@ -20,6 +28,12 @@ function getDashboardPath(role: string): string {
     default:
       return "/portal/login";
   }
+}
+
+function loginPageForPath(pathname: string): string {
+  if (pathname === "/cms" || pathname.startsWith("/cms/")) return "/cms/login";
+  if (pathname === "/erp" || pathname.startsWith("/erp/")) return "/erp/login";
+  return "/portal/login";
 }
 
 function isProtectedRoute(pathname: string): boolean {
@@ -67,10 +81,11 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Unauthenticated users accessing protected routes → redirect to portal login
+  // Unauthenticated users accessing protected routes → redirect to the login
+  // page for the module they're trying to enter (CMS or ERP).
   if (!user && isProtectedRoute(pathname) && !isLoginPage(pathname)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/portal/login";
+    url.pathname = loginPageForPath(pathname);
     return NextResponse.redirect(url);
   }
 
@@ -109,12 +124,20 @@ export async function updateSession(request: NextRequest) {
     // Redirect logged-in users away from login pages to their dashboard
     if (isLoginPage(pathname)) {
       const url = request.nextUrl.clone();
-      url.pathname = dashboard;
+      // CMS login lands admin/editor on /cms; everyone else on their role
+      // dashboard. ERP login behaves the same as the generic dashboard map.
+      if (pathname === "/cms/login" && (role === "admin" || role === "editor")) {
+        url.pathname = "/cms";
+      } else {
+        url.pathname = dashboard;
+      }
       return NextResponse.redirect(url);
     }
 
-    // Role-based access control
-    if (pathname.startsWith("/admin") && role !== "admin" && role !== "editor") {
+    // Module-level role gate. Only admin/editor may enter /cms or /erp admin
+    // surfaces. Other roles get bounced to their own dashboard.
+    const moduleGroup = featureGroupForPath(pathname);
+    if (moduleGroup && role !== "admin" && role !== "editor") {
       const url = request.nextUrl.clone();
       url.pathname = dashboard;
       return NextResponse.redirect(url);
@@ -123,10 +146,10 @@ export async function updateSession(request: NextRequest) {
     // Editor feature-level access control.
     // Admins skip this entirely. Editors are blocked from admin-only routes
     // and from features they have not been granted.
-    if (pathname.startsWith("/admin") && role === "editor") {
+    if (moduleGroup && role === "editor") {
       if (isAdminOnlyPath(pathname)) {
         const url = request.nextUrl.clone();
-        url.pathname = "/admin";
+        url.pathname = `/${moduleGroup}`;
         return NextResponse.redirect(url);
       }
 
@@ -141,7 +164,7 @@ export async function updateSession(request: NextRequest) {
 
         if (!perm) {
           const url = request.nextUrl.clone();
-          url.pathname = "/admin";
+          url.pathname = `/${moduleGroup}`;
           return NextResponse.redirect(url);
         }
       }

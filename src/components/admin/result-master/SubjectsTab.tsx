@@ -54,7 +54,7 @@ export function SubjectsTab({
   const [saving, setSaving] = useState(false);
 
   // Load class-scoped subjects via Supabase (authenticated-read RLS). Mirrors
-  // the pattern in src/app/admin/exams/timetable/page.tsx.
+  // the pattern in src/app/erp/exams/timetable/page.tsx.
   useEffect(() => {
     let cancelled = false;
     (async () => {

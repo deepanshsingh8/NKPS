@@ -960,8 +960,12 @@ ALTER TABLE fee_structures
 
 ALTER TABLE fee_payments
   DROP CONSTRAINT IF EXISTS fee_payments_amount_positive;
+-- Migration 040 — relaxed for waiver rows where amount_paid is intentionally 0.
 ALTER TABLE fee_payments
-  ADD CONSTRAINT fee_payments_amount_positive CHECK (amount_paid > 0);
+  ADD CONSTRAINT fee_payments_amount_positive CHECK (
+    (payment_method = 'waiver' AND amount_paid = 0)
+    OR amount_paid > 0
+  );
 
 ALTER TABLE payment_orders
   DROP CONSTRAINT IF EXISTS payment_orders_amount_positive;
@@ -2699,8 +2703,10 @@ CREATE TABLE IF NOT EXISTS marksheet_publications (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
-  exam_type_id uuid REFERENCES exam_types(id) ON DELETE CASCADE,
-  academic_year_id uuid REFERENCES academic_years(id) ON DELETE CASCADE,
+  -- Migration 041: RESTRICT (was CASCADE) — snapshots are audit-quality and
+  -- must not be silently wiped when reference data is deleted.
+  exam_type_id uuid REFERENCES exam_types(id) ON DELETE RESTRICT,
+  academic_year_id uuid REFERENCES academic_years(id) ON DELETE RESTRICT,
   kind text NOT NULL DEFAULT 'per_exam'
     CHECK (kind IN ('per_exam', 'year_final')),
   version int NOT NULL,
@@ -2767,7 +2773,10 @@ CREATE TABLE IF NOT EXISTS publish_events (
     )
   ),
   class_id uuid REFERENCES classes(id) ON DELETE SET NULL,
-  exam_type_id uuid REFERENCES exam_types(id) ON DELETE CASCADE,
+  -- Migration 041: SET NULL (was CASCADE) — audit log entries should outlive
+  -- the exam type they reference. The note text carries enough context to
+  -- understand the event without the FK.
+  exam_type_id uuid REFERENCES exam_types(id) ON DELETE SET NULL,
   student_id uuid REFERENCES students(id) ON DELETE SET NULL,
   actor_id uuid REFERENCES profiles(id) ON DELETE SET NULL,
   acted_at timestamptz DEFAULT now(),
@@ -3814,3 +3823,76 @@ ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_waiver_consistent
 CREATE INDEX IF NOT EXISTS idx_fee_payments_refund_status
   ON fee_payments(status)
   WHERE status = 'refunded';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 040 — Allow waiver rows (amount_paid = 0) past the
+-- fee_payments_amount_positive check. Already applied inline above next to
+-- the original constraint definition, repeated here so a fresh schema
+-- install is guaranteed to be in the relaxed state regardless of statement
+-- ordering.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE fee_payments DROP CONSTRAINT IF EXISTS fee_payments_amount_positive;
+ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_amount_positive CHECK (
+  (payment_method = 'waiver' AND amount_paid = 0)
+  OR amount_paid > 0
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 041 — marksheet_publications RESTRICT instead of CASCADE on
+-- exam_type_id and academic_year_id. Already applied inline above.
+-- publish_events.exam_type_id flipped to SET NULL for the same reason.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- (No-op for fresh installs — schema above already declares the corrected
+-- ON DELETE rules. Migration file ships the explicit DROP/ADD CONSTRAINT
+-- pair for upgraded deployments.)
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 043 — DB hygiene round 2 (mirrored from
+-- scripts/migration-043-db-hygiene-2.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+DO $$
+DECLARE
+  v_count int;
+  v_keep uuid;
+BEGIN
+  SELECT COUNT(*) INTO v_count FROM academic_years WHERE is_current = true;
+  IF v_count > 1 THEN
+    SELECT id INTO v_keep
+    FROM academic_years
+    WHERE is_current = true
+    ORDER BY created_at DESC NULLS LAST, id DESC
+    LIMIT 1;
+    UPDATE academic_years SET is_current = false
+    WHERE is_current = true AND id <> v_keep;
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS academic_years_one_current
+  ON academic_years(is_current)
+  WHERE is_current = true;
+
+CREATE INDEX IF NOT EXISTS idx_attendance_marked_by ON attendance(marked_by);
+CREATE INDEX IF NOT EXISTS idx_fee_payments_recorded_by ON fee_payments(recorded_by);
+CREATE INDEX IF NOT EXISTS idx_fee_payments_fee_structure_id ON fee_payments(fee_structure_id);
+CREATE INDEX IF NOT EXISTS idx_fee_payments_refunded_by ON fee_payments(refunded_by);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_created_by ON calendar_events(created_by);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_class_id ON calendar_events(class_id);
+CREATE INDEX IF NOT EXISTS idx_registration_requests_reviewed_by ON registration_requests(reviewed_by);
+CREATE INDEX IF NOT EXISTS idx_marksheet_publications_published_by ON marksheet_publications(published_by);
+CREATE INDEX IF NOT EXISTS idx_marksheet_publications_unpublished_by ON marksheet_publications(unpublished_by);
+CREATE INDEX IF NOT EXISTS idx_publish_events_actor_id ON publish_events(actor_id);
+CREATE INDEX IF NOT EXISTS idx_publish_events_class_id ON publish_events(class_id);
+CREATE INDEX IF NOT EXISTS idx_payment_orders_fee_structure_id ON payment_orders(fee_structure_id);
+CREATE INDEX IF NOT EXISTS idx_payment_orders_parent_id ON payment_orders(parent_id);
+CREATE INDEX IF NOT EXISTS idx_editor_permissions_granted_by ON editor_permissions(granted_by);
+CREATE INDEX IF NOT EXISTS idx_substitutions_assigned_by ON substitutions(assigned_by);
+CREATE INDEX IF NOT EXISTS idx_exam_schedules_invigilator_teacher_id ON exam_schedules(invigilator_teacher_id);
+CREATE INDEX IF NOT EXISTS idx_results_subject_id ON results(subject_id);
+CREATE INDEX IF NOT EXISTS idx_ptm_notes_recorded_by ON ptm_notes(recorded_by);
+CREATE INDEX IF NOT EXISTS idx_school_meeting_counts_exam_type_id ON school_meeting_counts(exam_type_id);
+CREATE INDEX IF NOT EXISTS idx_school_meeting_counts_class_id ON school_meeting_counts(class_id);
+CREATE INDEX IF NOT EXISTS idx_supplementary_attempts_subject_id ON supplementary_attempts(subject_id);
+CREATE INDEX IF NOT EXISTS idx_supplementary_attempts_entered_by ON supplementary_attempts(entered_by);

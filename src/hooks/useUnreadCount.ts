@@ -13,7 +13,7 @@ export function useUnreadCount() {
     const fetchCounts = async () => {
       try {
         const [contactRes, regRes] = await Promise.all([
-          adminFetch("/api/admin/contact/unread-count"),
+          adminFetch("/api/cms/contact/unread-count"),
           adminFetch("/api/erp/registrations/pending-count"),
         ]);
 

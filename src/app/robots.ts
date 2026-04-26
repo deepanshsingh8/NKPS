@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/admin", "/api"],
+        disallow: ["/admin", "/cms", "/erp", "/api"],
       },
     ],
     sitemap: "https://www.nkpublicschool.com/sitemap.xml",

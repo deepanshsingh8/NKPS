@@ -38,9 +38,17 @@ Top Navbar "ERP" link is left alone (already at `/erp-login` → `/portal/login`
 
 ---
 
-## Phase 1 — Route-group split (next session)
+## Phase 1 — Route-group split ✅ COMPLETE
 
 > Goal: in the same Next.js app, split `/admin/*` into `/cms/*` and `/erp/*` route groups with separate sidebars, layouts, and dashboards.
+
+**Status:** Done. All admin routes relocated under `/cms/*` and `/erp/*`, both modules have distinct login pages, sidebars, layouts, and dashboards. CMS-side admin APIs renamed to `/api/cms/*`. `/admin/*` → 301 redirects in `next.config.ts`. `npm run build` clean.
+
+**Decisions locked in:**
+- Two distinct login pages: `/cms/login` (admin/editor only) + `/erp/login` (multi-role)
+- URL scheme: `/cms/*` + `/erp/*` (top-level)
+- Permanent 301 redirects from `/admin/*`
+- API rename: `/api/admin/{articles,site-media,section-cards,disclosure-documents,upload-url}` → `/api/cms/*`. Cross-cutting (`/api/admin/dashboard`, `/api/admin/editor-permissions`) kept as-is. Public website APIs (`/api/contact`, `/api/gallery`, `/api/transfer-certificates`) unchanged.
 
 ## Why this is tractable
 The codebase is already conceptually split:

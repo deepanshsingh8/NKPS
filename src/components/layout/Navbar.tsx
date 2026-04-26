@@ -114,7 +114,7 @@ export function Navbar() {
           <div className="flex items-center gap-2">
             {/* ERP Login - shimmer button */}
             <Link
-              href="/erp-login"
+              href="/erp/login"
               className="group relative hidden lg:inline-flex items-center gap-1.5 overflow-hidden rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-3.5 py-1.5 text-xs font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25 hover:scale-[1.02]"
             >
               {/* Shimmer effect */}
@@ -212,7 +212,7 @@ export function Navbar() {
                   className="mt-4"
                 >
                   <Link
-                    href="/erp-login"
+                    href="/erp/login"
                     onClick={() => setMobileOpen(false)}
                     className="inline-flex items-center rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-8 py-3 text-sm font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25"
                   >

@@ -13,9 +13,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *   the top, and fires loading states. For purely-cosmetic URL updates
  *   (filter changes that should NOT trigger a re-fetch), we want to bypass
  *   the router entirely. `history.replaceState` updates the address bar
- *   silently; the bookmarkable URL is correct, and the back button still
- *   restores the previous URL because each `useState` initializer reads
- *   `window.location.search` at mount time.
+ *   silently; the bookmarkable URL is correct, and the cross-page back
+ *   button still restores the previous URL because each `useState`
+ *   initializer reads `window.location.search` at mount time.
+ *
+ * Trade-off: filter changes within the SAME page do NOT push new history
+ * entries. The browser back button thus skips past intermediate filter
+ * states straight to the previous page. This is intentional — pushing
+ * history per keystroke would clutter the back stack and feel broken in
+ * different ways. If we ever need filter-undo, do it with a dedicated
+ * Cmd-Z handler, not the browser back button.
  *
  * Caveat: `useSearchParams()` from `next/navigation` will NOT observe the
  * silent updates. Don't pair this hook with code that reads the same key

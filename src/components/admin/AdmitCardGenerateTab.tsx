@@ -375,10 +375,10 @@ export function AdmitCardGenerateTab({
                 card will still generate, but the schedule table will be empty.
                 Add rows on{" "}
                 <a
-                  href="/admin/exams/timetable"
+                  href="/erp/exams/timetable"
                   className="underline font-medium"
                 >
-                  /admin/exams/timetable
+                  /erp/exams/timetable
                 </a>{" "}
                 first for a complete card.
               </div>

@@ -13,7 +13,7 @@ export async function uploadToStorage(
   file: File
 ): Promise<string> {
   // 1. Get a signed upload URL from the server
-  const res = await adminFetch("/api/admin/upload-url", {
+  const res = await adminFetch("/api/cms/upload-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ bucket, fileName }),

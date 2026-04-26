@@ -3,7 +3,7 @@
 // Replaces the 4 previously-duplicated hardcoded grade functions in:
 //   - src/app/api/erp/results/bulk/route.ts
 //   - src/app/teacher/results/page.tsx
-//   - src/app/admin/exams/results/page.tsx
+//   - src/app/erp/exams/results/page.tsx
 //   - src/lib/report-card.ts
 //
 // Admins can define named grade scales (rows in `grade_scales`) with cutoff

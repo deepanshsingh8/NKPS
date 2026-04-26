@@ -11,11 +11,13 @@ import { WhatsAppButton } from "@/components/shared/WhatsAppButton";
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAdmin = pathname.startsWith("/admin");
+  const isCms = pathname.startsWith("/cms");
+  const isErp = pathname.startsWith("/erp") && !pathname.startsWith("/erp-login");
   const isPortal = pathname.startsWith("/portal");
   const isStudent = pathname.startsWith("/student") && !pathname.startsWith("/student-life");
   const isTeacher = pathname.startsWith("/teacher");
   const isParent = pathname.startsWith("/parent");
-  const hideChrome = isAdmin || isPortal || isStudent || isTeacher || isParent;
+  const hideChrome = isAdmin || isCms || isErp || isPortal || isStudent || isTeacher || isParent;
 
   if (hideChrome) {
     return <>{children}</>;

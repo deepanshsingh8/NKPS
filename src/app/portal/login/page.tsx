@@ -25,7 +25,7 @@ function getDashboardPath(role: string): string {
   switch (role) {
     case "admin":
     case "editor":
-      return "/admin";
+      return "/erp";
     case "teacher":
       return "/teacher";
     case "student":

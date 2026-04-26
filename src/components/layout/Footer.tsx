@@ -8,6 +8,7 @@ const resources = [
   { label: "Admissions", href: "/admissions" },
   { label: "Gallery", href: "/gallery" },
   { label: "Contact", href: "/contact" },
+  { label: "For Parents", href: "/for-parents" },
 ];
 
 export function Footer() {

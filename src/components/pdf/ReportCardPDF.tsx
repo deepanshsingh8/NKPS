@@ -973,6 +973,17 @@ function MainSubjectsTable({
   aggregatePct: number;
 }) {
   const mergedSet = new Set(mergedOptionalIds);
+  // Audit H10: when optionals are merged into this table, the displayed
+  // aggregate should reflect every row shown (otherwise the user sees
+  // 5 rows of pcts but a "Total" line that only averages 4 of them — and
+  // any class rank computed from the same number doesn't match the visible
+  // subjects). Compute a merged-aggregate locally; fall back to the
+  // server-side `aggregatePct` when no optionals are merged.
+  const displayedAggregate =
+    mergedSet.size > 0
+      ? subjects.reduce((acc, s) => acc + s.final_pct, 0) /
+        Math.max(subjects.length, 1)
+      : aggregatePct;
   return (
     <View style={styles.phase3Table}>
       <View style={styles.phase3TableHeader}>
@@ -1035,7 +1046,9 @@ function MainSubjectsTable({
         ))}
         <Text style={styles.phase3ColNum}></Text>
         <Text style={styles.phase3ColGrace}></Text>
-        <Text style={styles.phase3ColNum}>{aggregatePct}%</Text>
+        <Text style={styles.phase3ColNum}>
+          {Math.round(displayedAggregate * 100) / 100}%
+        </Text>
         <Text style={styles.phase3ColGrade}></Text>
         <Text style={styles.phase3ColPF}></Text>
       </View>
