@@ -113,6 +113,7 @@ export function ErpSidebar() {
       headerSubtitle="Operations"
       editorAlwaysAllowedHrefs={EDITOR_ALWAYS_ALLOWED}
       pendingRegistrationBadgeHrefs={PENDING_REGISTRATION_BADGE_HREFS}
+      settingsHref="/portal/settings?from=erp"
     />
   );
 }

@@ -45,6 +45,7 @@ export function CmsSidebar() {
       headerSubtitle="Content"
       editorAlwaysAllowedHrefs={EDITOR_ALWAYS_ALLOWED}
       unreadBadgeHrefs={UNREAD_BADGE_HREFS}
+      settingsHref="/portal/settings?from=cms"
     />
   );
 }

@@ -19,7 +19,7 @@ export default function AdminContactPage() {
 
   const fetchMessages = async () => {
     try {
-      const res = await adminFetch("/api/cms/contact");
+      const res = await adminFetch("/api/admin/contact");
       const data = await res.json();
       if (res.ok) {
         setMessages(data.data ?? []);
@@ -38,7 +38,7 @@ export default function AdminContactPage() {
   const toggleRead = async (msg: ContactSubmission) => {
     const newValue = !msg.is_read;
     try {
-      const res = await adminPatch("/api/cms/contact", {
+      const res = await adminPatch("/api/admin/contact", {
         id: msg.id,
         is_read: newValue,
       });

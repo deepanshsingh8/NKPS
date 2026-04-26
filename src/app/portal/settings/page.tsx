@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,7 @@ interface ProfileData {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -214,10 +215,16 @@ export default function SettingsPage() {
   };
 
   const getDashboardPath = () => {
+    // For admin/editor, honour the ?from=cms|erp hint set by the sidebar that
+    // linked here so users return to the module they came from instead of
+    // always being bounced to ERP.
+    if (profile?.role === "admin" || profile?.role === "editor") {
+      const from = searchParams.get("from");
+      if (from === "cms") return "/cms";
+      if (from === "erp") return "/erp";
+      return "/erp";
+    }
     switch (profile?.role) {
-      case "admin":
-      case "editor":
-        return "/erp";
       case "teacher": return "/teacher";
       default: return "/student";
     }
