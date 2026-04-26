@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[supplementary.GET] list:", error);
+    return NextResponse.json({ error: "Failed to load supplementary attempts" }, { status: 500 });
   }
   return NextResponse.json({ data: data ?? [] });
 }
@@ -106,7 +107,8 @@ export async function POST(request: Request) {
     );
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[supplementary.POST] upsert:", error);
+    return NextResponse.json({ error: "Failed to save supplementary attempts" }, { status: 500 });
   }
   return NextResponse.json({ data: data ?? [], count: data?.length ?? 0 });
 }

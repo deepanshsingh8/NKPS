@@ -40,7 +40,8 @@ export async function PATCH(
     )
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[teacher-absences.PATCH] update:", error);
+    return NextResponse.json({ error: "Failed to update teacher absence" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }
@@ -58,7 +59,8 @@ export async function DELETE(
 
   const { error } = await admin.from("teacher_absences").delete().eq("id", id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[teacher-absences.DELETE] delete:", error);
+    return NextResponse.json({ error: "Failed to delete teacher absence" }, { status: 500 });
   }
   return NextResponse.json({ data: { id } });
 }

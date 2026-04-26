@@ -321,6 +321,7 @@ export async function POST(request: NextRequest) {
     .upsert(records, { onConflict: "student_id,meeting_date" });
 
   if (error) {
+    console.error("[ptm-notes.import.POST] bulk upsert:", error);
     return NextResponse.json(
       {
         summary: {
@@ -329,7 +330,7 @@ export async function POST(request: NextRequest) {
           errors: errorCount,
           committed: 0,
           dry_run: false,
-          commit_error: error.message,
+          commit_error: "Failed to commit PTM notes import",
         },
         rows: results,
       },

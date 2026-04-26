@@ -30,9 +30,9 @@ export async function POST(request: Request) {
     .eq("exam_type_id", exam_type_id)
     .select("id");
   if (error) {
-    console.error("Publish results error:", error);
+    console.error("[results.publish.POST] update:", error);
     return NextResponse.json(
-      { error: error.message ?? "Failed to update publish state" },
+      { error: "Failed to update publish state" },
       { status: 500 }
     );
   }

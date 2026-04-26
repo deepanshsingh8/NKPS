@@ -44,7 +44,8 @@ export async function POST(request: Request) {
     .eq("class_id", class_id)
     .eq("status", "active");
   if (enrErr) {
-    return NextResponse.json({ error: enrErr.message }, { status: 500 });
+    console.error("[finalize-marksheet.POST] enrollments fetch:", enrErr);
+    return NextResponse.json({ error: "Failed to load enrollments" }, { status: 500 });
   }
   const activeSet = new Set((enrollments ?? []).map((e) => e.student_id as string));
   const targetStudents =
@@ -189,9 +190,9 @@ export async function DELETE(request: Request) {
   }
   const { data, error } = await q.select("id");
   if (error) {
-    console.error("Unpublish marksheet error:", error);
+    console.error("[finalize-marksheet.DELETE] unpublish:", error);
     return NextResponse.json(
-      { error: error.message ?? "Failed to unpublish" },
+      { error: "Failed to unpublish marksheet" },
       { status: 500 }
     );
   }

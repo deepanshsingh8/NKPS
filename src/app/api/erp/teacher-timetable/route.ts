@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
     .eq("id", teacherId)
     .single();
   if (teacherErr) {
-    return NextResponse.json({ error: teacherErr.message }, { status: 404 });
+    console.error("[teacher-timetable.GET] teacher fetch:", teacherErr);
+    return NextResponse.json({ error: "Failed to load teacher" }, { status: 404 });
   }
 
   const { data: periods, error: periodsErr } = await admin
@@ -38,7 +39,8 @@ export async function GET(request: NextRequest) {
     .order("day_of_week", { ascending: true })
     .order("start_time", { ascending: true });
   if (periodsErr) {
-    return NextResponse.json({ error: periodsErr.message }, { status: 500 });
+    console.error("[teacher-timetable.GET] periods fetch:", periodsErr);
+    return NextResponse.json({ error: "Failed to load teacher timetable" }, { status: 500 });
   }
 
   return NextResponse.json({ data: { teacher, periods: periods ?? [] } });

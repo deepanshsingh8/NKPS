@@ -24,7 +24,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, TrendingUp, Users, Award } from "lucide-react";
+import { BarChart3, TrendingUp, Users, Award, Pencil } from "lucide-react";
+import Link from "next/link";
 import { formatClassName } from "@/lib/utils";
 import { computeGrade, type GradeBand } from "@/lib/grading";
 import type { Class, ExamType } from "@/types";
@@ -315,13 +316,22 @@ export default function AdminResultsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
-          Results Overview
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          View class-wise performance summary and subject breakdown.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
+            Results Overview
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            View class-wise performance summary and subject breakdown.
+          </p>
+        </div>
+        <Link
+          href="/admin/exams/results/edit"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-white dark:bg-card px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-900/40 transition-colors"
+        >
+          <Pencil className="h-4 w-4" />
+          Edit student results
+        </Link>
       </div>
 
       {/* Filters */}

@@ -126,9 +126,8 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
   - Files: `src/app/admin/timetable/page.tsx`; no API validation
   - Fix: partial unique on `(teacher_id, day, period_number) WHERE teacher_id IS NOT NULL`; also `(class_id, day, period_number)`.
 
-- [~] **M7. Attendance accepts future dates and ignores holidays/Sundays** — partial 2026-04-25
-  - File: `src/app/api/erp/attendance/bulk/route.ts:40–70`
-  - Fix: reject `date > today`; cross-reference `calendar_events`; at minimum skip Sundays.
+- [x] **M7. Attendance accepts future dates and ignores holidays/Sundays** — fixed 2026-04-26
+  - Future dates rejected (existing). Sunday block added (UTC `getUTCDay()===0`). Holiday lookup queries `calendar_events` of type `holiday` whose date range brackets the target date — school-wide events apply to every class, class-scoped events only to the matching `class_id`. Admins can override with `force=true` in the body for makeup classes; teachers always get the gate.
 
 - [x] **M8. Fee structure not scoped to student's class** — already correct (audit incorrect)
   - File: `src/lib/fees.ts:29–50`
@@ -146,10 +145,8 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
 - [x] **M11. `/api/admin/upload-url` signs for any bucket/filename** — fixed 2026-04-25
   - Per-bucket allowlist (`BUCKET_RULES`) — only the 7 buckets the admin UI actually writes to are accepted, each with its own extension whitelist (e.g. `transfer-certificates` → `pdf`, `staff` → image formats). Path-traversal attempts (`..`, leading `/`, `\`) are rejected.
 
-- [ ] **M12. Supabase raw errors returned to clients**
-  - Files: many (e.g. `src/app/api/erp/class-tests/[id]/marks/route.ts:28`)
-  - Leaks column/table names.
-  - Fix: generic message to client; `console.error` raw for server.
+- [x] **M12. Supabase raw errors returned to clients** — fixed 2026-04-26
+  - 53 occurrences across 26 ERP route files swept. Each `error: error.message` (or variants like `?? "default"`, `details: error.message`) replaced with a generic action-specific message (`"Failed to <op>"`); raw error preserved in `console.error("[<context>.<METHOD>] <op>:", err)` for server logs. The two per-row import-result UI strings in `students/bulk/route.ts` were intentionally left intact (the error wording is part of the visible failure list per row), but supplemented with server logging.
 
 - [x] **M13. Non-scholastic assessment text length unbounded** — fixed 2026-04-25
   - Added `.max(50)` on `grade_label` and `.max(500)` on `remarks` in `nonScholasticAssessmentsBulkSchema`. Also added `.max(2000)` on PTM-notes free-text fields and `.max(200)` on class-test names while in there.
@@ -158,30 +155,24 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
   - Files: `tasks/exam-department-expansion.md` (Appendices, Phases 6–8); no code
   - Decision: scope for a later phase; mark UI as "pending" so schools know.
 
-- [ ] **M15. Admit card has no QR / barcode**
-  - File: `src/components/pdf/AdmitCardPDF.tsx`
-  - Fix: embed QR (student_id + exam_type_id).
+- [x] **M15. Admit card has no QR / barcode** — fixed 2026-04-26
+  - New `src/lib/admit-card-qr.ts` generates a QR PNG (qrcode lib, level M, 220px) encoding `{v:1, student_id, admission_no, exam_type_id, exam_name}`. Both `/api/erp/admit-cards/pdf` and `/api/erp/admit-cards/bulk` generate one QR per card and pass it through the new `qrCode` field on `AdmitCardPayload`. The QR slot renders next to the photo frame; QR generation failures degrade silently so a glitch never blocks a card.
 
 - [ ] **M16. Per-class non-scholastic sub-subjects not modelled**
   - Schema: global `non_scholastic_sub_subjects`; no class scoping.
   - Fix: add nullable `class_id` or a join table.
 
-- [ ] **M17. Non-scholastic placement options render as placeholder**
-  - File: `src/components/pdf/ReportCardPDF.tsx`
-  - `below` / `above` / `separate_page` all show "Not yet recorded."
-  - Fix: implement all three branches; pull live data.
+- [x] **M17. Non-scholastic placement options render as placeholder** — fixed 2026-04-26
+  - PDF route now fetches `non_scholastic_assessments` for the student (only `is_published=true`), folds each (parent subject, sub-subject) pair to its most-recent published row, and groups by parent subject. Threaded through `ReportCardPDF` as a new `nonScholasticGroups` prop. Phase3Document renders a real grade table (parent → sub-subject → grade → remarks) when data is present; falls back to "Not yet recorded." otherwise. All three placement modes (`above`/`below`/`separate_page`) now share the same renderer so layout stays consistent.
 
-- [ ] **M18. `/teacher/results` never surfaces final-result computation**
-  - File: `src/app/teacher/results/page.tsx`
-  - Fix: "Preview final result" button that calls the same `computeFinalResult` path.
+- [x] **M18. `/teacher/results` never surfaces final-result computation** — fixed 2026-04-26
+  - Class teachers now see a per-row "Preview" link next to each student that opens the year-final report card PDF in a new tab (`/api/erp/results/report-card/pdf?student_id=…&academic_year_id=…`). The action is gated to `isClassTeacher` so subject-only teachers don't get the link — class-level oversight stays with the class teacher. The endpoint already enforces `canViewReportCard`, so a teacher who lost class-teacher status mid-edit gets a clean 403.
 
 - [x] **M19. `/teacher/non-scholastic` blank grid when no sub-subjects configured** — already handled (audit incorrect)
   - `src/app/teacher/non-scholastic/page.tsx` already renders distinct empty states for "no sub-subjects" and "no students" (around line 468). No change needed.
 
-- [ ] **M20. Phase 4+ tables lack TypeScript interfaces**
-  - File: `src/types/index.ts`
-  - Missing: `grade_scales`, `grade_bands`, `class_grade_scales`, `class_exam_configs`, `pdf_header_configs`, `pdf_footer_configs`, `exam_schedules`, `admit_card_templates`, `result_masters`, `result_master_subjects`, `non_scholastic_subjects`, `non_scholastic_sub_subjects`, `non_scholastic_assessments`, `class_tests`, `class_test_results`, `marksheet_publications`, `publish_events`.
-  - Fix: add interfaces mirroring DB columns.
+- [x] **M20. Phase 4+ tables lack TypeScript interfaces** — fixed 2026-04-26
+  - `src/types/index.ts` now exports interfaces mirroring DB columns for: `GradeScale`, `GradeBand`, `ClassGradeScale`, `ClassExamConfig`, `PdfHeaderConfig`, `PdfFooterConfig`, `ExamSchedule`, `AdmitCardTemplate`, `NonScholasticSubject`, `NonScholasticSubSubject`, `NonScholasticAssessment`, `ClassTest`, `ClassTestResult`, `MarksheetPublication` (+ `MarksheetPublicationKind`), `PublishEvent` (+ `PublishEventType`), `SupplementaryAttempt` (+ `SupplementaryPassAction`), `PtmNote` (+ `PtmAttendance`), `PtmFormat`, `SchoolMeetingCount`. Result master interfaces were already in place.
 
 - [x] **M21. `updated_at` triggers missing on 15 Phase 4+ tables** — fixed 2026-04-25
   - Migration `031-db-hygiene.sql` attaches `set_updated_at()` to all 15 listed tables via a DO block (skips silently if a table is missing for older deployments). Mirrored into `supabase-schema.sql`.
@@ -194,17 +185,14 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
   - No FK from `staff_members` to `teachers`; name changes don't sync.
   - Fix: add `teacher_id` FK (nullable); optional auto-provision.
 
-- [ ] **M24. `exam_schedules` times stored without timezone**
-  - File: `scripts/migration-019-exam-schedules.sql`
-  - Fix: either switch to `timestamptz` or document IST assumption explicitly.
+- [x] **M24. `exam_schedules` times stored without timezone** — fixed 2026-04-26
+  - Decision: keep `time` columns; document the IST assumption explicitly. Migration 034 adds `COMMENT ON COLUMN` to `start_time` / `end_time` / `exam_date` calling out Asia/Kolkata + UTC+05:30. Mirrored to `supabase-schema.sql`. Switching to `timetz` would force every read site to reapply a constant UTC offset for no functional gain.
 
 - [x] **M25. One parent → unlimited linked children** — fixed 2026-04-25
   - Hard cap of 10 children per parent enforced server-side. Beyond that the parent must contact admin.
 
-- [ ] **M26. Deleting a student orphans `profiles` and `parents`**
-  - File: `src/app/api/erp/students/route.ts:414–447`
-  - `profiles.student_id` → NULL; `parents` rows stay.
-  - Fix: cleanup linked profiles + dangling parents in the same handler (or Postgres function).
+- [x] **M26. Deleting a student orphans `profiles` and `parents`** — fixed 2026-04-26
+  - DELETE handler unified across single + bulk paths. Capture parent ids via `student_parents` *before* the cascade; auth-delete linked student profiles; delete enrollments; delete students; then garbage-collect any parent rows that have no remaining `student_parents` link AND no `profiles.parent_id` pointing at them. Parents shared across siblings or with active portal accounts are kept.
 
 - [x] **M27. Class delete has no explicit FK rule** — already correct (audit incorrect)
   - No DELETE handler today, but direct DB delete would orphan results/attendance/enrollments.
@@ -213,9 +201,8 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
 - [x] **M28. `/admin/registrations` is a redirect; editor with `registrations` perm can't land anywhere** — fixed 2026-04-25
   - Dropped the `registrations` feature key entirely (registrations live inside the admin-only `/admin/people/users` page). Updated `permissions.ts` (key/catalog removed; `/admin/registrations` added to `ADMIN_ONLY_PREFIXES`) and `/api/admin/dashboard` (gated by `isAdmin` instead of `can("registrations")`).
 
-- [ ] **M29. Feature-key coverage gaps**
-  - Several ERP routes use raw `profile.role === 'admin'` instead of `verifyAdminOrEditor(featureKey)`. Examples: `/api/erp/students/bulk`, `/api/erp/fees/payments`, various `/api/erp/results/*`.
-  - Fix: standardize on `verifyAdminOrEditor(featureKey)` wherever a matching key exists.
+- [x] **M29. Feature-key coverage gaps** — fixed 2026-04-26
+  - `fees/payments` now uses `verifyAdminOrEditorWithUser("fees")`. The teacher-or-admin route family (`results/bulk`, `attendance/bulk`, `results/import`, `results/export`, `results/remarks`, `class-tests` + `[id]` + `[id]/marks`, `non-scholastic-assessments`) now also accepts editors who hold the matching feature key (`results`, `attendance`, `class_tests`, `non_scholastic_entry`). Pure-admin routes like `subjects/quick-setup` and `subjects/bulk-assign` accept editors with `subjects` perm. Audit-clean admin-only routes (registrations/users) remain locked.
 
 - [x] **M30. Content-Disposition filename can include non-ASCII / CRLF** — fixed 2026-04-25
   - New helper `contentDispositionAttachment(name)` in `src/lib/utils.ts` strips CRLF, ASCII-fences the `filename` form, and emits `filename*=UTF-8''…`. Applied to all 13 download endpoints (report card v1+v2, admit cards single+bulk, white/green sheet pdf+csv, blank marks, ptm notes/format, results export).
@@ -224,35 +211,30 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
 
 ## Low
 
-- [~] **L1. Phone / DOB / admission-no format validators too loose** — partial 2026-04-25
-  - Phone done: Indian mobile regex (10 digits starting with 6-9) with prefix tolerance (`+91`, `91`, leading `0`). Applied to `contactFormSchema`, `createUserSchema`, `registrationRequestSchema`, `parentSchema` via shared `phoneRequiredSchema` / `phoneOptionalSchema`. DOB sanity-range and admission-no regex still TODO — left unticked because they need stricter UI feedback to avoid mass-rejecting legacy rows.
+- [x] **L1. Phone / DOB / admission-no format validators too loose** — fixed 2026-04-26
+  - Phone done previously. New shared `dobBaseSchema` / `dobOptionalSchema` enforces `YYYY-MM-DD`, blocks years before 1900 and dates in the future, applied to `studentSchema`, `studentBulkUploadSchema`, `staffBulkUploadSchema`, `teacherSchema`, `linkChildSchema`. New `admissionNoSchema` rejects whitespace/CRLF/special chars (allowed: alphanumerics, `-`, `_`, `/`, max 32 chars), applied to `studentSchema`, `studentBulkUploadSchema`, `linkChildSchema`. Validation only runs on writes so legacy DB rows are unaffected.
 
-- [ ] **L2. Articles cover-image cleanup misses non-local URLs**
-  - File: `src/app/api/admin/articles/route.ts:169–173`
-  - Fix: always attempt delete; log on miss.
+- [x] **L2. Articles cover-image cleanup misses non-local URLs** — fixed 2026-04-26
+  - DELETE handler now matches any URL containing `/site-media/`, extracts the path after the marker (stripping any querystring), and attempts a storage delete. Failures are logged and never block the article delete.
 
-- [ ] **L3. Disclosure docs soft-delete is half-baked**
-  - File: `src/app/api/admin/disclosure-documents/route.ts:88–96`
-  - Fix: hard-delete drafts; soft-delete only if published.
+- [x] **L3. Disclosure docs soft-delete is half-baked** — closed as won't-fix 2026-04-26
+  - The table stores fixed disclosure slots (one row per `doc_key`). DELETE-as-clear (zeroing `file_url` / `file_name` while keeping the row) is the design — there is no draft-vs-published concept here. Each slot must persist so the disclosure page can render the slot label even when no document is attached. No code change.
 
 - [ ] **L4. Overpayment / late-fee logic not implemented**
   - File: `src/types/index.ts:489–503`
   - Fix: add `late_fee_percent`, `late_fee_fixed_amount`; overpayment credit tracking.
 
-- [ ] **L5. Calendar events not role-scoped on read**
-  - Files: calendar routes / `src/types/index.ts:574–590`
-  - Fix: filter by audience/role in query.
+- [~] **L5. Calendar events not role-scoped on read** — needs schema decision 2026-04-26
+  - The `calendar_events` schema has `is_school_wide` + `class_id` (audience by class) and `is_public` (visible to anonymous public page) but **no per-role audience field**. Today every authenticated user sees every event for their class scope. To filter "PTM Notes are parent-only" or "Staff retreat is staff-only" would require an `audience` column or a join table — left for an explicit product decision before adding the schema. Current behaviour is documented in the type file.
 
-- [ ] **L6. Student-list fetch risks PostgREST URL truncation on large enrollments**
-  - File: `src/app/api/erp/students/route.ts:36–69`
-  - Fix: paginate or chunk enrollment lookups.
+- [x] **L6. Student-list fetch risks PostgREST URL truncation on large enrollments** — fixed 2026-04-26
+  - The class-scoped path now chunks `id IN (…)` into batches of 200 UUIDs (≈7 KB per request), well under the 8 KB URL cap. Results are concatenated and sorted client-side. The all-students path was already safe (uses `.range(0, 9999)` without pre-filtering by id).
 
 - [x] **L7. TC number — 6 random digits, no DB UNIQUE** — ~obsolete 2026-04-24~
   - Generator removed; `tc_number` no longer written by the app. Column remains in schema for any legacy rows.
 
-- [ ] **L8. Alumni flags can't be reverted**
-  - File: `src/app/api/erp/students/promote/route.ts:124–142`
-  - Fix: admin-only "revert alumni" action with audit.
+- [x] **L8. Alumni flags can't be reverted** — fixed 2026-04-26
+  - New admin-only endpoint `POST /api/erp/students/revert-alumni` clears `is_alumni`, `alumni_passing_year`, `alumni_academic_year_id` and sets `is_active=true`. Optional `reactivate_class_id` + `reactivate_academic_year_id` create or reactivate an enrollment in one round-trip. Reason is required (5–500 chars) and logged. Migration 035 adds `revert_alumni` and a generic `admin_audit` value to the `publish_events.event_type` enum so the action shows up in the existing audit feed.
 
 - [ ] **L9. Editor-permission revocation has in-flight window**
   - Document as known behavior; session refresh covers steady state.
@@ -266,9 +248,8 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
 - [x] **L12. Transport opt-in missing in TC form** — ~obsolete 2026-04-24~
   - TC generate form removed. `has_transport` on `student_enrollments` can be set from the student edit screen if still relevant.
 
-- [ ] **L13. Default grade bands use `89.99`-style upper bounds; edit round-trips can drift**
-  - File: `scripts/migration-015-grade-master.sql:51–62`
-  - Fix: adopt exclusive-upper-bound semantics (ties into H12).
+- [x] **L13. Default grade bands use `89.99`-style upper bounds; edit round-trips can drift** — fixed 2026-04-26
+  - Migration 015 seed updated to clean integer thresholds (90/80/70/60/50/40). Migration 036 carries the cleanup forward for already-deployed schools — only touches rows still at their factory `.99` defaults so any school that hand-edited bands is left alone. Mirrored to schema. With H12's descending-min lookup the upper bound is informational, but the edit-round-trip drift mentioned in the original audit is now impossible because adjacent bands share the same boundary value.
 
 ---
 
@@ -277,16 +258,16 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
 - [x] **IF1. Class tests** — fixed 2026-04-25 (See H6.)
 - [ ] **IF2. `max_marks_override`** — UI exists; engine ignores it. (See H5.)
 - [x] **IF3. Marksheet snapshot** — fixed 2026-04-25 (See C3.)
-- [ ] **IF4. Non-scholastic on report-card PDF** — "Not yet recorded" placeholder. (See M17.)
+- [x] **IF4. Non-scholastic on report-card PDF** — fixed 2026-04-26 (See M17.)
 - [ ] **IF5. Per-class non-scholastic sub-subject scoping** — not modelled. (See M16.)
 - [ ] **IF6. Division labels / White Sheet / Green Sheet / Supplementary / PTM Notes** — spec'd, unbuilt. (See M14.)
-- [ ] **IF7. Admit card QR** — absent. (See M15.)
+- [x] **IF7. Admit card QR** — fixed 2026-04-26 (See M15.)
 - [ ] **IF8. Fee waiver / refund / partial / overpayment / late-fee** — stubs only. (See M9, L4.)
 - [ ] **IF9. Attendance per-period / holiday exclusion** — absent. (See M7, L5.)
 - [ ] **IF10. Parent self-service cap + rate limit** — absent. (See C2, M25.)
 - [x] **IF11. TC draft/issued/revoked workflow + transport field** — ~closed 2026-04-24~ (TC generation removed in favor of upload-only; see H17/H18/L7/L12.)
 - [ ] **IF12. `/admin/registrations` real page** — redirect only. (See M28.)
-- [ ] **IF13. Final-result preview in teacher portal** — absent. (See M18.)
+- [x] **IF13. Final-result preview in teacher portal** — fixed 2026-04-26 (See M18.)
 
 ---
 
@@ -298,4 +279,25 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
 
 ## Review
 
-_Add a short review here after each batch is shipped: what changed, what surprised, what follow-ups._
+### Batch 2 — 2026-04-26 (this session)
+
+**Closed:** M7, M12, M17, M18, M20, M24, M26, M29, L1, L2, L3 (won't-fix), L6, L8, L13, M15/IF7, IF4, IF13.
+
+**Open and needing your input:**
+- **M9 / IF8** — Fee lifecycle (paid only vs. full waiver/refund/partial UI). Decision pending: narrow the enum to `paid` for now, or build the full lifecycle UI?
+- **M14 / IF6** — Division labels (First/Second/Third Division by aggregate %). Need the % thresholds NKPS uses, or confirmation we should drop this.
+- **M16 / IF5** — Per-class non-scholastic sub-subjects. Need to know if nursery/primary/secondary really need different sub-subject sets, or if global is fine.
+- **M23** — Staff ↔ teacher record sync (FK + sync flow). Need go/no-go.
+- **L5** — Calendar events role audience (schema decision: add `audience text[]` column or join table?).
+
+**Open and lower-priority:**
+- **L4** — Late-fee / overpayment fields in fee_structures (depends on M9 decision).
+- **L9** — Editor-permission revocation in-flight window (documented as known behaviour).
+- **H22** — `/api/admin` proxy is over-powered (already partial; full deprecation is a longer project).
+
+**Follow-ups discovered during this batch:**
+- New migrations 034, 035, 036 need to be applied alongside the 029–033 batch from session 1.
+- New endpoint `POST /api/erp/students/revert-alumni` is wired but has **no UI yet** — admin must call it via fetch / Postman until the people page gets a button.
+- New peer dep `qrcode` (and `@types/qrcode`) added to package.json — will be picked up on `npm install` during deploy.
+- Editor-aware role gating now also accepts editors on the teacher-shared routes — verify with the school that this is the expected staffing model (e.g. "exam coordinator" editor entering marks alongside teachers).
+- L5 (calendar audience) and M16 (per-class non-scholastic taxonomy) need product decisions before any code can land.

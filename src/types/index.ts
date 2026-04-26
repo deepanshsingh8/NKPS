@@ -694,3 +694,280 @@ export interface ClassSubjectWithDetails extends ClassSubject {
   subject?: Subject;
   teacher?: Teacher | null;
 }
+
+// =============================================================
+// Phase 4+ tables — grade master, PDF templates, exam schedules,
+// admit-card templates, result master subjects/non-scholastic,
+// class tests, marksheet snapshots
+// =============================================================
+
+export type GradeScaleScope = 'scholastic' | 'non_scholastic';
+
+export interface GradeScale {
+  id: string;
+  name: string;
+  scope: GradeScaleScope;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GradeBand {
+  id: string;
+  grade_scale_id: string;
+  label: string;
+  min_pct: number;
+  max_pct: number;
+  remark: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface ClassGradeScale {
+  class_id: string;
+  grade_scale_id: string;
+  updated_at: string;
+}
+
+export interface ClassExamConfig {
+  id: string;
+  class_id: string;
+  exam_type_id: string;
+  is_applicable: boolean;
+  weightage: number | null;
+  max_marks_override: number | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PdfHeaderConfig {
+  id: string;
+  template_key: string;
+  school_name: string;
+  address_line: string;
+  affiliation: string | null;
+  affiliation_number: string | null;
+  logo_url: string | null;
+  motto: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PdfFooterConfig {
+  id: string;
+  template_key: string;
+  disclaimer_text: string | null;
+  show_signatures: boolean;
+  signature_labels: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExamSchedule {
+  id: string;
+  exam_type_id: string;
+  class_id: string;
+  subject_id: string;
+  exam_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  room: string | null;
+  invigilator_teacher_id: string | null;
+  sort_order: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AdmitCardOrientation = 'portrait' | 'landscape';
+
+export interface AdmitCardTemplate {
+  id: string;
+  name: string;
+  is_default: boolean;
+  orientation: AdmitCardOrientation;
+  background_image_url: string | null;
+  show_photo: boolean;
+  show_admission_no: boolean;
+  show_roll_no: boolean;
+  show_class_section: boolean;
+  show_father_name: boolean;
+  show_mother_name: boolean;
+  show_dob: boolean;
+  show_phone: boolean;
+  show_address: boolean;
+  show_schedule: boolean;
+  show_instructions: boolean;
+  instructions_text: string | null;
+  signature_labels: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NonScholasticSubject {
+  id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NonScholasticSubSubject {
+  id: string;
+  parent_subject_id: string;
+  name: string;
+  grade_scale_id: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NonScholasticAssessment {
+  id: string;
+  student_id: string;
+  class_id: string;
+  exam_type_id: string;
+  sub_subject_id: string;
+  grade_label: string;
+  remarks: string | null;
+  entered_by: string | null;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClassTest {
+  id: string;
+  class_id: string;
+  subject_id: string;
+  name: string;
+  test_date: string | null;
+  max_marks: number;
+  weightage: number | null;
+  is_published: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClassTestResult {
+  id: string;
+  class_test_id: string;
+  student_id: string;
+  marks_obtained: number;
+  max_marks: number;
+  grade: string | null;
+  remarks: string | null;
+  entered_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type MarksheetPublicationKind = 'per_exam' | 'year_final';
+
+export interface MarksheetPublication {
+  id: string;
+  student_id: string;
+  class_id: string;
+  exam_type_id: string | null;
+  academic_year_id: string | null;
+  kind: MarksheetPublicationKind;
+  version: number;
+  snapshot: Record<string, unknown>;
+  schema_version: string;
+  published_at: string;
+  published_by: string | null;
+  unpublished_at: string | null;
+  unpublish_reason: string | null;
+  unpublished_by: string | null;
+  created_at: string;
+}
+
+export type PublishEventType =
+  | 'publish_results'
+  | 'unpublish_results'
+  | 'finalize_marksheet'
+  | 'unpublish_marksheet'
+  | 're_finalize_marksheet'
+  | 'finalize_year_final'
+  | 'unpublish_year_final'
+  | 're_finalize_year_final';
+
+export interface PublishEvent {
+  id: string;
+  event_type: PublishEventType;
+  class_id: string | null;
+  exam_type_id: string | null;
+  student_id: string | null;
+  actor_id: string | null;
+  acted_at: string;
+  note: string | null;
+}
+
+export type SupplementaryPassAction = 'cap_at_pass_mark' | 'use_retest_marks';
+
+export interface SupplementaryAttempt {
+  id: string;
+  student_id: string;
+  parent_exam_type_id: string;
+  subject_id: string;
+  class_id: string;
+  retest_date: string | null;
+  marks_obtained: number;
+  max_marks: number;
+  passed: boolean;
+  entered_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PtmAttendance = 'present' | 'absent';
+
+export interface PtmNote {
+  id: string;
+  student_id: string;
+  exam_type_id: string | null;
+  meeting_date: string;
+  attendance: PtmAttendance;
+  teacher_remarks: string | null;
+  parent_remarks: string | null;
+  action_points: string | null;
+  recorded_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PtmFormat {
+  id: string;
+  name: string;
+  is_default: boolean;
+  is_active: boolean;
+  intro_text: string | null;
+  closing_text: string | null;
+  show_student_details: boolean;
+  show_photo: boolean;
+  show_father_name: boolean;
+  show_mother_name: boolean;
+  show_performance_snapshot: boolean;
+  show_teacher_remarks_section: boolean;
+  teacher_remarks_lines: number;
+  show_parent_signature: boolean;
+  signature_labels: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SchoolMeetingCount {
+  id: string;
+  academic_year_id: string;
+  exam_type_id: string | null;
+  class_id: string | null;
+  total_meetings: number;
+  updated_at: string;
+}

@@ -230,6 +230,7 @@ export async function POST(request: Request) {
         .select("id, admission_no");
 
       if (batchError) {
+        console.error("[students.bulk.POST] batch upsert:", batchError);
         // If the whole batch fails, record errors for all students in the batch
         for (const p of batch) {
           errors.push({
@@ -303,6 +304,7 @@ export async function POST(request: Request) {
               .upsert(enrollmentRecords[j], { onConflict: "student_id,class_id" });
 
             if (singleError) {
+              console.error("[students.bulk.POST] enrollment upsert:", singleError);
               errors.push({
                 admission_no: enrollmentStudents[j].admissionNo,
                 full_name: enrollmentStudents[j].fullName,

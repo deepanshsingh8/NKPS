@@ -36,7 +36,8 @@ export async function PATCH(
     .select("id, absence_id, timetable_period_id, substitute_teacher_id, note, updated_at")
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[substitutions.PATCH] update:", error);
+    return NextResponse.json({ error: "Failed to update substitution" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }
@@ -53,7 +54,8 @@ export async function DELETE(
 
   const { error } = await admin.from("substitutions").delete().eq("id", id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[substitutions.DELETE] delete:", error);
+    return NextResponse.json({ error: "Failed to delete substitution" }, { status: 500 });
   }
   return NextResponse.json({ data: { id } });
 }

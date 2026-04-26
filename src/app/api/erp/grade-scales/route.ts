@@ -37,7 +37,8 @@ export async function GET() {
     .order("name", { ascending: true });
 
   if (scaleErr) {
-    return NextResponse.json({ error: scaleErr.message }, { status: 500 });
+    console.error("[grade-scales.GET] list:", scaleErr);
+    return NextResponse.json({ error: "Failed to load grade scales" }, { status: 500 });
   }
 
   const scaleIds = (scales ?? []).map((s) => s.id);
@@ -111,8 +112,9 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (scaleErr || !scale) {
+    console.error("[grade-scales.POST] insert scale:", scaleErr);
     return NextResponse.json(
-      { error: scaleErr?.message ?? "Failed to create scale" },
+      { error: "Failed to create grade scale" },
       { status: 500 }
     );
   }
@@ -128,9 +130,10 @@ export async function POST(request: NextRequest) {
 
   const { error: bandErr } = await admin.from("grade_bands").insert(bandRows);
   if (bandErr) {
+    console.error("[grade-scales.POST] insert bands:", bandErr);
     // Roll back the scale so we don't leave a bandless scale row behind.
     await admin.from("grade_scales").delete().eq("id", scale.id);
-    return NextResponse.json({ error: bandErr.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to create grade bands" }, { status: 500 });
   }
 
   return NextResponse.json({ data: { ...scale, bands: bandRows } });

@@ -4,8 +4,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import {
   GraduationCap,
-  Users,
-  Download,
+  LayoutGrid,
   Calendar,
   ArrowRight,
 } from "lucide-react";
@@ -16,34 +15,23 @@ import { cn } from "@/lib/utils";
 const links = [
   {
     icon: GraduationCap,
-    title: "Student Portal",
-    description: "Access academic records, results, and assignments online",
+    title: "ERP Login",
+    description: "Students, parents, teachers & staff — academic records, results, fees, attendance",
     href: "/portal/login",
-    span: "md:col-span-2",
     featured: true,
   },
   {
-    icon: Users,
-    title: "Staff Portal",
-    description: "Teacher & admin login",
-    href: "/portal/login",
-    span: "",
-    featured: false,
-  },
-  {
-    icon: Download,
-    title: "Downloads",
-    description: "Forms, circulars & more",
-    href: "/transfer-certificates",
-    span: "",
+    icon: LayoutGrid,
+    title: "CMS Login",
+    description: "Admins & editors — manage gallery, articles, transfer certificates, and site content",
+    href: "/admin/login",
     featured: false,
   },
   {
     icon: Calendar,
     title: "Academic Calendar",
-    description: "View important dates, holidays, and exam schedules",
-    href: "/academics",
-    span: "md:col-span-2",
+    description: "Upcoming events, holidays, exams and PTM schedule",
+    href: "/academic-calendar",
     featured: false,
   },
 ];
@@ -63,13 +51,12 @@ export function QuickLinks() {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-100px" }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-5 mt-12"
+          className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-5 mt-12"
         >
           {links.map((link) => (
             <motion.div
               key={link.title}
               variants={fadeUp}
-              className={link.span}
             >
               <Link href={link.href} className="block h-full">
                 <motion.div

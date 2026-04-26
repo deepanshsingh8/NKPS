@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[class-tests.GET] list:", error);
+    return NextResponse.json({ error: "Failed to load class tests" }, { status: 500 });
   }
   return NextResponse.json({ data: data ?? [] });
 }
@@ -51,11 +52,21 @@ export async function POST(request: Request) {
     .select("role")
     .eq("id", user.id)
     .single();
-  if (!profile || (profile.role !== "teacher" && profile.role !== "admin")) {
-    return NextResponse.json(
-      { error: "Forbidden: teacher or admin access required" },
-      { status: 403 }
-    );
+  if (!profile) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (profile.role === "editor") {
+    const { data: perm } = await supabase
+      .from("editor_permissions")
+      .select("feature_key")
+      .eq("editor_id", user.id)
+      .eq("feature_key", "class_tests")
+      .maybeSingle();
+    if (!perm) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  } else if (profile.role !== "admin" && profile.role !== "teacher") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = await request.json();
@@ -85,9 +96,9 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
-    console.error("Class test insert error:", error);
+    console.error("[class-tests.POST] insert:", error);
     return NextResponse.json(
-      { error: error.message ?? "Failed to create class test" },
+      { error: "Failed to create class test" },
       { status: 500 }
     );
   }

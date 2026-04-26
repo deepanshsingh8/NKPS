@@ -12,6 +12,7 @@ import {
   type AdmitCardScheduleRow,
   type AdmitCardTemplateConfig,
 } from "@/components/pdf/AdmitCardPDF";
+import { generateAdmitCardQrBuffer } from "@/lib/admit-card-qr";
 
 export const runtime = "nodejs";
 
@@ -200,6 +201,29 @@ export async function GET(request: Request) {
       }
     }
 
+    // Render one QR per student so exam-hall staff can verify a printed
+    // admit card by scanning. Failures degrade gracefully (no QR slot).
+    const qrMap = new Map<string, Buffer>();
+    const qrEntries = await Promise.all(
+      enrollments.map(async (e) => {
+        const student = e.students as unknown as {
+          id: string;
+          admission_no: string;
+        } | null;
+        if (!student) return null;
+        const bytes = await generateAdmitCardQrBuffer({
+          student_id: student.id,
+          admission_no: student.admission_no,
+          exam_type_id: examTypeRow.id,
+          exam_name: examTypeRow.name,
+        });
+        return bytes ? ([student.id, bytes] as const) : null;
+      })
+    );
+    for (const entry of qrEntries) {
+      if (entry) qrMap.set(entry[0], entry[1]);
+    }
+
     const generatedOn = new Date().toLocaleString("en-IN", {
       timeZone: "Asia/Kolkata",
       day: "2-digit",
@@ -241,6 +265,7 @@ export async function GET(request: Request) {
         },
         schedule,
         studentPhoto: photoMap.get(student.id),
+        qrCode: qrMap.get(student.id),
       };
     });
 

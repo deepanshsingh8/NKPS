@@ -81,7 +81,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     .select("*")
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[result-masters.PATCH] update:", error);
+    return NextResponse.json({ error: "Failed to update result master" }, { status: 500 });
   }
   if (!updated) {
     return NextResponse.json({ error: "Result master not found" }, { status: 404 });
@@ -101,7 +102,8 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
 
   const { error } = await admin.from("result_masters").delete().eq("id", id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[result-masters.DELETE] delete:", error);
+    return NextResponse.json({ error: "Failed to delete result master" }, { status: 500 });
   }
   return NextResponse.json({ success: true });
 }

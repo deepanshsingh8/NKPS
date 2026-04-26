@@ -12,6 +12,7 @@ import {
   type AdmitCardScheduleRow,
   type AdmitCardTemplateConfig,
 } from "@/components/pdf/AdmitCardPDF";
+import { generateAdmitCardQrBuffer } from "@/lib/admit-card-qr";
 
 export const runtime = "nodejs";
 
@@ -177,9 +178,15 @@ export async function GET(request: Request) {
 
     const { header, footer } = await getPdfTemplate(supabase, "admit_card");
 
-    const [logoData, studentPhoto] = await Promise.all([
+    const [logoData, studentPhoto, qrCode] = await Promise.all([
       loadLogo(),
       template.show_photo ? fetchPhoto(studentRow.photo_url) : Promise.resolve(null),
+      generateAdmitCardQrBuffer({
+        student_id: studentRow.id,
+        admission_no: studentRow.admission_no,
+        exam_type_id: examTypeRow.id,
+        exam_name: examTypeRow.name,
+      }),
     ]);
 
     const generatedOn = new Date().toLocaleString("en-IN", {
@@ -211,6 +218,7 @@ export async function GET(request: Request) {
       },
       schedule,
       studentPhoto: studentPhoto ?? undefined,
+      qrCode: qrCode ?? undefined,
     };
 
     const buffer = await renderToBuffer(

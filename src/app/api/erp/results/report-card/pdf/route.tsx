@@ -406,6 +406,109 @@ export async function GET(request: Request) {
       show_rank: Boolean(masterRow.show_rank),
     };
 
+    // Resolve non-scholastic assessments for the year. Each (parent subject,
+    // sub_subject) pair is folded into its most-recent published assessment
+    // row (we sort by updated_at DESC so re-grades land in the report). When
+    // include_non_scholastic is false on the master, we still skip the fetch
+    // so admins who haven't enabled the section don't pay any cost.
+    let nonScholasticGroups: Array<{
+      parent_id: string;
+      parent_name: string;
+      sub_subjects: Array<{
+        sub_subject_id: string;
+        sub_subject_name: string;
+        grade_label: string | null;
+        remarks: string | null;
+      }>;
+    }> = [];
+    if (resultMasterProp.include_non_scholastic) {
+      const { data: assessments } = await supabase
+        .from("non_scholastic_assessments")
+        .select(
+          `id, sub_subject_id, grade_label, remarks, is_published, updated_at,
+           sub:non_scholastic_sub_subjects(id, name, sort_order, is_active,
+             parent:non_scholastic_subjects(id, name, sort_order, is_active))`
+        )
+        .eq("student_id", studentId)
+        .eq("is_published", true)
+        .order("updated_at", { ascending: false });
+      type Row = {
+        sub_subject_id: string;
+        grade_label: string | null;
+        remarks: string | null;
+        sub:
+          | {
+              id: string;
+              name: string;
+              sort_order: number;
+              is_active: boolean;
+              parent:
+                | {
+                    id: string;
+                    name: string;
+                    sort_order: number;
+                    is_active: boolean;
+                  }
+                | { id: string; name: string; sort_order: number; is_active: boolean }[]
+                | null;
+            }
+          | { id: string; name: string; sort_order: number; is_active: boolean; parent: unknown }[]
+          | null;
+      };
+      // Most-recent first; first occurrence per sub_subject_id wins.
+      const seenSub = new Set<string>();
+      type ParentBucket = {
+        parent_id: string;
+        parent_name: string;
+        parent_sort: number;
+        sub_subjects: Array<{
+          sub_subject_id: string;
+          sub_subject_name: string;
+          sub_sort: number;
+          grade_label: string | null;
+          remarks: string | null;
+        }>;
+      };
+      const byParent = new Map<string, ParentBucket>();
+      for (const r of (assessments ?? []) as Row[]) {
+        if (seenSub.has(r.sub_subject_id)) continue;
+        seenSub.add(r.sub_subject_id);
+        const sub = Array.isArray(r.sub) ? r.sub[0] : r.sub;
+        if (!sub || !sub.is_active) continue;
+        const parent = Array.isArray(sub.parent) ? sub.parent[0] : sub.parent;
+        if (!parent || !parent.is_active) continue;
+        const bucket: ParentBucket =
+          byParent.get(parent.id) ?? {
+            parent_id: parent.id,
+            parent_name: parent.name,
+            parent_sort: parent.sort_order ?? 0,
+            sub_subjects: [] as ParentBucket["sub_subjects"],
+          };
+        bucket.sub_subjects.push({
+          sub_subject_id: sub.id,
+          sub_subject_name: sub.name,
+          sub_sort: sub.sort_order ?? 0,
+          grade_label: r.grade_label,
+          remarks: r.remarks,
+        });
+        byParent.set(parent.id, bucket);
+      }
+      nonScholasticGroups = Array.from(byParent.values())
+        .sort((a, b) => a.parent_sort - b.parent_sort || a.parent_name.localeCompare(b.parent_name))
+        .map((b) => ({
+          parent_id: b.parent_id,
+          parent_name: b.parent_name,
+          sub_subjects: b.sub_subjects
+            .sort((x, y) => x.sub_sort - y.sub_sort || x.sub_subject_name.localeCompare(y.sub_subject_name))
+            .map(({ sub_subject_id, sub_subject_name, grade_label, remarks }) => ({
+              sub_subject_id,
+              sub_subject_name,
+              grade_label,
+              remarks,
+            })),
+        }));
+    }
+
     const buffer = await renderToBuffer(
       <ReportCardPDF
         school={{
@@ -422,6 +525,7 @@ export async function GET(request: Request) {
         footer={footer}
         finalResult={enriched}
         resultMaster={resultMasterProp}
+        nonScholasticGroups={nonScholasticGroups}
       />
     );
 

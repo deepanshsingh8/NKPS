@@ -33,6 +33,41 @@ const phoneOptionalSchema = z
   .optional()
   .or(z.literal(""));
 
+// Sanity-bounded ISO date for date-of-birth fields. Accepts YYYY-MM-DD only;
+// rejects entries before 1900 or in the future. Returns the canonical YYYY-MM-DD
+// string when it parses; existing rows with looser values continue to read
+// from the DB unchanged because validation only runs on writes.
+const dobBaseSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD")
+  .refine((v) => {
+    const t = Date.parse(`${v}T00:00:00Z`);
+    if (Number.isNaN(t)) return false;
+    const year = Number(v.slice(0, 4));
+    if (year < 1900) return false;
+    return t <= Date.now();
+  }, { message: "Date out of range" });
+
+export const dobOptionalSchema = z
+  .string()
+  .optional()
+  .refine((v) => v === undefined || v === "" || dobBaseSchema.safeParse(v).success, {
+    message: "Date of birth must be a valid past date in YYYY-MM-DD form",
+  });
+
+// Admission numbers are printed on certificates and used in URLs/CSVs, so the
+// allowed character set is intentionally tight: alphanumerics, hyphen, slash,
+// underscore, with a 32-char ceiling. Whitespace and CR/LF are rejected so a
+// pasted multi-line value can't sneak through and break PDF rendering.
+const admissionNoRegex = /^[A-Za-z0-9][A-Za-z0-9\-_/]{0,31}$/;
+const admissionNoSchema = z
+  .string()
+  .min(1, "Admission number is required")
+  .regex(
+    admissionNoRegex,
+    "Admission number can only contain letters, digits, '-', '_' and '/' (max 32 chars)"
+  );
+
 export const contactFormSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
@@ -386,11 +421,8 @@ export type RegistrationRequestData = z.infer<typeof registrationRequestSchema>;
 // =============================================================
 
 export const linkChildSchema = z.object({
-  admission_no: z.string().min(1, "Admission number is required"),
-  date_of_birth: z.string().regex(
-    /^\d{4}-\d{2}-\d{2}$/,
-    "Date of birth must be in YYYY-MM-DD format"
-  ),
+  admission_no: admissionNoSchema,
+  date_of_birth: dobBaseSchema,
   relationship: z.enum(["father", "mother", "guardian"], {
     message: "Please select your relationship",
   }),
@@ -403,11 +435,11 @@ export type LinkChildData = z.infer<typeof linkChildSchema>;
 // =============================================================
 
 export const studentSchema = z.object({
-  admission_no: z.string().min(1, "Admission number is required"),
+  admission_no: admissionNoSchema,
   full_name: z.string().min(2, "Full name must be at least 2 characters"),
   father_name: z.string().optional().or(z.literal("")),
   mother_name: z.string().optional().or(z.literal("")),
-  date_of_birth: z.string().optional().or(z.literal("")),
+  date_of_birth: dobOptionalSchema,
   gender: z.enum(["male", "female", "other"]).optional(),
   address: z.string().optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
@@ -425,14 +457,14 @@ export const enrollmentStatusSchema = z.enum(['active', 'passed', 'failed', 'ter
 export const studentBulkUploadSchema = z.object({
   students: z.array(
     z.object({
-      admission_no: z.string().min(1, "Admission number is required"),
+      admission_no: admissionNoSchema,
       full_name: z.string().min(2, "Name is required"),
       class_name: z.string().min(1, "Class is required"),
       section: z.string().optional().or(z.literal("")),
       stream: z.string().optional().or(z.literal("")),
       father_name: z.string().optional().or(z.literal("")),
       mother_name: z.string().optional().or(z.literal("")),
-      date_of_birth: z.string().optional().or(z.literal("")),
+      date_of_birth: dobOptionalSchema,
       gender: z.string().optional().or(z.literal("")),
       phone: z.string().optional().or(z.literal("")),
       address: z.string().optional().or(z.literal("")),
@@ -458,7 +490,7 @@ export const staffBulkUploadSchema = z.object({
       category: z.string().optional(),
       email: z.string().optional().or(z.literal("")),
       phone: z.string().optional().or(z.literal("")),
-      date_of_birth: z.string().optional().or(z.literal("")),
+      date_of_birth: dobOptionalSchema,
       address: z.string().optional().or(z.literal("")),
       qualifications: z.string().optional().or(z.literal("")),
     })
@@ -477,7 +509,7 @@ export const teacherSchema = z.object({
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
   date_of_joining: z.string().optional().or(z.literal("")),
-  date_of_birth: z.string().optional().or(z.literal("")),
+  date_of_birth: dobOptionalSchema,
   gender: z.enum(["male", "female", "other"]).optional(),
   qualifications: z.string().optional().or(z.literal("")),
   specialization: z.string().optional().or(z.literal("")),

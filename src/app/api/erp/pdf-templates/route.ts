@@ -131,7 +131,8 @@ export async function PUT(request: NextRequest) {
         { onConflict: "template_key" }
       );
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("[pdf-templates.PUT] header upsert:", error);
+      return NextResponse.json({ error: "Failed to update PDF header" }, { status: 500 });
     }
   }
 
@@ -153,7 +154,8 @@ export async function PUT(request: NextRequest) {
         { onConflict: "template_key" }
       );
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("[pdf-templates.PUT] footer upsert:", error);
+      return NextResponse.json({ error: "Failed to update PDF footer" }, { status: 500 });
     }
   }
 

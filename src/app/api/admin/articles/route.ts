@@ -166,10 +166,29 @@ export async function DELETE(request: NextRequest) {
       .eq("id", id)
       .single();
 
-    if (article?.cover_image_url?.includes("/site-media/articles/")) {
-      const parts = article.cover_image_url.split("/site-media/");
-      const fileName = parts[parts.length - 1];
-      if (fileName) await admin.storage.from("site-media").remove([fileName]);
+    // Always attempt to clean up the cover image, regardless of URL shape.
+    // Earlier code only matched the `/site-media/articles/…` pattern, which
+    // skipped the older `/site-media/<filename>` format and left orphan
+    // blobs behind. We now extract the path after `/site-media/` (if present)
+    // and try a delete; failures are logged but never block the article delete.
+    if (article?.cover_image_url) {
+      const url = article.cover_image_url;
+      const marker = "/site-media/";
+      const idx = url.indexOf(marker);
+      if (idx >= 0) {
+        const fileName = url.slice(idx + marker.length).split("?")[0];
+        if (fileName) {
+          const { error: storageErr } = await admin.storage
+            .from("site-media")
+            .remove([fileName]);
+          if (storageErr) {
+            console.error(
+              `[articles.DELETE] storage cleanup ${fileName}:`,
+              storageErr
+            );
+          }
+        }
+      }
     }
 
     const { error } = await admin.from("articles").delete().eq("id", id);

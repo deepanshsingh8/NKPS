@@ -79,7 +79,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[grade-scales.PATCH] update:", error);
+    return NextResponse.json({ error: "Failed to update grade scale" }, { status: 500 });
   }
 
   // If bands supplied, replace them wholesale (simplest correct semantics
@@ -96,7 +97,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }));
     const { error: bandErr } = await admin.from("grade_bands").insert(bandRows);
     if (bandErr) {
-      return NextResponse.json({ error: bandErr.message }, { status: 500 });
+      console.error("[grade-scales.PATCH] bands replace:", bandErr);
+      return NextResponse.json({ error: "Failed to update grade bands" }, { status: 500 });
     }
   }
 
@@ -161,7 +163,8 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
 
   const { error } = await admin.from("grade_scales").delete().eq("id", id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[grade-scales.DELETE] delete:", error);
+    return NextResponse.json({ error: "Failed to delete grade scale" }, { status: 500 });
   }
 
   return NextResponse.json({ data: { id } });

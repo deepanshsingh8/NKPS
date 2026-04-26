@@ -69,7 +69,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     .delete()
     .eq("result_master_id", id);
   if (delErr) {
-    return NextResponse.json({ error: delErr.message }, { status: 500 });
+    console.error("[result-master-subjects.PUT] delete:", delErr);
+    return NextResponse.json({ error: "Failed to update subjects" }, { status: 500 });
   }
 
   if (rows.length === 0) {
@@ -84,9 +85,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     )
     .order("sort_order", { ascending: true });
   if (insErr) {
+    console.error("[result-master-subjects.PUT] insert after delete:", insErr);
     return NextResponse.json(
       {
-        error: `Subjects insert failed after delete; master is now subject-less. ${insErr.message}`,
+        error: "Subjects insert failed after delete; master is now subject-less.",
         code: "SUBJECTS_INSERT_FAILED",
       },
       { status: 500 }

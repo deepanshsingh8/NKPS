@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[school-meeting-counts.GET] list:", error);
+    return NextResponse.json({ error: "Failed to load school meeting counts" }, { status: 500 });
   }
   return NextResponse.json({ data: data ?? [] });
 }
@@ -114,7 +115,8 @@ export async function PUT(request: Request) {
       .select()
       .single();
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("[school-meeting-counts.PUT] update:", error);
+      return NextResponse.json({ error: "Failed to update school meeting count" }, { status: 500 });
     }
     return NextResponse.json({ data });
   }
@@ -130,7 +132,8 @@ export async function PUT(request: Request) {
     .select()
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[school-meeting-counts.PUT] insert:", error);
+    return NextResponse.json({ error: "Failed to create school meeting count" }, { status: 500 });
   }
   return NextResponse.json({ data }, { status: 201 });
 }

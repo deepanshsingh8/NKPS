@@ -87,8 +87,9 @@ export async function GET(request: NextRequest) {
     .eq("id", absenceId)
     .single();
   if (absenceErr || !absence) {
+    console.error("[substitutions.suggest.GET] absence fetch:", absenceErr);
     return NextResponse.json(
-      { error: absenceErr?.message ?? "Absence not found" },
+      { error: "Absence not found" },
       { status: 404 }
     );
   }
@@ -115,7 +116,8 @@ export async function GET(request: NextRequest) {
 
   const { data: affectedPeriods, error: affectedErr } = await affectedQuery;
   if (affectedErr) {
-    return NextResponse.json({ error: affectedErr.message }, { status: 500 });
+    console.error("[substitutions.suggest.GET] affected periods:", affectedErr);
+    return NextResponse.json({ error: "Failed to load affected periods" }, { status: 500 });
   }
 
   // 3. Candidate pool: all active teachers excluding the absent one.
@@ -125,7 +127,8 @@ export async function GET(request: NextRequest) {
     .eq("is_active", true)
     .neq("id", absence.teacher_id);
   if (candidatesErr) {
-    return NextResponse.json({ error: candidatesErr.message }, { status: 500 });
+    console.error("[substitutions.suggest.GET] candidates fetch:", candidatesErr);
+    return NextResponse.json({ error: "Failed to load candidates" }, { status: 500 });
   }
 
   // 4. All timetable rows for this weekday (busy-set per teacher).
@@ -135,7 +138,8 @@ export async function GET(request: NextRequest) {
     .eq("day_of_week", dayOfWeek)
     .not("teacher_id", "is", null);
   if (busyErr) {
-    return NextResponse.json({ error: busyErr.message }, { status: 500 });
+    console.error("[substitutions.suggest.GET] day busy fetch:", busyErr);
+    return NextResponse.json({ error: "Failed to load day timetable" }, { status: 500 });
   }
 
   // 5. Other absences on the same date — can't sub if you're also absent.
@@ -145,7 +149,8 @@ export async function GET(request: NextRequest) {
     .eq("absence_date", absence.absence_date)
     .neq("id", absence.id);
   if (otherAbsErr) {
-    return NextResponse.json({ error: otherAbsErr.message }, { status: 500 });
+    console.error("[substitutions.suggest.GET] other absences fetch:", otherAbsErr);
+    return NextResponse.json({ error: "Failed to load other absences" }, { status: 500 });
   }
 
   // 6. Already-assigned substitutions on the same date — a sub already
@@ -158,7 +163,8 @@ export async function GET(request: NextRequest) {
     .eq("teacher_absences.absence_date", absence.absence_date)
     .not("substitute_teacher_id", "is", null);
   if (dateSubsErr) {
-    return NextResponse.json({ error: dateSubsErr.message }, { status: 500 });
+    console.error("[substitutions.suggest.GET] date subs fetch:", dateSubsErr);
+    return NextResponse.json({ error: "Failed to load date substitutions" }, { status: 500 });
   }
 
   // 7. Subject + class expertise: who teaches what, across ALL weekdays.
@@ -179,10 +185,12 @@ export async function GET(request: NextRequest) {
         .not("teacher_id", "is", null),
     ]);
   if (csErr) {
-    return NextResponse.json({ error: csErr.message }, { status: 500 });
+    console.error("[substitutions.suggest.GET] class_subjects fetch:", csErr);
+    return NextResponse.json({ error: "Failed to load class subjects" }, { status: 500 });
   }
   if (wtErr) {
-    return NextResponse.json({ error: wtErr.message }, { status: 500 });
+    console.error("[substitutions.suggest.GET] weekly teaching fetch:", wtErr);
+    return NextResponse.json({ error: "Failed to load weekly teaching" }, { status: 500 });
   }
 
   // 8. Fairness: count this week's substitutions per teacher.
@@ -193,7 +201,8 @@ export async function GET(request: NextRequest) {
     .lte("teacher_absences.absence_date", weekTo)
     .not("substitute_teacher_id", "is", null);
   if (weekSubsErr) {
-    return NextResponse.json({ error: weekSubsErr.message }, { status: 500 });
+    console.error("[substitutions.suggest.GET] week subs fetch:", weekSubsErr);
+    return NextResponse.json({ error: "Failed to load week substitutions" }, { status: 500 });
   }
 
   // 9. Existing substitution rows for THIS absence (to expose "already
@@ -205,7 +214,8 @@ export async function GET(request: NextRequest) {
     )
     .eq("absence_id", absence.id);
   if (existingErr) {
-    return NextResponse.json({ error: existingErr.message }, { status: 500 });
+    console.error("[substitutions.suggest.GET] existing subs fetch:", existingErr);
+    return NextResponse.json({ error: "Failed to load existing substitutions" }, { status: 500 });
   }
 
   // ── Build lookup structures ────────────────────────────────────────────────

@@ -75,6 +75,12 @@ export interface AdmitCardPayload {
   exam: AdmitCardExamInfo;
   schedule: AdmitCardScheduleRow[];
   studentPhoto?: Buffer | Uint8Array;
+  /**
+   * Pre-rendered PNG bytes for the QR code embedded on the admit card.
+   * When omitted, the corresponding slot is skipped — the rest of the card
+   * still renders normally.
+   */
+  qrCode?: Buffer | Uint8Array;
 }
 
 export interface AdmitCardPDFProps {
@@ -181,6 +187,20 @@ const styles = StyleSheet.create({
   photoPlaceholder: {
     fontSize: 8,
     color: "#9ca3af",
+    textAlign: "center",
+  },
+  qrColumn: {
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  qrImage: {
+    width: 70,
+    height: 70,
+  },
+  qrCaption: {
+    fontSize: 7,
+    color: "#6b7280",
+    marginTop: 2,
     textAlign: "center",
   },
   sectionHeading: {
@@ -316,7 +336,7 @@ function SingleAdmitCard({
   logoData?: Buffer | Uint8Array;
   generatedOn: string;
 }) {
-  const { student, exam, schedule, studentPhoto } = card;
+  const { student, exam, schedule, studentPhoto, qrCode } = card;
 
   const affiliationLine =
     school.affiliation && school.affiliation_number
@@ -425,6 +445,15 @@ function SingleAdmitCard({
             ) : (
               <Text style={styles.photoPlaceholder}>No{"\n"}photo</Text>
             )}
+          </View>
+        ) : null}
+        {qrCode ? (
+          <View style={styles.qrColumn}>
+            <Image
+              src={{ data: Buffer.from(qrCode), format: "png" }}
+              style={styles.qrImage}
+            />
+            <Text style={styles.qrCaption}>Scan to verify</Text>
           </View>
         ) : null}
       </View>

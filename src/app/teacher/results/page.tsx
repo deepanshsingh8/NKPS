@@ -36,7 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Save, Loader2, Download, Info } from "lucide-react";
+import { Save, Loader2, Download, Info, FileText } from "lucide-react";
 import { formatClassName } from "@/lib/utils";
 import { computeGrade, type GradeBand } from "@/lib/grading";
 import { MarksImportDialog } from "@/components/erp/MarksImportDialog";
@@ -124,6 +124,13 @@ export default function TeacherResultsPage() {
     selectedClassId &&
       teacherId &&
       classTeacherMap[selectedClassId] === teacherId
+  );
+
+  // Lookup the selected class so the per-row "Preview Final Result" link can
+  // resolve the academic_year_id without an extra API call.
+  const selectedClassRow = useMemo(
+    () => classes.find((c) => c.id === selectedClassId) ?? null,
+    [classes, selectedClassId]
   );
 
   // Fetch teacher's assigned classes
@@ -776,6 +783,11 @@ export default function TeacherResultsPage() {
                           Class Teacher Remarks
                         </TableHead>
                       )}
+                      {isClassTeacher && selectedClassRow?.academic_year_id ? (
+                        <TableHead className="w-28 text-right">
+                          Final Result
+                        </TableHead>
+                      ) : null}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -850,6 +862,20 @@ export default function TeacherResultsPage() {
                               />
                             </TableCell>
                           )}
+                          {isClassTeacher && selectedClassRow?.academic_year_id ? (
+                            <TableCell className="text-right">
+                              <a
+                                href={`/api/erp/results/report-card/pdf?student_id=${student.student_id}&academic_year_id=${selectedClassRow.academic_year_id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Preview the year-final report card (uses the live result master)"
+                                className="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-border px-2.5 py-1 text-xs font-medium text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-muted/50"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                Preview
+                              </a>
+                            </TableCell>
+                          ) : null}
                         </TableRow>
                       );
                     })}

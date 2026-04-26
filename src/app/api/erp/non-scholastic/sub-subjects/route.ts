@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[non-scholastic.sub-subjects.GET] list:", error);
+    return NextResponse.json({ error: "Failed to load sub-subjects" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }
@@ -75,7 +76,8 @@ export async function POST(request: NextRequest) {
     .select("id, parent_subject_id, name, grade_scale_id, sort_order, is_active")
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[non-scholastic.sub-subjects.POST] insert:", error);
+    return NextResponse.json({ error: "Failed to create sub-subject" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }
