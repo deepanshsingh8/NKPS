@@ -197,6 +197,42 @@ interface GroupedMedia {
   }[];
 }
 
+// Order sections per page to match on-screen render order. Anything not listed
+// falls to the end so unknown sections stay visible without breaking layout.
+const SECTION_ORDER: Record<string, string[]> = {
+  home: [
+    "hero_slider",
+    "facilities_preview",
+    "stats_counter",
+    "latest_updates",
+    "testimonials",
+  ],
+  about: [
+    "hero",
+    "legacy_timeline",
+    "founder_tribute",
+    "leadership",
+    "why_choose_us",
+  ],
+  facilities: ["campus_facilities"],
+  "student-life": ["activities", "annual_events"],
+  global: ["branding"],
+};
+
+function sortSections(page: string, sections: string[]): string[] {
+  const order = SECTION_ORDER[page] ?? [];
+  const rank = (s: string) => {
+    const i = order.indexOf(s);
+    return i === -1 ? order.length : i;
+  };
+  return [...sections].sort((a, b) => {
+    const ra = rank(a);
+    const rb = rank(b);
+    if (ra !== rb) return ra - rb;
+    return a.localeCompare(b);
+  });
+}
+
 function groupMedia(items: SiteMedia[]): GroupedMedia[] {
   const pageOrder = ["home", "about", "facilities", "student-life", "global"];
   const pageMap = new Map<string, Map<string, SiteMedia[]>>();
@@ -212,11 +248,12 @@ function groupMedia(items: SiteMedia[]): GroupedMedia[] {
     .filter((p) => pageMap.has(p))
     .map((page) => {
       const sectionMap = pageMap.get(page)!;
+      const orderedSections = sortSections(page, Array.from(sectionMap.keys()));
       return {
         page,
-        sections: Array.from(sectionMap.entries()).map(([section, items]) => ({
+        sections: orderedSections.map((section) => ({
           section,
-          items,
+          items: sectionMap.get(section)!,
         })),
       };
     });
@@ -749,6 +786,14 @@ export default function AdminSiteMediaPage() {
     if (!hasSection) {
       pageGroup.sections.push({ section, items: [] });
     }
+  }
+
+  // Re-sort sections after virtual injection so card-only sections land in
+  // the right slot of the on-screen render order, not at the end.
+  for (const pageGroup of grouped) {
+    const ordered = sortSections(pageGroup.page, pageGroup.sections.map((s) => s.section));
+    const bySection = new Map(pageGroup.sections.map((s) => [s.section, s]));
+    pageGroup.sections = ordered.map((s) => bySection.get(s)!);
   }
 
   const customizedCount = items.filter(

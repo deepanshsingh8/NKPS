@@ -4,7 +4,7 @@ import {
   featureKeyForPath,
   featureGroupForPath,
   isAdminOnlyPath,
-} from "@/lib/permissions";
+} from "@/shared/lib/permissions";
 
 const LOGIN_PAGES = [
   "/portal/login",

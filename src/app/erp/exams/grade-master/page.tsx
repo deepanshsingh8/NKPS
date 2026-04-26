@@ -245,6 +245,7 @@ export default function GradeMasterPage() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => openEdit(scale)}
+                        aria-label="Edit grade scale"
                         className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30"
                         title="Edit scale"
                       >
@@ -254,6 +255,7 @@ export default function GradeMasterPage() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => setDeleteTarget(scale)}
+                        aria-label="Delete grade scale"
                         className="text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
                         title="Delete scale"
                       >
@@ -639,6 +641,7 @@ function EditScaleDialog({
                       variant="ghost"
                       size="icon-sm"
                       onClick={() => removeBand(i)}
+                      aria-label="Remove grade band"
                       className="text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
                       title="Remove band"
                     >

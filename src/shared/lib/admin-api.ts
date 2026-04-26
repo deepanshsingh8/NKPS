@@ -4,7 +4,7 @@
  * Passes the Supabase access token in the Authorization header.
  */
 
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 
 interface AdminApiOptions {
   action: "insert" | "update" | "delete";

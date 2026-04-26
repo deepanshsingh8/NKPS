@@ -760,6 +760,7 @@ export default function AdminClassTestsPage() {
                                 variant="ghost"
                                 size="icon-sm"
                                 onClick={() => togglePublish(t)}
+                                aria-label={t.is_published ? "Unpublish test" : "Publish test"}
                                 title={t.is_published ? "Unpublish" : "Publish"}
                               >
                                 {t.is_published ? (
@@ -773,6 +774,7 @@ export default function AdminClassTestsPage() {
                                 variant="ghost"
                                 size="icon-sm"
                                 onClick={() => openEditDialog(t)}
+                                aria-label="Edit test"
                                 title="Edit"
                               >
                                 <Pencil className="h-4 w-4" />
@@ -785,6 +787,7 @@ export default function AdminClassTestsPage() {
                                   setDeletingTest(t);
                                   setDeleteDialogOpen(true);
                                 }}
+                                aria-label="Delete test"
                                 title="Delete"
                               >
                                 <Trash2 className="h-4 w-4 text-red-500" />

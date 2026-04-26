@@ -426,7 +426,9 @@ function coerceMaster(row: Record<string, unknown>): ResultMaster {
       "cap_at_pass_mark",
     // Phase 9 — division labels. Older deployments may not have these columns
     // yet; default to enabled + CBSE so the UI behaves identically until the
-    // migration runs.
+    // migration runs. The CHECK constraint in migration 037 locks
+    // division_scheme to 'cbse' today; adding another scheme requires
+    // extending both the CHECK and the divisionLabel resolver below.
     show_division: row.show_division === undefined ? true : Boolean(row.show_division),
     division_scheme:
       (row.division_scheme as ResultMaster["division_scheme"]) ?? "cbse",

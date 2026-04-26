@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { SCHOOL } from "@/lib/constants";
+import { SCHOOL } from "@/shared/lib/constants";
 
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
@@ -43,7 +43,9 @@ export async function sendEmail(to: string, subject: string, html: string) {
       replyTo: REPLY_TO_EMAIL,
     });
 
-    console.log("Email sent successfully:", info.messageId);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("Email sent successfully:", info.messageId);
+    }
     return { data: { id: info.messageId }, error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

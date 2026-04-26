@@ -202,9 +202,11 @@ export async function GET(request: Request) {
     }
 
     // Render one QR per student so exam-hall staff can verify a printed
-    // admit card by scanning. Failures degrade gracefully (no QR slot).
+    // admit card by scanning. M11 — use Promise.allSettled so a single
+    // QR generation throw doesn't fail the whole 200-student bundle; the
+    // PDF degrades gracefully to "no QR slot" for the affected rows.
     const qrMap = new Map<string, Buffer>();
-    const qrEntries = await Promise.all(
+    const qrResults = await Promise.allSettled(
       enrollments.map(async (e) => {
         const student = e.students as unknown as {
           id: string;
@@ -220,8 +222,12 @@ export async function GET(request: Request) {
         return bytes ? ([student.id, bytes] as const) : null;
       })
     );
-    for (const entry of qrEntries) {
-      if (entry) qrMap.set(entry[0], entry[1]);
+    for (const r of qrResults) {
+      if (r.status === "fulfilled" && r.value) {
+        qrMap.set(r.value[0], r.value[1]);
+      } else if (r.status === "rejected") {
+        console.error("QR gen failed for one student:", r.reason);
+      }
     }
 
     const generatedOn = new Date().toLocaleString("en-IN", {

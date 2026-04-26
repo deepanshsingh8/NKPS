@@ -28,19 +28,38 @@ export async function POST(request: Request) {
       payment_method,
       month,
       status: requestedStatus,
+      cheque_number,
+      cheque_date,
+      bank_name,
+      payer_name,
+      transaction_ref,
+      payment_provider,
     } = result.data;
 
-    // Status resolution. The admin can override, but if they request 'paid'
-    // and the amount is below the structure's amount, we downgrade to
-    // 'partial' automatically so totals stay consistent.
+    // Status resolution. Look up the structure once and use it to:
+    //   1. Reject over-payment outright (M7) — a duplicate ₹10k tuition
+    //      payment used to inflate the dues compute and phantom-clear
+    //      transport dues, since dues compute sums across structures with
+    //      no per-structure attribution.
+    //   2. Downgrade an over-eager 'paid' request to 'partial' when the
+    //      caller paid less than the structure amount.
     let status: "paid" | "partial" = requestedStatus ?? "paid";
-    if (status === "paid") {
-      const { data: structure } = await admin
-        .from("fee_structures")
-        .select("amount")
-        .eq("id", fee_structure_id)
-        .maybeSingle();
-      if (structure && Number(structure.amount) > amount_paid) {
+    const { data: structure } = await admin
+      .from("fee_structures")
+      .select("amount")
+      .eq("id", fee_structure_id)
+      .maybeSingle();
+    if (structure) {
+      const expected = Number(structure.amount);
+      if (Number.isFinite(expected) && amount_paid > expected) {
+        return NextResponse.json(
+          {
+            error: `Amount paid (${amount_paid}) exceeds the fee structure amount (${expected}). Reduce the amount, or split the surplus into a separate fee.`,
+          },
+          { status: 400 }
+        );
+      }
+      if (status === "paid" && expected > amount_paid) {
         status = "partial";
       }
     }
@@ -60,6 +79,12 @@ export async function POST(request: Request) {
         payment_date: new Date().toISOString().split("T")[0],
         status,
         recorded_by: user.id,
+        cheque_number: cheque_number ?? null,
+        cheque_date: cheque_date ?? null,
+        bank_name: bank_name ?? null,
+        payer_name: payer_name ?? null,
+        transaction_ref: transaction_ref ?? null,
+        payment_provider: payment_provider ?? null,
       })
       .select()
       .single();

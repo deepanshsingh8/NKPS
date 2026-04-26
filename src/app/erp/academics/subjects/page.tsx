@@ -998,6 +998,7 @@ export default function AdminSubjectsPage() {
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => openEditDialog(subject)}
+                          aria-label="Edit subject"
                           className="text-gray-500 hover:text-navy-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-muted"
                         >
                           <Pencil className="h-4 w-4" />
@@ -1013,6 +1014,7 @@ export default function AdminSubjectsPage() {
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => handleDeleteSubject(subject.id)}
+                          aria-label="Delete subject"
                           className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -1238,6 +1240,7 @@ export default function AdminSubjectsPage() {
                                 variant="ghost"
                                 size="icon-sm"
                                 onClick={() => handleRemoveAssignment(row)}
+                                aria-label="Remove assignment"
                                 className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -1356,6 +1359,7 @@ export default function AdminSubjectsPage() {
                       variant="ghost"
                       size="icon-sm"
                       onClick={() => openEditStreamDialog(stream)}
+                      aria-label="Edit stream"
                       className="text-gray-500 hover:text-navy-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-muted"
                     >
                       <Pencil className="h-4 w-4" />
@@ -1372,6 +1376,7 @@ export default function AdminSubjectsPage() {
                       variant="ghost"
                       size="icon-sm"
                       onClick={() => handleDeleteStream(stream)}
+                      aria-label="Delete stream"
                       className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 ml-auto"
                     >
                       <Trash2 className="h-4 w-4" />

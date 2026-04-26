@@ -104,10 +104,12 @@ export async function POST(request: Request) {
             .insert(record);
 
           if (singleError) {
-            errors.push({
-              name: record.name,
-              error: singleError.message,
-            });
+            console.error("Staff bulk single-insert failed:", singleError);
+            const friendly =
+              singleError.code === "23505"
+                ? "A staff member with this name + category already exists"
+                : "Failed to insert this row";
+            errors.push({ name: record.name, error: friendly });
           } else {
             inserted++;
           }

@@ -1,9 +1,10 @@
 -- Migration 037: Division labels (CBSE-style) on the year-end report card.
 --
 -- `show_division` is a per-class toggle. Default true matches the most common
--- CBSE convention. `division_scheme` is text so future schemes (state board
--- variants etc.) can be added without another migration; the resolver in
--- src/lib/final-result.ts treats unknown values as 'cbse'.
+-- CBSE convention. `division_scheme` is text but the CHECK constraint below
+-- locks it to the single supported value. Adding a state-board variant is a
+-- two-line follow-up migration: extend the CHECK and add the label set in
+-- src/lib/final-result.ts. (Audit M8 — comment was inaccurate before.)
 
 ALTER TABLE result_masters
   ADD COLUMN IF NOT EXISTS show_division boolean NOT NULL DEFAULT true;

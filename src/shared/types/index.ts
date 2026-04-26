@@ -25,6 +25,7 @@ export interface TransferCertificate {
   id: string;
   student_name: string;
   admission_no: string | null;
+  student_dob: string | null;
   file_url: string;
   academic_year: string;
   upload_date: string;
@@ -541,6 +542,14 @@ export interface FeePayment {
   refund_reason: string | null;
   refunded_at: string | null;
   refunded_by: string | null;
+  // Migration 044 — per-method reconciliation fields. Only some are
+  // populated on any given row, based on payment_method.
+  cheque_number: string | null;
+  cheque_date: string | null;
+  bank_name: string | null;
+  payer_name: string | null;
+  transaction_ref: string | null;
+  payment_provider: string | null;
   created_at: string;
   updated_at: string;
 }

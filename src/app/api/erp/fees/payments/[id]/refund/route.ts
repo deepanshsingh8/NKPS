@@ -10,6 +10,12 @@ interface RouteContext {
 // Marks a previously-recorded payment as refunded with reason + amount.
 // The DB CHECK constraint (`fee_payments_refund_consistent`) enforces that
 // `refund_amount > 0` whenever status flips to 'refunded'.
+//
+// **Single refund per payment.** Partial-refunds are supported in the sense
+// that `refund_amount` may be less than `amount_paid`, but a payment can
+// only be refunded once. To split a refund across two events, record the
+// surplus as a separate fee_payments row first, then refund each
+// independently. (Audit M17 — UI copy was previously ambiguous.)
 export async function POST(request: NextRequest, context: RouteContext) {
   const auth = await verifyAdminOrEditorWithUser("fees");
   if (!auth) {
@@ -42,7 +48,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
   if (existing.status === "refunded") {
     return NextResponse.json(
-      { error: "Payment is already refunded" },
+      {
+        error:
+          "This payment is already refunded. Only one refund per payment is supported — record a follow-up payment if you need to split the refund.",
+      },
       { status: 400 }
     );
   }

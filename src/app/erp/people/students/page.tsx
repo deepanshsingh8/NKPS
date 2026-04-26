@@ -167,6 +167,31 @@ export default function AdminStudentsPage() {
     warnings: string[];
   } | null>(null);
 
+  // H16-C — alumni manager dialog. Lists rows with is_alumni=true so admins
+  // can revert mistakes (e.g., a student wrongly marked as graduated during
+  // promotion). The revert action calls /api/erp/students/revert-alumni.
+  interface AlumniRow {
+    id: string;
+    full_name: string;
+    admission_no: string;
+    father_name: string | null;
+    alumni_passing_year: string | null;
+  }
+  const [alumniDialogOpen, setAlumniDialogOpen] = useState(false);
+  const [alumniRows, setAlumniRows] = useState<AlumniRow[]>([]);
+  const [alumniLoading, setAlumniLoading] = useState(false);
+  const [alumniSearch, setAlumniSearch] = useState("");
+  const [revertDialog, setRevertDialog] = useState<{
+    open: boolean;
+    target: AlumniRow | null;
+  }>({ open: false, target: null });
+  const [revertForm, setRevertForm] = useState({
+    reason: "",
+    reactivate_class_id: "",
+    reactivate_academic_year_id: "",
+  });
+  const [reverting, setReverting] = useState(false);
+
   // Detail view dialog (read-only quick peek, separate from edit)
   const [detailStudent, setDetailStudent] = useState<StudentRow | null>(null);
 
@@ -275,6 +300,84 @@ export default function AdminStudentsPage() {
     fetchStudents();
     setSelectedIds(new Set()); // Clear selection on class change
   }, [selectedClassId, fetchStudents]);
+
+  // H16-C — fetch alumni when the dialog opens. Direct supabase query is
+  // fine here: alumni rows are flagged via is_alumni and excluded from the
+  // regular students endpoint (which filters is_active).
+  const fetchAlumni = useCallback(async () => {
+    setAlumniLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("students")
+        .select("id, full_name, admission_no, father_name, alumni_passing_year")
+        .eq("is_alumni", true)
+        .order("alumni_passing_year", { ascending: false, nullsFirst: false })
+        .order("full_name", { ascending: true });
+      if (error) {
+        toast.error("Failed to load alumni");
+        setAlumniRows([]);
+      } else {
+        setAlumniRows((data as AlumniRow[]) ?? []);
+      }
+    } finally {
+      setAlumniLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
+
+  useEffect(() => {
+    if (alumniDialogOpen) fetchAlumni();
+  }, [alumniDialogOpen, fetchAlumni]);
+
+  const handleConfirmRevert = useCallback(async () => {
+    if (!revertDialog.target) return;
+    const reason = revertForm.reason.trim();
+    if (reason.length < 5) {
+      toast.error("Reason is required (min 5 chars)");
+      return;
+    }
+    setReverting(true);
+    try {
+      const res = await adminFetch("/api/erp/students/revert-alumni", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: revertDialog.target.id,
+          reason,
+          ...(revertForm.reactivate_class_id &&
+          revertForm.reactivate_academic_year_id
+            ? {
+                reactivate_class_id: revertForm.reactivate_class_id,
+                reactivate_academic_year_id:
+                  revertForm.reactivate_academic_year_id,
+              }
+            : {}),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to revert alumni");
+        return;
+      }
+      toast.success(
+        data.reenrolled
+          ? "Reverted and re-enrolled"
+          : "Reverted to active student"
+      );
+      setRevertDialog({ open: false, target: null });
+      setRevertForm({
+        reason: "",
+        reactivate_class_id: "",
+        reactivate_academic_year_id: "",
+      });
+      await fetchAlumni();
+      await fetchStudents();
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setReverting(false);
+    }
+  }, [revertDialog, revertForm, fetchAlumni, fetchStudents]);
 
   const filteredStudents = students.filter((s) => {
     if (!search) return true;
@@ -986,6 +1089,11 @@ export default function AdminStudentsPage() {
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Excel
               </DropdownMenuItem>
+              {/* H16-C — alumni revert manager. */}
+              <DropdownMenuItem onClick={() => setAlumniDialogOpen(true)}>
+                <GraduationCap className="h-4 w-4 mr-2" />
+                Manage Alumni
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
@@ -1236,6 +1344,7 @@ export default function AdminStudentsPage() {
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => openEditDialog(student)}
+                          aria-label="Edit student"
                           className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
                           title="Edit student"
                         >
@@ -1247,6 +1356,7 @@ export default function AdminStudentsPage() {
                           onClick={() =>
                             router.push(`/erp/fees?student_id=${student.id}`)
                           }
+                          aria-label="View fees / record payment"
                           className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                           title="View fees / record payment"
                         >
@@ -1256,6 +1366,7 @@ export default function AdminStudentsPage() {
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => handleDelete(student)}
+                          aria-label="Delete student"
                           className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                           title="Delete student"
                         >
@@ -1559,6 +1670,214 @@ export default function AdminStudentsPage() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* H16-C · Alumni manager dialog */}
+      <Dialog open={alumniDialogOpen} onOpenChange={setAlumniDialogOpen}>
+        <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage Alumni</DialogTitle>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Revert a graduated student back to active status. Use this when
+              promotion was applied in error or when an alumnus is returning
+              for an additional year.
+            </p>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Input
+                value={alumniSearch}
+                onChange={(e) => setAlumniSearch(e.target.value)}
+                placeholder="Search by name, admission no, or year"
+                className="pl-9"
+              />
+            </div>
+            {alumniLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : alumniRows.length === 0 ? (
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-12">
+                No alumni records.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead className="w-32">Admission</TableHead>
+                    <TableHead>Father</TableHead>
+                    <TableHead className="w-28">Passed</TableHead>
+                    <TableHead className="w-28 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {alumniRows
+                    .filter((r) => {
+                      if (!alumniSearch) return true;
+                      const q = alumniSearch.toLowerCase();
+                      return (
+                        r.full_name.toLowerCase().includes(q) ||
+                        r.admission_no.toLowerCase().includes(q) ||
+                        (r.alumni_passing_year ?? "").toLowerCase().includes(q)
+                      );
+                    })
+                    .map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="font-medium">
+                          {r.full_name}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-500 dark:text-gray-400">
+                          {r.admission_no}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {r.father_name ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {r.alumni_passing_year ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setRevertForm({
+                                reason: "",
+                                reactivate_class_id: "",
+                                reactivate_academic_year_id: "",
+                              });
+                              setRevertDialog({ open: true, target: r });
+                            }}
+                          >
+                            Revert
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* H16-C · Revert alumni form dialog */}
+      <Dialog
+        open={revertDialog.open}
+        onOpenChange={(o) =>
+          setRevertDialog((prev) => ({ ...prev, open: o }))
+        }
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Revert {revertDialog.target?.full_name ?? "alumni"}?
+            </DialogTitle>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              This clears the alumni flags so the student can be enrolled
+              again. Re-enrollment is optional — leave the class fields blank
+              to flip the flags only and assign a class later.
+            </p>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Reason *</Label>
+              <Input
+                value={revertForm.reason}
+                onChange={(e) =>
+                  setRevertForm((p) => ({ ...p, reason: e.target.value }))
+                }
+                placeholder="Why is this revert happening?"
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">
+                  Reactivate Academic Year (optional)
+                </Label>
+                <Select
+                  value={revertForm.reactivate_academic_year_id}
+                  items={academicYears.map((y) => ({
+                    value: y.id,
+                    label: y.name,
+                  }))}
+                  onValueChange={(v) =>
+                    setRevertForm((p) => ({
+                      ...p,
+                      reactivate_academic_year_id: v ?? "",
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Pick year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {academicYears.map((y) => (
+                      <SelectItem key={y.id} value={y.id} label={y.name}>
+                        {y.name}
+                        {y.is_current ? " (current)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">
+                  Reactivate Class (optional)
+                </Label>
+                <Select
+                  value={revertForm.reactivate_class_id}
+                  items={classes
+                    .filter(
+                      (c) =>
+                        !revertForm.reactivate_academic_year_id ||
+                        true /* class list isn't year-filtered here; keep flexible */
+                    )
+                    .map((c) => ({
+                      value: c.id,
+                      label: formatClassName(c),
+                    }))}
+                  onValueChange={(v) =>
+                    setRevertForm((p) => ({
+                      ...p,
+                      reactivate_class_id: v ?? "",
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Pick class (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((c) => (
+                      <SelectItem key={c.id} value={c.id} label={formatClassName(c)}>
+                        {formatClassName(c)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setRevertDialog({ open: false, target: null })
+              }
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmRevert}
+              disabled={reverting || revertForm.reason.trim().length < 5}
+              className="bg-navy-900 text-white hover:bg-navy-900/90"
+            >
+              {reverting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Revert
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

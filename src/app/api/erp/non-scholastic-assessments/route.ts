@@ -91,6 +91,13 @@ export async function POST(request: Request) {
     // classes they teach. Non-scholastic isn't tied to a single subject, so
     // we use the broader class-access check (class teacher OR teaches any
     // subject in the class).
+    //
+    // Editors with the `non_scholastic_entry` feature key are intentionally
+    // NOT scoped here (audit L6). The permission is school-wide by design —
+    // the office/secretary uses it to enter values across classes during PTM
+    // weeks. If a class-level scope is needed in the future, add a
+    // `non_scholastic_entry_class_ids` mapping similar to the timetable
+    // approach rather than splitting the feature_key.
     if (profile.role === "teacher") {
       const teacherId = await getTeacherIdForUser(supabase, user.id);
       if (

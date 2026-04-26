@@ -42,6 +42,15 @@ export interface MarksheetSnapshotV1 {
 // V2 — year-final aggregate. Captures the result-master computation and the
 // metadata the PDF route needs to render in final-result mode without
 // recomputing.
+//
+// **V2 is render-only.** `final_result` is the already-computed output;
+// nothing in the renderer reads or recomputes from `pass_mark_mode`,
+// `pass_criteria_type`, or `grace_*` at PDF time. The render flags below are
+// intentionally a narrow subset of `ResultMaster` — only what controls the
+// visual layout. If you ever need to change a *computational* default, do
+// NOT smuggle that decision through the snapshot; recompute against the live
+// master and re-finalize. Mixing fresh master rules with a frozen
+// `final_result` would silently diverge from what was published. (M13.)
 export interface MarksheetSnapshotV2 {
   schema_version: "v2";
   kind: "year_final";

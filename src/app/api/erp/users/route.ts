@@ -3,6 +3,7 @@ import { createAdminClient } from "@/shared/lib/supabase/admin";
 import { createClient } from "@/shared/lib/supabase/server";
 import { createUserSchema } from "@/shared/lib/validations";
 import { generateSecurePassword } from "@/shared/lib/password";
+import { rateLimit } from "@/shared/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
@@ -26,6 +27,26 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Forbidden: admin access required" },
         { status: 403 }
+      );
+    }
+
+    // M4 — defense-in-depth. The route already requires admin, but creating an
+    // auth user + sending a welcome email is a costly side effect; a future
+    // regression that lowers the gate would expose unbounded user creation.
+    const limit = rateLimit({
+      name: "erp-users-create",
+      key: user.id,
+      max: 30,
+      windowSeconds: 3600,
+    });
+    if (!limit.ok) {
+      return NextResponse.json(
+        {
+          error: `Too many users created in the last hour. Try again in ${Math.ceil(
+            limit.resetSeconds / 60
+          )} minute(s).`,
+        },
+        { status: 429 }
       );
     }
 
@@ -198,10 +219,19 @@ export async function POST(request: Request) {
           : "Welcome email not sent. Please share the temporary password with the user manually.";
     }
 
+    // L16 — when we auto-create a teachers + staff_members shadow row, the
+    // staff side defaults to category 'tgt' and subject '—'. Surface a
+    // notice so the admin remembers to recategorize on /erp/people/staff.
+    const staffNotice =
+      role === "teacher"
+        ? "A staff_members entry was auto-created with default category 'tgt' and subject '—'. Visit /erp/people/staff to recategorize."
+        : null;
+
     return NextResponse.json({
       success: true,
       user: newUser.user,
       email_warning: emailWarning,
+      staff_notice: staffNotice,
       ...(emailWarning ? { generated_password: password } : {}),
     });
   } catch (err) {

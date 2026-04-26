@@ -437,6 +437,9 @@ export async function GET(request: Request) {
       }>;
     }> = [];
     if (resultMasterProp.include_non_scholastic) {
+      // M9 — scope to the report's class so prior-year assessments don't
+      // resurface on the current year's card. `class_id` IS the year scope
+      // here (every class belongs to exactly one academic_year).
       const { data: assessments } = await supabase
         .from("non_scholastic_assessments")
         .select(
@@ -445,6 +448,7 @@ export async function GET(request: Request) {
              parent:non_scholastic_subjects(id, name, sort_order, is_active))`
         )
         .eq("student_id", studentId)
+        .eq("class_id", classId)
         .eq("is_published", true)
         .order("updated_at", { ascending: false });
       type Row = {

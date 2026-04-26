@@ -79,6 +79,16 @@ export async function POST(request: NextRequest) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "Missing file" }, { status: 400 });
   }
+  // L1 — cap upload size before reading into memory. The XLSX parser used
+  // below needs the full buffer; a 50 MB file would OOM the function.
+  // 5 MB covers a 10k-student sheet comfortably.
+  const MAX_BYTES = 5 * 1024 * 1024;
+  if (file.size > MAX_BYTES) {
+    return NextResponse.json(
+      { error: `File too large. Maximum upload size is ${MAX_BYTES / 1024 / 1024} MB.` },
+      { status: 413 }
+    );
+  }
   if (!classId || !examTypeId || !subjectId) {
     return NextResponse.json(
       { error: "class_id, exam_type_id, and subject_id are required" },

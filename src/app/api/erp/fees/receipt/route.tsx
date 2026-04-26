@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     const { data: payment, error: payErr } = await admin
       .from("fee_payments")
       .select(
-        "id, student_id, amount_paid, payment_date, payment_method, receipt_number, month, status, remarks, fee_structure:fee_structures(fee_type, academic_year_id, academic_years(name))"
+        "id, student_id, amount_paid, payment_date, payment_method, receipt_number, month, status, remarks, cheque_number, cheque_date, bank_name, payer_name, transaction_ref, payment_provider, fee_structure:fee_structures(fee_type, academic_year_id, academic_years(name))"
       )
       .eq("id", paymentId)
       .single();
@@ -145,6 +145,12 @@ export async function GET(request: Request) {
           month: payment.month,
           academic_year: academicYearName,
           remarks: payment.remarks,
+          cheque_number: payment.cheque_number ?? null,
+          cheque_date: payment.cheque_date ?? null,
+          bank_name: payment.bank_name ?? null,
+          payer_name: payment.payer_name ?? null,
+          transaction_ref: payment.transaction_ref ?? null,
+          payment_provider: payment.payment_provider ?? null,
           student: {
             full_name: student.full_name,
             admission_no: student.admission_no,

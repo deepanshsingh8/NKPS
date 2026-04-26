@@ -3,6 +3,7 @@ import { createAdminClient } from "@/shared/lib/supabase/admin";
 import { createClient } from "@/shared/lib/supabase/server";
 import { sendEmail, buildWelcomeEmail } from "@/shared/lib/email";
 import { generateSecurePassword } from "@/shared/lib/password";
+import { rateLimit } from "@/shared/lib/rate-limit";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -62,6 +63,24 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Forbidden: admin access required" },
         { status: 403 }
+      );
+    }
+
+    // M4 — defense-in-depth (auth user creation + welcome email side effect).
+    const limit = rateLimit({
+      name: "registrations-approve",
+      key: user.id,
+      max: 30,
+      windowSeconds: 3600,
+    });
+    if (!limit.ok) {
+      return NextResponse.json(
+        {
+          error: `Too many approvals in the last hour. Try again in ${Math.ceil(
+            limit.resetSeconds / 60
+          )} minute(s).`,
+        },
+        { status: 429 }
       );
     }
 

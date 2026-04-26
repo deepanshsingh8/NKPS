@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { FeatureKey } from "@/lib/permissions";
+import type { FeatureKey } from "@/shared/lib/permissions";
 
 // Cookie-auth gating helper. Most routes use createClient() (cookies) and
 // only need to know whether the calling profile is an admin or an editor with

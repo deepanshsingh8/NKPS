@@ -262,6 +262,7 @@ export default function AdminAcademicYearsPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
+                        aria-label="Edit academic year"
                         onClick={() => openEdit(year)}
                         className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
                       >
@@ -270,6 +271,7 @@ export default function AdminAcademicYearsPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
+                        aria-label="Delete academic year"
                         onClick={() => handleDelete(year.id)}
                         className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                       >

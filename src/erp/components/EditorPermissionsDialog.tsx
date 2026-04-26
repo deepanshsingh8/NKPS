@@ -13,7 +13,7 @@ import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { adminFetch } from "@/shared/lib/admin-api";
-import { FEATURE_CATALOG, type FeatureKey } from "@/shared/lib/permissions";
+import { FEATURE_CATALOG, isFeatureKey, type FeatureKey } from "@/shared/lib/permissions";
 
 interface Props {
   open: boolean;
@@ -38,11 +38,12 @@ export function EditorPermissionsDialog({
     adminFetch(`/api/admin/editor-permissions?editor_id=${editorId}`)
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data?.feature_keys)) {
-          setGranted(new Set(data.feature_keys as FeatureKey[]));
-        } else {
-          setGranted(new Set());
-        }
+        // Drop stale keys not in the current catalog so they neither appear
+        // pre-checked nor get round-tripped back to the API.
+        const keys = Array.isArray(data?.feature_keys)
+          ? (data.feature_keys as unknown[]).filter(isFeatureKey)
+          : [];
+        setGranted(new Set(keys));
       })
       .catch(() => toast.error("Failed to load permissions"))
       .finally(() => setLoading(false));

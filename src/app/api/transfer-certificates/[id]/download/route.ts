@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createAdminClient } from "@/shared/lib/supabase/admin";
 import { rateLimit, clientIp } from "@/shared/lib/rate-limit";
+import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
 
 // Bucket name is constant — defined here once so the path-extraction logic
 // below stays in sync with the upload routes.
@@ -47,22 +47,20 @@ function extractBucketPath(fileUrl: string): string | null {
 /**
  * GET /api/transfer-certificates/[id]/download
  *
- * Public endpoint — anyone with a TC id can request a download. We don't
- * require auth because the public `/transfer-certificates` page lists TCs
- * by name and the school wants alumni to retrieve their own TCs without
- * creating an account. The protection layers are:
- *  - rate limiting per IP (stops bulk scraping);
- *  - short-lived signed URLs (60 s) so links can't be reposted;
- *  - server logs every download with the actor IP and TC id.
- *
- * Once the storage bucket is flipped to private (Supabase dashboard step,
- * not code), the existing public URLs in `transfer_certificates.file_url`
- * stop working and this endpoint becomes the only download path.
+ * Admin-only endpoint. The public TC flow goes through the lookup endpoint
+ * which gates by (admission_no, dob) and returns the signed URL inline —
+ * downloading by id alone is never exposed to the public, so any caller
+ * here must be an authenticated admin or editor with TC permission.
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const admin = await verifyAdminOrEditor("transfer_certificates");
+  if (!admin) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const ipLimit = rateLimit({
     name: "tc-download:ip",
     key: clientIp(request),
@@ -77,12 +75,9 @@ export async function GET(
   }
 
   const { id } = await params;
-  // Cheap UUID-shape sanity check before hitting the DB.
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
     return NextResponse.json({ error: "Invalid TC id" }, { status: 400 });
   }
-
-  const admin = createAdminClient();
   const { data: tc, error } = await admin
     .from("transfer_certificates")
     .select("id, file_url, student_name")
@@ -126,5 +121,8 @@ export async function GET(
   console.info(
     `[TC download] id=${id} ip=${clientIp(request)} path=${path}`
   );
-  return NextResponse.redirect(signed.signedUrl, 302);
+  return NextResponse.json({
+    signedUrl: signed.signedUrl,
+    expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+  });
 }

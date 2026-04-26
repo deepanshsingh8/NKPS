@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import {
+  sectionCardCreateSchema,
+  sectionCardUpdateSchema,
+} from "@/shared/lib/validations";
 
 export async function GET(request: NextRequest) {
   const admin = await verifyAdminOrEditor("site_media");
@@ -37,35 +41,36 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
-    const { section, image_url, ...fields } = body;
-
-    if (!section) {
-      return NextResponse.json({ error: "Section is required" }, { status: 400 });
+    const parsed = sectionCardCreateSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid data", details: parsed.error.flatten() },
+        { status: 400 }
+      );
     }
-
-    const name = fields.name?.trim() || null;
+    const fields = parsed.data;
+    const name = fields.name ?? null;
 
     const record: Record<string, unknown> = {
-      section,
-      title: fields.title?.trim() || null,
-      subtitle: fields.subtitle?.trim() || null,
-      description: fields.description?.trim() || null,
-      quote: fields.quote?.trim() || null,
+      section: fields.section,
+      title: fields.title ?? null,
+      subtitle: fields.subtitle ?? null,
+      description: fields.description ?? null,
+      quote: fields.quote ?? null,
       name,
-      role: fields.role?.trim() || null,
+      role: fields.role ?? null,
       initials: name ? name.charAt(0).toUpperCase() : null,
-      date: fields.date?.trim() || null,
-      cta_text: fields.cta_text?.trim() || null,
-      cta_link: fields.cta_link?.trim() || null,
-      icon: fields.icon?.trim() || null,
-      link: fields.link?.trim() || null,
-      designation: fields.designation?.trim() || null,
-      message: fields.message?.trim() || null,
-      year: fields.year?.trim() || null,
-      season: fields.season?.trim() || null,
-      image_url: image_url || null,
-      sort_order: parseInt(fields.sort_order) || 0,
+      date: fields.date ?? null,
+      cta_text: fields.cta_text ?? null,
+      cta_link: fields.cta_link ?? null,
+      icon: fields.icon ?? null,
+      link: fields.link ?? null,
+      designation: fields.designation ?? null,
+      message: fields.message ?? null,
+      year: fields.year ?? null,
+      season: fields.season ?? null,
+      image_url: fields.image_url || null,
+      sort_order: fields.sort_order ?? 0,
       is_active: fields.is_active !== false,
     };
 
@@ -95,12 +100,16 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
-    const { id, data: updates = {} } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: "Card ID is required" }, { status: 400 });
+    const parsed = sectionCardUpdateSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid data", details: parsed.error.flatten() },
+        { status: 400 }
+      );
     }
+    const { id, data: parsedUpdates } = parsed.data;
+    // Mutable copy for the auto-derived fields below.
+    const updates: Record<string, unknown> = { ...parsedUpdates };
 
     if (updates.name) {
       updates.initials = (updates.name as string).charAt(0).toUpperCase();

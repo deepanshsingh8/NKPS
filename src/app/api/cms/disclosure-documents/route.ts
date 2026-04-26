@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { extractStoragePath } from "@/lib/storage-paths";
 
 export async function POST(request: NextRequest) {
   const admin = await verifyAdminOrEditor("disclosure");
@@ -32,11 +33,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Delete old file from storage if replacing
+    // Delete old file from storage if replacing. L2 — derive the path via
+    // extractStoragePath so cache-buster query strings don't no-op the
+    // delete.
     if (existing.file_url) {
-      const oldParts = existing.file_url.split("/");
-      const oldFileName = oldParts[oldParts.length - 1];
-      await admin.storage.from("disclosure-documents").remove([oldFileName]);
+      const oldPath = extractStoragePath(existing.file_url, "disclosure-documents");
+      if (oldPath) {
+        await admin.storage.from("disclosure-documents").remove([oldPath]);
+      }
     }
 
     // Update the document row
@@ -78,11 +82,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
 
-    // Remove file from storage
+    // Remove file from storage.
     if (fileUrl) {
-      const parts = (fileUrl as string).split("/");
-      const fileName = parts[parts.length - 1];
-      await admin.storage.from("disclosure-documents").remove([fileName]);
+      const path = extractStoragePath(fileUrl, "disclosure-documents");
+      if (path) await admin.storage.from("disclosure-documents").remove([path]);
     }
 
     // Clear file_url and file_name on the row (keep the row itself)

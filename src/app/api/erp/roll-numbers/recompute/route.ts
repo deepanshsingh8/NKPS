@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { verifyAdmin } from "@/shared/lib/verify-admin";
 import { computeRanksForClass } from "@/erp/lib/final-result";
 
 type SortKey = "name" | "admission_no" | "previous_rank";
 
-const SORT_KEYS: readonly SortKey[] = ["name", "admission_no", "previous_rank"];
+const recomputeSchema = z.object({
+  class_id: z.string().uuid("Invalid class id"),
+  sort_key: z.enum(["name", "admission_no", "previous_rank"]),
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,23 +17,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = (await request.json()) as {
-      class_id?: string;
-      sort_key?: string;
-    };
-
-    if (!body.class_id || typeof body.class_id !== "string") {
-      return NextResponse.json({ error: "class_id is required" }, { status: 400 });
-    }
-    if (!body.sort_key || !SORT_KEYS.includes(body.sort_key as SortKey)) {
+    const parsed = recomputeSchema.safeParse(await request.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: `sort_key must be one of: ${SORT_KEYS.join(", ")}` },
+        { error: "Invalid data", details: parsed.error.flatten() },
         { status: 400 }
       );
     }
-
-    const classId = body.class_id;
-    const sortKey = body.sort_key as SortKey;
+    const classId = parsed.data.class_id;
+    const sortKey: SortKey = parsed.data.sort_key;
 
     // `name` and `admission_no` use the in-DB function directly.
     if (sortKey === "name" || sortKey === "admission_no") {

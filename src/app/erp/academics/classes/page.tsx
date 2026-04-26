@@ -343,6 +343,7 @@ export default function AdminClassesPage() {
                         size="icon-sm"
                         onClick={() => openRollDialog(cls)}
                         title="Generate Roll Numbers"
+                        aria-label="Generate roll numbers"
                         className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
                       >
                         <ListOrdered className="h-4 w-4" />
@@ -351,6 +352,7 @@ export default function AdminClassesPage() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => openEdit(cls)}
+                        aria-label="Edit class"
                         className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
                       >
                         <Pencil className="h-4 w-4" />
@@ -359,6 +361,7 @@ export default function AdminClassesPage() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => handleDelete(cls.id)}
+                        aria-label="Delete class"
                         className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                       >
                         <Trash2 className="h-4 w-4" />

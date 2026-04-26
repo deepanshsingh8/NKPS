@@ -142,10 +142,12 @@ export async function promoteStaffToTeacher(
     .maybeSingle();
   if (existing) return { teacher_id: existing.id as string, created: false };
 
-  // Auto-generate an employee_id similar to the user-creation path. The
-  // 36-base timestamp suffix collides at ~once-in-a-million within a single
-  // millisecond, which is fine for a manual admin action.
-  const employeeId = `TCH-${Date.now().toString(36).toUpperCase()}`;
+  // Auto-generate an employee_id. We pair the 36-base timestamp with 4 hex
+  // chars from crypto.randomBytes so the suffix can't collide within the
+  // same millisecond — the schema makes employee_id UNIQUE and the previous
+  // ts-only form would 23505 a parallel admin action. (Audit L10.)
+  const { randomBytes } = await import("crypto");
+  const employeeId = `TCH-${Date.now().toString(36).toUpperCase()}-${randomBytes(2).toString("hex").toUpperCase()}`;
 
   const { data: teacherRow, error: insertErr } = await admin
     .from("teachers")

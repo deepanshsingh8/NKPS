@@ -44,6 +44,7 @@ import {
   LockOpen,
   Users,
   CheckCircle2,
+  CalendarCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatClassName } from "@/shared/lib/utils";
@@ -72,6 +73,15 @@ interface StudentMarksheetRow {
   active_version: MarksheetVersion | null;
 }
 
+// Lightweight count of active year_final publications for a class. The
+// /finalize-year-final endpoint doesn't paginate per-student status today —
+// we just track aggregate counts so the operator knows whether re-finalize
+// will prompt for a reason and how many rows are live.
+interface YearFinalStatus {
+  enrolled: number;
+  finalized_active: number;
+}
+
 function formatWhen(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", {
     day: "2-digit",
@@ -92,6 +102,18 @@ export default function AdminPublishPage() {
   const [rows, setRows] = useState<StudentMarksheetRow[]>([]);
   const [loadingData, setLoadingData] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // Year-final mode (H16-A). Independent of the exam_type select — uses the
+  // class's academic_year_id directly.
+  const [yearFinalStatus, setYearFinalStatus] = useState<YearFinalStatus | null>(
+    null
+  );
+  const [yearFinalBusy, setYearFinalBusy] = useState(false);
+  const [yearFinalDialog, setYearFinalDialog] = useState<{
+    open: boolean;
+    mode: "unpublish";
+  }>({ open: false, mode: "unpublish" });
+  const [yearFinalReason, setYearFinalReason] = useState("");
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -312,6 +334,141 @@ export default function AdminPublishPage() {
       toast.error("Network error");
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Resolve the class's academic_year_id from the loaded list. We rely on
+  // it for the year-final flow; the per-exam flow uses exam_type_id only.
+  const selectedClassYearId = useMemo(() => {
+    const cls = classes.find((c) => c.id === selectedClassId);
+    return cls?.academic_year_id ?? "";
+  }, [classes, selectedClassId]);
+
+  // Refresh year-final status whenever the class changes. Counts active
+  // enrollments + the live `marksheet_publications` rows of kind='year_final'
+  // for that (class, year). No dedicated list endpoint today — direct query
+  // is fine for an aggregate.
+  const fetchYearFinalStatus = useCallback(async () => {
+    if (!selectedClassId || !selectedClassYearId) {
+      setYearFinalStatus(null);
+      return;
+    }
+    const supabase = createClient();
+    const [{ count: enrolled }, { count: finalizedActive }] = await Promise.all([
+      supabase
+        .from("student_enrollments")
+        .select("id", { count: "exact", head: true })
+        .eq("class_id", selectedClassId)
+        .eq("academic_year_id", selectedClassYearId)
+        .eq("status", "active"),
+      supabase
+        .from("marksheet_publications")
+        .select("id", { count: "exact", head: true })
+        .eq("class_id", selectedClassId)
+        .eq("academic_year_id", selectedClassYearId)
+        .eq("kind", "year_final")
+        .is("unpublished_at", null),
+    ]);
+    setYearFinalStatus({
+      enrolled: enrolled ?? 0,
+      finalized_active: finalizedActive ?? 0,
+    });
+  }, [selectedClassId, selectedClassYearId]);
+
+  useEffect(() => {
+    fetchYearFinalStatus();
+  }, [fetchYearFinalStatus]);
+
+  async function finalizeYearFinal(reason?: string) {
+    if (!selectedClassId || !selectedClassYearId) return;
+    setYearFinalBusy(true);
+    try {
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Not authenticated");
+        return;
+      }
+      const res = await fetch("/api/erp/results/finalize-year-final", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          class_id: selectedClassId,
+          academic_year_id: selectedClassYearId,
+          ...(reason ? { unpublish_reason_on_refinalize: reason } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (
+          res.status === 400 &&
+          typeof data?.prior_active_count === "number" &&
+          data.prior_active_count > 0 &&
+          !reason
+        ) {
+          const promptReason = window.prompt(
+            `${data.prior_active_count} year-final marksheet(s) are already finalized for this class. Why are you re-finalizing?`
+          );
+          if (promptReason && promptReason.trim()) {
+            await finalizeYearFinal(promptReason.trim());
+            return;
+          }
+          toast.error("Re-finalize cancelled — reason required");
+          return;
+        }
+        toast.error(data.error ?? "Year-final finalize failed");
+        return;
+      }
+      const msg =
+        `Year-final: ${data.finalized}` +
+        (data.refinalized > 0 ? ` (${data.refinalized} re-finalized)` : "") +
+        (data.skipped > 0 ? ` · ${data.skipped} skipped (no marks)` : "") +
+        (data.errors?.length > 0 ? ` · ${data.errors.length} errors` : "");
+      toast.success(msg);
+      fetchYearFinalStatus();
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setYearFinalBusy(false);
+    }
+  }
+
+  function openYearFinalUnpublishDialog() {
+    setYearFinalReason("");
+    setYearFinalDialog({ open: true, mode: "unpublish" });
+  }
+
+  async function confirmYearFinalUnpublish() {
+    if (!selectedClassId || !selectedClassYearId) return;
+    const reason = yearFinalReason.trim();
+    if (!reason) {
+      toast.error("Reason is required");
+      return;
+    }
+    setYearFinalBusy(true);
+    try {
+      const res = await adminDelete("/api/erp/results/finalize-year-final", {
+        class_id: selectedClassId,
+        academic_year_id: selectedClassYearId,
+        unpublish_reason: reason,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Year-final unpublish failed");
+        return;
+      }
+      toast.success(`Unpublished ${data.affected} year-final marksheet(s)`);
+      setYearFinalDialog({ open: false, mode: "unpublish" });
+      fetchYearFinalStatus();
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setYearFinalBusy(false);
     }
   }
 
@@ -582,6 +739,89 @@ export default function AdminPublishPage() {
         </div>
       )}
 
+      {/* ── Year-final marksheet (H16-A) ────────────────────────────
+          Independent of the exam-type selector — uses the class's
+          academic_year_id. Snapshot version V2 captures the year-end
+          aggregate so subsequent mark edits don't mutate the published
+          year-final report cards. */}
+      {selectedClassId && (
+        <Card className="bg-white dark:bg-card rounded-2xl">
+          <CardHeader>
+            <CardTitle className="text-navy-900 dark:text-white flex items-center gap-2">
+              <CalendarCheck className="h-4 w-4" />
+              Year-Final Marksheet
+            </CardTitle>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Snapshot the end-of-year aggregate (rank, division, final
+              percentage) for the whole class. Use this once promotion is
+              decided. Re-finalize requires a reason.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {yearFinalStatus === null ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg border border-gray-200 dark:border-border p-2 text-center">
+                    <div className="text-gray-500 dark:text-gray-400">
+                      Active enrollments
+                    </div>
+                    <div className="font-semibold text-navy-900 dark:text-white">
+                      {yearFinalStatus.enrolled}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20 p-2 text-center">
+                    <div className="text-gray-500 dark:text-gray-400">
+                      Year-final finalized
+                    </div>
+                    <div className="font-semibold text-green-700 dark:text-green-400">
+                      {yearFinalStatus.finalized_active}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => finalizeYearFinal()}
+                    disabled={
+                      yearFinalBusy || yearFinalStatus.enrolled === 0
+                    }
+                    className="bg-navy-900 text-white hover:bg-navy-900/90"
+                    size="sm"
+                  >
+                    {yearFinalBusy && (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    )}
+                    <Lock className="h-4 w-4 mr-2" />
+                    {yearFinalStatus.finalized_active > 0
+                      ? "Re-finalize all"
+                      : "Finalize all"}
+                  </Button>
+                  {yearFinalStatus.finalized_active > 0 && (
+                    <Button
+                      onClick={openYearFinalUnpublishDialog}
+                      disabled={yearFinalBusy}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <LockOpen className="h-4 w-4 mr-2" />
+                      Unpublish all year-final
+                    </Button>
+                  )}
+                </div>
+                {yearFinalStatus.enrolled === 0 && (
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    No active enrollments to finalize.
+                  </p>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {selectedClassId && selectedExamTypeId && rows.length > 0 && (
         <Card className="bg-white dark:bg-card rounded-2xl">
           <CardHeader>
@@ -704,6 +944,47 @@ export default function AdminPublishPage() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog
+        open={yearFinalDialog.open}
+        onOpenChange={(o) =>
+          setYearFinalDialog((prev) => ({ ...prev, open: o }))
+        }
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Unpublish all year-final marksheets?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              This unpublishes every active year-final marksheet for the
+              selected class. Future PDF downloads fall back to live data.
+              A reason is required for audit.
+            </p>
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Input
+                value={yearFinalReason}
+                onChange={(e) => setYearFinalReason(e.target.value)}
+                placeholder="e.g. Promotion decisions changed for 3 students"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              onClick={confirmYearFinalUnpublish}
+              disabled={yearFinalBusy || !yearFinalReason.trim()}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {yearFinalBusy && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Unpublish all
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={unpublishDialog.open}

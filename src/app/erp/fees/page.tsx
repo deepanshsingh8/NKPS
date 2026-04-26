@@ -151,6 +151,12 @@ function AdminFeesContent() {
     amount_paid: "",
     payment_method: "cash" as (typeof PAYMENT_METHODS)[number],
     month: "",
+    cheque_number: "",
+    cheque_date: "",
+    bank_name: "",
+    payer_name: "",
+    transaction_ref: "",
+    payment_provider: "",
   });
 
   // Refund + waiver dialog state (M9). Keeping the two flows separate so the
@@ -658,7 +664,10 @@ function AdminFeesContent() {
     setStructureSubmitting(false);
   };
 
-  // Delete fee structure
+  // Delete fee structure. If FK violations block hard delete (recorded
+  // payments reference this row), offer to deactivate instead — a deactivated
+  // structure stops appearing in dues / record-payment dropdowns without
+  // discarding receipt history.
   const handleDeleteStructure = async (id: string) => {
     if (!confirm("Delete this fee structure? This cannot be undone.")) return;
 
@@ -668,12 +677,35 @@ function AdminFeesContent() {
       match: { column: "id", value: id },
     });
 
-    if (!result.success) {
-      toast.error(`Failed to delete: ${result.error}`);
+    if (result.success) {
+      toast.success("Fee structure deleted");
+      fetchFeeStructures();
       return;
     }
-    toast.success("Fee structure deleted");
-    fetchFeeStructures();
+
+    const blockedByFK = (result.error ?? "").toLowerCase().includes("cannot delete");
+    if (
+      blockedByFK &&
+      confirm(
+        "This fee has recorded payments and cannot be deleted. Deactivate it instead? It will be hidden from dues and the record-payment dialog, but receipts stay intact."
+      )
+    ) {
+      const deact = await adminApi({
+        action: "update",
+        table: "fee_structures",
+        data: { is_active: false },
+        match: { column: "id", value: id },
+      });
+      if (!deact.success) {
+        toast.error(`Failed to deactivate: ${deact.error}`);
+        return;
+      }
+      toast.success("Fee structure deactivated");
+      fetchFeeStructures();
+      return;
+    }
+
+    toast.error(`Failed to delete: ${result.error}`);
   };
 
   // Refund a previously-recorded payment.
@@ -783,6 +815,7 @@ function AdminFeesContent() {
     }
 
     setPaymentSubmitting(true);
+    const m = newPayment.payment_method;
     const res = await fetch("/api/erp/fees/payments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -790,8 +823,26 @@ function AdminFeesContent() {
         student_id: selectedStudent.id,
         fee_structure_id: newPayment.fee_structure_id,
         amount_paid: amount,
-        payment_method: newPayment.payment_method,
+        payment_method: m,
         month: newPayment.month || "",
+        // Only send the fields that apply to the chosen method. Sending
+        // the rest as empty strings is fine — the schema treats empty as
+        // undefined — but we keep the body lean.
+        ...(m === "cheque" && {
+          cheque_number: newPayment.cheque_number,
+          cheque_date: newPayment.cheque_date,
+          bank_name: newPayment.bank_name,
+          payer_name: newPayment.payer_name,
+        }),
+        ...(m === "bank_transfer" && {
+          bank_name: newPayment.bank_name,
+          payer_name: newPayment.payer_name,
+          transaction_ref: newPayment.transaction_ref,
+        }),
+        ...(m === "online" && {
+          payment_provider: newPayment.payment_provider,
+          transaction_ref: newPayment.transaction_ref,
+        }),
       }),
     });
 
@@ -806,6 +857,12 @@ function AdminFeesContent() {
         amount_paid: "",
         payment_method: "cash",
         month: "",
+        cheque_number: "",
+        cheque_date: "",
+        bank_name: "",
+        payer_name: "",
+        transaction_ref: "",
+        payment_provider: "",
       });
       // Refresh payments
       selectStudent(selectedStudent);
@@ -1651,6 +1708,150 @@ function AdminFeesContent() {
                 }
               />
             </div>
+
+            {/* Method-specific fields. Only what's relevant to the chosen
+                payment method is rendered, and the corresponding required
+                fields are validated server-side via feePaymentSchema. */}
+            {newPayment.payment_method === "cheque" && (
+              <div className="rounded-xl border border-gray-200 dark:border-border p-3 space-y-3">
+                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  Cheque details
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Cheque No.</Label>
+                    <Input
+                      className="h-9"
+                      placeholder="e.g. 412309"
+                      value={newPayment.cheque_number}
+                      onChange={(e) =>
+                        setNewPayment({ ...newPayment, cheque_number: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Cheque Date</Label>
+                    <Input
+                      className="h-9"
+                      type="date"
+                      value={newPayment.cheque_date}
+                      onChange={(e) =>
+                        setNewPayment({ ...newPayment, cheque_date: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Drawee Bank</Label>
+                    <Input
+                      className="h-9"
+                      placeholder="e.g. SBI"
+                      value={newPayment.bank_name}
+                      onChange={(e) =>
+                        setNewPayment({ ...newPayment, bank_name: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Payee Name (optional)</Label>
+                    <Input
+                      className="h-9"
+                      placeholder="As on cheque"
+                      value={newPayment.payer_name}
+                      onChange={(e) =>
+                        setNewPayment({ ...newPayment, payer_name: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {newPayment.payment_method === "bank_transfer" && (
+              <div className="rounded-xl border border-gray-200 dark:border-border p-3 space-y-3">
+                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  Bank transfer details
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Originating Bank</Label>
+                    <Input
+                      className="h-9"
+                      placeholder="e.g. HDFC"
+                      value={newPayment.bank_name}
+                      onChange={(e) =>
+                        setNewPayment({ ...newPayment, bank_name: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Payer Name (optional)</Label>
+                    <Input
+                      className="h-9"
+                      placeholder="As on transfer"
+                      value={newPayment.payer_name}
+                      onChange={(e) =>
+                        setNewPayment({ ...newPayment, payer_name: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Transaction Reference (UTR / NEFT)</Label>
+                  <Input
+                    className="h-9"
+                    placeholder="e.g. SBIN0123456789"
+                    value={newPayment.transaction_ref}
+                    onChange={(e) =>
+                      setNewPayment({ ...newPayment, transaction_ref: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            )}
+
+            {newPayment.payment_method === "online" && (
+              <div className="rounded-xl border border-gray-200 dark:border-border p-3 space-y-3">
+                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  Online payment details
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Provider</Label>
+                    <Input
+                      className="h-9"
+                      placeholder="PhonePe / GPay / Paytm / Razorpay"
+                      list="payment-providers"
+                      value={newPayment.payment_provider}
+                      onChange={(e) =>
+                        setNewPayment({ ...newPayment, payment_provider: e.target.value })
+                      }
+                    />
+                    <datalist id="payment-providers">
+                      <option value="PhonePe" />
+                      <option value="Google Pay" />
+                      <option value="Paytm" />
+                      <option value="BHIM" />
+                      <option value="Razorpay" />
+                      <option value="Other" />
+                    </datalist>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Transaction ID</Label>
+                    <Input
+                      className="h-9"
+                      placeholder="UPI / order id"
+                      value={newPayment.transaction_ref}
+                      onChange={(e) =>
+                        setNewPayment({ ...newPayment, transaction_ref: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <Button
               onClick={handleRecordPayment}
               disabled={paymentSubmitting}
@@ -1676,6 +1877,10 @@ function AdminFeesContent() {
             <DialogTitle>Refund Payment</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              One refund per payment. The amount can be partial (≤ original
+              receipt) but cannot be split across multiple refund events.
+            </p>
             <div>
               <Label className="text-sm font-medium">
                 Refund amount (max ₹{refundMaxAmount})
@@ -1793,14 +1998,16 @@ function AdminFeesContent() {
             <div>
               <Label className="text-sm font-medium">Month (optional)</Label>
               <Input
-                type="text"
+                type="month"
                 value={waiverForm.month}
                 onChange={(e) =>
                   setWaiverForm((p) => ({ ...p, month: e.target.value }))
                 }
-                placeholder="e.g. April 2026"
                 className="mt-1"
               />
+              <p className="text-xs text-gray-400 mt-1">
+                Stored as YYYY-MM to match payment-month reporting.
+              </p>
             </div>
           </div>
           <div className="flex justify-end gap-2">

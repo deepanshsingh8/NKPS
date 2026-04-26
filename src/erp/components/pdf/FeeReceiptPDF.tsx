@@ -216,6 +216,13 @@ export interface FeeReceiptData {
     roll_number: number | null;
   };
   remarks?: string | null;
+  // Migration 044 — only populated for non-cash methods.
+  cheque_number?: string | null;
+  cheque_date?: string | null;
+  bank_name?: string | null;
+  payer_name?: string | null;
+  transaction_ref?: string | null;
+  payment_provider?: string | null;
 }
 
 interface Props {
@@ -328,8 +335,40 @@ function Copy({
           {data.payment_method
             .replace("_", " ")
             .replace(/\b\w/g, (c) => c.toUpperCase())}
+          {data.payment_provider ? `   ·   ${data.payment_provider}` : ""}
         </Text>
       </View>
+
+      {/* Method-specific reconciliation lines (migration 044). Each block
+          shows only fields that are populated, so cash receipts stay clean. */}
+      {data.cheque_number ? (
+        <View style={styles.gridRow}>
+          <Text style={styles.gridLabel}>Cheque</Text>
+          <Text style={styles.gridValue}>
+            #{data.cheque_number}
+            {data.cheque_date ? `   ·   ${formatDate(data.cheque_date)}` : ""}
+            {data.bank_name ? `   ·   ${data.bank_name}` : ""}
+          </Text>
+        </View>
+      ) : null}
+      {!data.cheque_number && data.bank_name ? (
+        <View style={styles.gridRow}>
+          <Text style={styles.gridLabel}>Bank</Text>
+          <Text style={styles.gridValue}>{data.bank_name}</Text>
+        </View>
+      ) : null}
+      {data.payer_name ? (
+        <View style={styles.gridRow}>
+          <Text style={styles.gridLabel}>Payer</Text>
+          <Text style={styles.gridValue}>{data.payer_name}</Text>
+        </View>
+      ) : null}
+      {data.transaction_ref ? (
+        <View style={styles.gridRow}>
+          <Text style={styles.gridLabel}>Transaction Ref.</Text>
+          <Text style={styles.gridValue}>{data.transaction_ref}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.amountBox}>
         <Text style={styles.amountLabel}>Amount Received</Text>

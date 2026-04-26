@@ -2,6 +2,35 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+// M6 — coalesce concurrent in-flight URL writes.
+//
+// Two `setValue` calls fired in the same tick previously each read
+// `window.location.search` synchronously and `replaceState` independently,
+// so the second write overwrote the first key. We now buffer pending
+// `(key, next-or-null)` pairs and flush them on a microtask, which lets
+// every setter in the same render contribute to a single replaceState.
+const pendingWrites = new Map<string, string | null>();
+let flushScheduled = false;
+function scheduleFlush() {
+  if (flushScheduled) return;
+  flushScheduled = true;
+  queueMicrotask(() => {
+    flushScheduled = false;
+    if (typeof window === "undefined" || pendingWrites.size === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    for (const [k, v] of pendingWrites) {
+      if (v === null || v === "") params.delete(k);
+      else params.set(k, v);
+    }
+    pendingWrites.clear();
+    const qs = params.toString();
+    const url = qs
+      ? `${window.location.pathname}?${qs}`
+      : window.location.pathname;
+    window.history.replaceState(window.history.state, "", url);
+  });
+}
+
 /**
  * Persistent client-side state that mirrors a single key in the page's URL
  * search string. Lets list pages survive browser back-navigation without
@@ -56,17 +85,9 @@ export function useUrlState(
     (next: string) => {
       setValueLocal(next);
       if (typeof window === "undefined") return;
-      const params = new URLSearchParams(window.location.search);
-      if (next === "" || next === defaultRef.current) {
-        params.delete(key);
-      } else {
-        params.set(key, next);
-      }
-      const qs = params.toString();
-      const url = qs
-        ? `${window.location.pathname}?${qs}`
-        : window.location.pathname;
-      window.history.replaceState(window.history.state, "", url);
+      const drop = next === "" || next === defaultRef.current;
+      pendingWrites.set(key, drop ? null : next);
+      scheduleFlush();
     },
     [key]
   );

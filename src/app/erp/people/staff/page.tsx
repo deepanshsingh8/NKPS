@@ -43,6 +43,7 @@ import {
   Download,
   ChevronDown,
   UserPlus,
+  GraduationCap,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -143,6 +144,12 @@ export default function AdminStaffPage() {
   const [search, setSearch] = useState("");
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [portalDialogOpen, setPortalDialogOpen] = useState(false);
+  // H16-B — track which staff_members are already linked to a teachers row
+  // so the "Convert to teacher" action can hide for already-linked rows.
+  const [teacherLinkedIds, setTeacherLinkedIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [convertingId, setConvertingId] = useState<string | null>(null);
 
   // Selection & bulk actions
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -168,22 +175,77 @@ export default function AdminStaffPage() {
   const supabase = createClient();
 
   const fetchStaff = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("staff_members")
-      .select("*")
-      .eq("is_active", true)
-      .order("category")
-      .order("sort_order")
-      .order("name");
+    const [staffRes, teacherLinkRes] = await Promise.all([
+      supabase
+        .from("staff_members")
+        .select("*")
+        .eq("is_active", true)
+        .order("category")
+        .order("sort_order")
+        .order("name"),
+      // H16-B — every teacher row links back to a staff_members row via
+      // staff_member_id; this set tells us which staff already have a
+      // linked teacher so we can hide the "Convert to teacher" action.
+      supabase
+        .from("teachers")
+        .select("staff_member_id")
+        .not("staff_member_id", "is", null),
+    ]);
 
-    if (error) {
-      console.error("Failed to fetch staff:", error);
+    if (staffRes.error) {
+      console.error("Failed to fetch staff:", staffRes.error);
       toast.error("Failed to load staff members");
     } else {
-      setStaff((data as StaffMember[]) || []);
+      setStaff((staffRes.data as StaffMember[]) || []);
+    }
+    if (!teacherLinkRes.error) {
+      const ids = new Set<string>();
+      for (const row of teacherLinkRes.data ?? []) {
+        const sid = row.staff_member_id as string | null;
+        if (sid) ids.add(sid);
+      }
+      setTeacherLinkedIds(ids);
     }
     setLoading(false);
   }, [supabase]);
+
+  // H16-B — promote a staff_members row to also be a teachers row. The
+  // helper is idempotent, so a stale UI click on an already-linked row
+  // resolves to "already linked" rather than failing.
+  const handleConvertToTeacher = useCallback(
+    async (member: StaffMember) => {
+      if (
+        !confirm(
+          `Convert "${member.name}" to a teacher? This creates a teachers record (linked to this staff entry) so they can be assigned classes/subjects, mark attendance, etc.`
+        )
+      ) {
+        return;
+      }
+      setConvertingId(member.id);
+      try {
+        const res = await adminFetch(
+          `/api/staff/${member.id}/convert-to-teacher`,
+          { method: "POST" }
+        );
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error ?? "Failed to convert to teacher");
+          return;
+        }
+        if (data.created === false) {
+          toast.message("Already linked to a teacher record");
+        } else {
+          toast.success("Teacher record created and linked");
+        }
+        await fetchStaff();
+      } catch {
+        toast.error("Network error");
+      } finally {
+        setConvertingId(null);
+      }
+    },
+    [fetchStaff]
+  );
 
   useEffect(() => {
     fetchStaff();
@@ -619,10 +681,30 @@ export default function AdminStaffPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {/* H16-B — convert-to-teacher action. Hidden when the
+                          staff_member already has a linked teachers row. */}
+                      {!teacherLinkedIds.has(member.id) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleConvertToTeacher(member)}
+                          disabled={convertingId === member.id}
+                          aria-label="Convert to teacher"
+                          title="Convert to teacher (creates a linked teachers record)"
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        >
+                          {convertingId === member.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <GraduationCap className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => openEditDialog(member)}
+                        aria-label="Edit staff member"
                         title="Edit"
                       >
                         <Pencil className="h-4 w-4" />
@@ -631,6 +713,7 @@ export default function AdminStaffPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDelete(member)}
+                        aria-label="Delete staff member"
                         className="text-red-500 hover:text-red-700 hover:bg-red-50"
                         title="Delete"
                       >

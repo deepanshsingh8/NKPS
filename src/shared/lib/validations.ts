@@ -316,23 +316,93 @@ export const ptmFormatSchema = z.object({
 
 export type PtmFormatData = z.infer<typeof ptmFormatSchema>;
 
-export const feePaymentSchema = z.object({
-  student_id: z.string().uuid("Invalid student"),
-  fee_structure_id: z.string().uuid("Invalid fee structure"),
-  amount_paid: z
-    .number()
-    .finite("Amount must be a valid number")
-    .min(0, "Amount cannot be negative"),
-  payment_method: z.enum(
-    ["cash", "online", "cheque", "bank_transfer", "upi", "gateway"],
-    { message: "Please select a payment method" }
-  ),
-  month: z.string().min(1, "Month is required").optional().or(z.literal("")),
-  // M9 — when status='partial' the amount is below structure.amount, when
-  // 'paid' it should equal it. The route validates the relationship; the
-  // schema just permits both values.
-  status: z.enum(["paid", "partial"]).optional(),
-});
+// Migration 044 — payment-method-specific reconciliation fields.
+// All optional at the schema level; the cross-field rule below requires
+// the right subset for the chosen method (cheque needs a cheque number;
+// bank transfer needs a transaction ref; online/upi needs a provider +
+// transaction ref). Cash never requires extras.
+const optionalTrimmedString = z
+  .string()
+  .trim()
+  .optional()
+  .or(z.literal(""))
+  .transform((v) => (v && v.length > 0 ? v : undefined));
+
+export const feePaymentSchema = z
+  .object({
+    student_id: z.string().uuid("Invalid student"),
+    fee_structure_id: z.string().uuid("Invalid fee structure"),
+    amount_paid: z
+      .number()
+      .finite("Amount must be a valid number")
+      .min(0, "Amount cannot be negative"),
+    payment_method: z.enum(
+      ["cash", "online", "cheque", "bank_transfer", "upi", "gateway"],
+      { message: "Please select a payment method" }
+    ),
+    month: z.string().min(1, "Month is required").optional().or(z.literal("")),
+    // M9 — when status='partial' the amount is below structure.amount, when
+    // 'paid' it should equal it. The route validates the relationship; the
+    // schema just permits both values.
+    status: z.enum(["paid", "partial"]).optional(),
+    cheque_number: optionalTrimmedString,
+    cheque_date: optionalTrimmedString,
+    bank_name: optionalTrimmedString,
+    payer_name: optionalTrimmedString,
+    transaction_ref: optionalTrimmedString,
+    payment_provider: optionalTrimmedString,
+  })
+  .superRefine((val, ctx) => {
+    const m = val.payment_method;
+    if (m === "cheque") {
+      if (!val.cheque_number) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Cheque number is required",
+          path: ["cheque_number"],
+        });
+      }
+      if (!val.bank_name) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Drawee bank is required",
+          path: ["bank_name"],
+        });
+      }
+    }
+    if (m === "bank_transfer") {
+      if (!val.transaction_ref) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Transaction reference (UTR / NEFT id) is required",
+          path: ["transaction_ref"],
+        });
+      }
+      if (!val.bank_name) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Originating bank is required",
+          path: ["bank_name"],
+        });
+      }
+    }
+    if (m === "online" || m === "upi" || m === "gateway") {
+      if (!val.payment_provider) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Payment provider is required (e.g. PhonePe, GPay, Paytm)",
+          path: ["payment_provider"],
+        });
+      }
+      if (!val.transaction_ref) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Transaction reference is required",
+          path: ["transaction_ref"],
+        });
+      }
+    }
+  });
 
 export type FeePaymentData = z.infer<typeof feePaymentSchema>;
 
@@ -542,6 +612,107 @@ export const staffBulkUploadSchema = z.object({
 });
 
 export type StaffBulkUploadData = z.infer<typeof staffBulkUploadSchema>;
+
+// Categories the directory page exposes via the Add/Edit dialog. Kept in
+// lockstep with the constant in /api/staff/route.ts (M1).
+export const staffCategoryEnum = z.enum([
+  "management",
+  "admin",
+  "pgt",
+  "tgt",
+  "prt",
+  "motherTeachers",
+  "prePrimaryCoordinator",
+  "primaryCoordinator",
+  "middleCoordinator",
+  "seniorCoordinator",
+  "additionalStaff",
+  "busDriver",
+  "peon",
+]);
+
+const optionalNullableString = z
+  .string()
+  .trim()
+  .max(2000)
+  .optional()
+  .or(z.literal(""))
+  .transform((v) => (v && v.length > 0 ? v : ""));
+
+export const staffCreateSchema = z.object({
+  name: z.string().trim().min(2, "Name is required").max(200),
+  subject: z.string().trim().min(1, "Subject/designation is required").max(200),
+  category: staffCategoryEnum,
+  photo_url: z.string().url().optional().or(z.literal("")),
+  sort_order: z.number().int().min(0).max(100000).optional(),
+  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  phone: phoneOptionalSchema.optional().or(z.literal("")),
+  date_of_birth: dobOptionalSchema,
+  address: optionalNullableString,
+  qualifications: optionalNullableString,
+});
+
+// PATCH allows any subset of the create fields (plus the row id, handled
+// separately on the route). Photo cleanup uses a sibling `old_photo_url`
+// hint that the schema allowlists explicitly so the spread can't smuggle
+// random columns through.
+export const staffUpdateSchema = staffCreateSchema.partial().extend({
+  id: z.string().uuid("Invalid staff id"),
+  old_photo_url: z.string().url().optional().or(z.literal("")),
+});
+
+export type StaffCreateData = z.infer<typeof staffCreateSchema>;
+export type StaffUpdateData = z.infer<typeof staffUpdateSchema>;
+
+// Section-cards CRUD (audit L4). The API used to spread arbitrary text into
+// the table, letting an editor with `site_media` write multi-MB strings to
+// any text column. Cap each free-text column at 2 KB.
+const sectionCardText = z
+  .string()
+  .max(2000, "Field is too long (max 2000 chars)")
+  .optional()
+  .or(z.literal(""))
+  .transform((v) => (v && v.length > 0 ? v : undefined));
+
+export const sectionCardCreateSchema = z.object({
+  section: z.string().min(1, "Section is required").max(100),
+  title: sectionCardText,
+  subtitle: sectionCardText,
+  description: sectionCardText,
+  quote: sectionCardText,
+  name: sectionCardText,
+  role: sectionCardText,
+  date: sectionCardText,
+  cta_text: sectionCardText,
+  cta_link: sectionCardText,
+  icon: sectionCardText,
+  link: sectionCardText,
+  designation: sectionCardText,
+  message: sectionCardText,
+  year: sectionCardText,
+  season: sectionCardText,
+  image_url: z.string().url().optional().or(z.literal("")),
+  sort_order: z
+    .union([z.number(), z.string()])
+    .optional()
+    .transform((v) => {
+      if (v === undefined || v === "" || v === null) return 0;
+      const n = typeof v === "number" ? v : parseInt(v, 10);
+      return Number.isFinite(n) ? n : 0;
+    }),
+  is_active: z.boolean().optional(),
+});
+
+export const sectionCardUpdateSchema = z.object({
+  id: z.string().uuid("Invalid card id"),
+  data: sectionCardCreateSchema.partial().extend({
+    initials: z.string().max(4).optional(),
+    updated_at: z.string().optional(),
+  }),
+});
+
+export type SectionCardCreateData = z.infer<typeof sectionCardCreateSchema>;
+export type SectionCardUpdateData = z.infer<typeof sectionCardUpdateSchema>;
 
 // =============================================================
 // Teacher Records

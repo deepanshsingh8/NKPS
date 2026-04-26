@@ -1,5 +1,5 @@
 import { createClient } from "./client";
-import { adminFetch } from "@/lib/admin-api";
+import { adminFetch } from "@/shared/lib/admin-api";
 
 /**
  * Upload a file directly to Supabase Storage from the browser.

@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
-import { createAdminClient } from "@/lib/supabase/admin";
-import type { FeatureKey } from "@/lib/permissions";
+import { createAdminClient } from "@/shared/lib/supabase/admin";
+import type { FeatureKey } from "@/shared/lib/permissions";
 
 /**
  * Why we re-check `must_change_password` here even though middleware does it:
@@ -49,6 +49,25 @@ export async function verifyAdmin() {
   if (profile.must_change_password) return null;
   if (profile.role !== "admin") return null;
   return admin;
+}
+
+/**
+ * Like verifyAdmin but also returns the authenticated user — used by routes
+ * that need to record `actor_id` or rate-limit per actor without making a
+ * second call to `getUser()`.
+ *
+ * Fails closed if `must_change_password = true`.
+ */
+export async function verifyAdminWithUser() {
+  const headersList = await headers();
+  const accessToken = readBearerToken(headersList.get("authorization"));
+  if (!accessToken) return null;
+
+  const { admin, user, profile } = await loadCaller(accessToken);
+  if (!user || !profile) return null;
+  if (profile.must_change_password) return null;
+  if (profile.role !== "admin") return null;
+  return { admin, user };
 }
 
 /**

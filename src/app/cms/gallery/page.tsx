@@ -1178,6 +1178,7 @@ export default function AdminGalleryPage() {
                             variant="ghost"
                             size="icon-sm"
                             onClick={() => handleImageDelete(image)}
+                            aria-label="Delete image"
                             className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                             title="Delete image"
                           >
@@ -1537,6 +1538,7 @@ export default function AdminGalleryPage() {
                                   variant="ghost"
                                   size="icon-sm"
                                   onClick={() => openEventUpload(evt.id)}
+                                  aria-label="Upload photos to this event"
                                   className="text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                                   title="Upload photos to this event"
                                 >
@@ -1546,6 +1548,7 @@ export default function AdminGalleryPage() {
                                   variant="ghost"
                                   size="icon-sm"
                                   onClick={() => openEditEvent(evt)}
+                                  aria-label="Edit event"
                                   className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
                                 >
                                   <Pencil className="h-4 w-4" />
@@ -1554,6 +1557,7 @@ export default function AdminGalleryPage() {
                                   variant="ghost"
                                   size="icon-sm"
                                   onClick={() => handleEventDelete(evt.id)}
+                                  aria-label="Delete event"
                                   className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                                 >
                                   <Trash2 className="h-4 w-4" />

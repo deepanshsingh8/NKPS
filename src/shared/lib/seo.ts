@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SCHOOL } from "@/lib/constants";
+import { SCHOOL } from "@/shared/lib/constants";
 
 const DEFAULT_SITE_URL = "https://www.nkpublicschool.com";
 

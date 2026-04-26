@@ -1,5 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/admin";
-import { generateSecurePassword } from "@/lib/password";
+import { createAdminClient } from "@/shared/lib/supabase/admin";
+import { generateSecurePassword } from "@/shared/lib/password";
 
 interface CreatePortalUserParams {
   email: string;
@@ -66,8 +66,8 @@ export async function createPortalUser({
   }
 
   try {
-    const { sendEmail, buildWelcomeEmail } = await import("@/lib/email");
-    const { SITE_URL } = await import("@/lib/seo");
+    const { sendEmail, buildWelcomeEmail } = await import("@/shared/lib/email");
+    const { SITE_URL } = await import("@/shared/lib/seo");
     const loginUrl = `${SITE_URL}/portal/login`;
     const html = buildWelcomeEmail({
       fullName,

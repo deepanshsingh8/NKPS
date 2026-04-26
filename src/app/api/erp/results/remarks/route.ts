@@ -114,6 +114,7 @@ export async function POST(request: Request) {
     const examTypeId: string | undefined = body.exam_type_id;
     const classId: string | undefined = body.class_id;
     const entries: RemarkEntry[] | undefined = body.entries;
+    const forceOverwrite: boolean = body.force_overwrite === true;
 
     if (!examTypeId || !Array.isArray(entries)) {
       return NextResponse.json(
@@ -146,6 +147,70 @@ export async function POST(request: Request) {
           { error: "Only the assigned class teacher can submit remarks for this class" },
           { status: 403 }
         );
+      }
+    }
+
+    // M10 — admins/editors can silently clobber a teacher's draft remark.
+    // When the caller is admin/editor, look at the existing rows for the
+    // students they're about to write. If any was authored by a profile
+    // whose role is "teacher" AND the new entry differs from the existing
+    // text, we 409 unless body.force_overwrite is set. Teachers writing
+    // their own remarks always overwrite — they are the canonical author.
+    if (
+      (profile.role === "admin" || profile.role === "editor") &&
+      !forceOverwrite
+    ) {
+      const studentIdsToWrite = entries
+        .filter((e) => e.remark && e.remark.trim().length > 0)
+        .map((e) => e.student_id);
+      if (studentIdsToWrite.length > 0) {
+        const { data: existingRows } = await supabase
+          .from("student_remarks")
+          .select("student_id, remark, author_id")
+          .eq("exam_type_id", examTypeId)
+          .in("student_id", studentIdsToWrite);
+        const authorIds = Array.from(
+          new Set(
+            (existingRows ?? [])
+              .map((r) => r.author_id as string | null)
+              .filter((v): v is string => !!v && v !== user.id)
+          )
+        );
+        if (authorIds.length > 0) {
+          const { data: authors } = await supabase
+            .from("profiles")
+            .select("id, role")
+            .in("id", authorIds);
+          const teacherAuthorIds = new Set(
+            (authors ?? [])
+              .filter((a) => a.role === "teacher")
+              .map((a) => a.id as string)
+          );
+          const existingByStudent = new Map(
+            (existingRows ?? []).map((r) => [r.student_id as string, r])
+          );
+          const conflicts: string[] = [];
+          for (const e of entries) {
+            const existing = existingByStudent.get(e.student_id);
+            if (!existing) continue;
+            const existingAuthor = existing.author_id as string | null;
+            if (!existingAuthor || !teacherAuthorIds.has(existingAuthor)) continue;
+            const newText = (e.remark ?? "").trim();
+            if (newText && newText !== (existing.remark ?? "").trim()) {
+              conflicts.push(e.student_id);
+            }
+          }
+          if (conflicts.length > 0) {
+            return NextResponse.json(
+              {
+                error: `${conflicts.length} student(s) have a class-teacher remark already. Confirm to overwrite.`,
+                conflict_student_ids: conflicts,
+                requires_force_overwrite: true,
+              },
+              { status: 409 }
+            );
+          }
+        }
       }
     }
 

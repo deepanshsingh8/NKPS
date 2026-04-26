@@ -54,7 +54,8 @@ export async function PATCH(request: NextRequest) {
         .in("id", ids);
 
       if (error) {
-        errors.push(`Failed to update ${ids.length} enrollment(s) to status "${status}": ${error.message}`);
+        console.error("Enrollment status bulk update failed:", error);
+        errors.push(`Failed to update ${ids.length} enrollment(s) to status "${status}"`);
       } else {
         successCount += count ?? ids.length;
       }

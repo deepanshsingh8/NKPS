@@ -216,6 +216,11 @@ export default function AdminUsersPage() {
       } else {
         toast.success("Login details sent to the user via email");
       }
+      // L16 — surface the auto-created staff_members default so the admin
+      // remembers to recategorize ('tgt' / '—' is rarely the right slot).
+      if (data.staff_notice) {
+        toast.info(data.staff_notice, { duration: 12000 });
+      }
       await fetchProfiles();
     } catch {
       toast.error("Failed to create user");
@@ -525,6 +530,7 @@ export default function AdminUsersPage() {
                               variant="ghost"
                               size="icon-sm"
                               onClick={() => handleDelete(profile)}
+                              aria-label="Delete user"
                               className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -703,6 +709,7 @@ export default function AdminUsersPage() {
                       navigator.clipboard.writeText(generatedPassword);
                       toast.success("Password copied");
                     }}
+                    aria-label="Copy password"
                     className="text-amber-700 hover:bg-amber-100"
                   >
                     <Copy className="h-4 w-4" />
@@ -909,6 +916,7 @@ export default function AdminUsersPage() {
                     toast.success("Password copied");
                   }
                 }}
+                aria-label="Copy password"
                 className="text-amber-700 hover:bg-amber-100"
               >
                 <Copy className="h-4 w-4" />

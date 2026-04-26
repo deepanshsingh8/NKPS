@@ -680,6 +680,7 @@ export default function AdminExamTypesPage() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => openEdit(et)}
+                        aria-label="Edit exam type"
                         className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
                       >
                         <Pencil className="h-4 w-4" />
@@ -688,6 +689,7 @@ export default function AdminExamTypesPage() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => handleDelete(et.id)}
+                        aria-label="Delete exam type"
                         className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                       >
                         <Trash2 className="h-4 w-4" />

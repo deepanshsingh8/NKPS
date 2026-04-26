@@ -524,6 +524,7 @@ export default function NonScholasticMastersPage() {
                               variant="ghost"
                               size="icon"
                               onClick={() => openEditSubSubject(ss)}
+                              aria-label="Edit sub-subject"
                               className="h-7 w-7 text-blue-600"
                             >
                               <Pencil className="h-3.5 w-3.5" />
@@ -532,6 +533,7 @@ export default function NonScholasticMastersPage() {
                               variant="ghost"
                               size="icon"
                               onClick={() => setDeleteSubSubjectTarget(ss)}
+                              aria-label="Delete sub-subject"
                               className="h-7 w-7 text-red-600"
                             >
                               <Trash2 className="h-3.5 w-3.5" />

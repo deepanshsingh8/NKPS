@@ -327,7 +327,59 @@ Round 1 doc: `tasks/erp-bug-audit.md` (all 87 items closed).
 
 **All 4 critical items closed.** All 16 high items closed (H12 accepted as-is, H15 closed as-designed, H16 deferred until restructure settles).
 
-**Migrations to apply:** 040, 041, 043 (in addition to the 037-039 batch from Round 1 close-out).
+**Migrations to apply:** 040, 041, 043, 044 (in addition to the 037-039 batch from Round 1 close-out).
+
+**Field-reported follow-ups closed 2026-04-26:**
+- Editor permissions PUT was rejecting saves whenever the DB carried a feature_key that had been retired from the catalog (`Invalid feature_key: registrations`). Validator now silently filters unknowns; dialog drops them on load too so they don't appear pre-checked.
+- Hard-deleting a `fee_structure` returned the generic 500 from the admin proxy when child `fee_payments` rows existed. Proxy now decodes 23503 to a clear "deactivate instead" message; the fees page offers an inline deactivate fallback that hides the structure from dues/record-payment without nuking receipts.
+- Migration 044 adds `cheque_number / cheque_date / bank_name / payer_name / transaction_ref / payment_provider` to `fee_payments`. Record-payment dialog reveals the matching subset per method, server-side `feePaymentSchema` enforces the required combos, and `FeeReceiptPDF` prints the new lines on both copies of the slip.
+
+**H16 — UI for previously-unwired endpoints (2026-04-26):**
+- **finalize-year-final** — `/erp/exams/publish` now has a third "Year-Final Marksheet" card. Driven by the class's `academic_year_id` (independent of the per-exam selector). Shows active enrollments + active year-final count, finalize/re-finalize button (auto-prompts for reason on re-finalize), and an unpublish-all dialog with required reason.
+- **convert-to-teacher** — `/erp/people/staff` rows now show a graduation-cap icon button when the staff_member has no linked teachers row. Idempotent endpoint — UI also handles the "already linked" path (toast + refresh) without false errors. Linked rows hide the action.
+- **revert-alumni** — `/erp/people/students` Actions dropdown now has "Manage Alumni". Opens a list dialog (queries `students` with `is_alumni=true`) with a Revert button per row → opens a form dialog requiring a min-5-char reason and offering optional re-enrollment (academic year + class). Refreshes both alumni and students lists on success.
+
+**Round 2 sweep — Medium + Low closure (2026-04-26):**
+All 17 mediums and all 16 lows triaged — 31 fixed, 2 documented as accepted (L11 admin-proxy cast, L14 loading-state polish), 1 invalid (L15 — pdf_*_configs use template_key UNIQUE, no is_default column).
+
+Medium fixes:
+- **M1** — staff POST/PATCH parse via `staffCreateSchema` / `staffUpdateSchema`; PATCH no longer spreads arbitrary keys.
+- **M2** — `summary.errors[]` arrays in promote / staff-bulk / students-bulk / students-status now ship stable user-facing strings; raw error stays in `console.error`.
+- **M3** — `/api/portal/bulk-create` per-actor 5/hr rate limit + 200-item cap.
+- **M4** — `/api/erp/users` POST and `/api/erp/registrations/approve` per-actor 30/hr rate limit (auth-user-creating side effect).
+- **M5** — `/api/erp/students/promote` per-actor 10/hr rate limit (high-blast).
+- **M6** — `useUrlState` writes coalesce via a microtask queue so concurrent setters in the same tick can't clobber each other.
+- **M7** — fee payments POST rejects `amount_paid > structure.amount` (was inflating dues compute and phantom-clearing other dues).
+- **M8** — migration 037 + `coerceMaster` comments now match reality (CHECK locks division_scheme to 'cbse'; adding a scheme is a CHECK migration + label-resolver update).
+- **M9** — report-card non-scholastic query now scoped via `class_id` (which implies year), so prior-year assessments don't resurface.
+- **M10** — admin/editor remarks upsert returns 409 with `requires_force_overwrite` when the existing row was authored by a teacher and the text differs.
+- **M11** — admit-card bulk QR generation switched to `Promise.allSettled`; one failure no longer fails the whole 200-student PDF.
+- **M12** — class-tests POST gates teachers via `teacherTeachesClassSubject` (matches PATCH/DELETE/marks).
+- **M13** — `MarksheetSnapshotV2` doc-comment now explicitly states render-only; future computational changes must recompute + re-finalize, not smuggle through the snapshot.
+- **M14** — migration 045 adds `BEFORE UPDATE` triggers on the 10 lagging tables.
+- **M15** — migration 046 flips `supplementary_attempts.parent_exam_type_id` and `exam_schedules.exam_type_id` from CASCADE to SET NULL; schema mirror updated.
+- **M16** — 38 aria-labels added across 14 admin pages by a focused subagent sweep; pre-existing `title=` attrs preserved.
+- **M17** — refund route + UI clarify "single refund per payment, partial OK".
+
+Low fixes:
+- **L1** — `/api/erp/results/import` caps upload at 5 MB before reading buffer.
+- **L2** — `extractStoragePath()` helper added in `src/lib/storage-paths.ts`; staff and disclosure-documents routes use it for cleanup paths so cache-buster query strings no longer no-op deletes.
+- **L3** — `/api/staff/[id]/convert-to-teacher` echoes generic error; raw to console.
+- **L4** — section-cards POST/PATCH parse via Zod with 2 KB cap per text field.
+- **L5** — `/api/erp/roll-numbers/recompute` body now Zod-validated (UUID + enum).
+- **L6** — non-scholastic editor-scope decision documented in code (school-wide by design — flag for future class-scoping if needed).
+- **L7** — already closed in previous round (`console.error` on audit insert failure).
+- **L8** — covered by migration 045 (table included in the trigger-sweep array).
+- **L9** — fee waiver dialog now uses `<input type="month">` matching payment dialog format.
+- **L10** — `promoteStaffToTeacher` employee_id appends 4 hex chars from `crypto.randomBytes` so two parallel admin actions can't both 23505.
+- **L11** — accepted as-is (the `as any` is gated by an allowlisted-tables check; full Supabase Database type would land in a separate type-gen pass).
+- **L12** — email "sent successfully" log gated behind `NODE_ENV !== "production"`.
+- **L13** — non-scholastic sub-subjects GET fetches class-link rows once and partitions in JS for both filter + attachment.
+- **L14** — accepted as-is (loading-state polish; tracked separately for design pass).
+- **L15** — invalid (pdf_header_configs/pdf_footer_configs use `template_key` UNIQUE; no is_default column exists).
+- **L16** — `/api/erp/users` POST returns `staff_notice`; client toasts it on teacher-create so admin remembers to recategorize the auto-created staff row.
+
+**Migrations to run (cumulative):** 040 → 041 → 043 → 044 → 045 → 046 (alongside the 037–039 batch from Round 1 close-out).
 
 **Code changes summary:**
 - Privacy gate threaded through `computeFinalResult` and `canViewReportCard`
