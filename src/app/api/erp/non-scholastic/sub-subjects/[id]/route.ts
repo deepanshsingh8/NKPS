@@ -7,6 +7,10 @@ const patchSchema = z.object({
   grade_scale_id: z.string().uuid().nullable().optional(),
   sort_order: z.number().int().min(0).optional(),
   is_active: z.boolean().optional(),
+  // When supplied, REPLACES the existing class scoping. An empty array
+  // explicitly clears all scoping (sub-subject becomes global). Omitting the
+  // field leaves scoping untouched.
+  class_ids: z.array(z.string().uuid()).optional(),
 });
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -57,7 +61,46 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     console.error("[non-scholastic.sub-subjects.PATCH] update:", error);
     return NextResponse.json({ error: "Failed to update sub-subject" }, { status: 500 });
   }
-  return NextResponse.json({ data });
+
+  // Class scoping update — only when the field is present in the request.
+  // An empty array clears all scoping; a populated array replaces it wholesale.
+  let resolvedClassIds: string[] | undefined = undefined;
+  if (parsed.data.class_ids !== undefined) {
+    const newIds = parsed.data.class_ids;
+    // Replace existing scoping in two steps (delete-then-insert) — this table
+    // is small (≤ a few rows per sub-subject) so a transaction isn't worth a
+    // helper. Failures are logged; the row remains updated either way.
+    const { error: delErr } = await admin
+      .from("non_scholastic_sub_subject_classes")
+      .delete()
+      .eq("sub_subject_id", id);
+    if (delErr) {
+      console.error("[non-scholastic.sub-subjects.PATCH] clear links:", delErr);
+    }
+    if (newIds.length > 0) {
+      const { error: linkErr } = await admin
+        .from("non_scholastic_sub_subject_classes")
+        .insert(
+          newIds.map((class_id) => ({ sub_subject_id: id, class_id }))
+        );
+      if (linkErr) {
+        console.error("[non-scholastic.sub-subjects.PATCH] re-insert links:", linkErr);
+      }
+    }
+    resolvedClassIds = newIds;
+  } else {
+    // Caller didn't touch scoping — return whatever's currently in the DB so
+    // the client doesn't have to re-fetch.
+    const { data: links } = await admin
+      .from("non_scholastic_sub_subject_classes")
+      .select("class_id")
+      .eq("sub_subject_id", id);
+    resolvedClassIds = (links ?? []).map((r) => r.class_id as string);
+  }
+
+  return NextResponse.json({
+    data: { ...data, class_ids: resolvedClassIds },
+  });
 }
 
 export async function DELETE(_request: NextRequest, context: RouteContext) {

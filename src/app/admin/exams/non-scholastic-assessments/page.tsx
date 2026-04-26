@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import {
   Card,
   CardContent,
@@ -64,9 +65,10 @@ export default function AdminNonScholasticAssessmentsPage() {
   const [students, setStudents] = useState<EnrolledStudent[]>([]);
   const [subSubjects, setSubSubjects] = useState<SubSubject[]>([]);
 
-  const [selectedClassId, setSelectedClassId] = useState("");
-  const [selectedExamTypeId, setSelectedExamTypeId] = useState("");
-  const [selectedParentSubjectId, setSelectedParentSubjectId] = useState("");
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
+  const [selectedExamTypeId, setSelectedExamTypeId] = useUrlState("exam_type_id");
+  const [selectedParentSubjectId, setSelectedParentSubjectId] = useUrlState("subject_id");
 
   const [entries, setEntries] = useState<EntriesMap>({});
   const [bandsByScale, setBandsByScale] = useState<Record<string, GradeBandLite[]>>({});

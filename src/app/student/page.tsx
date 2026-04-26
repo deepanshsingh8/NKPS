@@ -134,7 +134,9 @@ export default function StudentDashboard() {
     );
   }
 
-  const firstName = profile?.full_name?.split(" ")[0] ?? "Student";
+  const rawName = profile?.full_name?.trim();
+  const firstName =
+    rawName && !rawName.includes("@") ? rawName.split(" ")[0] : "Student";
   const greeting = new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening";
 
   return (

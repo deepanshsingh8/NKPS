@@ -8,6 +8,9 @@ const subSubjectSchema = z.object({
   grade_scale_id: z.string().uuid().nullable().optional(),
   sort_order: z.number().int().min(0).optional(),
   is_active: z.boolean().optional(),
+  // Optional class scoping. Empty/absent = available to every class (default).
+  // A non-empty array restricts the sub-subject to those classes only.
+  class_ids: z.array(z.string().uuid()).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -16,10 +19,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const parentId = request.nextUrl.searchParams.get("parent_subject_id");
+  // When `class_id` is supplied, return only sub-subjects available to that
+  // class — i.e. either un-scoped (no rows in the join table) OR explicitly
+  // linked to this class. Used by the teacher entry grid + assessment forms.
+  const classId = request.nextUrl.searchParams.get("class_id");
 
   let query = admin
     .from("non_scholastic_sub_subjects")
-    .select("id, parent_subject_id, name, grade_scale_id, sort_order, is_active, created_at")
+    .select(
+      "id, parent_subject_id, name, grade_scale_id, sort_order, is_active, created_at"
+    )
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
 
@@ -32,7 +41,54 @@ export async function GET(request: NextRequest) {
     console.error("[non-scholastic.sub-subjects.GET] list:", error);
     return NextResponse.json({ error: "Failed to load sub-subjects" }, { status: 500 });
   }
-  return NextResponse.json({ data });
+
+  let rows = data ?? [];
+  if (classId && rows.length > 0) {
+    const subIds = rows.map((r) => r.id as string);
+    const { data: linkRows } = await admin
+      .from("non_scholastic_sub_subject_classes")
+      .select("sub_subject_id, class_id")
+      .in("sub_subject_id", subIds);
+    // sub_subject_ids that have at least one explicit class link.
+    const scopedSubs = new Set<string>();
+    // sub_subject_ids that have a link matching the requested class.
+    const allowedSubs = new Set<string>();
+    for (const r of linkRows ?? []) {
+      const sid = r.sub_subject_id as string;
+      scopedSubs.add(sid);
+      if (r.class_id === classId) allowedSubs.add(sid);
+    }
+    rows = rows.filter(
+      (r) => !scopedSubs.has(r.id as string) || allowedSubs.has(r.id as string)
+    );
+  }
+
+  // Always attach the canonical class_ids array (empty = global) so the
+  // admin masters editor can render multi-select state without an extra
+  // round-trip per row.
+  let classIdsBySub = new Map<string, string[]>();
+  if (rows.length > 0) {
+    const { data: linkRows } = await admin
+      .from("non_scholastic_sub_subject_classes")
+      .select("sub_subject_id, class_id")
+      .in(
+        "sub_subject_id",
+        rows.map((r) => r.id as string)
+      );
+    classIdsBySub = new Map<string, string[]>();
+    for (const r of linkRows ?? []) {
+      const sid = r.sub_subject_id as string;
+      const arr = classIdsBySub.get(sid) ?? [];
+      arr.push(r.class_id as string);
+      classIdsBySub.set(sid, arr);
+    }
+  }
+  const enriched = rows.map((r) => ({
+    ...r,
+    class_ids: classIdsBySub.get(r.id as string) ?? [],
+  }));
+
+  return NextResponse.json({ data: enriched });
 }
 
 export async function POST(request: NextRequest) {
@@ -79,5 +135,26 @@ export async function POST(request: NextRequest) {
     console.error("[non-scholastic.sub-subjects.POST] insert:", error);
     return NextResponse.json({ error: "Failed to create sub-subject" }, { status: 500 });
   }
-  return NextResponse.json({ data });
+
+  // Class scoping is opt-in: only insert join rows when the caller passed a
+  // non-empty array. Skip silently when omitted (empty = global).
+  const classIds = parsed.data.class_ids ?? [];
+  if (classIds.length > 0) {
+    const { error: linkErr } = await admin
+      .from("non_scholastic_sub_subject_classes")
+      .insert(
+        classIds.map((class_id) => ({
+          sub_subject_id: data.id as string,
+          class_id,
+        }))
+      );
+    if (linkErr) {
+      console.error("[non-scholastic.sub-subjects.POST] class links:", linkErr);
+      // Non-fatal; the sub-subject is created and the admin can edit class
+      // scoping on the next save.
+    }
+  }
+  return NextResponse.json({
+    data: { ...data, class_ids: classIds },
+  });
 }

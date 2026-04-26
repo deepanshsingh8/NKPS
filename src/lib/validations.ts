@@ -319,14 +319,55 @@ export type PtmFormatData = z.infer<typeof ptmFormatSchema>;
 export const feePaymentSchema = z.object({
   student_id: z.string().uuid("Invalid student"),
   fee_structure_id: z.string().uuid("Invalid fee structure"),
-  amount_paid: z.number().finite("Amount must be a valid number").positive("Amount must be positive"),
-  payment_method: z.enum(["cash", "online", "cheque", "bank_transfer", "upi", "gateway"], {
-    message: "Please select a payment method",
-  }),
+  amount_paid: z
+    .number()
+    .finite("Amount must be a valid number")
+    .min(0, "Amount cannot be negative"),
+  payment_method: z.enum(
+    ["cash", "online", "cheque", "bank_transfer", "upi", "gateway"],
+    { message: "Please select a payment method" }
+  ),
   month: z.string().min(1, "Month is required").optional().or(z.literal("")),
+  // M9 — when status='partial' the amount is below structure.amount, when
+  // 'paid' it should equal it. The route validates the relationship; the
+  // schema just permits both values.
+  status: z.enum(["paid", "partial"]).optional(),
 });
 
 export type FeePaymentData = z.infer<typeof feePaymentSchema>;
+
+// Refund a previously-recorded payment. The endpoint validates that
+// `refund_amount` ≤ original `amount_paid`.
+export const feeRefundSchema = z.object({
+  refund_amount: z
+    .number()
+    .finite("Refund must be a valid number")
+    .positive("Refund must be positive"),
+  refund_reason: z
+    .string()
+    .min(5, "Reason is required (min 5 chars)")
+    .max(500, "Reason too long"),
+});
+
+export type FeeRefundData = z.infer<typeof feeRefundSchema>;
+
+// Record a fee waiver — a paper-trail entry that counts toward "no dues"
+// without an actual cash receipt.
+export const feeWaiverSchema = z.object({
+  student_id: z.string().uuid("Invalid student"),
+  fee_structure_id: z.string().uuid("Invalid fee structure"),
+  waiver_amount: z
+    .number()
+    .finite("Amount must be a valid number")
+    .positive("Amount must be positive"),
+  waiver_reason: z
+    .string()
+    .min(5, "Reason is required (min 5 chars)")
+    .max(500, "Reason too long"),
+  month: z.string().min(1).optional().or(z.literal("")),
+});
+
+export type FeeWaiverData = z.infer<typeof feeWaiverSchema>;
 
 export const classSchema = z.object({
   name: z.string().min(1, "Class name is required"),
@@ -370,6 +411,9 @@ export const feeStructureSchema = z.object({
     message: "Please select a frequency",
   }),
   description: z.string().optional().or(z.literal("")),
+  // M9 — late fee config. Both default to 0 (no late fee).
+  late_fee_percent: z.number().finite().min(0).max(100).optional(),
+  late_fee_fixed_amount: z.number().finite().min(0).optional(),
 });
 
 export type FeeStructureData = z.infer<typeof feeStructureSchema>;
@@ -574,6 +618,8 @@ export const resultMasterCreateSchema = z.object({
   show_rank: z.boolean().optional(),
   show_extra_separately: z.boolean().optional(),
   include_non_scholastic: z.boolean().optional(),
+  show_division: z.boolean().optional(),
+  division_scheme: z.enum(["cbse"]).optional(),
   non_scholastic_placement: nonScholasticPlacementEnum.optional(),
   grade_scale_id: z.string().uuid().nullable().optional(),
   grace_marks_per_subject_max: z.number().min(0).max(100).optional(),
@@ -595,6 +641,8 @@ export const resultMasterUpdateSchema = z.object({
   show_rank: z.boolean().optional(),
   show_extra_separately: z.boolean().optional(),
   include_non_scholastic: z.boolean().optional(),
+  show_division: z.boolean().optional(),
+  division_scheme: z.enum(["cbse"]).optional(),
   non_scholastic_placement: nonScholasticPlacementEnum.optional(),
   grade_scale_id: z.string().uuid().nullable().optional(),
   grace_marks_per_subject_max: z.number().min(0).max(100).optional(),

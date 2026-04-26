@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import {
   Card,
   CardContent,
@@ -86,20 +86,16 @@ const GRADE_COLORS: Record<string, string> = {
 };
 
 export default function TeacherResultsPage() {
-  const searchParams = useSearchParams();
-  const preselectClassId = searchParams.get("class_id") ?? "";
-  const preselectSubjectId = searchParams.get("subject_id") ?? "";
-  const preselectExamTypeId = searchParams.get("exam_type_id") ?? "";
-
   const [classes, setClasses] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [examTypes, setExamTypes] = useState<ExamType[]>([]);
   const [students, setStudents] = useState<EnrolledStudent[]>([]);
   const [marksEntries, setMarksEntries] = useState<MarksEntry[]>([]);
 
-  const [selectedClassId, setSelectedClassId] = useState(preselectClassId);
-  const [selectedSubjectId, setSelectedSubjectId] = useState(preselectSubjectId);
-  const [selectedExamTypeId, setSelectedExamTypeId] = useState(preselectExamTypeId);
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
+  const [selectedSubjectId, setSelectedSubjectId] = useUrlState("subject_id");
+  const [selectedExamTypeId, setSelectedExamTypeId] = useUrlState("exam_type_id");
 
   const [loading, setLoading] = useState(true);
   const [loadingStudents, setLoadingStudents] = useState(false);

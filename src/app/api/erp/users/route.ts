@@ -96,10 +96,34 @@ export async function POST(request: Request) {
       }
     }
 
-    // For teacher role: create a teachers record and link it to the profile
+    // For teacher role: create a teachers record and link it to the profile,
+    // plus a matching staff_members row so the public staff listing is in
+    // sync from day one (M23). Failures on either side are non-fatal — the
+    // auth user + profile already exist and the admin can fix data later.
     if (role === "teacher" && newUser.user) {
       // Auto-generate employee_id: "TCH-" + timestamp suffix
       const employeeId = `TCH-${Date.now().toString(36).toUpperCase()}`;
+
+      // Create the staff_members row first so we can link the teacher to it.
+      // Default category 'tgt' is the most common ERP teacher slot — admin
+      // can recategorize on the staff page afterwards.
+      let staffMemberId: string | null = null;
+      const { data: staffRecord, error: staffError } = await supabase
+        .from("staff_members")
+        .insert({
+          name: full_name,
+          subject: "—",
+          category: "tgt",
+          email: email || null,
+          phone: phone || null,
+        })
+        .select("id")
+        .single();
+      if (!staffError && staffRecord) {
+        staffMemberId = staffRecord.id as string;
+      } else if (staffError) {
+        console.error("Failed to create staff_members shadow:", staffError);
+      }
 
       const { data: teacherRecord, error: teacherError } = await supabase
         .from("teachers")
@@ -108,6 +132,7 @@ export async function POST(request: Request) {
           full_name,
           email,
           phone: phone || null,
+          staff_member_id: staffMemberId,
         })
         .select("id")
         .single();
@@ -313,9 +338,23 @@ export async function DELETE(request: Request) {
       await supabase.from("students").delete().eq("id", profile.student_id);
     }
 
-    // Delete linked teachers record if exists
+    // Delete linked teachers record if exists. Cascade to the linked
+    // staff_members row too so the public staff listing reflects the change
+    // — if the admin wants to keep the public listing entry as a non-portal
+    // staff record, they should unlink the teacher from staff first.
     if (profile?.teacher_id) {
+      const { data: teacherRow } = await supabase
+        .from("teachers")
+        .select("staff_member_id")
+        .eq("id", profile.teacher_id)
+        .maybeSingle();
       await supabase.from("teachers").delete().eq("id", profile.teacher_id);
+      if (teacherRow?.staff_member_id) {
+        await supabase
+          .from("staff_members")
+          .delete()
+          .eq("id", teacherRow.staff_member_id);
+      }
     }
 
     // Delete linked parents record if exists

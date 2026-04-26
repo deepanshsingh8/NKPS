@@ -1,8 +1,8 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import { adminFetch, adminDelete } from "@/lib/admin-api";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -72,10 +72,9 @@ export default function AdminResultMasterPage() {
 }
 
 function AdminResultMasterContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const urlClassId = searchParams.get("class_id") ?? "";
-  const urlYearId = searchParams.get("academic_year_id") ?? "";
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [urlClassId, setUrlClassId] = useUrlState("class_id");
+  const [urlYearId, setUrlYearId] = useUrlState("academic_year_id");
 
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
@@ -118,12 +117,8 @@ function AdminResultMasterContent() {
     if (!topBarLoaded || urlYearId) return;
     const current = years.find((y) => y.is_current);
     if (!current) return;
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("academic_year_id", current.id);
-    router.replace(`/admin/exams/result-master?${params.toString()}`, {
-      scroll: false,
-    });
-  }, [topBarLoaded, urlYearId, years, router, searchParams]);
+    setUrlYearId(current.id);
+  }, [topBarLoaded, urlYearId, years, setUrlYearId]);
 
   // --- Load the master bundle whenever both params are present ---
   const loadBundle = useCallback(async () => {
@@ -179,12 +174,8 @@ function AdminResultMasterContent() {
   }, [loadBundle]);
 
   const setSelector = (key: "class_id" | "academic_year_id", value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (value) params.set(key, value);
-    else params.delete(key);
-    router.push(`/admin/exams/result-master?${params.toString()}`, {
-      scroll: false,
-    });
+    if (key === "class_id") setUrlClassId(value);
+    else setUrlYearId(value);
   };
 
   const handleCreateMaster = async () => {

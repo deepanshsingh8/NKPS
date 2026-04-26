@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -58,8 +59,10 @@ const STATUS_OPTIONS: { value: AttendanceStatus; label: string; color: string }[
 
 export default function TeacherAttendancePage() {
   const [classes, setClasses] = useState<ClassOption[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
+  const todayDate = new Date().toISOString().split("T")[0];
+  const [date, setDate] = useUrlState("date", todayDate);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingStudents, setLoadingStudents] = useState(false);

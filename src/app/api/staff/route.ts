@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@/lib/verify-admin";
 import { createPortalUser } from "@/lib/create-portal-user";
+import { mirrorStaffToTeacher } from "@/lib/staff-teacher-sync";
 
 const VALID_CATEGORIES = ["management", "admin", "pgt", "tgt", "prt", "motherTeachers", "prePrimaryCoordinator", "primaryCoordinator", "middleCoordinator", "seniorCoordinator", "additionalStaff", "busDriver", "peon"];
 
@@ -107,6 +108,10 @@ export async function PATCH(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // M23 — keep the linked teachers row in sync. Helper no-ops when no
+    // teacher is linked to this staff_member.
+    await mirrorStaffToTeacher(admin, id);
 
     return NextResponse.json({ success: true });
   } catch {

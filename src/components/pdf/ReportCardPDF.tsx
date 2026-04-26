@@ -808,6 +808,18 @@ function Phase3Document({
               {finalResult.overall.passed ? "PASS" : "FAIL"}
             </Text>
           </View>
+          {finalResult.overall.division ? (
+            <View style={styles.phase3FinalRow}>
+              <Text style={styles.phase3FinalLabel}>Division</Text>
+              <Text style={styles.phase3FinalValue}>
+                {finalResult.overall.division === "first"
+                  ? "First Division"
+                  : finalResult.overall.division === "second"
+                  ? "Second Division"
+                  : "Third Division"}
+              </Text>
+            </View>
+          ) : null}
           {finalResult.overall.pass_reason ? (
             <Text style={styles.phase3PassReason}>
               {finalResult.overall.pass_reason}

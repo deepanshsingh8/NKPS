@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { adminFetch, adminPatch, adminDelete } from "@/lib/admin-api";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,8 +82,9 @@ export default function TimetablePage() {
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [classSubjects, setClassSubjects] = useState<Subject[]>([]);
   const [schedules, setSchedules] = useState<ExamSchedule[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState("");
-  const [selectedExamTypeId, setSelectedExamTypeId] = useState("");
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
+  const [selectedExamTypeId, setSelectedExamTypeId] = useUrlState("exam_type_id");
   const [loading, setLoading] = useState(true);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
