@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { StudentBulkUpload } from "@/components/admin/StudentBulkUpload";
 import { CreatePortalUsersDialog } from "@/components/admin/CreatePortalUsersDialog";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import { formatClassName } from "@/lib/utils";
 import { downloadCSV, STUDENT_CSV_COLUMNS } from "@/lib/csv-export";
 import type { Student, Gender, BloodGroup, Stream, EnrollmentStatus } from "@/types";
@@ -137,8 +138,9 @@ export default function AdminStudentsPage() {
   const [streams, setStreams] = useState<Stream[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedClassId, setSelectedClassId] = useState("");
-  const [search, setSearch] = useState("");
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
+  const [search, setSearch] = useUrlState("q");
 
   // Dialogs
   const [addDialogOpen, setAddDialogOpen] = useState(false);

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import {
   Card,
   CardContent,
@@ -82,8 +83,9 @@ function formatWhen(iso: string): string {
 export default function AdminPublishPage() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [examTypes, setExamTypes] = useState<ExamType[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState("");
-  const [selectedExamTypeId, setSelectedExamTypeId] = useState("");
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
+  const [selectedExamTypeId, setSelectedExamTypeId] = useUrlState("exam_type_id");
   const [loading, setLoading] = useState(true);
 
   const [publishStatus, setPublishStatus] = useState<PublishStatus | null>(null);

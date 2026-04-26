@@ -341,6 +341,12 @@ export function computeFromFixtures(fx: ComputeFixtures): FinalResult {
       ? "No rounding"
       : `${rMode} @ ${rPrec}dp${master.round_raw_marks ? " (incl. raw marks)" : ""}`;
 
+  // CBSE division — derive from the rounded `main_total_pct`. Failing
+  // students never get a division; passing students at <33 also get null
+  // (they shouldn't have passed under CBSE rules but we don't fight the
+  // pass_criteria here — the report card just won't print a division).
+  const division = computeCbseDivision(passed, mainTotal, master);
+
   return {
     student_id: fx.student_id,
     class_id: fx.class_id,
@@ -354,6 +360,7 @@ export function computeFromFixtures(fx: ComputeFixtures): FinalResult {
       passed,
       pass_reason,
       grace_applied_total: graceTotal,
+      division,
     },
     config_applied: {
       result_master_id: master.id,
@@ -362,6 +369,24 @@ export function computeFromFixtures(fx: ComputeFixtures): FinalResult {
       rounding_summary: roundingSummary,
     },
   };
+}
+
+// CBSE division: First ≥60, Second ≥45, Third ≥33. Returns null when the
+// student didn't pass overall, when the result_master has divisions disabled,
+// or when the (rounded) percentage is below the Third Division threshold.
+function computeCbseDivision(
+  passed: boolean,
+  mainTotalPct: number,
+  master: ResultMaster
+): "first" | "second" | "third" | null {
+  if (!master.show_division) return null;
+  if (!passed) return null;
+  // Future-proof: today only `cbse` is recognized; the constraint already
+  // blocks unknown values. If we add 'state-board' etc. later, branch here.
+  if (mainTotalPct >= 60) return "first";
+  if (mainTotalPct >= 45) return "second";
+  if (mainTotalPct >= 33) return "third";
+  return null;
 }
 
 // Numeric-as-string coercion for DB rows.
@@ -399,6 +424,12 @@ function coerceMaster(row: Record<string, unknown>): ResultMaster {
     supplementary_pass_action:
       (row.supplementary_pass_action as ResultMaster["supplementary_pass_action"]) ??
       "cap_at_pass_mark",
+    // Phase 9 — division labels. Older deployments may not have these columns
+    // yet; default to enabled + CBSE so the UI behaves identically until the
+    // migration runs.
+    show_division: row.show_division === undefined ? true : Boolean(row.show_division),
+    division_scheme:
+      (row.division_scheme as ResultMaster["division_scheme"]) ?? "cbse",
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
   };

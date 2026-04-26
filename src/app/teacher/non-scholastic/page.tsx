@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import {
   Card,
   CardContent,
@@ -65,9 +66,10 @@ export default function TeacherNonScholasticPage() {
   const [students, setStudents] = useState<EnrolledStudent[]>([]);
   const [subSubjects, setSubSubjects] = useState<SubSubject[]>([]);
 
-  const [selectedClassId, setSelectedClassId] = useState("");
-  const [selectedExamTypeId, setSelectedExamTypeId] = useState("");
-  const [selectedParentSubjectId, setSelectedParentSubjectId] = useState("");
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
+  const [selectedExamTypeId, setSelectedExamTypeId] = useUrlState("exam_type_id");
+  const [selectedParentSubjectId, setSelectedParentSubjectId] = useUrlState("subject_id");
 
   const [entries, setEntries] = useState<EntriesMap>({});
   // Map from scale_id → ordered list of band labels for that scale.
@@ -159,6 +161,9 @@ export default function TeacherNonScholasticPage() {
   }, []);
 
   // When parent subject changes, load sub-subjects + their scales.
+  // Filter by selected class so per-class scoping (M16) is honoured: a
+  // sub-subject without explicit class links is still global, but one with
+  // links only shows up for the classes it's explicitly bound to.
   useEffect(() => {
     if (!selectedParentSubjectId) {
       setSubSubjects([]);
@@ -175,7 +180,28 @@ export default function TeacherNonScholasticPage() {
         .order("sort_order", { ascending: true })
         .order("name", { ascending: true });
       if (cancelled) return;
-      const subs = (data ?? []) as SubSubject[];
+      const all = (data ?? []) as SubSubject[];
+
+      // If a class is selected, drop any sub-subject that is class-scoped
+      // and not bound to this specific class.
+      let subs: SubSubject[] = all;
+      if (selectedClassId && all.length > 0) {
+        const subIds = all.map((s) => s.id);
+        const { data: linkRows } = await supabase
+          .from("non_scholastic_sub_subject_classes")
+          .select("sub_subject_id, class_id")
+          .in("sub_subject_id", subIds);
+        const scopedSubs = new Set<string>();
+        const allowedSubs = new Set<string>();
+        for (const r of linkRows ?? []) {
+          const sid = r.sub_subject_id as string;
+          scopedSubs.add(sid);
+          if (r.class_id === selectedClassId) allowedSubs.add(sid);
+        }
+        subs = all.filter(
+          (s) => !scopedSubs.has(s.id) || allowedSubs.has(s.id)
+        );
+      }
       setSubSubjects(subs);
 
       // Load band labels for any scale referenced (or default fallback).
@@ -205,7 +231,7 @@ export default function TeacherNonScholasticPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedParentSubjectId, defaultScaleId]);
+  }, [selectedParentSubjectId, selectedClassId, defaultScaleId]);
 
   const fetchStudentsAndGrid = useCallback(async () => {
     if (!selectedClassId || !selectedExamTypeId || !selectedParentSubjectId) {

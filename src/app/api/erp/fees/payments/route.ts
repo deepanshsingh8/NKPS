@@ -21,8 +21,29 @@ export async function POST(request: Request) {
       );
     }
 
-    const { student_id, fee_structure_id, amount_paid, payment_method, month } =
-      result.data;
+    const {
+      student_id,
+      fee_structure_id,
+      amount_paid,
+      payment_method,
+      month,
+      status: requestedStatus,
+    } = result.data;
+
+    // Status resolution. The admin can override, but if they request 'paid'
+    // and the amount is below the structure's amount, we downgrade to
+    // 'partial' automatically so totals stay consistent.
+    let status: "paid" | "partial" = requestedStatus ?? "paid";
+    if (status === "paid") {
+      const { data: structure } = await admin
+        .from("fee_structures")
+        .select("amount")
+        .eq("id", fee_structure_id)
+        .maybeSingle();
+      if (structure && Number(structure.amount) > amount_paid) {
+        status = "partial";
+      }
+    }
 
     // Auto-generate receipt number with cryptographically secure random digits
     const receipt_number = generateReceiptNumber();
@@ -37,7 +58,7 @@ export async function POST(request: Request) {
         month: month || null,
         receipt_number,
         payment_date: new Date().toISOString().split("T")[0],
-        status: "paid",
+        status,
         recorded_by: user.id,
       })
       .select()

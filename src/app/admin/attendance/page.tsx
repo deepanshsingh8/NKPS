@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -56,15 +57,16 @@ interface ClassAttendanceStat {
 
 export default function AdminAttendancePage() {
   const [classes, setClasses] = useState<ClassOption[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState("all");
-  const [dateFrom, setDateFrom] = useState(() => {
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [selectedClassId, setSelectedClassId] = useUrlState("class_id", "all");
+  const defaultDateFrom = (() => {
     const d = new Date();
     d.setDate(1); // first day of current month
     return d.toISOString().split("T")[0];
-  });
-  const [dateTo, setDateTo] = useState(
-    () => new Date().toISOString().split("T")[0]
-  );
+  })();
+  const defaultDateTo = new Date().toISOString().split("T")[0];
+  const [dateFrom, setDateFrom] = useUrlState("from", defaultDateFrom);
+  const [dateTo, setDateTo] = useUrlState("to", defaultDateTo);
   const [classStats, setClassStats] = useState<ClassAttendanceStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingStats, setLoadingStats] = useState(false);

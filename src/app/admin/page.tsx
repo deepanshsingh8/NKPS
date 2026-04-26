@@ -121,7 +121,11 @@ function getGreeting(now = new Date()) {
 
 function firstName(fullName: string | null): string {
   if (!fullName) return "";
-  return fullName.trim().split(/\s+/)[0] ?? "";
+  const trimmed = fullName.trim();
+  // Profiles default full_name to the auth email when no name was supplied at
+  // signup (handle_new_user trigger) — don't render that as a greeting.
+  if (trimmed.includes("@")) return "";
+  return trimmed.split(/\s+/)[0] ?? "";
 }
 
 function prefersReducedMotion() {

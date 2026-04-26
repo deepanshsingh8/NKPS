@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { Suspense, useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { adminFetch, adminPatch } from "@/lib/admin-api";
+import { useUrlState } from "@/lib/hooks/use-url-state";
+import { createClient } from "@/lib/supabase/client";
 import {
   Card,
   CardContent,
@@ -12,6 +14,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -34,11 +43,14 @@ import {
   Plus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatClassName } from "@/lib/utils";
+import type { Class, ExamType } from "@/types";
 
 interface StudentRow {
   id: string;
   full_name: string;
   admission_no: string;
+  class_id: string | null;
   class_label: string | null;
 }
 
@@ -97,15 +109,50 @@ function classLabel(name: string, section: string | null, stream: string | null)
   return label;
 }
 
-export default function AdminResultsEditPage() {
+function AdminResultsEditPageInner() {
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [examTypes, setExamTypes] = useState<ExamType[]>([]);
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
+  const [selectedExamTypeId, setSelectedExamTypeId] = useUrlState("exam_type_id");
+
   const [allStudents, setAllStudents] = useState<StudentRow[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(true);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useUrlState("q");
 
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [detail, setDetail] = useState<StudentDetailResponse["data"] | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [openExamId, setOpenExamId] = useState<string | null>(null);
+
+  // Load the class and exam-type pickers from the current academic year — same
+  // source as the overview page, so labels/IDs match the link they came from.
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient();
+      const { data: currentYear } = await supabase
+        .from("academic_years")
+        .select("id")
+        .eq("is_current", true)
+        .single();
+      if (!currentYear) return;
+
+      const { data: classesData } = await supabase
+        .from("classes")
+        .select("*, streams:stream_id(name)")
+        .eq("academic_year_id", currentYear.id)
+        .order("sort_order", { ascending: true });
+      if (classesData) setClasses(classesData);
+
+      const { data: examTypesData } = await supabase
+        .from("exam_types")
+        .select("*")
+        .eq("academic_year_id", currentYear.id)
+        .order("sort_order", { ascending: true });
+      if (examTypesData) setExamTypes(examTypesData);
+    }
+    load();
+  }, []);
 
   // Bootstrap student list (current admin/editor scope already enforced by API).
   useEffect(() => {
@@ -124,6 +171,7 @@ export default function AdminResultsEditPage() {
           id: string;
           full_name: string;
           admission_no: string;
+          class_id?: string | null;
           class_name?: string | null;
           class_section?: string | null;
         }>;
@@ -138,6 +186,7 @@ export default function AdminResultsEditPage() {
           id: s.id,
           full_name: s.full_name,
           admission_no: s.admission_no,
+          class_id: s.class_id ?? null,
           class_label: cl,
         };
       });
@@ -150,17 +199,26 @@ export default function AdminResultsEditPage() {
     };
   }, []);
 
+  // Filtered student list. Two modes:
+  //   - Class selected → list every student in that class (search narrows it).
+  //   - No class → require ≥2 chars of free-form search (original behavior),
+  //     so direct navigation to /edit still works without forcing a class pick.
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const queryFilter = (s: StudentRow) =>
+      !q ||
+      s.full_name.toLowerCase().includes(q) ||
+      s.admission_no.toLowerCase().includes(q);
+
+    if (selectedClassId) {
+      return allStudents
+        .filter((s) => s.class_id === selectedClassId)
+        .filter(queryFilter)
+        .slice(0, 200);
+    }
     if (q.length < 2) return [];
-    return allStudents
-      .filter(
-        (s) =>
-          s.full_name.toLowerCase().includes(q) ||
-          s.admission_no.toLowerCase().includes(q)
-      )
-      .slice(0, 20);
-  }, [allStudents, query]);
+    return allStudents.filter(queryFilter).slice(0, 20);
+  }, [allStudents, query, selectedClassId]);
 
   const fetchDetail = useCallback(async (studentId: string) => {
     setLoadingDetail(true);
@@ -176,12 +234,6 @@ export default function AdminResultsEditPage() {
       }
       const body = (await res.json()) as StudentDetailResponse;
       setDetail(body.data);
-      // Auto-open the first exam if exactly one exists.
-      if (body.data.exams.length === 1) {
-        setOpenExamId(body.data.exams[0].exam_type_id);
-      } else {
-        setOpenExamId(null);
-      }
     } finally {
       setLoadingDetail(false);
     }
@@ -190,6 +242,23 @@ export default function AdminResultsEditPage() {
   useEffect(() => {
     if (selectedStudentId) void fetchDetail(selectedStudentId);
   }, [selectedStudentId, fetchDetail]);
+
+  // Auto-open the right exam group: the pre-selected exam if the student has
+  // results for it, otherwise the only exam (if there's just one). Reacts to
+  // exam-type changes so flipping the selector pops the matching panel open.
+  useEffect(() => {
+    if (!detail) return;
+    if (
+      selectedExamTypeId &&
+      detail.exams.some((e) => e.exam_type_id === selectedExamTypeId)
+    ) {
+      setOpenExamId(selectedExamTypeId);
+      return;
+    }
+    if (detail.exams.length === 1) {
+      setOpenExamId(detail.exams[0].exam_type_id);
+    }
+  }, [detail, selectedExamTypeId]);
 
   function clearSelection() {
     setSelectedStudentId(null);
@@ -227,12 +296,90 @@ export default function AdminResultsEditPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="relative">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-navy-900 dark:text-white">
+                  Class
+                </label>
+                <Select
+                  value={selectedClassId}
+                  items={[
+                    { value: "__all__", label: "All classes" },
+                    ...classes.map((cls) => ({
+                      value: cls.id,
+                      label: formatClassName(cls),
+                    })),
+                  ]}
+                  onValueChange={(val) => {
+                    if (!val) return;
+                    setSelectedClassId(val === "__all__" ? "" : val);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__" label="All classes">
+                      All classes
+                    </SelectItem>
+                    {classes.map((cls) => (
+                      <SelectItem
+                        key={cls.id}
+                        value={cls.id}
+                        label={formatClassName(cls)}
+                      >
+                        {formatClassName(cls)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-navy-900 dark:text-white">
+                  Exam Type
+                </label>
+                <Select
+                  value={selectedExamTypeId}
+                  items={[
+                    { value: "__none__", label: "All exams" },
+                    ...examTypes.map((et) => ({
+                      value: et.id,
+                      label: et.name,
+                    })),
+                  ]}
+                  onValueChange={(val) => {
+                    if (!val) return;
+                    setSelectedExamTypeId(val === "__none__" ? "" : val);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select exam type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__" label="All exams">
+                      All exams
+                    </SelectItem>
+                    {examTypes.map((et) => (
+                      <SelectItem key={et.id} value={et.id} label={et.name}>
+                        {et.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="relative mt-5">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Type at least 2 characters of name or admission number…"
+                placeholder={
+                  selectedClassId
+                    ? "Filter by name or admission number…"
+                    : "Type at least 2 characters of name or admission number…"
+                }
                 className="pl-9"
                 autoFocus
               />
@@ -242,13 +389,18 @@ export default function AdminResultsEditPage() {
               <div className="flex items-center justify-center h-32">
                 <Loader2 className="h-6 w-6 animate-spin text-navy-900 dark:text-gold-500" />
               </div>
-            ) : query.trim().length < 2 ? (
+            ) : !selectedClassId && query.trim().length < 2 ? (
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-                {allStudents.length} students loaded.
+                {allStudents.length} students loaded. Pick a class to browse,
+                or type 2+ characters to search across all classes.
               </p>
             ) : matches.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-4 py-2">
-                No students match &quot;{query}&quot;.
+                {selectedClassId
+                  ? query.trim()
+                    ? `No students in this class match "${query}".`
+                    : "No students enrolled in this class."
+                  : `No students match "${query}".`}
               </p>
             ) : (
               <div className="mt-4 rounded-md border border-gray-200 dark:border-border overflow-hidden">
@@ -266,7 +418,9 @@ export default function AdminResultsEditPage() {
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
                             {s.admission_no}
-                            {s.class_label ? ` · ${s.class_label}` : ""}
+                            {!selectedClassId && s.class_label
+                              ? ` · ${s.class_label}`
+                              : ""}
                           </div>
                         </div>
                         <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
@@ -351,6 +505,20 @@ export default function AdminResultsEditPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function AdminResultsEditPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-navy-900 dark:text-gold-500" />
+        </div>
+      }
+    >
+      <AdminResultsEditPageInner />
+    </Suspense>
   );
 }
 

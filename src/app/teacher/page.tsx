@@ -262,7 +262,9 @@ export default function TeacherDashboard() {
     );
   }
 
-  const firstName = profile?.full_name?.split(" ")[0] ?? "Teacher";
+  const rawName = profile?.full_name?.trim();
+  const firstName =
+    rawName && !rawName.includes("@") ? rawName.split(" ")[0] : "Teacher";
   const greeting =
     new Date().getHours() < 12
       ? "Good morning"

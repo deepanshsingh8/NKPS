@@ -397,7 +397,6 @@ CREATE TABLE student_enrollments (
   status text NOT NULL DEFAULT 'active'
     CHECK (status IN ('active', 'passed', 'failed', 'terminated', 'exited')),
   has_transport boolean NOT NULL DEFAULT false,
-  created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   UNIQUE(student_id, class_id)
 );
@@ -3701,3 +3700,117 @@ UPDATE grade_bands SET max_pct = 50.00
   WHERE label = 'D'  AND min_pct = 40.00 AND max_pct = 49.99;
 UPDATE grade_bands SET max_pct = 40.00
   WHERE label = 'F'  AND min_pct =  0.00 AND max_pct = 39.99;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 037 — Division labels on the year-end report card
+-- (mirrored from scripts/migration-037-result-master-division.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE result_masters
+  ADD COLUMN IF NOT EXISTS show_division boolean NOT NULL DEFAULT true;
+
+ALTER TABLE result_masters
+  ADD COLUMN IF NOT EXISTS division_scheme text NOT NULL DEFAULT 'cbse';
+
+ALTER TABLE result_masters DROP CONSTRAINT IF EXISTS result_masters_division_scheme_check;
+ALTER TABLE result_masters ADD CONSTRAINT result_masters_division_scheme_check
+  CHECK (division_scheme IN ('cbse'));
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 038 — Per-class scoping for non-scholastic sub-subjects
+-- (mirrored from scripts/migration-038-non-scholastic-sub-subject-classes.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS non_scholastic_sub_subject_classes (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  sub_subject_id uuid NOT NULL
+    REFERENCES non_scholastic_sub_subjects(id) ON DELETE CASCADE,
+  class_id uuid NOT NULL
+    REFERENCES classes(id) ON DELETE CASCADE,
+  created_at timestamptz DEFAULT now(),
+  CONSTRAINT non_scholastic_sub_subject_classes_unique
+    UNIQUE (sub_subject_id, class_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_non_scholastic_sub_subject_classes_sub
+  ON non_scholastic_sub_subject_classes(sub_subject_id);
+CREATE INDEX IF NOT EXISTS idx_non_scholastic_sub_subject_classes_class
+  ON non_scholastic_sub_subject_classes(class_id);
+
+ALTER TABLE non_scholastic_sub_subject_classes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated can read non_scholastic_sub_subject_classes"
+  ON non_scholastic_sub_subject_classes;
+CREATE POLICY "Authenticated can read non_scholastic_sub_subject_classes"
+  ON non_scholastic_sub_subject_classes FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage non_scholastic_sub_subject_classes"
+  ON non_scholastic_sub_subject_classes;
+CREATE POLICY "Admins can manage non_scholastic_sub_subject_classes"
+  ON non_scholastic_sub_subject_classes FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+  );
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 039 — Fee lifecycle (waiver / refund / partial / late fee)
+-- (mirrored from scripts/migration-039-fee-lifecycle.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE fee_structures
+  ADD COLUMN IF NOT EXISTS late_fee_percent numeric(5,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS late_fee_fixed_amount numeric(10,2) NOT NULL DEFAULT 0;
+
+ALTER TABLE fee_structures DROP CONSTRAINT IF EXISTS fee_structures_late_fee_percent_range;
+ALTER TABLE fee_structures ADD CONSTRAINT fee_structures_late_fee_percent_range
+  CHECK (late_fee_percent >= 0 AND late_fee_percent <= 100);
+
+ALTER TABLE fee_structures DROP CONSTRAINT IF EXISTS fee_structures_late_fee_fixed_nonneg;
+ALTER TABLE fee_structures ADD CONSTRAINT fee_structures_late_fee_fixed_nonneg
+  CHECK (late_fee_fixed_amount >= 0);
+
+ALTER TABLE fee_payments
+  ADD COLUMN IF NOT EXISTS waiver_amount numeric(10,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS waiver_reason text,
+  ADD COLUMN IF NOT EXISTS refund_amount numeric(10,2),
+  ADD COLUMN IF NOT EXISTS refund_reason text,
+  ADD COLUMN IF NOT EXISTS refunded_at timestamptz,
+  ADD COLUMN IF NOT EXISTS refunded_by uuid REFERENCES profiles(id) ON DELETE SET NULL;
+
+ALTER TABLE fee_payments DROP CONSTRAINT IF EXISTS fee_payments_waiver_amount_nonneg;
+ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_waiver_amount_nonneg
+  CHECK (waiver_amount >= 0);
+
+ALTER TABLE fee_payments DROP CONSTRAINT IF EXISTS fee_payments_refund_consistent;
+ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_refund_consistent
+  CHECK (
+    (status = 'refunded' AND refund_amount IS NOT NULL AND refund_amount > 0)
+    OR (status <> 'refunded' AND refunded_at IS NULL AND refund_amount IS NULL)
+  );
+
+ALTER TABLE fee_payments DROP CONSTRAINT IF EXISTS fee_payments_payment_method_check;
+ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_payment_method_check
+  CHECK (
+    payment_method IN (
+      'cash', 'online', 'cheque', 'bank_transfer', 'upi', 'gateway', 'waiver'
+    )
+  );
+
+ALTER TABLE fee_payments DROP CONSTRAINT IF EXISTS fee_payments_waiver_consistent;
+ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_waiver_consistent
+  CHECK (
+    (payment_method = 'waiver'
+      AND amount_paid = 0
+      AND waiver_amount > 0
+      AND waiver_reason IS NOT NULL
+      AND length(waiver_reason) > 0)
+    OR payment_method <> 'waiver'
+  );
+
+CREATE INDEX IF NOT EXISTS idx_fee_payments_refund_status
+  ON fee_payments(status)
+  WHERE status = 'refunded';

@@ -55,6 +55,15 @@ interface SubSubject {
   grade_scale_id: string | null;
   sort_order: number;
   is_active: boolean;
+  // Per-class scoping (M16). Empty array = available to every class.
+  // Populated array = restricted to those class ids.
+  class_ids: string[];
+}
+
+interface ClassOption {
+  id: string;
+  label: string;
+  sort_order: number;
 }
 
 interface GradeScaleOption {
@@ -95,7 +104,9 @@ export default function NonScholasticMastersPage() {
     grade_scale_id: "" as string,
     sort_order: 0,
     is_active: true,
+    class_ids: [] as string[],
   });
+  const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
   const [deleteSubSubjectTarget, setDeleteSubSubjectTarget] =
     useState<SubSubject | null>(null);
 
@@ -130,12 +141,42 @@ export default function NonScholasticMastersPage() {
     setScaleOptions(data ?? []);
   }, []);
 
+  // Class list for the per-sub-subject scoping multi-select. Pulled
+  // straight from `classes` (current academic year only) so the picker
+  // can't accidentally bind to last-year's class rows.
+  const fetchClassOptions = useCallback(async () => {
+    const supabase = createClient();
+    const { data: currentYear } = await supabase
+      .from("academic_years")
+      .select("id")
+      .eq("is_current", true)
+      .maybeSingle();
+    if (!currentYear?.id) {
+      setClassOptions([]);
+      return;
+    }
+    const { data } = await supabase
+      .from("classes")
+      .select("id, name, section, sort_order")
+      .eq("academic_year_id", currentYear.id)
+      .order("sort_order", { ascending: true });
+    const opts: ClassOption[] = (data ?? []).map((c) => ({
+      id: c.id as string,
+      label: `${c.name}${c.section ? ` — ${c.section}` : ""}`,
+      sort_order: (c.sort_order as number) ?? 0,
+    }));
+    setClassOptions(opts);
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    Promise.all([fetchSubjects(), fetchSubSubjects(), fetchScaleOptions()]).finally(
-      () => setLoading(false)
-    );
-  }, [fetchSubjects, fetchSubSubjects, fetchScaleOptions]);
+    Promise.all([
+      fetchSubjects(),
+      fetchSubSubjects(),
+      fetchScaleOptions(),
+      fetchClassOptions(),
+    ]).finally(() => setLoading(false));
+  }, [fetchSubjects, fetchSubSubjects, fetchScaleOptions, fetchClassOptions]);
 
   const defaultScale = scaleOptions.find((s) => s.is_default);
 
@@ -217,6 +258,7 @@ export default function NonScholasticMastersPage() {
       grade_scale_id: "",
       sort_order: 0,
       is_active: true,
+      class_ids: [],
     });
     setSubSubjectDialogOpen(true);
   };
@@ -229,6 +271,7 @@ export default function NonScholasticMastersPage() {
       grade_scale_id: ss.grade_scale_id ?? "",
       sort_order: ss.sort_order,
       is_active: ss.is_active,
+      class_ids: ss.class_ids ?? [],
     });
     setSubSubjectDialogOpen(true);
   };
@@ -248,6 +291,7 @@ export default function NonScholasticMastersPage() {
       grade_scale_id: subSubjectForm.grade_scale_id || null,
       sort_order: Number(subSubjectForm.sort_order),
       is_active: subSubjectForm.is_active,
+      class_ids: subSubjectForm.class_ids,
     };
     const res = editingSubSubject
       ? await adminPatch(
@@ -691,6 +735,60 @@ export default function NonScholasticMastersPage() {
               />
               Active
             </label>
+
+            {/* Per-class scoping. Empty selection = available to every class.
+                A non-empty selection restricts the sub-subject to those classes. */}
+            <div className="space-y-1">
+              <Label>Restrict to classes (optional)</Label>
+              <p className="text-[10px] text-gray-500">
+                Leave empty to make this sub-subject available for every class.
+                Tick specific classes to limit it (e.g. &quot;Robotics&quot; only
+                for senior classes).
+              </p>
+              <div className="max-h-44 overflow-y-auto rounded-md border border-gray-200 dark:border-border p-2 grid grid-cols-2 gap-1">
+                {classOptions.length === 0 ? (
+                  <p className="text-xs text-gray-400 col-span-2">
+                    No classes in the current academic year.
+                  </p>
+                ) : (
+                  classOptions.map((c) => {
+                    const checked = subSubjectForm.class_ids.includes(c.id);
+                    return (
+                      <label
+                        key={c.id}
+                        className="flex items-center gap-2 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-muted/40 rounded px-1 py-0.5"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) => {
+                            const on = Boolean(v);
+                            setSubSubjectForm((prev) => ({
+                              ...prev,
+                              class_ids: on
+                                ? Array.from(
+                                    new Set([...prev.class_ids, c.id])
+                                  )
+                                : prev.class_ids.filter((id) => id !== c.id),
+                            }));
+                          }}
+                        />
+                        {c.label}
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+              {subSubjectForm.class_ids.length > 0 ? (
+                <p className="text-[10px] text-amber-700 dark:text-amber-400">
+                  Restricted to {subSubjectForm.class_ids.length} class
+                  {subSubjectForm.class_ids.length === 1 ? "" : "es"}.
+                </p>
+              ) : (
+                <p className="text-[10px] text-gray-500">
+                  Currently global (all classes).
+                </p>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button

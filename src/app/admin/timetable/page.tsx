@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,7 +67,8 @@ export default function AdminTimetablePage() {
   const [periods, setPeriods] = useState<PeriodCell[]>([]);
   const [academicYear, setAcademicYear] = useState<AcademicYearInfo | null>(null);
 
-  const [selectedClassId, setSelectedClassId] = useState("");
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
   const [loading, setLoading] = useState(true);
   const [periodsLoading, setPeriodsLoading] = useState(false);
 

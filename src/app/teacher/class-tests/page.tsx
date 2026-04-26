@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import {
   Card,
   CardContent,
@@ -97,8 +98,9 @@ export default function TeacherClassTestsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [tests, setTests] = useState<ClassTest[]>([]);
 
-  const [selectedClassId, setSelectedClassId] = useState("");
-  const [selectedSubjectId, setSelectedSubjectId] = useState("");
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
+  const [selectedSubjectId, setSelectedSubjectId] = useUrlState("subject_id");
 
   const [loading, setLoading] = useState(true);
   const [loadingTests, setLoadingTests] = useState(false);

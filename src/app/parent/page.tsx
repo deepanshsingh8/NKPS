@@ -198,7 +198,9 @@ export default function ParentDashboard() {
     );
   }
 
-  const firstName = profile?.full_name?.split(" ")[0] ?? "Parent";
+  const rawName = profile?.full_name?.trim();
+  const firstName =
+    rawName && !rawName.includes("@") ? rawName.split(" ")[0] : "Parent";
   const greeting =
     new Date().getHours() < 12
       ? "Good morning"

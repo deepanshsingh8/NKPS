@@ -314,7 +314,6 @@ export interface StudentEnrollment {
   enrollment_date: string;
   status: EnrollmentStatus;
   has_transport: boolean;
-  created_at: string;
   updated_at: string;
 }
 
@@ -391,6 +390,8 @@ export type ResultMasterRoundingMode = 'none' | 'half_up' | 'half_down' | 'ceil'
 export type ResultMasterGraceCondition = 'failing_only' | 'any_subject';
 export type ResultMasterNonScholasticPlacement = 'below' | 'above' | 'separate_page';
 export type ResultMasterSubjectRole = 'main' | 'optional';
+export type ResultMasterDivisionScheme = 'cbse';
+export type FinalResultDivision = 'first' | 'second' | 'third' | null;
 
 export interface ResultMaster {
   id: string;
@@ -419,6 +420,9 @@ export interface ResultMaster {
   min_for_supplementary: number | null;
   max_supplementary_subjects: number;
   supplementary_pass_action: "cap_at_pass_mark" | "use_retest_marks";
+  // Phase 9 — division labels on the year-end report card (CBSE-style)
+  show_division: boolean;
+  division_scheme: ResultMasterDivisionScheme;
   created_at: string;
   updated_at: string;
 }
@@ -463,6 +467,9 @@ export interface FinalResultOverall {
   passed: boolean;
   pass_reason: string;
   grace_applied_total: number;
+  // CBSE division derived from main_total_pct: First (≥60), Second (≥45),
+  // Third (≥33), null when failing or when show_division is false.
+  division: FinalResultDivision;
 }
 
 export interface FinalResultConfigApplied {
@@ -502,11 +509,13 @@ export interface FeeStructure {
   frequency: FeeFrequency;
   is_active: boolean;
   description: string | null;
+  late_fee_percent: number;
+  late_fee_fixed_amount: number;
   created_at: string;
   updated_at: string;
 }
 
-export type PaymentMethod = 'cash' | 'online' | 'cheque' | 'bank_transfer' | 'upi' | 'gateway';
+export type PaymentMethod = 'cash' | 'online' | 'cheque' | 'bank_transfer' | 'upi' | 'gateway' | 'waiver';
 export type PaymentStatus = 'pending' | 'processing' | 'paid' | 'partial' | 'failed' | 'refunded';
 
 export interface FeePayment {
@@ -525,6 +534,13 @@ export interface FeePayment {
   gateway_receipt: string | null;
   recorded_by: string | null;
   remarks: string | null;
+  // M9 — waiver / refund metadata
+  waiver_amount: number;
+  waiver_reason: string | null;
+  refund_amount: number | null;
+  refund_reason: string | null;
+  refunded_at: string | null;
+  refunded_by: string | null;
   created_at: string;
   updated_at: string;
 }

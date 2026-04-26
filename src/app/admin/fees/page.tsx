@@ -3,12 +3,14 @@
 import { useEffect, useState, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -72,6 +74,8 @@ const EMPTY_STRUCTURE = {
   amount: "",
   frequency: "monthly" as (typeof FREQUENCIES)[number],
   due_date: "",
+  late_fee_percent: "",
+  late_fee_fixed_amount: "",
 };
 
 interface ClassEntry {
@@ -91,6 +95,11 @@ interface DuesRow {
   has_transport: boolean;
   expected: number;
   paid: number;
+  // Late-fee surcharge auto-applied when at least one applicable fee
+  // structure has a due_date in the past. Computed as
+  //   max( amount * late_fee_percent/100, late_fee_fixed_amount )
+  // per overdue structure, then summed.
+  late_fee: number;
   dues: number;
 }
 
@@ -102,7 +111,8 @@ function AdminFeesContent() {
   // Fee structures state
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
   const [structuresLoading, setStructuresLoading] = useState(true);
-  const [classFilter, setClassFilter] = useState("");
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [classFilter, setClassFilter] = useUrlState("class_name");
   const [streams, setStreams] = useState<Stream[]>([]);
   const [structureDialogOpen, setStructureDialogOpen] = useState(false);
   const [structureDialogMode, setStructureDialogMode] = useState<"add" | "edit">("add");
@@ -131,7 +141,7 @@ function AdminFeesContent() {
 
   // Dues tab state
   const [classesList, setClassesList] = useState<ClassEntry[]>([]);
-  const [duesClassId, setDuesClassId] = useState("");
+  const [duesClassId, setDuesClassId] = useUrlState("dues_class_id");
   const [duesRows, setDuesRows] = useState<DuesRow[]>([]);
   const [duesLoading, setDuesLoading] = useState(false);
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
@@ -142,6 +152,23 @@ function AdminFeesContent() {
     payment_method: "cash" as (typeof PAYMENT_METHODS)[number],
     month: "",
   });
+
+  // Refund + waiver dialog state (M9). Keeping the two flows separate so the
+  // surface area on the existing record-payment dialog stays small.
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundPaymentId, setRefundPaymentId] = useState<string | null>(null);
+  const [refundMaxAmount, setRefundMaxAmount] = useState<number>(0);
+  const [refundForm, setRefundForm] = useState({ amount: "", reason: "" });
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
+
+  const [waiverOpen, setWaiverOpen] = useState(false);
+  const [waiverForm, setWaiverForm] = useState({
+    fee_structure_id: "",
+    waiver_amount: "",
+    waiver_reason: "",
+    month: "",
+  });
+  const [waiverSubmitting, setWaiverSubmitting] = useState(false);
 
   // Academic year
   const [academicYearId, setAcademicYearId] = useState("");
@@ -383,25 +410,33 @@ function AdminFeesContent() {
       type PayRow = {
         student_id: string;
         amount_paid: number;
+        waiver_amount: number;
+        status: string;
       };
       let payments: PayRow[] = [];
       if (studentIds.length > 0) {
-        // Filter to paid + current-year payments server-side. The nested
-        // academic-year filter uses an inner join on fee_structures so only
-        // payments whose fee_structure belongs to this academic year come
-        // back — avoids depending on the embed shape (object vs array) on the
-        // client.
+        // Pull both 'paid' and 'partial' rows — partial payments still count
+        // toward dues reduction. Refunded rows are excluded so the dues
+        // figure reflects what the school actually has on hand. Waiver rows
+        // contribute via `waiver_amount` since their `amount_paid` is 0 by
+        // schema convention.
         const { data: pays } = await supabase
           .from("fee_payments")
-          .select("student_id, amount_paid, fee_structures!inner(academic_year_id)")
+          .select(
+            "student_id, amount_paid, waiver_amount, status, fee_structures!inner(academic_year_id)"
+          )
           .in("student_id", studentIds)
-          .eq("status", "paid")
+          .in("status", ["paid", "partial"])
           .eq("fee_structures.academic_year_id", academicYearId);
         payments = (pays as unknown as PayRow[]) ?? [];
       }
 
       const classLabel = formatClassName(classMeta);
       const allStructures = (structures as FeeStructure[] | null) ?? [];
+      // Use a single "today" reference for the whole compute pass so a row
+      // crossing midnight mid-computation doesn't get a different verdict
+      // than its neighbour.
+      const today = new Date().toISOString().slice(0, 10);
       const rows: DuesRow[] = (enrollments ?? []).map((e) => {
         const stu = e.students as unknown as {
           full_name: string;
@@ -417,9 +452,33 @@ function AdminFeesContent() {
             sum + Number(fs.amount) * (FEE_FREQ_MULTIPLIER[fs.frequency] ?? 1),
           0
         );
+        // Late fee per overdue structure: pick the larger of the percent and
+        // the fixed-amount surcharge. Structures with no due_date or a
+        // future due_date contribute nothing. Ignored entirely if the
+        // student has no outstanding dues on the structure (covered by the
+        // outer `Math.max(0, expected - paid)` clamp + the per-structure
+        // overdue check).
+        const lateFee = applicable.reduce((sum, fs) => {
+          if (!fs.due_date || fs.due_date >= today) return sum;
+          const pct = Number(fs.late_fee_percent ?? 0);
+          const flat = Number(fs.late_fee_fixed_amount ?? 0);
+          if (pct === 0 && flat === 0) return sum;
+          const pctAmt = (Number(fs.amount) * pct) / 100;
+          return sum + Math.max(pctAmt, flat);
+        }, 0);
+        // `paid + waived` is what the dues view treats as settled. Refunded
+        // rows are already filtered out of `payments` above.
         const paid = payments
           .filter((p) => p.student_id === e.student_id)
-          .reduce((sum, p) => sum + Number(p.amount_paid), 0);
+          .reduce(
+            (sum, p) =>
+              sum + Number(p.amount_paid) + Number(p.waiver_amount ?? 0),
+            0
+          );
+        // Late fee only applies to the unpaid portion. Once a student has
+        // covered the base expected amount, the surcharge stops accruing.
+        const baseDues = Math.max(0, expected - paid);
+        const effectiveLateFee = baseDues > 0 ? lateFee : 0;
         return {
           student_id: e.student_id as string,
           admission_no: stu?.admission_no ?? "",
@@ -429,7 +488,8 @@ function AdminFeesContent() {
           has_transport: Boolean(e.has_transport),
           expected,
           paid,
-          dues: Math.max(0, expected - paid),
+          late_fee: effectiveLateFee,
+          dues: baseDues + effectiveLateFee,
         };
       });
       rows.sort((a, b) => b.dues - a.dues || a.full_name.localeCompare(b.full_name));
@@ -511,6 +571,12 @@ function AdminFeesContent() {
       amount: String(fs.amount),
       frequency: fs.frequency,
       due_date: fs.due_date ?? "",
+      late_fee_percent: fs.late_fee_percent
+        ? String(fs.late_fee_percent)
+        : "",
+      late_fee_fixed_amount: fs.late_fee_fixed_amount
+        ? String(fs.late_fee_fixed_amount)
+        : "",
     });
     setStructureDialogOpen(true);
   };
@@ -531,6 +597,27 @@ function AdminFeesContent() {
 
     setStructureSubmitting(true);
 
+    const lateFeePct = structureForm.late_fee_percent
+      ? Number(structureForm.late_fee_percent)
+      : 0;
+    const lateFeeFlat = structureForm.late_fee_fixed_amount
+      ? Number(structureForm.late_fee_fixed_amount)
+      : 0;
+    if (
+      !Number.isFinite(lateFeePct) ||
+      lateFeePct < 0 ||
+      lateFeePct > 100
+    ) {
+      toast.error("Late fee % must be between 0 and 100");
+      setStructureSubmitting(false);
+      return;
+    }
+    if (!Number.isFinite(lateFeeFlat) || lateFeeFlat < 0) {
+      toast.error("Late fee flat amount must be ≥ 0");
+      setStructureSubmitting(false);
+      return;
+    }
+
     const data: Record<string, unknown> = {
       academic_year_id: academicYearId,
       class_name: structureForm.class_name,
@@ -539,6 +626,8 @@ function AdminFeesContent() {
       frequency: structureForm.frequency,
       due_date: structureForm.due_date || null,
       stream_id: supportsStream ? (structureForm.stream_id || null) : null,
+      late_fee_percent: lateFeePct,
+      late_fee_fixed_amount: lateFeeFlat,
     };
 
     const result = editingStructureId
@@ -584,6 +673,98 @@ function AdminFeesContent() {
     }
     toast.success("Fee structure deleted");
     fetchFeeStructures();
+  };
+
+  // Refund a previously-recorded payment.
+  const handleRefund = async () => {
+    if (!refundPaymentId || !selectedStudent) return;
+    const amt = parseFloat(refundForm.amount);
+    if (Number.isNaN(amt) || amt <= 0) {
+      toast.error("Enter a valid refund amount");
+      return;
+    }
+    if (amt > refundMaxAmount) {
+      toast.error(`Refund cannot exceed ${refundMaxAmount}`);
+      return;
+    }
+    if (refundForm.reason.trim().length < 5) {
+      toast.error("Refund reason is required (min 5 chars)");
+      return;
+    }
+    setRefundSubmitting(true);
+    try {
+      const res = await fetch(
+        `/api/erp/fees/payments/${refundPaymentId}/refund`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            refund_amount: amt,
+            refund_reason: refundForm.reason.trim(),
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to refund payment");
+        return;
+      }
+      toast.success("Payment marked refunded");
+      setRefundOpen(false);
+      setRefundForm({ amount: "", reason: "" });
+      setRefundPaymentId(null);
+      selectStudent(selectedStudent);
+    } finally {
+      setRefundSubmitting(false);
+    }
+  };
+
+  // Record a fee waiver — counts toward "no dues" without a cash receipt.
+  const handleRecordWaiver = async () => {
+    if (!selectedStudent) return;
+    const amt = parseFloat(waiverForm.waiver_amount);
+    if (Number.isNaN(amt) || amt <= 0) {
+      toast.error("Enter a valid waiver amount");
+      return;
+    }
+    if (!waiverForm.fee_structure_id) {
+      toast.error("Pick a fee structure to waive");
+      return;
+    }
+    if (waiverForm.waiver_reason.trim().length < 5) {
+      toast.error("Waiver reason is required (min 5 chars)");
+      return;
+    }
+    setWaiverSubmitting(true);
+    try {
+      const res = await fetch("/api/erp/fees/waivers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: selectedStudent.id,
+          fee_structure_id: waiverForm.fee_structure_id,
+          waiver_amount: amt,
+          waiver_reason: waiverForm.waiver_reason.trim(),
+          month: waiverForm.month || "",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to record waiver");
+        return;
+      }
+      toast.success("Waiver recorded");
+      setWaiverOpen(false);
+      setWaiverForm({
+        fee_structure_id: "",
+        waiver_amount: "",
+        waiver_reason: "",
+        month: "",
+      });
+      selectStudent(selectedStudent);
+    } finally {
+      setWaiverSubmitting(false);
+    }
   };
 
   // Record payment
@@ -645,6 +826,14 @@ function AdminFeesContent() {
             Partial
           </Badge>
         );
+      case "refunded":
+        return (
+          <Badge className="bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-800">
+            Refunded
+          </Badge>
+        );
+      case "failed":
+        return <Badge variant="destructive">Failed</Badge>;
       case "pending":
         return (
           <Badge variant="destructive">Pending</Badge>
@@ -813,13 +1002,22 @@ function AdminFeesContent() {
                           : ""}
                       </p>
                     </div>
-                    <Button
-                      className="bg-gold-500 hover:bg-gold-600 text-navy-900"
-                      onClick={() => setRecordPaymentOpen(true)}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Record Payment
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setWaiverOpen(true)}
+                        title="Record a fee waiver (counts toward no-dues without a cash receipt)"
+                      >
+                        Record Waiver
+                      </Button>
+                      <Button
+                        className="bg-gold-500 hover:bg-gold-600 text-navy-900"
+                        onClick={() => setRecordPaymentOpen(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Record Payment
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Transport opt-in */}
@@ -934,15 +1132,38 @@ function AdminFeesContent() {
                             </TableCell>
                             <TableCell>{statusBadge(p.status)}</TableCell>
                             <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                onClick={() => downloadReceipt(p.id)}
-                                className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                                title="Download fee receipt (school + parent copy)"
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => downloadReceipt(p.id)}
+                                  className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                  title="Download fee receipt (school + parent copy)"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                                {/* Refund applies only to genuine cash receipts that haven't been refunded yet. */}
+                                {p.status !== "refunded" &&
+                                p.payment_method !== "waiver" ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setRefundPaymentId(p.id);
+                                      setRefundMaxAmount(Number(p.amount_paid));
+                                      setRefundForm({
+                                        amount: String(p.amount_paid),
+                                        reason: "",
+                                      });
+                                      setRefundOpen(true);
+                                    }}
+                                    title="Refund this payment"
+                                    className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/30 h-8 px-2 text-xs"
+                                  >
+                                    Refund
+                                  </Button>
+                                ) : null}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -1068,6 +1289,9 @@ function AdminFeesContent() {
                                     Paid
                                   </TableHead>
                                   <TableHead className="text-right">
+                                    Late Fee
+                                  </TableHead>
+                                  <TableHead className="text-right">
                                     Dues
                                   </TableHead>
                                 </TableRow>
@@ -1106,6 +1330,15 @@ function AdminFeesContent() {
                                         currency: "INR",
                                         maximumFractionDigits: 0,
                                       }).format(r.paid)}
+                                    </TableCell>
+                                    <TableCell className="text-right text-amber-700 dark:text-amber-400">
+                                      {r.late_fee > 0
+                                        ? new Intl.NumberFormat("en-IN", {
+                                            style: "currency",
+                                            currency: "INR",
+                                            maximumFractionDigits: 0,
+                                          }).format(r.late_fee)
+                                        : "—"}
                                     </TableCell>
                                     <TableCell className="text-right font-medium">
                                       {r.dues > 0 ? (
@@ -1266,6 +1499,50 @@ function AdminFeesContent() {
                 }
               />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">
+                  Late Fee % (optional)
+                </Label>
+                <Input
+                  className="h-9"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  placeholder="0"
+                  value={structureForm.late_fee_percent}
+                  onChange={(e) =>
+                    setStructureForm({
+                      ...structureForm,
+                      late_fee_percent: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">
+                  Late Fee Flat ₹ (optional)
+                </Label>
+                <Input
+                  className="h-9"
+                  type="number"
+                  min={0}
+                  step="1"
+                  placeholder="0"
+                  value={structureForm.late_fee_fixed_amount}
+                  onChange={(e) =>
+                    setStructureForm({
+                      ...structureForm,
+                      late_fee_fixed_amount: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-500 dark:text-gray-400 -mt-1">
+              Applied per overdue structure: max(amount × %, flat). Leave both at 0 for no surcharge.
+            </p>
             <Button
               onClick={handleSaveStructure}
               disabled={structureSubmitting}
@@ -1385,6 +1662,160 @@ function AdminFeesContent() {
                 </>
               ) : (
                 "Record Payment"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Refund Dialog (M9) */}
+      <Dialog open={refundOpen} onOpenChange={setRefundOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Refund Payment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="text-sm font-medium">
+                Refund amount (max ₹{refundMaxAmount})
+              </Label>
+              <Input
+                type="number"
+                step="0.01"
+                min={0}
+                max={refundMaxAmount}
+                value={refundForm.amount}
+                onChange={(e) =>
+                  setRefundForm((p) => ({ ...p, amount: e.target.value }))
+                }
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Reason</Label>
+              <textarea
+                value={refundForm.reason}
+                onChange={(e) =>
+                  setRefundForm((p) => ({ ...p, reason: e.target.value }))
+                }
+                rows={3}
+                placeholder="e.g. Duplicate payment, parent dispute…"
+                className="mt-1 w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+              />
+              <p className="text-[10px] text-gray-500 mt-1">
+                Min 5 chars. Logged with your user id and timestamp.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button
+              onClick={handleRefund}
+              disabled={refundSubmitting}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              {refundSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Refunding...
+                </>
+              ) : (
+                "Confirm Refund"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Waiver Dialog (M9) */}
+      <Dialog open={waiverOpen} onOpenChange={setWaiverOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Fee Waiver</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="text-sm font-medium">Fee structure</Label>
+              <select
+                value={waiverForm.fee_structure_id}
+                onChange={(e) =>
+                  setWaiverForm((p) => ({
+                    ...p,
+                    fee_structure_id: e.target.value,
+                  }))
+                }
+                className="mt-1 block w-full rounded-md border border-gray-200 dark:border-border px-3 py-2 text-sm dark:bg-muted"
+              >
+                <option value="">Select…</option>
+                {studentFeeStructures.map((fs) => (
+                  <option key={fs.id} value={fs.id}>
+                    {fs.fee_type} — ₹{fs.amount}
+                    {fs.frequency !== "one_time" ? ` / ${fs.frequency}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Waiver amount</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min={0}
+                value={waiverForm.waiver_amount}
+                onChange={(e) =>
+                  setWaiverForm((p) => ({
+                    ...p,
+                    waiver_amount: e.target.value,
+                  }))
+                }
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Reason</Label>
+              <textarea
+                value={waiverForm.waiver_reason}
+                onChange={(e) =>
+                  setWaiverForm((p) => ({
+                    ...p,
+                    waiver_reason: e.target.value,
+                  }))
+                }
+                rows={3}
+                placeholder="e.g. Scholarship, principal-approved hardship…"
+                className="mt-1 w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+              />
+              <p className="text-[10px] text-gray-500 mt-1">
+                Min 5 chars. Counts toward dues but is tagged as a waiver.
+              </p>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Month (optional)</Label>
+              <Input
+                type="text"
+                value={waiverForm.month}
+                onChange={(e) =>
+                  setWaiverForm((p) => ({ ...p, month: e.target.value }))
+                }
+                placeholder="e.g. April 2026"
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button
+              onClick={handleRecordWaiver}
+              disabled={waiverSubmitting}
+              className="bg-amber-500 hover:bg-amber-600 text-white"
+            >
+              {waiverSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Recording...
+                </>
+              ) : (
+                "Record Waiver"
               )}
             </Button>
           </div>

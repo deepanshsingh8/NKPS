@@ -25,6 +25,7 @@ import { BestOfSection } from "./advanced/BestOfSection";
 import { GraceSection } from "./advanced/GraceSection";
 import { RoundingSection } from "./advanced/RoundingSection";
 import { NonScholasticSection } from "./advanced/NonScholasticSection";
+import { DisplaySection } from "./advanced/DisplaySection";
 import { GradeScaleSection } from "./advanced/GradeScaleSection";
 
 // -----------------------------------------------------------------------------
@@ -43,6 +44,10 @@ interface MasterForm {
   include_non_scholastic: boolean;
   non_scholastic_placement: ResultMasterNonScholasticPlacement;
   grade_scale_id: string | null;
+  // Phase 9 — display toggles
+  show_rank: boolean;
+  show_extra_separately: boolean;
+  show_division: boolean;
 }
 
 function masterFormFromMaster(m: ResultMaster): MasterForm {
@@ -73,6 +78,9 @@ function masterFormFromMaster(m: ResultMaster): MasterForm {
     include_non_scholastic: m.include_non_scholastic,
     non_scholastic_placement: m.non_scholastic_placement,
     grade_scale_id: m.grade_scale_id,
+    show_rank: m.show_rank ?? false,
+    show_extra_separately: m.show_extra_separately ?? true,
+    show_division: m.show_division ?? true,
   };
 }
 
@@ -366,6 +374,9 @@ export function AdvancedTab({
       "include_non_scholastic",
       "non_scholastic_placement",
       "grade_scale_id",
+      "show_rank",
+      "show_extra_separately",
+      "show_division",
     ];
     for (const key of compareFields) {
       const cur = form[key];
@@ -481,6 +492,13 @@ export function AdvancedTab({
       <NonScholasticSection
         include={form.include_non_scholastic}
         placement={form.non_scholastic_placement}
+        onChange={patchForm}
+      />
+
+      <DisplaySection
+        showRank={form.show_rank}
+        showExtraSeparately={form.show_extra_separately}
+        showDivision={form.show_division}
         onChange={patchForm}
       />
 

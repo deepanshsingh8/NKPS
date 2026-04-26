@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@/lib/verify-admin";
 import { studentSchema } from "@/lib/validations";
-import { createPortalUser } from "@/lib/create-portal-user";
 
 export async function GET(request: NextRequest) {
   try {
@@ -51,7 +50,7 @@ export async function GET(request: NextRequest) {
       const { data: enrollments, error: enrollError } = await admin
         .from("student_enrollments")
         .select(
-          "student_id, roll_number, roll_number_manual, id, class_id, stream_id, status, academic_year_id, created_at, classes(name, section)"
+          "student_id, roll_number, roll_number_manual, id, class_id, stream_id, status, academic_year_id, updated_at, classes(name, section)"
         )
         .range(0, 9999);
       if (enrollError) {
@@ -63,7 +62,8 @@ export async function GET(request: NextRequest) {
       // Priority for picking a student's representative enrollment:
       //   1. Current-year row (if a current year is flagged) beats other years.
       //   2. status='active' beats past statuses (passed/failed/terminated/exited).
-      //   3. More recent created_at beats older.
+      //   3. More recently updated row beats older (proxy for "most recent
+      //      enrollment activity"; the table doesn't carry created_at).
       type Enrollment = NonNullable<typeof enrollments>[number];
       const sorted = (enrollments ?? []).slice().sort((a: Enrollment, b: Enrollment) => {
         const aYear = currentYearId && a.academic_year_id === currentYearId ? 0 : 1;
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
         const aStatus = a.status === "active" ? 0 : 1;
         const bStatus = b.status === "active" ? 0 : 1;
         if (aStatus !== bStatus) return aStatus - bStatus;
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
       });
 
       const byStudent = new Map<string, Enrollment>();
@@ -266,25 +266,10 @@ export async function POST(request: NextRequest) {
 
     }
 
-    let userCreated = false;
-    const studentEmail = result.data.email?.trim();
-    if (studentEmail && student) {
-      const userResult = await createPortalUser({
-        email: studentEmail,
-        fullName: result.data.full_name.trim(),
-        role: "student",
-        phone: result.data.phone || null,
-      });
-      if (userResult.success && userResult.userId) {
-        await admin
-          .from("profiles")
-          .update({ student_id: student.id })
-          .eq("id", userResult.userId);
-      }
-      userCreated = userResult.success;
-    }
-
-    return NextResponse.json({ success: true, data: student, userCreated });
+    // Portal user creation is intentionally NOT triggered here. Admins create
+    // logins explicitly via the "Create portal accounts" dialog on the students
+    // page once they're ready to onboard the student.
+    return NextResponse.json({ success: true, data: student });
   } catch (err) {
     console.error("Create student error:", err);
     return NextResponse.json(

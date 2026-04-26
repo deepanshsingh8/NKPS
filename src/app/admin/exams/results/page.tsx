@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import {
   Card,
   CardContent,
@@ -62,11 +63,12 @@ const GRADE_COLORS: Record<string, string> = {
 export default function AdminResultsPage() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [examTypes, setExamTypes] = useState<ExamType[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState("");
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
   const [gradeBands, setGradeBands] = useState<GradeBand[]>([]);
   const getGradeFromPct = (pct: number) =>
     computeGrade(pct, gradeBands) ?? "";
-  const [selectedExamTypeId, setSelectedExamTypeId] = useState("");
+  const [selectedExamTypeId, setSelectedExamTypeId] = useUrlState("exam_type_id");
 
   const [summary, setSummary] = useState<ClassSummary | null>(null);
   const [subjectBreakdown, setSubjectBreakdown] = useState<SubjectBreakdown[]>(
@@ -326,7 +328,11 @@ export default function AdminResultsPage() {
           </p>
         </div>
         <Link
-          href="/admin/exams/results/edit"
+          href={
+            selectedClassId && selectedExamTypeId
+              ? `/admin/exams/results/edit?class_id=${encodeURIComponent(selectedClassId)}&exam_type_id=${encodeURIComponent(selectedExamTypeId)}`
+              : "/admin/exams/results/edit"
+          }
           className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-white dark:bg-card px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-900/40 transition-colors"
         >
           <Pencil className="h-4 w-4" />

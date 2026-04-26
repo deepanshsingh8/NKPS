@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/hooks/use-url-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -35,11 +36,12 @@ export default function TeacherStudentsPage() {
   const supabase = createClient();
 
   const [classes, setClasses] = useState<ClassOption[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState("");
+  // Filter state lives in the URL so back-navigation restores it (UX-1).
+  const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [studentsLoading, setStudentsLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useUrlState("q");
 
   useEffect(() => {
     async function fetchClasses() {
@@ -87,7 +89,8 @@ export default function TeacherStudentsPage() {
         const classOptions = (classData ?? []) as unknown as ClassOption[];
         setClasses(classOptions);
 
-        if (classOptions.length > 0) {
+        // Only auto-select the first class when the URL hasn't pinned one.
+        if (classOptions.length > 0 && !selectedClassId) {
           setSelectedClassId(classOptions[0].id);
         }
       }

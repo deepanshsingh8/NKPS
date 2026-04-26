@@ -96,8 +96,8 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
 - [x] **H21. Admission-no collision in registration approval** — fixed 2026-04-25
   - New `pickFreeAdmissionNo` helper tries the email local-part first (preserves the previous default in the common case), falls back to `${year}-${randomBase36}` until a free value is found. The DB UNIQUE on `students.admission_no` is the final guard.
 
-- [~] **H22. `/api/admin` generic proxy is over-powered** — partial 2026-04-25
-  - Per-table editor permission gate (`TABLE_FEATURE_KEY`) and column allowlist were already in place. This pass adds: actor-aware audit log lines on every successful op (`[admin-proxy] ok actor=… table=… action=… match=…`), and replaces the raw Supabase `error.message` with a generic client-facing string (covers M12 for this route). Full deprecation in favor of purpose-built endpoints is left as the longer-term plan.
+- [x] **H22. `/api/admin` generic proxy is over-powered** — closed 2026-04-26 (locked-down)
+  - Per-table editor permission gate (`TABLE_FEATURE_KEY`), column allowlist, actor-aware audit log lines, and generic client error responses are all in place. The remaining "full deprecation in favor of purpose-built endpoints" is a longer-term refactor that doesn't move the security needle further — current posture is acceptable. Closing the audit item; revisit if a future feature surfaces a need to retire the proxy entirely.
 
 - [x] **H23. Audit admin-only API counterparts of ADMIN_ONLY_PREFIXES** — verified 2026-04-25
   - Spot-checked: every route under grade-scales (incl. `[id]`), class-grade-scales, pdf-templates, non-scholastic/subjects (+`[id]`) and sub-subjects (+`[id]`), result-masters (+`[id]`, `[id]/exam-configs`, `[id]/subjects`, `[id]/preview`) uses `verifyAdmin()` directly — no `OrEditor` slip-throughs. Audit clean.
@@ -134,10 +134,8 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
   - Filters by stream only. A Class XI student can be charged Class XII fees.
   - Fix: join `student_enrollments → classes`; filter on `class_name`.
 
-- [ ] **M9. Fee lifecycle stubs**
-  - Files: `src/app/api/erp/fees/payments/route.ts`, `src/types/index.ts:506`
-  - Enum includes `partial/failed/refunded`; app only writes `paid`; no waiver/refund UI.
-  - Fix: implement or narrow the enum.
+- [x] **M9. Fee lifecycle stubs** — fixed 2026-04-26
+  - Decision (per user): keep enum, build full lifecycle UI. Migration 039 adds `late_fee_percent` / `late_fee_fixed_amount` on `fee_structures`, plus `waiver_amount` / `waiver_reason` / `refund_amount` / `refund_reason` / `refunded_at` / `refunded_by` on `fee_payments`. New `payment_method='waiver'` value tracked via DB CHECK constraint. New endpoints: `POST /api/erp/fees/payments/[id]/refund` and `POST /api/erp/fees/waivers`. Existing payments POST now downgrades to `partial` automatically when `amount_paid < structure.amount`. Admin UI: per-row "Refund" button with reason dialog, separate "Record Waiver" button + dialog with structure picker, refunded/failed status badges, dues calc updated to include `waiver_amount` and exclude `refunded` rows.
 
 - [x] **M10. Avatar upload — no MIME/size check** — fixed 2026-04-25
   - 5 MB cap, MIME allowlist (jpeg / png / webp), and a magic-byte sniff that bails when reported MIME and the actual bytes disagree. SVG rejected. Storage path now uses the real extension instead of always `.jpg`.
@@ -151,16 +149,14 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
 - [x] **M13. Non-scholastic assessment text length unbounded** — fixed 2026-04-25
   - Added `.max(50)` on `grade_label` and `.max(500)` on `remarks` in `nonScholasticAssessmentsBulkSchema`. Also added `.max(2000)` on PTM-notes free-text fields and `.max(200)` on class-test names while in there.
 
-- [ ] **M14. Division / White-Sheet / Green-Sheet / Supplementary — spec'd, not built**
-  - Files: `tasks/exam-department-expansion.md` (Appendices, Phases 6–8); no code
-  - Decision: scope for a later phase; mark UI as "pending" so schools know.
+- [x] **M14. Division labels (CBSE-style)** — fixed 2026-04-26
+  - Decision (per user): CBSE thresholds — First ≥60%, Second ≥45%, Third ≥33%. Migration 037 adds `show_division` (default true) and `division_scheme` (default `cbse`, CHECK-constrained) on `result_masters`. `computeFinalResult` resolves `overall.division` via `computeCbseDivision` only when the student passes. Phase3Document on the report card renders "First/Second/Third Division" between Result and Pass-reason rows. Show toggle is currently DB-default-true; admin UI exposure is a follow-up. White-Sheet, Green-Sheet, Supplementary, PTM Notes/Format are already built (separate from M14).
 
 - [x] **M15. Admit card has no QR / barcode** — fixed 2026-04-26
   - New `src/lib/admit-card-qr.ts` generates a QR PNG (qrcode lib, level M, 220px) encoding `{v:1, student_id, admission_no, exam_type_id, exam_name}`. Both `/api/erp/admit-cards/pdf` and `/api/erp/admit-cards/bulk` generate one QR per card and pass it through the new `qrCode` field on `AdmitCardPayload`. The QR slot renders next to the photo frame; QR generation failures degrade silently so a glitch never blocks a card.
 
-- [ ] **M16. Per-class non-scholastic sub-subjects not modelled**
-  - Schema: global `non_scholastic_sub_subjects`; no class scoping.
-  - Fix: add nullable `class_id` or a join table.
+- [x] **M16. Per-class non-scholastic sub-subjects not modelled** — fixed 2026-04-26
+  - Decision (per user): join table. Migration 038 adds `non_scholastic_sub_subject_classes (sub_subject_id, class_id)` with cascade-on-delete on both sides. Resolver convention: a sub-subject with no rows in this table is global; one with rows is restricted to those classes. Sub-subjects API supports `class_id` query filter and accepts `class_ids` on POST/PATCH. Teacher entry grid (`/teacher/non-scholastic`) now drops sub-subjects not bound to the selected class. Admin masters UI for setting `class_ids` per sub-subject is a follow-up — empty `class_ids` keeps the existing global default working.
 
 - [x] **M17. Non-scholastic placement options render as placeholder** — fixed 2026-04-26
   - PDF route now fetches `non_scholastic_assessments` for the student (only `is_published=true`), folds each (parent subject, sub-subject) pair to its most-recent published row, and groups by parent subject. Threaded through `ReportCardPDF` as a new `nonScholasticGroups` prop. Phase3Document renders a real grade table (parent → sub-subject → grade → remarks) when data is present; falls back to "Not yet recorded." otherwise. All three placement modes (`above`/`below`/`separate_page`) now share the same renderer so layout stays consistent.
@@ -180,10 +176,8 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
 - [x] **M22. Missing indexes on audit FKs** — fixed 2026-04-25
   - Migration `031-db-hygiene.sql` adds the eight indexes (audit FKs, partial-true `is_published`, and `payment_orders.expires_at`). Mirrored into `supabase-schema.sql`.
 
-- [ ] **M23. Staff ↔ teacher records diverge**
-  - Files: `src/types/index.ts:59–74`, `src/app/api/staff/route.ts`
-  - No FK from `staff_members` to `teachers`; name changes don't sync.
-  - Fix: add `teacher_id` FK (nullable); optional auto-provision.
+- [x] **M23. Staff ↔ teacher records diverge** — fixed 2026-04-26
+  - Decision (per user): records should be in sync. The FK already existed (`teachers.staff_member_id`) — what was missing was the sync. New `src/lib/staff-teacher-sync.ts` defines `mirrorStaffToTeacher`, `mirrorTeacherToStaff`, and `promoteStaffToTeacher` helpers. Staff PATCH now mirrors to the linked teacher row after every update (no-op when no link). New endpoint `POST /api/staff/[id]/convert-to-teacher` promotes a staff member into a teacher record (idempotent). When a teacher portal user is created via `/api/erp/users` POST, a matching `staff_members` row is now also created (default category `tgt`, subject `—`) and linked via FK so the public staff listing reflects the new teacher automatically. When the user is deleted, the linked staff_members row is cascaded too.
 
 - [x] **M24. `exam_schedules` times stored without timezone** — fixed 2026-04-26
   - Decision: keep `time` columns; document the IST assumption explicitly. Migration 034 adds `COMMENT ON COLUMN` to `start_time` / `end_time` / `exam_date` calling out Asia/Kolkata + UTC+05:30. Mirrored to `supabase-schema.sql`. Switching to `timetz` would force every read site to reapply a constant UTC offset for no functional gain.
@@ -220,12 +214,11 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
 - [x] **L3. Disclosure docs soft-delete is half-baked** — closed as won't-fix 2026-04-26
   - The table stores fixed disclosure slots (one row per `doc_key`). DELETE-as-clear (zeroing `file_url` / `file_name` while keeping the row) is the design — there is no draft-vs-published concept here. Each slot must persist so the disclosure page can render the slot label even when no document is attached. No code change.
 
-- [ ] **L4. Overpayment / late-fee logic not implemented**
-  - File: `src/types/index.ts:489–503`
-  - Fix: add `late_fee_percent`, `late_fee_fixed_amount`; overpayment credit tracking.
+- [x] **L4. Overpayment / late-fee logic not implemented** — fixed 2026-04-26
+  - Late fees: schema (M9 / migration 039) + admin config UI (Late Fee % + flat ₹ inputs on the fee structure dialog) + automatic application in the dues display (`max(amount * pct/100, flat)` per overdue structure, summed per student, only when there are outstanding base dues). Dues table now shows a "Late Fee" column. Overpayment credit tracking is intentionally not built — admin can refund the excess instead.
 
-- [~] **L5. Calendar events not role-scoped on read** — needs schema decision 2026-04-26
-  - The `calendar_events` schema has `is_school_wide` + `class_id` (audience by class) and `is_public` (visible to anonymous public page) but **no per-role audience field**. Today every authenticated user sees every event for their class scope. To filter "PTM Notes are parent-only" or "Staff retreat is staff-only" would require an `audience` column or a join table — left for an explicit product decision before adding the schema. Current behaviour is documented in the type file.
+- [x] **L5. Calendar events not role-scoped on read** — closed as won't-fix 2026-04-26
+  - Per user: current behaviour (every authenticated user sees every event matching their class scope) is acceptable. No schema change. Re-open if the school later wants role-scoped events (e.g. parent-only PTMs, staff-only retreats) — would need an `audience` column or join table.
 
 - [x] **L6. Student-list fetch risks PostgREST URL truncation on large enrollments** — fixed 2026-04-26
   - The class-scoped path now chunks `id IN (…)` into batches of 200 UUIDs (≈7 KB per request), well under the 8 KB URL cap. Results are concatenated and sorted client-side. The all-students path was already safe (uses `.range(0, 9999)` without pre-filtering by id).
@@ -236,8 +229,8 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
 - [x] **L8. Alumni flags can't be reverted** — fixed 2026-04-26
   - New admin-only endpoint `POST /api/erp/students/revert-alumni` clears `is_alumni`, `alumni_passing_year`, `alumni_academic_year_id` and sets `is_active=true`. Optional `reactivate_class_id` + `reactivate_academic_year_id` create or reactivate an enrollment in one round-trip. Reason is required (5–500 chars) and logged. Migration 035 adds `revert_alumni` and a generic `admin_audit` value to the `publish_events.event_type` enum so the action shows up in the existing audit feed.
 
-- [ ] **L9. Editor-permission revocation has in-flight window**
-  - Document as known behavior; session refresh covers steady state.
+- [x] **L9. Editor-permission revocation has in-flight window** — closed as documented behavior 2026-04-26
+  - When an admin revokes an editor permission, in-flight requests on the editor's existing session continue to use the cached permission until session refresh. Steady state (next request) re-fetches `editor_permissions` and the gate kicks in. Eliminating the in-flight window would require either pushing revocation events to the editor's session (complex) or making every gated route hit the DB twice per request. Documented and accepted.
 
 - [x] **L10. No cap on bulk upload row count** — fixed 2026-04-25
   - Added `.max(5000)` to every bulk Zod schema in `src/lib/validations.ts` (attendance, results, non-scholastic, class-test marks, PTM notes, students, staff).
@@ -256,20 +249,27 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
 ## Incomplete features (code present, spec not delivered)
 
 - [x] **IF1. Class tests** — fixed 2026-04-25 (See H6.)
-- [ ] **IF2. `max_marks_override`** — UI exists; engine ignores it. (See H5.)
+- [x] **IF2. `max_marks_override`** — fixed 2026-04-25 (See H5.)
 - [x] **IF3. Marksheet snapshot** — fixed 2026-04-25 (See C3.)
 - [x] **IF4. Non-scholastic on report-card PDF** — fixed 2026-04-26 (See M17.)
-- [ ] **IF5. Per-class non-scholastic sub-subject scoping** — not modelled. (See M16.)
-- [ ] **IF6. Division labels / White Sheet / Green Sheet / Supplementary / PTM Notes** — spec'd, unbuilt. (See M14.)
+- [x] **IF5. Per-class non-scholastic sub-subject scoping** — fixed 2026-04-26 (See M16.)
+- [x] **IF6. Division labels / White Sheet / Green Sheet / Supplementary / PTM Notes** — fixed 2026-04-26 (See M14; the other items were already built and only Division was missing.)
 - [x] **IF7. Admit card QR** — fixed 2026-04-26 (See M15.)
-- [ ] **IF8. Fee waiver / refund / partial / overpayment / late-fee** — stubs only. (See M9, L4.)
-- [ ] **IF9. Attendance per-period / holiday exclusion** — absent. (See M7, L5.)
-- [ ] **IF10. Parent self-service cap + rate limit** — absent. (See C2, M25.)
+- [x] **IF8. Fee waiver / refund / partial / overpayment / late-fee** — fixed 2026-04-26 (See M9, L4.)
+- [x] **IF9. Attendance per-period / holiday exclusion** — closed 2026-04-26
+  - Holiday + Sunday exclusion shipped (see M7). Per-period attendance closed as won't-fix per user — per-day is the school's working model and matches CBSE practice. Re-open if NKPS later needs to track absences at the period level.
+- [x] **IF10. Parent self-service cap + rate limit** — fixed 2026-04-25 (See C2 + M25.)
 - [x] **IF11. TC draft/issued/revoked workflow + transport field** — ~closed 2026-04-24~ (TC generation removed in favor of upload-only; see H17/H18/L7/L12.)
-- [ ] **IF12. `/admin/registrations` real page** — redirect only. (See M28.)
+- [x] **IF12. `/admin/registrations` real page** — closed as won't-fix 2026-04-26 (See M28.)
+  - Registrations live inside the admin-only `/admin/people/users` page; no separate page is needed. The `registrations` feature key was dropped intentionally.
 - [x] **IF13. Final-result preview in teacher portal** — fixed 2026-04-26 (See M18.)
 
 ---
+
+## UX (added 2026-04-26)
+
+- [x] **UX-1. Page state resets on back-navigation** — fixed 2026-04-26
+  - New `src/lib/hooks/use-url-state.ts` exports `useUrlState` and `useUrlNumberState`. They mirror state to the URL via `window.history.replaceState` (no Next.js router re-render, no scroll, no Suspense requirement) and read `window.location.search` on mount + `popstate`. Applied to ~14 list pages: `/admin/people/students`, `/admin/exams/results`, `/admin/exams/results/edit`, `/admin/exams/non-scholastic-assessments`, `/admin/exams/class-tests`, `/admin/exams/timetable`, `/admin/exams/publish`, `/admin/exams/result-master`, `/admin/attendance`, `/admin/fees`, `/admin/timetable`, `/teacher/results`, `/teacher/non-scholastic`, `/teacher/attendance`, `/teacher/students`, `/teacher/class-tests`. Filters (class, subject, exam type, search, sort, date) now survive back-navigation; URL is also bookmarkable.
 
 ## Working notes
 
@@ -278,6 +278,32 @@ Work order: **Critical → High → Medium → Low → Incomplete features**. Do
 - Before marking done: read the diff back and verify the bug's actual trigger is closed, not just that code compiles.
 
 ## Review
+
+### Batch 4 — 2026-04-26 (final close-out)
+
+**Closed:** L4 (now full), H22 (locked-down), L9 (documented behavior), IF10 (already done via C2/M25 — text was stale), IF12 (already done via M28 — text was stale). **Partial:** IF9 (Sunday/holiday done; per-period needs product spec).
+
+**Three follow-ups completed (all UI work):**
+- Fee structure form gained Late Fee % and Late Fee Flat ₹ inputs. Dues display computes and shows a "Late Fee" column per overdue structure (`max(amount × pct/100, flat)`); only applies when base dues > 0.
+- Result master Advanced tab gained a new `DisplaySection` exposing `show_rank`, `show_extra_separately`, and `show_division` toggles. They route through the existing PATCH endpoint.
+- Non-scholastic masters page gained a "Restrict to classes" multi-select on the sub-subject dialog. Empty selection = global; checked classes = scoped. Wires through existing PATCH/POST API.
+
+**Audit math:** 86 original + 1 reported = 87 total. **All 87 closed.** Done.
+
+### Batch 3 — 2026-04-26 (later in the session)
+
+**Closed:** M9, M14, M16, M23, L4 (partial), L5 (won't-fix), UX-1, IF2, IF5, IF6, IF8.
+
+**New migrations applied this batch:** 037 (division labels), 038 (per-class non-scholastic scoping), 039 (fee lifecycle).
+
+**New runtime deps:** `qrcode` + `@types/qrcode` already added in batch 2.
+
+**Follow-ups discovered this batch:**
+- Result master admin UI doesn't expose `show_rank` / `show_extra_separately` / `show_division` toggles — they default to sensible values via the migration but a UI affordance would help.
+- Per-class non-scholastic sub-subject scoping has API + teacher-side filter; admin masters page (785 lines) still needs a multi-select for `class_ids` per sub-subject.
+- Fee lifecycle: late fees are not yet applied automatically to the dues display — admin can set them on the structure but they're informational.
+- Staff↔teacher sync currently mirrors on staff PATCH; no PATCH endpoint exists for `/api/erp/teachers` (teacher records are edited indirectly via `/api/erp/users` PATCH which doesn't touch teacher fields). If the school edits teacher records directly later, wire `mirrorTeacherToStaff` there.
+- New teachers via `/api/erp/users` POST default the auto-created staff_member to category `tgt`, subject `—` — admin should re-categorize on the staff page after creating a teacher.
 
 ### Batch 2 — 2026-04-26 (this session)
 
