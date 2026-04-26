@@ -16,8 +16,8 @@ import type { Teacher } from "@/shared/types";
 import {
   TeacherWeekGrid,
   type TeacherPeriod,
-} from "@/components/admin/timetable/TeacherWeekGrid";
-import { MarkAbsentDialog } from "@/components/admin/timetable/MarkAbsentDialog";
+} from "@/erp/components/timetable/TeacherWeekGrid";
+import { MarkAbsentDialog } from "@/erp/components/timetable/MarkAbsentDialog";
 
 export default function AdminTeacherTimetablePage() {
   const supabase = createClient();

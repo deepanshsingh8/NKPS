@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { formatClassName } from "@/shared/lib/utils";
 import type { Class, ExamType } from "@/shared/types";
-import { PtmImportDialog } from "@/components/erp/PtmImportDialog";
+import { PtmImportDialog } from "@/erp/components/PtmImportDialog";
 
 interface EnrolledStudent {
   student_id: string;

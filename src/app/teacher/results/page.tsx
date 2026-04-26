@@ -39,7 +39,7 @@ import { toast } from "sonner";
 import { Save, Loader2, Download, Info, FileText } from "lucide-react";
 import { formatClassName } from "@/shared/lib/utils";
 import { computeGrade, type GradeBand } from "@/erp/lib/grading";
-import { MarksImportDialog } from "@/components/erp/MarksImportDialog";
+import { MarksImportDialog } from "@/erp/components/MarksImportDialog";
 import type { Class, Subject, ExamType } from "@/shared/types";
 
 interface EnrolledStudent {

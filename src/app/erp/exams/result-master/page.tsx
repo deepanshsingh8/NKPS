@@ -31,11 +31,11 @@ import {
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatClassName } from "@/shared/lib/utils";
-import { BasicRulesTab } from "@/components/admin/result-master/BasicRulesTab";
-import { SubjectsTab } from "@/components/admin/result-master/SubjectsTab";
-import { AdvancedTab } from "@/components/admin/result-master/AdvancedTab";
-import { PreviewTab } from "@/components/admin/result-master/PreviewTab";
-import type { ExamConfigWithType } from "@/components/admin/result-master/helpers";
+import { BasicRulesTab } from "@/erp/components/result-master/BasicRulesTab";
+import { SubjectsTab } from "@/erp/components/result-master/SubjectsTab";
+import { AdvancedTab } from "@/erp/components/result-master/AdvancedTab";
+import { PreviewTab } from "@/erp/components/result-master/PreviewTab";
+import type { ExamConfigWithType } from "@/erp/components/result-master/helpers";
 import type { GradeScale } from "@/erp/lib/grading";
 import type {
   AcademicYear,

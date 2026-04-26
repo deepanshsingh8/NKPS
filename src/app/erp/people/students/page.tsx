@@ -54,8 +54,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
-import { StudentBulkUpload } from "@/components/admin/StudentBulkUpload";
-import { CreatePortalUsersDialog } from "@/components/admin/CreatePortalUsersDialog";
+import { StudentBulkUpload } from "@/erp/components/StudentBulkUpload";
+import { CreatePortalUsersDialog } from "@/erp/components/CreatePortalUsersDialog";
 import { useUrlState } from "@/shared/lib/hooks/use-url-state";
 import { formatClassName } from "@/shared/lib/utils";
 import { downloadCSV, STUDENT_CSV_COLUMNS } from "@/erp/lib/csv-export";

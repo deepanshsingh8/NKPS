@@ -7,7 +7,7 @@ import { getPdfTemplate } from "@/erp/lib/pdf-templates";
 import {
   PtmFormatPDF,
   type PtmFormatPDFProps,
-} from "@/components/pdf/PtmFormatPDF";
+} from "@/erp/components/pdf/PtmFormatPDF";
 import { computeGrade, resolveGradeScaleForClass } from "@/erp/lib/grading";
 import { contentDispositionAttachment } from "@/shared/lib/utils";
 

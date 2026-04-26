@@ -8,7 +8,7 @@ import { contentDispositionAttachment } from "@/shared/lib/utils";
 import {
   PtmNotesReportPDF,
   type PtmReportStudentBlock,
-} from "@/components/pdf/PtmNotesReportPDF";
+} from "@/erp/components/pdf/PtmNotesReportPDF";
 
 export const runtime = "nodejs";
 

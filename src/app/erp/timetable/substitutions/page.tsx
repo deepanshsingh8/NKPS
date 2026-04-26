@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Teacher } from "@/shared/types";
-import { SubstitutePickerDialog } from "@/components/admin/timetable/SubstitutePickerDialog";
+import { SubstitutePickerDialog } from "@/erp/components/timetable/SubstitutePickerDialog";
 
 const HALF_DAY_OPTIONS = [
   { value: "full", label: "Full day" },

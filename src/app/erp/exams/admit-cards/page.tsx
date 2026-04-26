@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/shared/components/ui/tabs";
-import { AdmitCardGenerateTab } from "@/components/admin/AdmitCardGenerateTab";
+import { AdmitCardGenerateTab } from "@/erp/components/AdmitCardGenerateTab";
 import {
   Plus,
   Pencil,

@@ -1,6 +1,6 @@
 "use client";
 
-import { PtmNotesWorkbench } from "@/components/erp/PtmNotesWorkbench";
+import { PtmNotesWorkbench } from "@/erp/components/PtmNotesWorkbench";
 
 export default function AdminPtmNotesPage() {
   return <PtmNotesWorkbench scope="admin" />;

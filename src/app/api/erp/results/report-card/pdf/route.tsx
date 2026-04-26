@@ -6,7 +6,7 @@ import { createClient } from "@/shared/lib/supabase/server";
 import { createAdminClient } from "@/shared/lib/supabase/admin";
 import { canViewReportCard, getReportCardData } from "@/erp/lib/report-card";
 import type { ReportCardExamGroup } from "@/erp/lib/report-card";
-import { ReportCardPDF } from "@/components/pdf/ReportCardPDF";
+import { ReportCardPDF } from "@/erp/components/pdf/ReportCardPDF";
 import { getPdfTemplate } from "@/erp/lib/pdf-templates";
 import { contentDispositionAttachment } from "@/shared/lib/utils";
 import {

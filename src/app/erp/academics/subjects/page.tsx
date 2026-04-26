@@ -46,8 +46,8 @@ import {
 } from "lucide-react";
 import { adminApi } from "@/shared/lib/admin-api";
 import { cn, formatClassName } from "@/shared/lib/utils";
-import QuickSetupWizard from "@/components/admin/QuickSetupWizard";
-import { SubjectBulkUpload } from "@/components/admin/SubjectBulkUpload";
+import QuickSetupWizard from "@/erp/components/QuickSetupWizard";
+import { SubjectBulkUpload } from "@/erp/components/SubjectBulkUpload";
 import type { Class, Subject, Teacher, Stream } from "@/shared/types";
 
 type Tab = "subjects" | "assignments" | "streams";

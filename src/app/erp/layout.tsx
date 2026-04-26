@@ -1,6 +1,6 @@
 "use client";
 
-import { ErpSidebar } from "@/components/erp/ErpSidebar";
+import { ErpSidebar } from "@/erp/components/ErpSidebar";
 import { SidebarProvider, useSidebar } from "@/shared/components/providers/SidebarProvider";
 import { cn } from "@/shared/lib/utils";
 

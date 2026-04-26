@@ -4,7 +4,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { createClient } from "@/shared/lib/supabase/server";
 import { getPdfTemplate } from "@/erp/lib/pdf-templates";
-import { GreenSheetPDF } from "@/components/pdf/GreenSheetPDF";
+import { GreenSheetPDF } from "@/erp/components/pdf/GreenSheetPDF";
 import { buildGreenSheetData } from "@/erp/lib/green-sheet";
 import { contentDispositionAttachment } from "@/shared/lib/utils";
 

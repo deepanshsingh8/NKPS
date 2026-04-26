@@ -11,7 +11,7 @@ import {
   type AdmitCardPayload,
   type AdmitCardScheduleRow,
   type AdmitCardTemplateConfig,
-} from "@/components/pdf/AdmitCardPDF";
+} from "@/erp/components/pdf/AdmitCardPDF";
 import { generateAdmitCardQrBuffer } from "@/erp/lib/admit-card-qr";
 
 export const runtime = "nodejs";

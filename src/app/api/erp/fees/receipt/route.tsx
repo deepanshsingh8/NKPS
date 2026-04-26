@@ -4,7 +4,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { createClient } from "@/shared/lib/supabase/server";
 import { createAdminClient } from "@/shared/lib/supabase/admin";
-import { FeeReceiptPDF } from "@/components/pdf/FeeReceiptPDF";
+import { FeeReceiptPDF } from "@/erp/components/pdf/FeeReceiptPDF";
 import { SCHOOL } from "@/shared/lib/constants";
 
 export const runtime = "nodejs";

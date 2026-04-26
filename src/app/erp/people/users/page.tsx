@@ -46,7 +46,7 @@ import {
 } from "lucide-react";
 import { adminFetch } from "@/shared/lib/admin-api";
 import type { Profile, UserRole, RegistrationRequest, RegistrationStatus } from "@/shared/types";
-import { EditorPermissionsDialog } from "@/components/admin/EditorPermissionsDialog";
+import { EditorPermissionsDialog } from "@/erp/components/EditorPermissionsDialog";
 
 const ROLES: UserRole[] = ["admin", "editor", "teacher", "student", "parent"];
 

@@ -54,8 +54,8 @@ import { adminFetch, adminPatch, adminDelete } from "@/shared/lib/admin-api";
 import { uploadToStorage } from "@/shared/lib/supabase/upload";
 import { FileDropZone } from "@/shared/components/FileDropZone";
 import { ImageCropper } from "@/shared/components/ImageCropper";
-import { StaffBulkUpload } from "@/components/admin/StaffBulkUpload";
-import { CreatePortalUsersDialog } from "@/components/admin/CreatePortalUsersDialog";
+import { StaffBulkUpload } from "@/erp/components/StaffBulkUpload";
+import { CreatePortalUsersDialog } from "@/erp/components/CreatePortalUsersDialog";
 import type { StaffMember, StaffCategory } from "@/shared/types";
 import { downloadCSV, STAFF_CSV_COLUMNS } from "@/erp/lib/csv-export";
 
