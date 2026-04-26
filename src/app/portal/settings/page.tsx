@@ -5,9 +5,9 @@ import Image from "next/image";
 import { createClient } from "@/shared/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { Button } from "@/shared/components/ui/button";
 import {
   Loader2,
   Camera,
@@ -22,8 +22,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { ImageCropper } from "@/components/shared/ImageCropper";
+} from "@/shared/components/ui/dialog";
+import { ImageCropper } from "@/shared/components/ImageCropper";
 
 interface ProfileData {
   id: string;

@@ -9,7 +9,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/components/ui/select";
 import { Loader2, UserCog } from "lucide-react";
 import { toast } from "sonner";
 import type { Teacher } from "@/shared/types";

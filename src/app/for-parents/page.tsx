@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { PageTransition } from "@/components/shared/PageTransition";
-import { AnimatedSection } from "@/components/shared/AnimatedSection";
+import { PageTransition } from "@/shared/components/PageTransition";
+import { AnimatedSection } from "@/shared/components/AnimatedSection";
 import { Users, ClipboardCheck, Lightbulb, BookOpenCheck } from "lucide-react";
 import { buildMetadata } from "@/shared/lib/seo";
 

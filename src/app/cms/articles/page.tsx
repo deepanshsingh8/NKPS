@@ -19,18 +19,18 @@ import {
 import { adminFetch, adminDelete, adminPatch } from "@/shared/lib/admin-api";
 import { uploadToStorage } from "@/shared/lib/supabase/upload";
 import { slugify } from "@/lib/articles";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { Badge } from "@/shared/components/ui/badge";
+import { Checkbox } from "@/shared/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
+} from "@/shared/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -38,10 +38,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { FileDropZone } from "@/components/shared/FileDropZone";
-import { ImageCropper } from "@/components/shared/ImageCropper";
+} from "@/shared/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/shared/components/ui/tabs";
+import { FileDropZone } from "@/shared/components/FileDropZone";
+import { ImageCropper } from "@/shared/components/ImageCropper";
 import { toast } from "sonner";
 import type { Article } from "@/shared/types";
 

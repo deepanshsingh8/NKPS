@@ -4,10 +4,10 @@ import { useState, useEffect } from "react";
 import { Download, Search, FileText, Info } from "lucide-react";
 import { motion } from "framer-motion";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { PageTransition } from "@/components/shared/PageTransition";
-import { SectionDivider } from "@/components/shared/SectionDivider";
-import { AnimatedSection } from "@/components/shared/AnimatedSection";
-import { SectionHeading } from "@/components/shared/SectionHeading";
+import { PageTransition } from "@/shared/components/PageTransition";
+import { SectionDivider } from "@/shared/components/SectionDivider";
+import { AnimatedSection } from "@/shared/components/AnimatedSection";
+import { SectionHeading } from "@/shared/components/SectionHeading";
 import { cn } from "@/shared/lib/utils";
 import { createClient } from "@/shared/lib/supabase/client";
 

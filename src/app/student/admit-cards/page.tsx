@@ -5,9 +5,9 @@ import { createClient } from "@/shared/lib/supabase/client";
 import {
   Card,
   CardContent,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+} from "@/shared/components/ui/card";
+import { Button } from "@/shared/components/ui/button";
+import { Badge } from "@/shared/components/ui/badge";
 import { Download, Loader2, IdCard, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 

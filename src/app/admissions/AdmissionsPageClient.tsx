@@ -4,16 +4,16 @@ import Link from "next/link";
 import { Phone, Mail, ArrowRight, GraduationCap, ClipboardList, FileText, Users, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { PageTransition } from "@/components/shared/PageTransition";
-import { SectionDivider } from "@/components/shared/SectionDivider";
-import { AnimatedSection } from "@/components/shared/AnimatedSection";
-import { SectionHeading } from "@/components/shared/SectionHeading";
+import { PageTransition } from "@/shared/components/PageTransition";
+import { SectionDivider } from "@/shared/components/SectionDivider";
+import { AnimatedSection } from "@/shared/components/AnimatedSection";
+import { SectionHeading } from "@/shared/components/SectionHeading";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion";
+} from "@/shared/components/ui/accordion";
 import { SCHOOL } from "@/shared/lib/constants";
 import { staggerContainer, fadeUp } from "@/shared/lib/animations";
 import { ADMISSIONS_FAQS } from "./faqs";

@@ -5,10 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { X, Download, Calendar, Filter, ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { PageTransition } from "@/components/shared/PageTransition";
-import { SectionDivider } from "@/components/shared/SectionDivider";
-import { AnimatedSection } from "@/components/shared/AnimatedSection";
-import { SectionHeading } from "@/components/shared/SectionHeading";
+import { PageTransition } from "@/shared/components/PageTransition";
+import { SectionDivider } from "@/shared/components/SectionDivider";
+import { AnimatedSection } from "@/shared/components/AnimatedSection";
+import { SectionHeading } from "@/shared/components/SectionHeading";
 import { cn } from "@/shared/lib/utils";
 import { createClient } from "@/shared/lib/supabase/client";
 

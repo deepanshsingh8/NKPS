@@ -18,8 +18,8 @@ import {
 import { adminFetch } from "@/shared/lib/admin-api";
 import { createClient } from "@/shared/lib/supabase/client";
 import { cn } from "@/shared/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { DashboardAnalytics } from "@/components/admin/DashboardAnalytics";
+import { Badge } from "@/shared/components/ui/badge";
+import { DashboardAnalytics } from "@/shared/components/DashboardAnalytics";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/shared/lib/constants/calendar";
 import type { CalendarEventType } from "@/shared/types";
 

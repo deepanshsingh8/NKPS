@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Phone, Mail } from "lucide-react";
-import { FacebookIcon, InstagramIcon, YoutubeIcon } from "@/components/shared/SocialIcons";
+import { FacebookIcon, InstagramIcon, YoutubeIcon } from "@/shared/components/SocialIcons";
 import { SCHOOL } from "@/shared/lib/constants";
 
 export function TopBar() {

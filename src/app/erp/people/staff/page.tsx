@@ -3,24 +3,24 @@
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import { createClient } from "@/shared/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { Badge } from "@/shared/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
+} from "@/shared/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -28,8 +28,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Checkbox } from "@/components/ui/checkbox";
+} from "@/shared/components/ui/table";
+import { Checkbox } from "@/shared/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Plus,
@@ -49,11 +49,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/shared/components/ui/dropdown-menu";
 import { adminFetch, adminPatch, adminDelete } from "@/shared/lib/admin-api";
 import { uploadToStorage } from "@/shared/lib/supabase/upload";
-import { FileDropZone } from "@/components/shared/FileDropZone";
-import { ImageCropper } from "@/components/shared/ImageCropper";
+import { FileDropZone } from "@/shared/components/FileDropZone";
+import { ImageCropper } from "@/shared/components/ImageCropper";
 import { StaffBulkUpload } from "@/components/admin/StaffBulkUpload";
 import { CreatePortalUsersDialog } from "@/components/admin/CreatePortalUsersDialog";
 import type { StaffMember, StaffCategory } from "@/shared/types";

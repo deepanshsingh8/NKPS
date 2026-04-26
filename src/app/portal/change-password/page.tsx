@@ -4,9 +4,9 @@ import { useState } from "react";
 import { createClient } from "@/shared/lib/supabase/client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { Button } from "@/shared/components/ui/button";
 import { Loader2, ShieldCheck, CheckCircle } from "lucide-react";
 
 export default function ChangePasswordPage() {

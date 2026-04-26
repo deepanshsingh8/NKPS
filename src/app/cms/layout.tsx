@@ -1,7 +1,7 @@
 "use client";
 
 import { CmsSidebar } from "@/components/cms/CmsSidebar";
-import { SidebarProvider, useSidebar } from "@/components/providers/SidebarProvider";
+import { SidebarProvider, useSidebar } from "@/shared/components/providers/SidebarProvider";
 import { cn } from "@/shared/lib/utils";
 
 function CmsLayoutInner({ children }: { children: React.ReactNode }) {

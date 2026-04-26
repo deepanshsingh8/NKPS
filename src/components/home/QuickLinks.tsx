@@ -9,7 +9,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { staggerContainer, fadeUp } from "@/shared/lib/animations";
-import { SectionHeading } from "@/components/shared/SectionHeading";
+import { SectionHeading } from "@/shared/components/SectionHeading";
 import { cn } from "@/shared/lib/utils";
 
 const links = [

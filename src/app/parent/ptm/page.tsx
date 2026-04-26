@@ -7,15 +7,15 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+} from "@/shared/components/ui/select";
+import { Badge } from "@/shared/components/ui/badge";
 import {
   Loader2,
   MessageSquare,

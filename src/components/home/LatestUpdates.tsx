@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { staggerContainer, fadeUp } from "@/shared/lib/animations";
-import { SectionHeading } from "@/components/shared/SectionHeading";
+import { SectionHeading } from "@/shared/components/SectionHeading";
 import type { SectionCard, Article } from "@/shared/types";
 
 const defaultUpdates = [

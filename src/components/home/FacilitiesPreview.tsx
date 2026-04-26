@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Monitor, FlaskConical, Laptop, BookOpen, ArrowRight } from "lucide-react";
 import { FACILITIES } from "@/shared/lib/constants";
-import { SectionHeading } from "@/components/shared/SectionHeading";
+import { SectionHeading } from "@/shared/components/SectionHeading";
 import { fadeUp, staggerContainer } from "@/shared/lib/animations";
 import type { SectionCard } from "@/shared/types";
 

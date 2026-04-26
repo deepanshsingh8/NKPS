@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { MapPin, Phone, Mail, Clock, ArrowRight, GraduationCap } from "lucide-react";
-import { FacebookIcon, InstagramIcon, YoutubeIcon } from "@/components/shared/SocialIcons";
+import { FacebookIcon, InstagramIcon, YoutubeIcon } from "@/shared/components/SocialIcons";
 import { SCHOOL, NAV_LINKS } from "@/shared/lib/constants";
 
 const resources = [

@@ -5,8 +5,8 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { TopBar } from "@/components/layout/TopBar";
 import { ScrollToTop } from "@/components/layout/ScrollToTop";
-import { ChatBot } from "@/components/shared/ChatBot";
-import { WhatsAppButton } from "@/components/shared/WhatsAppButton";
+import { ChatBot } from "@/shared/components/ChatBot";
+import { WhatsAppButton } from "@/shared/components/WhatsAppButton";
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

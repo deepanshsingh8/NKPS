@@ -14,9 +14,9 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { PageTransition } from "@/components/shared/PageTransition";
-import { AnimatedSection } from "@/components/shared/AnimatedSection";
-import { SectionHeading } from "@/components/shared/SectionHeading";
+import { PageTransition } from "@/shared/components/PageTransition";
+import { AnimatedSection } from "@/shared/components/AnimatedSection";
+import { SectionHeading } from "@/shared/components/SectionHeading";
 import { FACILITIES } from "@/shared/lib/constants";
 import { staggerContainer, fadeUp } from "@/shared/lib/animations";
 import { cn } from "@/shared/lib/utils";

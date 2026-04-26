@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/shared/lib/supabase/client";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/shared/components/ui/badge";
 import {
   ClipboardCheck,
   BarChart3,
@@ -13,7 +13,7 @@ import {
   Clock,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
-import { UpcomingEvents } from "@/components/shared/UpcomingEvents";
+import { UpcomingEvents } from "@/shared/components/UpcomingEvents";
 import type { Profile } from "@/shared/types";
 
 interface StudentStats {

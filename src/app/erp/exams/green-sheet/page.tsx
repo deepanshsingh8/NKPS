@@ -7,15 +7,15 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
+} from "@/shared/components/ui/select";
+import { Button } from "@/shared/components/ui/button";
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import { formatClassName } from "@/shared/lib/utils";
 import type { Class } from "@/shared/types";

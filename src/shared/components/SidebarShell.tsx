@@ -13,9 +13,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
-import { SidebarProfileMenu } from "@/components/portal/SidebarProfileMenu";
-import { SidebarTooltip } from "@/components/portal/SidebarTooltip";
-import { useSidebar } from "@/components/providers/SidebarProvider";
+import { SidebarProfileMenu } from "@/shared/components/SidebarProfileMenu";
+import { SidebarTooltip } from "@/shared/components/SidebarTooltip";
+import { useSidebar } from "@/shared/components/providers/SidebarProvider";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 
 export type SidebarLink = {

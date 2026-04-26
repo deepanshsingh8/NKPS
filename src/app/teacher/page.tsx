@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/shared/lib/supabase/client";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/shared/components/ui/badge";
 import {
   Users,
   BookOpen,
@@ -16,7 +16,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { cn, dayOfWeekFromDate, formatTime12, timeStringToMinutes, nowMinutes } from "@/shared/lib/utils";
-import { UpcomingEvents } from "@/components/shared/UpcomingEvents";
+import { UpcomingEvents } from "@/shared/components/UpcomingEvents";
 import type { Profile } from "@/shared/types";
 
 interface TeacherStats {

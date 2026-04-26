@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/shared/lib/supabase/client";
 import { motion } from "framer-motion";
-import { SectionHeading } from "@/components/shared/SectionHeading";
-import { AnimatedSection } from "@/components/shared/AnimatedSection";
+import { SectionHeading } from "@/shared/components/SectionHeading";
+import { AnimatedSection } from "@/shared/components/AnimatedSection";
 import { staggerContainer, fadeUp } from "@/shared/lib/animations";
 import type { CalendarEvent, CalendarEventType } from "@/shared/types";
 

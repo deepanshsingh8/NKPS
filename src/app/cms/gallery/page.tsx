@@ -3,17 +3,17 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import { createClient } from "@/shared/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { Badge } from "@/shared/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
+} from "@/shared/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -21,8 +21,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Checkbox } from "@/components/ui/checkbox";
+} from "@/shared/components/ui/table";
+import { Checkbox } from "@/shared/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Plus,
@@ -44,9 +44,9 @@ import {
 } from "lucide-react";
 import { adminFetch, adminDelete, adminApi } from "@/shared/lib/admin-api";
 import { uploadToStorage } from "@/shared/lib/supabase/upload";
-import { FileDropZone } from "@/components/shared/FileDropZone";
-import { ImageCropper, type Crop } from "@/components/shared/ImageCropper";
-import { AcademicYearSelect } from "@/components/shared/AcademicYearSelect";
+import { FileDropZone } from "@/shared/components/FileDropZone";
+import { ImageCropper, type Crop } from "@/shared/components/ImageCropper";
+import { AcademicYearSelect } from "@/shared/components/AcademicYearSelect";
 import { cn } from "@/shared/lib/utils";
 import type { GalleryImage, GalleryEvent } from "@/shared/types";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { StudentSidebar } from "@/components/portal/StudentSidebar";
-import { SidebarProvider, useSidebar } from "@/components/providers/SidebarProvider";
+import { SidebarProvider, useSidebar } from "@/shared/components/providers/SidebarProvider";
 import { cn } from "@/shared/lib/utils";
 
 function StudentLayoutInner({ children }: { children: React.ReactNode }) {

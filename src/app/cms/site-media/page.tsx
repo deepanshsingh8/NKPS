@@ -15,19 +15,19 @@ import {
 } from "lucide-react";
 import { adminFetch, adminDelete, adminPatch } from "@/shared/lib/admin-api";
 import { uploadToStorage } from "@/shared/lib/supabase/upload";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { FileDropZone } from "@/components/shared/FileDropZone";
-import { ImageCropper } from "@/components/shared/ImageCropper";
+} from "@/shared/components/ui/dialog";
+import { Badge } from "@/shared/components/ui/badge";
+import { FileDropZone } from "@/shared/components/FileDropZone";
+import { ImageCropper } from "@/shared/components/ImageCropper";
 import { cn } from "@/shared/lib/utils";
 import { toast } from "sonner";
 import type { SiteMedia, SectionCard, SectionCardType } from "@/shared/types";

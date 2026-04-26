@@ -12,7 +12,7 @@ import {
   FacebookIcon,
   InstagramIcon,
   YoutubeIcon,
-} from "@/components/shared/SocialIcons";
+} from "@/shared/components/SocialIcons";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);

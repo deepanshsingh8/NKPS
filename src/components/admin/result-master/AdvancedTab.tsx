@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { adminFetch, adminPatch } from "@/shared/lib/admin-api";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type {

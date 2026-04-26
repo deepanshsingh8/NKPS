@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/shared/lib/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/shared/components/ui/card";
+import { Button } from "@/shared/components/ui/button";
+import { Badge } from "@/shared/components/ui/badge";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/components/ui/select";
 import { Download, Loader2, IdCard, CalendarClock, Users } from "lucide-react";
 import { toast } from "sonner";
 

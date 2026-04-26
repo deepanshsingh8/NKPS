@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/shared/lib/supabase/client";
-import { UpcomingEvents } from "@/components/shared/UpcomingEvents";
+import { UpcomingEvents } from "@/shared/components/UpcomingEvents";
 import { Loader2 } from "lucide-react";
 
 export default function ParentCalendarPage() {

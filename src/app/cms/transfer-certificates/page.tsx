@@ -2,15 +2,15 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/shared/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/shared/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -18,13 +18,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/shared/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Download, Trash2, Loader2, Search, UserCheck, FileText, Upload } from "lucide-react";
 import { adminFetch, adminDelete } from "@/shared/lib/admin-api";
 import { uploadToStorage } from "@/shared/lib/supabase/upload";
-import { FileDropZone } from "@/components/shared/FileDropZone";
-import { AcademicYearSelect } from "@/components/shared/AcademicYearSelect";
+import { FileDropZone } from "@/shared/components/FileDropZone";
+import { AcademicYearSelect } from "@/shared/components/AcademicYearSelect";
 import type { TransferCertificate, Student } from "@/shared/types";
 
 export default function AdminTransferCertificatesPage() {

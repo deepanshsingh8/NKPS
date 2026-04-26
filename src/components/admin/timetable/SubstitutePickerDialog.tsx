@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { adminFetch } from "@/shared/lib/admin-api";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog";
+} from "@/shared/components/ui/dialog";
 import { Loader2, UserCheck, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 

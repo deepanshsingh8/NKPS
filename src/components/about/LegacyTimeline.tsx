@@ -1,7 +1,7 @@
 "use client";
 
-import { AnimatedSection } from "@/components/shared/AnimatedSection";
-import { SectionHeading } from "@/components/shared/SectionHeading";
+import { AnimatedSection } from "@/shared/components/AnimatedSection";
+import { SectionHeading } from "@/shared/components/SectionHeading";
 import type { SectionCard } from "@/shared/types";
 
 const milestones = [

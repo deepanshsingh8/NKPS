@@ -1,6 +1,6 @@
 "use client";
 
-import { LoginCard } from "@/components/auth/LoginCard";
+import { LoginCard } from "@/shared/components/auth/LoginCard";
 
 export default function ErpLoginPage() {
   return (

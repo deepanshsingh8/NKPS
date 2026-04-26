@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { AnimatedSection } from "@/components/shared/AnimatedSection";
+import { AnimatedSection } from "@/shared/components/AnimatedSection";
 import { SCHOOL } from "@/shared/lib/constants";
 
 interface FounderTributeProps {

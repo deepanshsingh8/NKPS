@@ -1,19 +1,19 @@
 "use client";
 
-import { Label } from "@/components/ui/label";
+import { Label } from "@/shared/components/ui/label";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/components/ui/select";
 import type { GradeScale } from "@/lib/grading";
 
 export function GradeScaleSection({

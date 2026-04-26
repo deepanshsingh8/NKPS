@@ -4,8 +4,8 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Users, CalendarDays, GraduationCap, Building2, Award, BookOpen } from "lucide-react";
 import { SCHOOL } from "@/shared/lib/constants";
-import { CounterAnimation } from "@/components/shared/CounterAnimation";
-import { SectionHeading } from "@/components/shared/SectionHeading";
+import { CounterAnimation } from "@/shared/components/CounterAnimation";
+import { SectionHeading } from "@/shared/components/SectionHeading";
 import { staggerContainer, fadeUp } from "@/shared/lib/animations";
 
 const statIcons = [Users, CalendarDays, GraduationCap, Building2, Award, BookOpen];

@@ -10,7 +10,7 @@ import ReactCrop, {
 
 export type { Crop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { RotateCcw, Check, X, Maximize, CopyCheck } from "lucide-react";
 
 interface ImageCropperProps {

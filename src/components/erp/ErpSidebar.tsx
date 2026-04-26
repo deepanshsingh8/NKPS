@@ -27,7 +27,7 @@ import {
 import {
   SidebarShell,
   type SidebarItem,
-} from "@/components/admin/SidebarShell";
+} from "@/shared/components/SidebarShell";
 
 const erpItems: SidebarItem[] = [
   { kind: "link", icon: LayoutDashboard, label: "Dashboard", href: "/erp" },

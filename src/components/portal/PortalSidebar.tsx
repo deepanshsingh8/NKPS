@@ -5,9 +5,9 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
-import { SidebarProfileMenu } from "./SidebarProfileMenu";
-import { SidebarTooltip } from "./SidebarTooltip";
-import { useSidebar } from "@/components/providers/SidebarProvider";
+import { SidebarProfileMenu } from "@/shared/components/SidebarProfileMenu";
+import { SidebarTooltip } from "@/shared/components/SidebarTooltip";
+import { useSidebar } from "@/shared/components/providers/SidebarProvider";
 
 interface PortalSidebarProps {
   title: string;

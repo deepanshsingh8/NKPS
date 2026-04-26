@@ -2,22 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { adminPatch } from "@/shared/lib/admin-api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { SUPPORTED_PASS_CRITERIA_TYPES } from "@/lib/final-result";
