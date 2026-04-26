@@ -17,9 +17,11 @@ interface UserProfile {
 
 export function SidebarProfileMenu({
   settingsHref,
+  logoutRedirect = "/portal/login",
   collapsed = false,
 }: {
   settingsHref: string;
+  logoutRedirect?: string;
   collapsed?: boolean;
 }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -62,7 +64,7 @@ export function SidebarProfileMenu({
     document.cookie = "x-user-role=; path=/; max-age=0";
     toast.success("Logged out");
     // Hard navigation ensures middleware runs fresh with cleared session
-    window.location.href = "/portal/login";
+    window.location.href = logoutRedirect;
   };
 
   const initials = profile?.full_name

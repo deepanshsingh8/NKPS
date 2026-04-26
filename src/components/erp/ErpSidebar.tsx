@@ -114,6 +114,7 @@ export function ErpSidebar() {
       editorAlwaysAllowedHrefs={EDITOR_ALWAYS_ALLOWED}
       pendingRegistrationBadgeHrefs={PENDING_REGISTRATION_BADGE_HREFS}
       settingsHref="/portal/settings?from=erp"
+      logoutRedirect="/erp/login"
     />
   );
 }

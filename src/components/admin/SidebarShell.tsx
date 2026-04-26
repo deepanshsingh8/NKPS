@@ -50,6 +50,8 @@ type SidebarShellProps = {
   editorAlwaysAllowedHrefs: ReadonlySet<string>;
   // Where the profile menu's "Settings" link should land.
   settingsHref?: string;
+  // Where to send the user after logout (module-specific login page).
+  logoutRedirect?: string;
   // Hrefs for which the unread count badge should render
   // (passed in so each module can opt in to its own badges).
   unreadBadgeHrefs?: ReadonlySet<string>;
@@ -66,6 +68,7 @@ export function SidebarShell({
   headerSubtitle,
   editorAlwaysAllowedHrefs,
   settingsHref = "/portal/settings",
+  logoutRedirect,
   unreadBadgeHrefs,
   pendingRegistrationBadgeHrefs,
 }: SidebarShellProps) {
@@ -446,7 +449,11 @@ export function SidebarShell({
         )}
       </nav>
 
-      <SidebarProfileMenu settingsHref={settingsHref} collapsed={collapsed} />
+      <SidebarProfileMenu
+        settingsHref={settingsHref}
+        logoutRedirect={logoutRedirect}
+        collapsed={collapsed}
+      />
     </aside>
   );
 }
