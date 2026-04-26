@@ -21,7 +21,7 @@ import {
 } from "@/shared/components/ui/table";
 import { CreditCard, CheckCircle, AlertCircle, Loader2, Users, Wallet, Download } from "lucide-react";
 import { toast } from "sonner";
-import { resolveEffectiveFeeStructures, sumAnnualized } from "@/lib/fees";
+import { resolveEffectiveFeeStructures, sumAnnualized } from "@/erp/lib/fees";
 import type { FeeStructure, FeePayment } from "@/shared/types";
 
 interface ChildOption {

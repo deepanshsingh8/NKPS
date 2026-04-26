@@ -19,7 +19,7 @@ import {
 } from "@/shared/components/ui/table";
 import { Button } from "@/shared/components/ui/button";
 import { CreditCard, CheckCircle, AlertCircle, Loader2, Download } from "lucide-react";
-import { resolveEffectiveFeeStructures, sumAnnualized } from "@/lib/fees";
+import { resolveEffectiveFeeStructures, sumAnnualized } from "@/erp/lib/fees";
 import type { FeeStructure, FeePayment } from "@/shared/types";
 
 const formatCurrency = (amount: number) =>

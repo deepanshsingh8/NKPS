@@ -10,7 +10,7 @@ import type {
   WhiteSheetMeta,
   WhiteSheetStudentRow,
   WhiteSheetSubject,
-} from "@/lib/white-sheet";
+} from "@/erp/lib/white-sheet";
 
 export interface WhiteSheetSchoolHeader {
   name: string;

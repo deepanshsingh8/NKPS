@@ -28,7 +28,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { BarChart3, TrendingUp, Users, Award, Pencil } from "lucide-react";
 import Link from "next/link";
 import { formatClassName } from "@/shared/lib/utils";
-import { computeGrade, type GradeBand } from "@/lib/grading";
+import { computeGrade, type GradeBand } from "@/erp/lib/grading";
 import type { Class, ExamType } from "@/shared/types";
 
 interface SubjectBreakdown {

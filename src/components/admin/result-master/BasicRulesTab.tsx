@@ -20,7 +20,7 @@ import {
 } from "@/shared/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { SUPPORTED_PASS_CRITERIA_TYPES } from "@/lib/final-result";
+import { SUPPORTED_PASS_CRITERIA_TYPES } from "@/erp/lib/final-result";
 import type {
   ResultMaster,
   ResultMasterPassMarkMode,

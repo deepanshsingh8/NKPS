@@ -4,7 +4,7 @@ import { attendanceBulkSchema } from "@/shared/lib/validations";
 import {
   getTeacherIdForUser,
   teacherCanAccessClass,
-} from "@/lib/teacher-scope";
+} from "@/erp/lib/teacher-scope";
 
 export async function POST(request: Request) {
   try {

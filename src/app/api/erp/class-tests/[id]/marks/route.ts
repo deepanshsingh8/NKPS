@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/shared/lib/supabase/server";
 import { classTestMarksBulkSchema } from "@/shared/lib/validations";
-import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
+import { computeGrade, resolveGradeScaleForClass } from "@/erp/lib/grading";
 import {
   getTeacherIdForUser,
   teacherTeachesClassSubject,
-} from "@/lib/teacher-scope";
+} from "@/erp/lib/teacher-scope";
 
 interface RouteParams {
   params: Promise<{ id: string }>;

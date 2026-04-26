@@ -19,7 +19,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import { formatClassName } from "@/shared/lib/utils";
 import type { Class, ExamType } from "@/shared/types";
-import type { WhiteSheetData } from "@/lib/white-sheet";
+import type { WhiteSheetData } from "@/erp/lib/white-sheet";
 
 export default function AdminWhiteSheetPage() {
   const [classes, setClasses] = useState<Class[]>([]);

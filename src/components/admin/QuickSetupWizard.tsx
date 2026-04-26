@@ -27,8 +27,8 @@ import {
   CBSE_STREAM_CURRICULA,
   ALL_CBSE_SUBJECTS,
   getSubjectsForClass,
-} from "@/lib/cbse-curriculum";
-import type { CurriculumSubject } from "@/lib/cbse-curriculum";
+} from "@/erp/lib/cbse-curriculum";
+import type { CurriculumSubject } from "@/erp/lib/cbse-curriculum";
 import type { Class, Subject } from "@/shared/types";
 
 interface AssignmentRow {

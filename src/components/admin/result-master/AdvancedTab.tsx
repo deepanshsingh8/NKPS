@@ -11,7 +11,7 @@ import type {
   ResultMasterNonScholasticPlacement,
   ResultMasterRoundingMode,
 } from "@/shared/types";
-import type { GradeScale } from "@/lib/grading";
+import type { GradeScale } from "@/erp/lib/grading";
 import {
   mergeExamConfigsWithExamTypes,
   shallowEqualRecord,

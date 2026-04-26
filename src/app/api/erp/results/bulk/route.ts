@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/shared/lib/supabase/server";
 import { resultsBulkSchema } from "@/shared/lib/validations";
-import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
+import { computeGrade, resolveGradeScaleForClass } from "@/erp/lib/grading";
 import {
   getTeacherIdForUser,
   teacherTeachesClassSubject,
-} from "@/lib/teacher-scope";
+} from "@/erp/lib/teacher-scope";
 
 export async function POST(request: Request) {
   try {

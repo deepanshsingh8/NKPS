@@ -10,7 +10,7 @@ import type {
   ReportCardAttendance,
   ReportCardExamGroup,
   ReportCardStudent,
-} from "@/lib/report-card";
+} from "@/erp/lib/report-card";
 import type { FinalResult, FinalSubject } from "@/shared/types";
 
 const styles = StyleSheet.create({

@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import type { GradeScale } from "@/lib/grading";
+import type { GradeScale } from "@/erp/lib/grading";
 
 export function GradeScaleSection({
   gradeScaleId,

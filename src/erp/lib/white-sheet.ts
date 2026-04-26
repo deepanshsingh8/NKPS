@@ -13,7 +13,7 @@
 // Missing results surface as blank cells — the sheet doubles as a gap audit.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
+import { computeGrade, resolveGradeScaleForClass } from "@/erp/lib/grading";
 
 export type SubjectRole = "main" | "optional";
 

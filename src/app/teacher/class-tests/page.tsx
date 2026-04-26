@@ -49,7 +49,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatClassName } from "@/shared/lib/utils";
-import { computeGrade, type GradeBand } from "@/lib/grading";
+import { computeGrade, type GradeBand } from "@/erp/lib/grading";
 import type { Class, Subject } from "@/shared/types";
 
 interface ClassTest {

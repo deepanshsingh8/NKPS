@@ -3,9 +3,9 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
 import { createClient } from "@/shared/lib/supabase/server";
-import { getPdfTemplate } from "@/lib/pdf-templates";
+import { getPdfTemplate } from "@/erp/lib/pdf-templates";
 import { GreenSheetPDF } from "@/components/pdf/GreenSheetPDF";
-import { buildGreenSheetData } from "@/lib/green-sheet";
+import { buildGreenSheetData } from "@/erp/lib/green-sheet";
 import { contentDispositionAttachment } from "@/shared/lib/utils";
 
 export const runtime = "nodejs";

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCallerAccess } from "@/shared/lib/verify-admin";
-import { resolveEffectiveFeeStructures, sumAnnualized } from "@/lib/fees";
+import { resolveEffectiveFeeStructures, sumAnnualized } from "@/erp/lib/fees";
 import type { FeeStructure } from "@/shared/types";
 import type { FeatureKey } from "@/shared/lib/permissions";
 

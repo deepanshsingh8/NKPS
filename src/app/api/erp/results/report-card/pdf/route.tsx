@@ -4,20 +4,20 @@ import { promises as fs } from "fs";
 import path from "path";
 import { createClient } from "@/shared/lib/supabase/server";
 import { createAdminClient } from "@/shared/lib/supabase/admin";
-import { canViewReportCard, getReportCardData } from "@/lib/report-card";
-import type { ReportCardExamGroup } from "@/lib/report-card";
+import { canViewReportCard, getReportCardData } from "@/erp/lib/report-card";
+import type { ReportCardExamGroup } from "@/erp/lib/report-card";
 import { ReportCardPDF } from "@/components/pdf/ReportCardPDF";
-import { getPdfTemplate } from "@/lib/pdf-templates";
+import { getPdfTemplate } from "@/erp/lib/pdf-templates";
 import { contentDispositionAttachment } from "@/shared/lib/utils";
 import {
   computeFinalResult,
   computeRanksForClass,
-} from "@/lib/final-result";
+} from "@/erp/lib/final-result";
 import type { FinalResult } from "@/shared/types";
 import type {
   MarksheetSnapshotV1,
   MarksheetSnapshotV2,
-} from "@/lib/marksheet-snapshot";
+} from "@/erp/lib/marksheet-snapshot";
 
 export const runtime = "nodejs";
 

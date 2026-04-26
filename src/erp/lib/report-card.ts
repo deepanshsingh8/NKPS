@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
+import { computeGrade, resolveGradeScaleForClass } from "@/erp/lib/grading";
 
 export interface ReportCardSubject {
   subject_id: string;

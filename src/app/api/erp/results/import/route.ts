@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/shared/lib/supabase/server";
-import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
+import { computeGrade, resolveGradeScaleForClass } from "@/erp/lib/grading";
 import * as XLSX from "xlsx";
 
 interface ParsedRow {

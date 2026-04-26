@@ -2,7 +2,7 @@
 // is one of `SUPPORTED_PASS_CRITERIA_TYPES` (imported from final-result so new
 // types auto-propagate) and the config shape matches the type.
 
-import { SUPPORTED_PASS_CRITERIA_TYPES } from "@/lib/final-result";
+import { SUPPORTED_PASS_CRITERIA_TYPES } from "@/erp/lib/final-result";
 
 export function validatePassCriteria(
   type: string,

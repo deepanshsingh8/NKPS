@@ -3,12 +3,12 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
 import { createClient } from "@/shared/lib/supabase/server";
-import { getPdfTemplate } from "@/lib/pdf-templates";
+import { getPdfTemplate } from "@/erp/lib/pdf-templates";
 import {
   PtmFormatPDF,
   type PtmFormatPDFProps,
 } from "@/components/pdf/PtmFormatPDF";
-import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
+import { computeGrade, resolveGradeScaleForClass } from "@/erp/lib/grading";
 import { contentDispositionAttachment } from "@/shared/lib/utils";
 
 export const runtime = "nodejs";

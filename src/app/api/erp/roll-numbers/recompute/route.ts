@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdmin } from "@/shared/lib/verify-admin";
-import { computeRanksForClass } from "@/lib/final-result";
+import { computeRanksForClass } from "@/erp/lib/final-result";
 
 type SortKey = "name" | "admission_no" | "previous_rank";
 

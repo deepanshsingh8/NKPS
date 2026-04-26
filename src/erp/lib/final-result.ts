@@ -4,9 +4,9 @@
 // or master with zero subjects).
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
-import type { GradeBand, GradeScale } from "@/lib/grading";
-import { applySupplementarySubstitution } from "@/lib/supplementary";
+import { computeGrade, resolveGradeScaleForClass } from "@/erp/lib/grading";
+import type { GradeBand, GradeScale } from "@/erp/lib/grading";
+import { applySupplementarySubstitution } from "@/erp/lib/supplementary";
 import type {
   ExamKind,
   FinalResult,

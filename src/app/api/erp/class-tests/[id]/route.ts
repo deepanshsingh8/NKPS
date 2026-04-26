@@ -4,7 +4,7 @@ import { classTestUpdateSchema } from "@/shared/lib/validations";
 import {
   getTeacherIdForUser,
   teacherTeachesClassSubject,
-} from "@/lib/teacher-scope";
+} from "@/erp/lib/teacher-scope";
 
 interface RouteParams {
   params: Promise<{ id: string }>;

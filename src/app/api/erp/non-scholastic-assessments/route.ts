@@ -4,7 +4,7 @@ import { nonScholasticAssessmentsBulkSchema } from "@/shared/lib/validations";
 import {
   getTeacherIdForUser,
   teacherCanAccessClass,
-} from "@/lib/teacher-scope";
+} from "@/erp/lib/teacher-scope";
 
 // GET /api/erp/non-scholastic-assessments?class_id=&exam_type_id=&sub_subject_id=&student_id=
 // Returns assessments matching the filters. RLS handles role-based access.

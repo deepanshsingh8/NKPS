@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/shared/lib/supabase/server";
-import { buildSupplementaryEligible } from "@/lib/supplementary";
+import { buildSupplementaryEligible } from "@/erp/lib/supplementary";
 
 // GET /api/erp/supplementary/eligible?class_id=&exam_type_id=
 // Returns the eligibility list (failing-but-close students per subject)

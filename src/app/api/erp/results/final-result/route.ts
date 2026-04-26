@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/shared/lib/supabase/server";
-import { canViewReportCard } from "@/lib/report-card";
-import { computeFinalResult } from "@/lib/final-result";
+import { canViewReportCard } from "@/erp/lib/report-card";
+import { computeFinalResult } from "@/erp/lib/final-result";
 
 // GET /api/erp/results/final-result?student_id=&academic_year_id=
 // Returns the computed FinalResult as JSON. Useful for diagnostics, admin

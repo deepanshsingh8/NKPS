@@ -4,7 +4,7 @@ import {
   finalizeMarksheetSchema,
   unpublishMarksheetSchema,
 } from "@/shared/lib/validations";
-import { buildMarksheetSnapshot } from "@/lib/marksheet-snapshot";
+import { buildMarksheetSnapshot } from "@/erp/lib/marksheet-snapshot";
 
 // POST /api/erp/results/finalize-marksheet
 // Body: { class_id, exam_type_id, student_ids?: [] }

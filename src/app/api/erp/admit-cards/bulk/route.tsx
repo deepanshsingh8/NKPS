@@ -3,7 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
 import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
-import { getPdfTemplate } from "@/lib/pdf-templates";
+import { getPdfTemplate } from "@/erp/lib/pdf-templates";
 import { contentDispositionAttachment } from "@/shared/lib/utils";
 import { safeFetchBuffer } from "@/shared/lib/safe-fetch";
 import {
@@ -12,7 +12,7 @@ import {
   type AdmitCardScheduleRow,
   type AdmitCardTemplateConfig,
 } from "@/components/pdf/AdmitCardPDF";
-import { generateAdmitCardQrBuffer } from "@/lib/admit-card-qr";
+import { generateAdmitCardQrBuffer } from "@/erp/lib/admit-card-qr";
 
 export const runtime = "nodejs";
 

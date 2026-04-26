@@ -10,7 +10,7 @@ import type {
   GreenSheetExam,
   GreenSheetMeta,
   GreenSheetStudentRow,
-} from "@/lib/green-sheet";
+} from "@/erp/lib/green-sheet";
 
 export interface GreenSheetSchoolHeader {
   name: string;

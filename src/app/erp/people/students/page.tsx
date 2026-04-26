@@ -58,7 +58,7 @@ import { StudentBulkUpload } from "@/components/admin/StudentBulkUpload";
 import { CreatePortalUsersDialog } from "@/components/admin/CreatePortalUsersDialog";
 import { useUrlState } from "@/shared/lib/hooks/use-url-state";
 import { formatClassName } from "@/shared/lib/utils";
-import { downloadCSV, STUDENT_CSV_COLUMNS } from "@/lib/csv-export";
+import { downloadCSV, STUDENT_CSV_COLUMNS } from "@/erp/lib/csv-export";
 import type { Student, Gender, BloodGroup, Stream, EnrollmentStatus } from "@/shared/types";
 
 interface ClassOption {

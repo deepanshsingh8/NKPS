@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/shared/lib/supabase/server";
-import { buildWhiteSheetData } from "@/lib/white-sheet";
+import { buildWhiteSheetData } from "@/erp/lib/white-sheet";
 import { contentDispositionAttachment } from "@/shared/lib/utils";
 
 function csvEscape(value: string | number | null | undefined): string {

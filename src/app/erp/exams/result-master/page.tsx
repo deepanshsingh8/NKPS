@@ -36,7 +36,7 @@ import { SubjectsTab } from "@/components/admin/result-master/SubjectsTab";
 import { AdvancedTab } from "@/components/admin/result-master/AdvancedTab";
 import { PreviewTab } from "@/components/admin/result-master/PreviewTab";
 import type { ExamConfigWithType } from "@/components/admin/result-master/helpers";
-import type { GradeScale } from "@/lib/grading";
+import type { GradeScale } from "@/erp/lib/grading";
 import type {
   AcademicYear,
   Class,

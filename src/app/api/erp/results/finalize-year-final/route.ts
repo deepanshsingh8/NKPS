@@ -4,7 +4,7 @@ import {
   finalizeYearFinalSchema,
   unpublishMarksheetSchema,
 } from "@/shared/lib/validations";
-import { buildYearFinalSnapshot } from "@/lib/marksheet-snapshot";
+import { buildYearFinalSnapshot } from "@/erp/lib/marksheet-snapshot";
 
 // POST /api/erp/results/finalize-year-final
 // Body: { class_id, academic_year_id, student_ids?, unpublish_reason_on_refinalize? }

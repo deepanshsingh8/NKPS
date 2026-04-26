@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
-import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
+import { computeGrade, resolveGradeScaleForClass } from "@/erp/lib/grading";
 
 // Per-student results editor (admin / editor with `results` feature).
 // Lets staff search a student and edit/delete their marks across exams,

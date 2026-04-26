@@ -10,7 +10,7 @@
 // final result.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { computeFinalResult, computeRanksForClass } from "@/lib/final-result";
+import { computeFinalResult, computeRanksForClass } from "@/erp/lib/final-result";
 import type { FinalResult } from "@/shared/types";
 
 export interface GreenSheetExam {

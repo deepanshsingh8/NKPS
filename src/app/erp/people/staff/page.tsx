@@ -57,7 +57,7 @@ import { ImageCropper } from "@/shared/components/ImageCropper";
 import { StaffBulkUpload } from "@/components/admin/StaffBulkUpload";
 import { CreatePortalUsersDialog } from "@/components/admin/CreatePortalUsersDialog";
 import type { StaffMember, StaffCategory } from "@/shared/types";
-import { downloadCSV, STAFF_CSV_COLUMNS } from "@/lib/csv-export";
+import { downloadCSV, STAFF_CSV_COLUMNS } from "@/erp/lib/csv-export";
 
 const CATEGORIES: { value: StaffCategory | "all"; label: string }[] = [
   { value: "all", label: "All Categories" },

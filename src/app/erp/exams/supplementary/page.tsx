@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { formatClassName } from "@/shared/lib/utils";
 import type { Class, ExamType } from "@/shared/types";
-import type { SupplementaryEligibleResult } from "@/lib/supplementary";
+import type { SupplementaryEligibleResult } from "@/erp/lib/supplementary";
 
 interface RowState {
   retest_marks: string;
