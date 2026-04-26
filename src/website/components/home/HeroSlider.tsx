@@ -6,7 +6,7 @@ import { ArrowRight, Users, CalendarDays, GraduationCap, Building2 } from "lucid
 import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/shared/lib/utils";
-import { useMouseMotion } from "@/hooks/useMousePosition";
+import { useMouseMotion } from "@/shared/hooks/useMousePosition";
 import type { SectionCard } from "@/shared/types";
 
 /* ─── Slide data ─── */

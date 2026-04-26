@@ -1,8 +1,8 @@
 import { Metadata } from "next";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { CurriculumOverview } from "@/components/academics/CurriculumOverview";
-import { StaffDirectory } from "@/components/academics/StaffDirectory";
-import { JsonLd } from "@/components/seo/JsonLd";
+import { PageHeader } from "@/website/components/layout/PageHeader";
+import { CurriculumOverview } from "@/website/components/academics/CurriculumOverview";
+import { StaffDirectory } from "@/website/components/academics/StaffDirectory";
+import { JsonLd } from "@/website/components/seo/JsonLd";
 import { buildMetadata, breadcrumbJsonLd } from "@/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({

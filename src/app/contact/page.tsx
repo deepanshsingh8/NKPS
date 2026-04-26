@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ContactPageClient } from "./ContactPageClient";
 import { CONTACT_FAQS } from "./faqs";
-import { JsonLd } from "@/components/seo/JsonLd";
+import { JsonLd } from "@/website/components/seo/JsonLd";
 import { buildMetadata, breadcrumbJsonLd, faqJsonLd } from "@/shared/lib/seo";
 import { SCHOOL } from "@/shared/lib/constants";
 

@@ -16,7 +16,7 @@ import { cn } from "@/shared/lib/utils";
 import { SidebarProfileMenu } from "@/shared/components/SidebarProfileMenu";
 import { SidebarTooltip } from "@/shared/components/SidebarTooltip";
 import { useSidebar } from "@/shared/components/providers/SidebarProvider";
-import { useUnreadCount } from "@/hooks/useUnreadCount";
+import { useUnreadCount } from "@/shared/hooks/useUnreadCount";
 
 export type SidebarLink = {
   kind: "link";

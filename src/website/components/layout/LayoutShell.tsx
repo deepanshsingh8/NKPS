@@ -1,10 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Navbar } from "@/components/layout/Navbar";
-import { Footer } from "@/components/layout/Footer";
-import { TopBar } from "@/components/layout/TopBar";
-import { ScrollToTop } from "@/components/layout/ScrollToTop";
+import { Navbar } from "@/website/components/layout/Navbar";
+import { Footer } from "@/website/components/layout/Footer";
+import { TopBar } from "@/website/components/layout/TopBar";
+import { ScrollToTop } from "@/website/components/layout/ScrollToTop";
 import { ChatBot } from "@/shared/components/ChatBot";
 import { WhatsAppButton } from "@/shared/components/WhatsAppButton";
 

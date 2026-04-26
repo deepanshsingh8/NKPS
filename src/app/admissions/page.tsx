@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AdmissionsPageClient } from "./AdmissionsPageClient";
 import { ADMISSIONS_FAQS } from "./faqs";
-import { JsonLd } from "@/components/seo/JsonLd";
+import { JsonLd } from "@/website/components/seo/JsonLd";
 import { buildMetadata, breadcrumbJsonLd, faqJsonLd } from "@/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({

@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Newspaper } from "lucide-react";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageHeader } from "@/website/components/layout/PageHeader";
 import { PageTransition } from "@/shared/components/PageTransition";
 import { SectionDivider } from "@/shared/components/SectionDivider";
-import { JsonLd } from "@/components/seo/JsonLd";
+import { JsonLd } from "@/website/components/seo/JsonLd";
 import { getPublishedArticles } from "@/shared/lib/articles";
 import { buildMetadata, breadcrumbJsonLd } from "@/shared/lib/seo";
 

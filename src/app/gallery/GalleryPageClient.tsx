@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { X, Download, Calendar, Filter, ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageHeader } from "@/website/components/layout/PageHeader";
 import { PageTransition } from "@/shared/components/PageTransition";
 import { SectionDivider } from "@/shared/components/SectionDivider";
 import { AnimatedSection } from "@/shared/components/AnimatedSection";

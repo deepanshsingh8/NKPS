@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Download, Search, FileText, Info } from "lucide-react";
 import { motion } from "framer-motion";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageHeader } from "@/website/components/layout/PageHeader";
 import { PageTransition } from "@/shared/components/PageTransition";
 import { SectionDivider } from "@/shared/components/SectionDivider";
 import { AnimatedSection } from "@/shared/components/AnimatedSection";

@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageHeader } from "@/website/components/layout/PageHeader";
 import { PageTransition } from "@/shared/components/PageTransition";
 import { AnimatedSection } from "@/shared/components/AnimatedSection";
 import {
@@ -12,7 +12,7 @@ import {
   getDisclosureItems,
   getDisclosureDocuments,
   getDisclosureBoardResults,
-} from "@/shared/lib/disclosure";
+} from "@/website/lib/disclosure";
 import { ExternalLink, FileText, Download } from "lucide-react";
 import type { DisclosureItem, DisclosureBoardResult } from "@/shared/types";
 import { buildMetadata } from "@/shared/lib/seo";

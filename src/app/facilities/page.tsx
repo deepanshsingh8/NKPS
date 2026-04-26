@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { FacilitiesContent } from "./FacilitiesContent";
-import { JsonLd } from "@/components/seo/JsonLd";
-import { getPageMedia, mediaUrl, getSectionCards } from "@/shared/lib/site-media";
+import { JsonLd } from "@/website/components/seo/JsonLd";
+import { getPageMedia, mediaUrl, getSectionCards } from "@/website/lib/site-media";
 import { buildMetadata, breadcrumbJsonLd } from "@/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({

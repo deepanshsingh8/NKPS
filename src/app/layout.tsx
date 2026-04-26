@@ -3,8 +3,8 @@ import { Inter, Playfair_Display } from "next/font/google";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/shared/components/ui/sonner";
-import { LayoutShell } from "@/components/layout/LayoutShell";
-import { JsonLd } from "@/components/seo/JsonLd";
+import { LayoutShell } from "@/website/components/layout/LayoutShell";
+import { JsonLd } from "@/website/components/seo/JsonLd";
 import { SITE_URL, schoolJsonLd } from "@/shared/lib/seo";
 import "./globals.css";
 

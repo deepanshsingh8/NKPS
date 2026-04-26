@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useTransform } from "framer-motion";
-import { useMouseMotion } from "@/hooks/useMousePosition";
+import { useMouseMotion } from "@/shared/hooks/useMousePosition";
 import { cn } from "@/shared/lib/utils";
 
 interface MouseParallaxProps {

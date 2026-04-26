@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageHeader } from "@/website/components/layout/PageHeader";
 import { AnimatedSection } from "@/shared/components/AnimatedSection";
 import { SectionHeading } from "@/shared/components/SectionHeading";
 import { PageTransition } from "@/shared/components/PageTransition";

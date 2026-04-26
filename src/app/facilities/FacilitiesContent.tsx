@@ -13,7 +13,7 @@ import {
   Bus,
   CheckCircle,
 } from "lucide-react";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageHeader } from "@/website/components/layout/PageHeader";
 import { PageTransition } from "@/shared/components/PageTransition";
 import { AnimatedSection } from "@/shared/components/AnimatedSection";
 import { SectionHeading } from "@/shared/components/SectionHeading";

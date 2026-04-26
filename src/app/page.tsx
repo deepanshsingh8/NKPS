@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { HeroSlider } from "@/components/home/HeroSlider";
-import { QuickLinks } from "@/components/home/QuickLinks";
-import { FacilitiesPreview } from "@/components/home/FacilitiesPreview";
-import { StatsCounter } from "@/components/home/StatsCounter";
-import { LatestUpdates } from "@/components/home/LatestUpdates";
-import { Testimonials } from "@/components/home/Testimonials";
-import { SchoolEvents } from "@/components/home/SchoolEvents";
+import { HeroSlider } from "@/website/components/home/HeroSlider";
+import { QuickLinks } from "@/website/components/home/QuickLinks";
+import { FacilitiesPreview } from "@/website/components/home/FacilitiesPreview";
+import { StatsCounter } from "@/website/components/home/StatsCounter";
+import { LatestUpdates } from "@/website/components/home/LatestUpdates";
+import { Testimonials } from "@/website/components/home/Testimonials";
+import { SchoolEvents } from "@/website/components/home/SchoolEvents";
 import { SectionDivider } from "@/shared/components/SectionDivider";
 import { MarqueeStrip } from "@/shared/components/MarqueeStrip";
 import { PageTransition } from "@/shared/components/PageTransition";
-import { getPageMedia, mediaUrl, getSectionCards } from "@/shared/lib/site-media";
+import { getPageMedia, mediaUrl, getSectionCards } from "@/website/lib/site-media";
 import { getLatestArticles } from "@/shared/lib/articles";
 import { buildMetadata } from "@/shared/lib/seo";
 

@@ -1,15 +1,15 @@
 import { Metadata } from "next";
 import Image from "next/image";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { LegacyTimeline } from "@/components/about/LegacyTimeline";
-import { FounderTribute } from "@/components/about/FounderTribute";
-import { LeadershipGrid } from "@/components/about/LeadershipGrid";
-import { WhyChooseUs } from "@/components/about/WhyChooseUs";
-import { AchievementsCounter } from "@/components/about/AchievementsCounter";
+import { PageHeader } from "@/website/components/layout/PageHeader";
+import { LegacyTimeline } from "@/website/components/about/LegacyTimeline";
+import { FounderTribute } from "@/website/components/about/FounderTribute";
+import { LeadershipGrid } from "@/website/components/about/LeadershipGrid";
+import { WhyChooseUs } from "@/website/components/about/WhyChooseUs";
+import { AchievementsCounter } from "@/website/components/about/AchievementsCounter";
 import { PageTransition } from "@/shared/components/PageTransition";
 import { SectionDivider } from "@/shared/components/SectionDivider";
-import { JsonLd } from "@/components/seo/JsonLd";
-import { getPageMedia, mediaUrl, getSectionCards } from "@/shared/lib/site-media";
+import { JsonLd } from "@/website/components/seo/JsonLd";
+import { getPageMedia, mediaUrl, getSectionCards } from "@/website/lib/site-media";
 import { buildMetadata, breadcrumbJsonLd } from "@/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
