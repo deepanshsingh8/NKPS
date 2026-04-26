@@ -28,12 +28,21 @@ async function loadClassTestAndAuthorize(
     .select("role")
     .eq("id", userId)
     .single();
-  if (!profile || (profile.role !== "teacher" && profile.role !== "admin")) {
-    return {
-      ok: false,
-      status: 403,
-      error: "Forbidden: teacher or admin access required",
-    };
+  if (!profile) {
+    return { ok: false, status: 401, error: "Unauthorized" };
+  }
+  if (profile.role === "editor") {
+    const { data: perm } = await supabase
+      .from("editor_permissions")
+      .select("feature_key")
+      .eq("editor_id", userId)
+      .eq("feature_key", "class_tests")
+      .maybeSingle();
+    if (!perm) {
+      return { ok: false, status: 403, error: "Forbidden" };
+    }
+  } else if (profile.role !== "admin" && profile.role !== "teacher") {
+    return { ok: false, status: 403, error: "Forbidden" };
   }
 
   const { data: ct } = await supabase

@@ -34,7 +34,8 @@ export async function GET() {
     .order("is_default", { ascending: false })
     .order("name", { ascending: true });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[admit-card-templates.GET] list:", error);
+    return NextResponse.json({ error: "Failed to load admit card templates" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }
@@ -72,7 +73,8 @@ export async function POST(request: NextRequest) {
     .select("*")
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[admit-card-templates.POST] insert:", error);
+    return NextResponse.json({ error: "Failed to create admit card template" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }

@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
     .eq("academic_year_id", academicYearId)
     .maybeSingle();
   if (masterErr) {
-    return NextResponse.json({ error: masterErr.message }, { status: 500 });
+    console.error("[result-masters.GET] master fetch:", masterErr);
+    return NextResponse.json({ error: "Failed to load result master" }, { status: 500 });
   }
 
   let subjects: unknown[] = [];
@@ -43,7 +44,8 @@ export async function GET(request: NextRequest) {
       .eq("result_master_id", masterRow.id)
       .order("sort_order", { ascending: true });
     if (subjErr) {
-      return NextResponse.json({ error: subjErr.message }, { status: 500 });
+      console.error("[result-masters.GET] subjects fetch:", subjErr);
+      return NextResponse.json({ error: "Failed to load result master subjects" }, { status: 500 });
     }
     subjects = subjectRows ?? [];
   }
@@ -58,7 +60,8 @@ export async function GET(request: NextRequest) {
     .eq("class_id", classId)
     .order("sort_order", { ascending: true });
   if (configErr) {
-    return NextResponse.json({ error: configErr.message }, { status: 500 });
+    console.error("[result-masters.GET] exam configs fetch:", configErr);
+    return NextResponse.json({ error: "Failed to load exam configs" }, { status: 500 });
   }
 
   const examConfigs = (configRows ?? []).filter((row) => {
@@ -139,7 +142,8 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[result-masters.POST] insert:", error);
+    return NextResponse.json({ error: "Failed to create result master" }, { status: 500 });
   }
 
   return NextResponse.json({ data: created }, { status: 201 });

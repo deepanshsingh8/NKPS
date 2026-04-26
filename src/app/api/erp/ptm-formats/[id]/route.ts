@@ -39,7 +39,8 @@ export async function PATCH(
     .select()
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[ptm-formats.PATCH] update:", error);
+    return NextResponse.json({ error: "Failed to update PTM format" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }
@@ -69,7 +70,8 @@ export async function DELETE(
 
   const { error } = await admin.from("ptm_formats").delete().eq("id", id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[ptm-formats.DELETE] delete:", error);
+    return NextResponse.json({ error: "Failed to delete PTM format" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
 }

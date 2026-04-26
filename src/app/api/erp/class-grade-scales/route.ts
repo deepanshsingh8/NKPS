@@ -18,7 +18,8 @@ export async function GET() {
     .select("class_id, grade_scale_id, updated_at");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[class-grade-scales.GET] list:", error);
+    return NextResponse.json({ error: "Failed to load class grade scales" }, { status: 500 });
   }
 
   return NextResponse.json({ data });
@@ -49,7 +50,8 @@ export async function PUT(request: NextRequest) {
       .eq("class_id", class_id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("[class-grade-scales.PUT] delete:", error);
+      return NextResponse.json({ error: "Failed to clear class grade scale" }, { status: 500 });
     }
     return NextResponse.json({ data: { class_id, grade_scale_id: null } });
   }
@@ -62,7 +64,8 @@ export async function PUT(request: NextRequest) {
     );
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[class-grade-scales.PUT] upsert:", error);
+    return NextResponse.json({ error: "Failed to update class grade scale" }, { status: 500 });
   }
 
   return NextResponse.json({ data: { class_id, grade_scale_id } });

@@ -2221,6 +2221,14 @@ CREATE TABLE IF NOT EXISTS exam_schedules (
 CREATE INDEX IF NOT EXISTS idx_exam_schedules_exam_class ON exam_schedules(exam_type_id, class_id);
 CREATE INDEX IF NOT EXISTS idx_exam_schedules_date ON exam_schedules(exam_date);
 
+-- Migration 034: lock down the IST assumption on the time columns.
+COMMENT ON COLUMN exam_schedules.start_time IS
+  'Local clock time in Asia/Kolkata (IST, UTC+05:30). No timezone applied at read time — all consumers assume IST.';
+COMMENT ON COLUMN exam_schedules.end_time IS
+  'Local clock time in Asia/Kolkata (IST, UTC+05:30). See start_time.';
+COMMENT ON COLUMN exam_schedules.exam_date IS
+  'Calendar date in Asia/Kolkata. Stored as `date`, no timezone applied.';
+
 ALTER TABLE exam_schedules ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Authenticated can read exam_schedules" ON exam_schedules;
@@ -2754,7 +2762,9 @@ CREATE TABLE IF NOT EXISTS publish_events (
       're_finalize_marksheet',
       'finalize_year_final',
       'unpublish_year_final',
-      're_finalize_year_final'
+      're_finalize_year_final',
+      'revert_alumni',
+      'admin_audit'
     )
   ),
   class_id uuid REFERENCES classes(id) ON DELETE SET NULL,
@@ -3663,3 +3673,31 @@ CREATE POLICY "Admins manage substitutions"
   ON substitutions FOR ALL
   USING (public.get_user_role() = 'admin')
   WITH CHECK (public.get_user_role() = 'admin');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 034 — exam_schedules timezone documentation
+-- ═══════════════════════════════════════════════════════════════════════════
+-- (Already applied inline above next to the exam_schedules table.)
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 035 — publish_events admin audit event types
+-- ═══════════════════════════════════════════════════════════════════════════
+-- (CHECK constraint above already includes the new values.)
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 036 — Clean integer thresholds on default scholastic grade bands
+-- (mirrored from scripts/migration-036-grade-bands-clean-bounds.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+UPDATE grade_bands SET max_pct = 90.00
+  WHERE label = 'A'  AND min_pct = 80.00 AND max_pct = 89.99;
+UPDATE grade_bands SET max_pct = 80.00
+  WHERE label = 'B+' AND min_pct = 70.00 AND max_pct = 79.99;
+UPDATE grade_bands SET max_pct = 70.00
+  WHERE label = 'B'  AND min_pct = 60.00 AND max_pct = 69.99;
+UPDATE grade_bands SET max_pct = 60.00
+  WHERE label = 'C'  AND min_pct = 50.00 AND max_pct = 59.99;
+UPDATE grade_bands SET max_pct = 50.00
+  WHERE label = 'D'  AND min_pct = 40.00 AND max_pct = 49.99;
+UPDATE grade_bands SET max_pct = 40.00
+  WHERE label = 'F'  AND min_pct =  0.00 AND max_pct = 39.99;

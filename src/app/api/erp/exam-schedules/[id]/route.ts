@@ -41,7 +41,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     .select("*")
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[exam-schedules.PATCH] update:", error);
+    return NextResponse.json({ error: "Failed to update exam schedule" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }
@@ -57,7 +58,8 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     .delete()
     .eq("id", id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[exam-schedules.DELETE] delete:", error);
+    return NextResponse.json({ error: "Failed to delete exam schedule" }, { status: 500 });
   }
   return NextResponse.json({ data: { id } });
 }

@@ -20,7 +20,8 @@ export async function GET() {
     .order("name", { ascending: true });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[non-scholastic.subjects.GET] list:", error);
+    return NextResponse.json({ error: "Failed to load non-scholastic subjects" }, { status: 500 });
   }
 
   // Attach sub_subject counts so the admin UI can show "N sub-subjects" per row.
@@ -68,7 +69,8 @@ export async function POST(request: NextRequest) {
     .select("id, name, sort_order, is_active")
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[non-scholastic.subjects.POST] insert:", error);
+    return NextResponse.json({ error: "Failed to create non-scholastic subject" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }

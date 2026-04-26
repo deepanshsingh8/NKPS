@@ -53,7 +53,8 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[teacher-absences.GET] list:", error);
+    return NextResponse.json({ error: "Failed to load teacher absences" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }
@@ -101,7 +102,8 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    console.error("[teacher-absences.POST] insert:", insertErr);
+    return NextResponse.json({ error: "Failed to create teacher absence" }, { status: 500 });
   }
 
   // Affected periods: this teacher's timetable_periods on the matching
@@ -126,8 +128,9 @@ export async function POST(request: NextRequest) {
 
   const { data: periods, error: periodsErr } = await periodsQuery;
   if (periodsErr) {
+    console.error("[teacher-absences.POST] affected periods:", periodsErr);
     return NextResponse.json(
-      { error: `Absence saved, but failed to load affected periods: ${periodsErr.message}` },
+      { error: "Absence saved, but failed to load affected periods" },
       { status: 500 }
     );
   }

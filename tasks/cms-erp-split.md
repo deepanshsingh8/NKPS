@@ -1,11 +1,46 @@
 # CMS / ERP Split — Concrete Plan
 
-## Goal
-Split the single `/admin/*` panel into two distinct admin experiences sharing one Supabase backend:
-- `/cms/*` — content management (gallery, articles, site-media, disclosure, transfer-certificates, contact)
-- `/erp/*` — school operations (people, academics, exams, fees, timetable, calendar, attendance)
+## Vision (productization end-state)
 
-Public website gets two login buttons. Same `auth.users`, `profiles`, and `editor_permissions` tables — no DB migration needed.
+Three independently deployable modules so we can sell:
+- **Website-only** — public site, no admin
+- **Website + CMS** — public site with content management (gallery, articles, TC uploads, contact)
+- **Website + CMS + ERP** — full school management (everything above + students, exams, fees, timetable, attendance, etc.)
+
+Each module is a separately buildable Next.js app sharing a `@nkps/shared` package (Supabase clients, types, UI primitives, auth helpers). Same Supabase project per deployment, but module-specific schema groups (CMS tables vs ERP tables vs base tables).
+
+## Phasing strategy
+
+The end-state is a **monorepo with three apps**, but jumping there in one shot would break the live system. We phase it:
+
+| Phase | What | Effort | Outcome |
+|---|---|---|---|
+| **Phase 0** | Public-site UX changes (QuickLinks rework, `/academic-calendar` page) | 1–2 hrs | Visible improvement, zero risk |
+| **Phase 1** | Route-group split: `/cms/*` and `/erp/*` URLs in same app | 4–6 days | Two distinct admin experiences, same deploy |
+| **Phase 2** | Module boundaries: enforce no cross-imports, extract `src/shared/` | 3–5 days | Code separated; ready for extraction |
+| **Phase 3** | Monorepo: turborepo/pnpm workspaces, three Next.js apps, three deploys | 1–2 wks | True productization — sellable as standalone modules |
+
+Phase 0 is being executed today. Phases 1–3 require explicit go-aheads and run across multiple sessions with commits at each safe checkpoint.
+
+---
+
+## Phase 0 — Public-site UX (this session)
+
+- [x] Update `QuickLinks.tsx`: replace 4-card layout (Student Portal / Staff Portal / Downloads / Academic Calendar) with 3-card layout (ERP Login / CMS Login / Academic Calendar)
+  - ERP Login → `/portal/login` (multi-role; redirects post-login by role)
+  - CMS Login → `/admin/login` (admin/editor only — currently merged with ERP staff login; will diverge in Phase 1)
+  - Academic Calendar → `/academic-calendar` (new page)
+- [x] Build `src/app/academic-calendar/page.tsx` — public page listing upcoming `calendar_events` grouped by month, with type-color badges. Replaces the broken `/academics` link target.
+- [x] Verify build passes (`npm run build` — `/academic-calendar` listed as dynamic route)
+- [ ] Smoke test on dev server (user to confirm visual / navigation)
+
+Top Navbar "ERP" link is left alone (already at `/erp-login` → `/portal/login`).
+
+---
+
+## Phase 1 — Route-group split (next session)
+
+> Goal: in the same Next.js app, split `/admin/*` into `/cms/*` and `/erp/*` route groups with separate sidebars, layouts, and dashboards.
 
 ## Why this is tractable
 The codebase is already conceptually split:
@@ -136,10 +171,95 @@ Pick from Open Decision #1:
 
 ---
 
-## Decision required before starting
+## Decision required before starting Phase 1
 1. Single shared login or two cosmetic logins?
 2. URL scheme: `/cms` + `/erp` or `/admin/cms` + `/admin/erp`?
 3. Keep redirects forever or drop them after a deprecation window?
 4. Rename `/api/gallery` etc. to `/api/cms/*` for symmetry, or leave alone?
 
-Once these are answered, this plan is ready to execute.
+Once these are answered, Phase 1 is ready to execute.
+
+---
+
+## Phase 2 — Module boundaries (after Phase 1)
+
+> Goal: prove modules can stand alone *within* the codebase. No code outside `src/shared/` may import from outside its module folder.
+
+- [ ] Restructure: `src/website/`, `src/cms/`, `src/erp/`, `src/shared/`
+- [ ] Move CMS-only components (`src/components/admin/Editor*Dialog.tsx`, gallery dialogs, etc.) → `src/cms/components/`
+- [ ] Move ERP-only components (admit-card builders, marks entry grids, fee receipts, exam scheduling UIs) → `src/erp/components/`
+- [ ] Move shared UI (`src/components/ui/`, `src/components/portal/`, `src/components/shared/`) → `src/shared/components/`
+- [ ] Move shared libs (Supabase clients, types, utils, validations, permissions) → `src/shared/lib/`
+- [ ] Add ESLint boundaries plugin to enforce no cross-module imports
+- [ ] DB schema: organize migrations folder by module (`scripts/migrations/base/`, `scripts/migrations/cms/`, `scripts/migrations/erp/`) — file moves only, no schema changes
+- [ ] Document which Supabase tables belong to which module in `MODULES.md`
+
+Risks: imports are scattered. ESLint rule will surface ~hundreds of violations initially. Plan for 1–2 days of import-cleanup work.
+
+---
+
+## Phase 3 — Monorepo (productization)
+
+> Goal: three deployable Next.js apps. Each can be built and run independently.
+
+### Repo structure
+```
+/apps
+  /website         <- public marketing site, standalone
+    package.json    <- depends on @nkps/shared only
+    next.config.js
+    src/
+  /cms             <- content management Next.js app
+    package.json    <- depends on @nkps/shared
+    src/
+  /erp             <- school operations Next.js app
+    package.json    <- depends on @nkps/shared, @nkps/cms-types (for cross-references like TC linkage)
+    src/
+/packages
+  /shared          <- types, supabase clients, UI primitives, auth helpers, permissions catalog
+    package.json
+    src/
+/scripts
+  /migrations      <- shared DB migrations, organized by module
+turbo.json
+pnpm-workspace.yaml
+package.json
+```
+
+### Deployment topology options
+- **Single domain, path-based:** `nkps.com` (website), `nkps.com/cms` (cms via reverse proxy), `nkps.com/erp` (erp via reverse proxy). Most "feels integrated."
+- **Subdomains:** `nkps.com` + `cms.nkps.com` + `erp.nkps.com`. Cleaner separation, simpler Vercel deploys.
+- **Per-customer:** each school gets only the apps they paid for. Build pipeline takes a `MODULES=cms,erp` flag and builds matching apps.
+
+### Tasks
+- [ ] Adopt pnpm + turborepo
+- [ ] Move existing single Next.js app → `apps/erp` initially (most code lives here)
+- [ ] Extract `apps/website` from public-site routes (`src/app/{about,academics,...}` + components/home)
+- [ ] Extract `apps/cms` from cms route group (after Phase 1 + 2 done)
+- [ ] Extract `packages/shared`
+- [ ] Set up `turbo.json` pipelines: `dev`, `build`, `lint`, `typecheck`
+- [ ] Decide deployment topology (Vercel projects per app, or one project per app)
+- [ ] CI: per-app build matrix
+- [ ] Document module compose modes ("pick which apps to deploy")
+- [ ] Update Supabase RLS to handle module-aware deployments (e.g., ERP-only schools don't need CMS tables — drop or skip them)
+
+### Productization considerations
+- **DB modularity:** apps share one Supabase project per customer. Tables are namespaced by module. RLS policies don't change. ERP-only or CMS-only customers get a smaller schema (skip migrations from the unused module).
+- **Auth:** shared `auth.users` and `profiles` regardless of modules. Even a "website-only" deployment doesn't need auth — but to add CMS later, wire it on day one or stub it.
+- **Per-customer config:** `apps/{app}/config/customer.ts` with school name, branding, feature toggles within a module (e.g., disable supplementary exams for schools that don't run them).
+
+### Effort
+- Repo restructure + tooling: 3–4 days
+- App extractions: 2–3 days each (website is easiest, ERP hardest)
+- CI / deploy pipeline: 2 days
+- Per-module documentation: 1 day
+- **Total: 1–2 weeks** assuming Phases 1 + 2 are clean.
+
+---
+
+## Risk register (cross-phase)
+
+- **Live data:** 29 migrations, real users. Every phase must keep production stable. Commit + verify after every meaningful checkpoint.
+- **Auth-tied paths:** middleware, login redirects, Supabase email templates (password reset etc.) reference URLs. Update as paths change.
+- **External bookmarks:** keep `/admin/*` 301 redirects through Phase 3 minimum.
+- **Editor permissions UI:** `/admin/people/users` will be the place where admins grant CMS or ERP access. After Phase 3, this UI may need to live in a meta-admin app (since it crosses modules). Or keep it in CMS as the lowest-common-denominator app.

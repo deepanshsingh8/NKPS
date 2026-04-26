@@ -27,7 +27,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
     .eq("id", id)
     .maybeSingle();
   if (masterErr) {
-    return NextResponse.json({ error: masterErr.message }, { status: 500 });
+    console.error("[result-master.preview.GET] master fetch:", masterErr);
+    return NextResponse.json({ error: "Failed to load result master" }, { status: 500 });
   }
   if (!master) {
     return NextResponse.json({ error: "Result master not found" }, { status: 404 });
@@ -59,7 +60,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
     .eq("id", studentId)
     .maybeSingle();
   if (studentErr) {
-    return NextResponse.json({ error: studentErr.message }, { status: 500 });
+    console.error("[result-master.preview.GET] student fetch:", studentErr);
+    return NextResponse.json({ error: "Failed to load student" }, { status: 500 });
   }
   if (!student) {
     return NextResponse.json({ error: "Student not found" }, { status: 404 });

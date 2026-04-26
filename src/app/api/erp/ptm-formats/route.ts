@@ -20,7 +20,8 @@ export async function GET() {
     .order("name", { ascending: true });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[ptm-formats.GET] list:", error);
+    return NextResponse.json({ error: "Failed to load PTM formats" }, { status: 500 });
   }
   return NextResponse.json({ data: data ?? [] });
 }
@@ -56,7 +57,8 @@ export async function POST(request: Request) {
     .select()
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[ptm-formats.POST] insert:", error);
+    return NextResponse.json({ error: "Failed to create PTM format" }, { status: 500 });
   }
   return NextResponse.json({ data }, { status: 201 });
 }

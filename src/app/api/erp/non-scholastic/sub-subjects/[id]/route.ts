@@ -54,7 +54,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     .select("id, parent_subject_id, name, grade_scale_id, sort_order, is_active")
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[non-scholastic.sub-subjects.PATCH] update:", error);
+    return NextResponse.json({ error: "Failed to update sub-subject" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }
@@ -70,7 +71,8 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     .delete()
     .eq("id", id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[non-scholastic.sub-subjects.DELETE] delete:", error);
+    return NextResponse.json({ error: "Failed to delete sub-subject" }, { status: 500 });
   }
   return NextResponse.json({ data: { id } });
 }

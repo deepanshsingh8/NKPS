@@ -1,31 +1,15 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { verifyAdminOrEditorWithUser } from "@/lib/verify-admin";
 import { feePaymentSchema } from "@/lib/validations";
 import { generateReceiptNumber } from "@/lib/password";
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    const auth = await verifyAdminOrEditorWithUser("fees");
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const { data: callerProfile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (!callerProfile || callerProfile.role !== "admin") {
-      return NextResponse.json(
-        { error: "Forbidden: admin access required" },
-        { status: 403 }
-      );
-    }
+    const { admin, user } = auth;
 
     const body = await request.json();
     const result = feePaymentSchema.safeParse(body);
@@ -43,7 +27,7 @@ export async function POST(request: Request) {
     // Auto-generate receipt number with cryptographically secure random digits
     const receipt_number = generateReceiptNumber();
 
-    const { data: payment, error } = await supabase
+    const { data: payment, error } = await admin
       .from("fee_payments")
       .insert({
         student_id,

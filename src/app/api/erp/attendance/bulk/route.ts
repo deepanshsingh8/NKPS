@@ -24,11 +24,21 @@ export async function POST(request: Request) {
       .eq("id", user.id)
       .single();
 
-    if (!profile || (profile.role !== "teacher" && profile.role !== "admin")) {
-      return NextResponse.json(
-        { error: "Forbidden: teacher or admin access required" },
-        { status: 403 }
-      );
+    if (!profile) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (profile.role === "editor") {
+      const { data: perm } = await supabase
+        .from("editor_permissions")
+        .select("feature_key")
+        .eq("editor_id", user.id)
+        .eq("feature_key", "attendance")
+        .maybeSingle();
+      if (!perm) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } else if (profile.role !== "admin" && profile.role !== "teacher") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -43,9 +53,10 @@ export async function POST(request: Request) {
 
     const { class_id, date, entries } = result.data;
 
-    // Reject future-dated attendance — there is no school day in the future.
-    // (M7 partial: leaves Sunday/holiday handling to a follow-up since those
-    // require pulling the calendar.)
+    // Reject non-school days. School week is Mon–Sat by convention here;
+    // Sunday + scheduled holidays in calendar_events are blocked. The override
+    // flag (`force=true` in the body) lets admins record makeup classes on
+    // those days while keeping the normal path safe for teachers.
     const today = new Date();
     today.setUTCHours(23, 59, 59, 999);
     const reqDate = new Date(`${date}T00:00:00Z`);
@@ -60,6 +71,49 @@ export async function POST(request: Request) {
         { error: "Cannot mark attendance for a future date" },
         { status: 400 }
       );
+    }
+    const force = body?.force === true && profile.role === "admin";
+    if (!force) {
+      // 0 = Sunday in JS Date.getUTCDay()
+      if (reqDate.getUTCDay() === 0) {
+        return NextResponse.json(
+          {
+            error:
+              "That date is a Sunday — attendance is not collected on Sundays. Set force=true (admin only) to override.",
+          },
+          { status: 400 }
+        );
+      }
+
+      // Holiday lookup: a calendar_events row of type 'holiday' that brackets
+      // this date (start_date ≤ date ≤ end_date OR start_date == date when
+      // end_date is null). School-wide holidays apply to every class; class-
+      // scoped holidays only apply to the matching class_id.
+      const { data: holidays } = await supabase
+        .from("calendar_events")
+        .select("id, title, start_date, end_date, is_school_wide, class_id")
+        .eq("event_type", "holiday")
+        .lte("start_date", date)
+        .or(`end_date.gte.${date},end_date.is.null`);
+      const blocking = (holidays ?? []).find((h) => {
+        // start_date already ≤ date by query; end_date.is.null means single-day
+        // and start_date must equal date.
+        const endOk =
+          h.end_date == null
+            ? h.start_date === date
+            : h.end_date >= date;
+        if (!endOk) return false;
+        if (h.is_school_wide) return true;
+        return h.class_id === class_id;
+      });
+      if (blocking) {
+        return NextResponse.json(
+          {
+            error: `That date is a holiday (${blocking.title}). Set force=true (admin only) to override.`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Teacher ownership: a teacher can only mark attendance for classes

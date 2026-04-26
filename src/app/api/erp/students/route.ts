@@ -124,11 +124,31 @@ export async function GET(request: NextRequest) {
 
     const studentIds = enrollments.map((e) => e.student_id);
 
-    const { data: students, error: studentError } = await admin
-      .from("students")
-      .select("*")
-      .in("id", studentIds)
-      .order("full_name", { ascending: true });
+    // Chunk the student lookup to keep the PostgREST `id=in.(…)` URL parameter
+    // well under the platform 8KB URL cap. ~36 chars/UUID → 200 ids fits in
+    // ~7KB, leaving headroom for query string, host header etc.
+    const STUDENT_CHUNK = 200;
+    const studentChunks: string[][] = [];
+    for (let i = 0; i < studentIds.length; i += STUDENT_CHUNK) {
+      studentChunks.push(studentIds.slice(i, i + STUDENT_CHUNK));
+    }
+    type StudentRow = Record<string, unknown>;
+    const studentsAll: StudentRow[] = [];
+    let studentError: { message: string } | null = null;
+    for (const chunk of studentChunks) {
+      const { data, error } = await admin
+        .from("students")
+        .select("*")
+        .in("id", chunk);
+      if (error) {
+        studentError = error;
+        break;
+      }
+      if (data) studentsAll.push(...(data as StudentRow[]));
+    }
+    const students = studentsAll.sort((a, b) =>
+      String(a.full_name ?? "").localeCompare(String(b.full_name ?? ""))
+    );
 
     if (studentError) {
       console.error("Fetch students by class error:", studentError);
@@ -420,52 +440,103 @@ export async function DELETE(request: NextRequest) {
 
     const body = await request.json();
 
-    // Bulk delete: { ids: string[] }
+    let ids: string[] = [];
     if (Array.isArray(body.ids) && body.ids.length > 0) {
-      const ids: string[] = body.ids;
+      ids = body.ids.filter((x: unknown): x is string => typeof x === "string");
+    } else if (typeof body.id === "string" && body.id) {
+      ids = [body.id];
+    }
+    if (ids.length === 0) {
+      return NextResponse.json(
+        { error: "Student id(s) required" },
+        { status: 400 }
+      );
+    }
 
-      // Delete enrollments first
-      await admin.from("student_enrollments").delete().in("student_id", ids);
+    // 1. Find candidate parents linked to the targeted students. We'll later
+    //    drop any parent that has no remaining links to other students *and*
+    //    no auth profile pointing at it.
+    const { data: studentParentRows } = await admin
+      .from("student_parents")
+      .select("parent_id")
+      .in("student_id", ids);
+    const candidateParentIds = Array.from(
+      new Set((studentParentRows ?? []).map((r) => r.parent_id as string))
+    );
 
-      // Delete linked profiles (auth users whose student_id matches)
-      const { data: linkedProfiles } = await admin
-        .from("profiles")
-        .select("id")
-        .in("student_id", ids);
+    // 2. Wipe enrollments. They have ON DELETE CASCADE off the student row but
+    //    older deployments may not have it, so we belt-and-brace.
+    await admin.from("student_enrollments").delete().in("student_id", ids);
 
-      if (linkedProfiles && linkedProfiles.length > 0) {
-        for (const p of linkedProfiles) {
-          await admin.auth.admin.deleteUser(p.id);
+    // 3. Linked auth users (the students' own accounts). Deleting the auth
+    //    user cascades into profiles via the FK on profiles.id.
+    const { data: linkedProfiles } = await admin
+      .from("profiles")
+      .select("id")
+      .in("student_id", ids);
+    if (linkedProfiles?.length) {
+      for (const p of linkedProfiles) {
+        const { error: authErr } = await admin.auth.admin.deleteUser(p.id);
+        if (authErr) {
+          console.error(`[students.DELETE] auth delete ${p.id}:`, authErr);
         }
       }
+    }
 
-      const { error } = await admin.from("students").delete().in("id", ids);
+    // 4. Delete the students themselves. student_parents cascades with the
+    //    student row, so the candidateParentIds above were captured before
+    //    this step on purpose.
+    const { error: delErr } = await admin
+      .from("students")
+      .delete()
+      .in("id", ids);
+    if (delErr) {
+      console.error("Delete student error:", delErr);
+      return NextResponse.json(
+        { error: "Failed to delete student(s)" },
+        { status: 500 }
+      );
+    }
 
-      if (error) {
-        console.error("Bulk student delete error:", error);
-        return NextResponse.json({ error: "Failed to delete students" }, { status: 500 });
+    // 5. Garbage-collect parents that no longer have any student links and
+    //    no auth profile pointing at them. A parent linked to a sibling or
+    //    with an active portal account stays put.
+    if (candidateParentIds.length > 0) {
+      const { data: stillLinked } = await admin
+        .from("student_parents")
+        .select("parent_id")
+        .in("parent_id", candidateParentIds);
+      const stillLinkedSet = new Set(
+        (stillLinked ?? []).map((r) => r.parent_id as string)
+      );
+
+      const { data: linkedParentProfiles } = await admin
+        .from("profiles")
+        .select("id, parent_id")
+        .in("parent_id", candidateParentIds);
+      const profileLinkedSet = new Set(
+        (linkedParentProfiles ?? [])
+          .map((r) => r.parent_id as string | null)
+          .filter((x): x is string => Boolean(x))
+      );
+
+      const orphanParentIds = candidateParentIds.filter(
+        (pid) => !stillLinkedSet.has(pid) && !profileLinkedSet.has(pid)
+      );
+
+      if (orphanParentIds.length > 0) {
+        const { error: parentDelErr } = await admin
+          .from("parents")
+          .delete()
+          .in("id", orphanParentIds);
+        if (parentDelErr) {
+          // Non-fatal — students are gone; parent rows just linger.
+          console.error("[students.DELETE] orphan parents:", parentDelErr);
+        }
       }
-
-      return NextResponse.json({ success: true, deleted: ids.length });
     }
 
-    // Single delete: { id }
-    const { id } = body;
-    if (!id) {
-      return NextResponse.json({ error: "Student id required" }, { status: 400 });
-    }
-
-    // Delete enrollments first (in case cascade isn't set up)
-    await admin.from("student_enrollments").delete().eq("student_id", id);
-
-    const { error } = await admin.from("students").delete().eq("id", id);
-
-    if (error) {
-      console.error("Delete student error:", error);
-      return NextResponse.json({ error: "Failed to delete student" }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, deleted: ids.length });
   } catch (err) {
     console.error("Delete student error:", err);
     return NextResponse.json(

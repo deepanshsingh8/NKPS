@@ -67,7 +67,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     .select("id")
     .eq("academic_year_id", academicYearId);
   if (etErr) {
-    return NextResponse.json({ error: etErr.message }, { status: 500 });
+    console.error("[result-master.exam-configs.PUT] year exam types fetch:", etErr);
+    return NextResponse.json({ error: "Failed to load exam types" }, { status: 500 });
   }
   const yearExamTypeIds = new Set((yearExamTypes ?? []).map((et) => et.id as string));
   const outOfYear = payloadExamTypeIds.filter((eid) => !yearExamTypeIds.has(eid));
@@ -98,9 +99,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       .from("class_exam_configs")
       .upsert(rows, { onConflict: "class_id,exam_type_id" });
     if (upsertErr) {
+      console.error("[result-master.exam-configs.PUT] upsert:", upsertErr);
       return NextResponse.json(
         {
-          error: `Exam configs upsert failed: ${upsertErr.message}`,
+          error: "Exam configs upsert failed",
           code: "EXAM_CONFIGS_INSERT_FAILED",
         },
         { status: 500 }
@@ -134,7 +136,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     .eq("exam_types.academic_year_id", academicYearId)
     .order("sort_order", { ascending: true });
   if (finalErr) {
-    return NextResponse.json({ error: finalErr.message }, { status: 500 });
+    console.error("[result-master.exam-configs.PUT] final fetch:", finalErr);
+    return NextResponse.json({ error: "Failed to load exam configs" }, { status: 500 });
   }
 
   return NextResponse.json({ data: final ?? [] });

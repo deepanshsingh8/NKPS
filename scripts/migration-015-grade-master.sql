@@ -56,13 +56,17 @@ INSERT INTO grade_bands (grade_scale_id, label, min_pct, max_pct, sort_order)
 SELECT s.id, b.label, b.min_pct, b.max_pct, b.sort_order
 FROM grade_scales s
 CROSS JOIN (VALUES
+  -- Bands stored with integer thresholds. The runtime resolver
+  -- (`computeGrade` in src/lib/grading.ts) sorts bands by min_pct DESC and
+  -- picks the first whose `min_pct ≤ pct`, so the upper bound is informational
+  -- and the .99-style boundary trick is no longer needed.
   ('A+', 90.00, 100.00, 1),
-  ('A',  80.00,  89.99, 2),
-  ('B+', 70.00,  79.99, 3),
-  ('B',  60.00,  69.99, 4),
-  ('C',  50.00,  59.99, 5),
-  ('D',  40.00,  49.99, 6),
-  ('F',   0.00,  39.99, 7)
+  ('A',  80.00,  90.00, 2),
+  ('B+', 70.00,  80.00, 3),
+  ('B',  60.00,  70.00, 4),
+  ('C',  50.00,  60.00, 5),
+  ('D',  40.00,  50.00, 6),
+  ('F',   0.00,  40.00, 7)
 ) AS b(label, min_pct, max_pct, sort_order)
 WHERE s.scope = 'scholastic'
   AND s.is_default = true

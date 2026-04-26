@@ -38,9 +38,9 @@ export async function POST(request: NextRequest) {
         p_sort_key: sortKey,
       });
       if (error) {
-        console.error("recompute_roll_numbers rpc error:", error);
+        console.error("[roll-numbers.recompute] rpc:", error);
         return NextResponse.json(
-          { error: error.message || "Failed to recompute roll numbers" },
+          { error: "Failed to recompute roll numbers" },
           { status: 500 }
         );
       }
@@ -163,9 +163,9 @@ export async function POST(request: NextRequest) {
       p_ordered_student_ids: orderedStudentIds,
     });
     if (error) {
-      console.error("apply_roll_numbers rpc error:", error);
+      console.error("[roll-numbers.recompute] apply_roll_numbers rpc:", error);
       return NextResponse.json(
-        { error: error.message || "Failed to apply roll numbers" },
+        { error: "Failed to apply roll numbers" },
         { status: 500 }
       );
     }

@@ -49,7 +49,8 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[substitutions.GET] list:", error);
+    return NextResponse.json({ error: "Failed to load substitutions" }, { status: 500 });
   }
 
   // Sort by start_time client-side since PostgREST can't order by joined cols.
@@ -126,7 +127,8 @@ export async function POST(request: NextRequest) {
     )
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[substitutions.POST] upsert:", error);
+    return NextResponse.json({ error: "Failed to assign substitution" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }

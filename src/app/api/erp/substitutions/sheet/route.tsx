@@ -86,7 +86,8 @@ export async function GET(request: NextRequest) {
     )
     .eq("absence_date", date);
   if (absErr) {
-    return NextResponse.json({ error: absErr.message }, { status: 500 });
+    console.error("[substitutions.sheet.GET] absences fetch:", absErr);
+    return NextResponse.json({ error: "Failed to load absences" }, { status: 500 });
   }
   const typedAbsences = (absences ?? []) as AbsenceRow[];
 
@@ -111,7 +112,8 @@ export async function GET(request: NextRequest) {
     .eq("day_of_week", dayOfWeek)
     .eq("is_break", false);
   if (periodsErr) {
-    return NextResponse.json({ error: periodsErr.message }, { status: 500 });
+    console.error("[substitutions.sheet.GET] periods fetch:", periodsErr);
+    return NextResponse.json({ error: "Failed to load periods" }, { status: 500 });
   }
 
   // Map periods → absent teacher.
@@ -130,7 +132,8 @@ export async function GET(request: NextRequest) {
     )
     .in("absence_id", typedAbsences.map((a) => a.id));
   if (subsErr) {
-    return NextResponse.json({ error: subsErr.message }, { status: 500 });
+    console.error("[substitutions.sheet.GET] subs fetch:", subsErr);
+    return NextResponse.json({ error: "Failed to load substitutions" }, { status: 500 });
   }
   const subByPeriodAbsenceKey = new Map<string, SubstitutionRow>();
   for (const s of (subs ?? []) as SubstitutionRow[]) {

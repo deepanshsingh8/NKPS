@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[exam-schedules.GET] list:", error);
+    return NextResponse.json({ error: "Failed to load exam schedules" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }
@@ -80,7 +81,8 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[exam-schedules.POST] insert:", error);
+    return NextResponse.json({ error: "Failed to create exam schedule" }, { status: 500 });
   }
   return NextResponse.json({ data });
 }

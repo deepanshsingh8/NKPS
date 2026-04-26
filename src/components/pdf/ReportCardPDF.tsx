@@ -378,6 +378,24 @@ interface ReportCardPDFProps {
    * mode (e.g., "ANNUAL EXAMINATION 2025-26"). Skipped cleanly if absent.
    */
   upperHeader?: string;
+  /**
+   * Phase 4 — non-scholastic groups for the year. The route fetches the
+   * student's most-recent published assessment per sub_subject and groups
+   * by parent subject. When undefined or empty AND
+   * resultMaster.include_non_scholastic is true, the PDF still renders the
+   * section header but with a "Not yet recorded" line so the placement
+   * (above/below/separate_page) still produces consistent layout.
+   */
+  nonScholasticGroups?: Array<{
+    parent_id: string;
+    parent_name: string;
+    sub_subjects: Array<{
+      sub_subject_id: string;
+      sub_subject_name: string;
+      grade_label: string | null;
+      remarks: string | null;
+    }>;
+  }>;
 }
 
 export function ReportCardPDF({
@@ -391,6 +409,7 @@ export function ReportCardPDF({
   finalResult,
   resultMaster,
   upperHeader,
+  nonScholasticGroups,
 }: ReportCardPDFProps) {
   const classLabel = student.class
     ? `${student.class.name} — ${student.class.section}`
@@ -421,6 +440,7 @@ export function ReportCardPDF({
         finalResult={finalResult}
         resultMaster={resultMaster}
         upperHeader={upperHeader}
+        nonScholasticGroups={nonScholasticGroups}
       />
     );
   }
@@ -585,6 +605,7 @@ interface Phase3DocumentProps {
   finalResult: FinalResult;
   resultMaster?: ReportCardPDFProps["resultMaster"];
   upperHeader?: string;
+  nonScholasticGroups?: ReportCardPDFProps["nonScholasticGroups"];
 }
 
 function Phase3Document({
@@ -601,6 +622,7 @@ function Phase3Document({
   finalResult,
   resultMaster,
   upperHeader,
+  nonScholasticGroups,
 }: Phase3DocumentProps) {
   const includeNonScholastic = resultMaster?.include_non_scholastic ?? false;
   const placement = resultMaster?.non_scholastic_placement ?? "below";
@@ -617,15 +639,57 @@ function Phase3Document({
 
   const examColumns = buildExamColumns(subjectsForUnion);
 
-  const nonScholasticBlock =
-    includeNonScholastic ? (
-      <View style={styles.phase3NonScholastic} wrap={false}>
-        <Text style={styles.phase3SectionLabel}>
-          Non-Scholastic Assessments
-        </Text>
+  const nonScholasticGroupsResolved = nonScholasticGroups ?? [];
+  const hasNonScholasticData =
+    nonScholasticGroupsResolved.some((g) => g.sub_subjects.length > 0);
+
+  const nonScholasticBlock = includeNonScholastic ? (
+    <View style={styles.phase3NonScholastic} wrap={false}>
+      <Text style={styles.phase3SectionLabel}>Non-Scholastic Assessments</Text>
+      {hasNonScholasticData ? (
+        nonScholasticGroupsResolved.map((group) => (
+          <View key={group.parent_id} style={{ marginBottom: 6 }}>
+            <Text
+              style={{
+                fontFamily: "Helvetica-Bold",
+                fontSize: 9,
+                color: "#0b2452",
+                marginBottom: 2,
+              }}
+            >
+              {group.parent_name}
+            </Text>
+            {group.sub_subjects.map((s) => (
+              <View
+                key={s.sub_subject_id}
+                style={{
+                  flexDirection: "row",
+                  fontSize: 8,
+                  paddingVertical: 1,
+                }}
+              >
+                <Text style={{ flex: 2 }}>{s.sub_subject_name}</Text>
+                <Text
+                  style={{
+                    width: 50,
+                    textAlign: "center",
+                    fontFamily: "Helvetica-Bold",
+                  }}
+                >
+                  {s.grade_label ?? "—"}
+                </Text>
+                <Text style={{ flex: 2, color: "#6b7280" }}>
+                  {s.remarks ?? ""}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ))
+      ) : (
         <Text style={styles.phase3SectionNote}>Not yet recorded.</Text>
-      </View>
-    ) : null;
+      )}
+    </View>
+  ) : null;
 
   return (
     <Document
@@ -832,12 +896,9 @@ function Phase3Document({
               </Text>
             </View>
           </View>
-          <View style={styles.phase3NonScholastic}>
-            <Text style={styles.phase3SectionLabel}>
-              Non-Scholastic Assessments
-            </Text>
-            <Text style={styles.phase3SectionNote}>Not yet recorded.</Text>
-          </View>
+          {/* Reuses the same `nonScholasticBlock` we render inline so the data
+              path and rendering stay identical regardless of placement. */}
+          {nonScholasticBlock}
           <View style={styles.footer} fixed>
             <View>
               <Text>Generated on {generatedOn}</Text>
