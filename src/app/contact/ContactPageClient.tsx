@@ -23,9 +23,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { contactFormSchema, type ContactFormData } from "@/lib/validations";
-import { SCHOOL } from "@/lib/constants";
-import { staggerContainer, fadeUp } from "@/lib/animations";
+import { contactFormSchema, type ContactFormData } from "@/shared/lib/validations";
+import { SCHOOL } from "@/shared/lib/constants";
+import { staggerContainer, fadeUp } from "@/shared/lib/animations";
 import { CONTACT_FAQS } from "./faqs";
 
 const contactCards = [

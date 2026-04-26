@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
+import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
 
 // Buckets the admin UI is allowed to upload to. Any other bucket (e.g. a
 // future "private-uploads" or "internal") would need an explicit entry here

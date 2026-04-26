@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
-import { SCHOOL } from "@/lib/constants";
+import { SCHOOL } from "@/shared/lib/constants";
 
 interface FounderTributeProps {
   photoUrl?: string;

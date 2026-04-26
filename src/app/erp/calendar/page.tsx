@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,9 +23,9 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, CalendarDays } from "lucide-react";
-import { adminApi } from "@/lib/admin-api";
-import { formatClassName } from "@/lib/utils";
-import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/lib/constants/calendar";
+import { adminApi } from "@/shared/lib/admin-api";
+import { formatClassName } from "@/shared/lib/utils";
+import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/shared/lib/constants/calendar";
 import type { CalendarEvent, CalendarEventType } from "@/shared/types";
 
 const EVENT_TYPES: CalendarEventType[] = [

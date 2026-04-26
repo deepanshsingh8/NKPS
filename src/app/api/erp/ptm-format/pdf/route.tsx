@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/shared/lib/supabase/server";
 import { getPdfTemplate } from "@/lib/pdf-templates";
 import {
   PtmFormatPDF,
   type PtmFormatPDFProps,
 } from "@/components/pdf/PtmFormatPDF";
 import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
-import { contentDispositionAttachment } from "@/lib/utils";
+import { contentDispositionAttachment } from "@/shared/lib/utils";
 
 export const runtime = "nodejs";
 

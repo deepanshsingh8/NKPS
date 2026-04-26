@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { contentDispositionAttachment } from "@/lib/utils";
+import { createClient } from "@/shared/lib/supabase/server";
+import { contentDispositionAttachment } from "@/shared/lib/utils";
 
 function csvEscape(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";

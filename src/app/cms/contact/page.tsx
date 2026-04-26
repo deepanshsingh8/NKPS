@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { Mail, MailOpen, Phone, ChevronDown, ChevronUp } from "lucide-react";
-import { adminFetch, adminPatch } from "@/lib/admin-api";
+import { adminFetch, adminPatch } from "@/shared/lib/admin-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { toast } from "sonner";
 import type { ContactSubmission } from "@/shared/types";
 

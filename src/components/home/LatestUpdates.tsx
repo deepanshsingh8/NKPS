@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import { staggerContainer, fadeUp } from "@/lib/animations";
+import { staggerContainer, fadeUp } from "@/shared/lib/animations";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import type { SectionCard, Article } from "@/shared/types";
 

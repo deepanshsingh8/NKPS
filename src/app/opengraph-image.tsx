@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { SCHOOL } from "@/lib/constants";
+import { SCHOOL } from "@/shared/lib/constants";
 
 export const alt = "NK Public School — Best CBSE School in Jaipur Since 1985";
 export const size = { width: 1200, height: 630 };

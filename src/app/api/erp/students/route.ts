@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
-import { studentSchema } from "@/lib/validations";
+import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { studentSchema } from "@/shared/lib/validations";
 
 export async function GET(request: NextRequest) {
   try {

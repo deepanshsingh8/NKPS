@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
+import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
 
 const CLASS_ORDER = [
   "Nursery", "LKG", "UKG",

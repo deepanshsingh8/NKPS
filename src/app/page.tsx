@@ -11,7 +11,7 @@ import { MarqueeStrip } from "@/components/shared/MarqueeStrip";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { getPageMedia, mediaUrl, getSectionCards } from "@/lib/site-media";
 import { getLatestArticles } from "@/lib/articles";
-import { buildMetadata } from "@/lib/seo";
+import { buildMetadata } from "@/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Best CBSE School in Jaipur — NK Public School Since 1985",

@@ -15,7 +15,7 @@ import {
 } from "@/lib/disclosure";
 import { ExternalLink, FileText, Download } from "lucide-react";
 import type { DisclosureItem, DisclosureBoardResult } from "@/shared/types";
-import { buildMetadata } from "@/lib/seo";
+import { buildMetadata } from "@/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Mandatory Public Disclosure — NK Public School Jaipur",

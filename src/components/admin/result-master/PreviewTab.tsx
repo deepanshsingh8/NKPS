@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { adminFetch } from "@/lib/admin-api";
+import { createClient } from "@/shared/lib/supabase/client";
+import { adminFetch } from "@/shared/lib/admin-api";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";

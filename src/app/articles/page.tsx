@@ -7,7 +7,7 @@ import { PageTransition } from "@/components/shared/PageTransition";
 import { SectionDivider } from "@/components/shared/SectionDivider";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getPublishedArticles } from "@/lib/articles";
-import { buildMetadata, breadcrumbJsonLd } from "@/lib/seo";
+import { buildMetadata, breadcrumbJsonLd } from "@/shared/lib/seo";
 
 export const revalidate = 300;
 

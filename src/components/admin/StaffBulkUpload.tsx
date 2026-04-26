@@ -37,7 +37,7 @@ import {
   CheckCircle2,
   X,
 } from "lucide-react";
-import { adminFetch } from "@/lib/admin-api";
+import { adminFetch } from "@/shared/lib/admin-api";
 import type { StaffCategory } from "@/shared/types";
 
 const CATEGORY_OPTIONS: { value: StaffCategory; label: string }[] = [

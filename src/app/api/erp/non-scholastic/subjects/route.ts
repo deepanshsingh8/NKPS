@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
+import { verifyAdmin } from "@/shared/lib/verify-admin";
 import { z } from "zod";
 
 const subjectSchema = z.object({

@@ -6,8 +6,8 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { Menu, X, Phone, Mail } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
-import { NAV_LINKS, SCHOOL } from "@/lib/constants";
+import { cn } from "@/shared/lib/utils";
+import { NAV_LINKS, SCHOOL } from "@/shared/lib/constants";
 import {
   FacebookIcon,
   InstagramIcon,

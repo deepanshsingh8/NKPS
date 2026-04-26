@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { useUrlState } from "@/lib/hooks/use-url-state";
+import { createClient } from "@/shared/lib/supabase/client";
+import { useUrlState } from "@/shared/lib/hooks/use-url-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,8 +22,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Clock, CalendarRange, Info } from "lucide-react";
-import { adminApi } from "@/lib/admin-api";
-import { formatClassName, formatShortDate } from "@/lib/utils";
+import { adminApi } from "@/shared/lib/admin-api";
+import { formatClassName, formatShortDate } from "@/shared/lib/utils";
 import type { Class, Subject, Teacher, TimetablePeriod } from "@/shared/types";
 
 const DAYS = [

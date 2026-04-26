@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { adminFetch, adminPatch } from "@/lib/admin-api";
+import { adminFetch, adminPatch } from "@/shared/lib/admin-api";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -154,7 +154,7 @@ export function AdvancedTab({
     (async () => {
       setLoadingExamTypes(true);
       try {
-        const { createClient } = await import("@/lib/supabase/client");
+        const { createClient } = await import("@/shared/lib/supabase/client");
         const supabase = createClient();
         const { data, error } = await supabase
           .from("exam_types")

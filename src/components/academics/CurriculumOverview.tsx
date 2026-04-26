@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 
 const levels = [

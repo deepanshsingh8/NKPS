@@ -2,7 +2,7 @@
 
 import { motion, useTransform } from "framer-motion";
 import { useMouseMotion } from "@/hooks/useMousePosition";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 interface MouseParallaxProps {
   children: React.ReactNode;

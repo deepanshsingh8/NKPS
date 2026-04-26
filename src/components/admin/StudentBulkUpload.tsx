@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import * as XLSX from "xlsx";
 import {
   Dialog,
@@ -31,7 +31,7 @@ import {
   X,
   Pencil,
 } from "lucide-react";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName } from "@/shared/lib/utils";
 
 interface ParsedRow {
   admission_no: string;

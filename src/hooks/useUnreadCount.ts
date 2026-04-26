@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { adminFetch } from "@/lib/admin-api";
+import { adminFetch } from "@/shared/lib/admin-api";
 
 export function useUnreadCount() {
   const [unreadCount, setUnreadCount] = useState(0);

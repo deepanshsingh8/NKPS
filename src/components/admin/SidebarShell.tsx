@@ -4,15 +4,15 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import type { UserRole } from "@/shared/types";
-import { FEATURE_CATALOG, type FeatureKey } from "@/lib/permissions";
+import { FEATURE_CATALOG, type FeatureKey } from "@/shared/lib/permissions";
 import {
   ChevronLeft,
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { SidebarProfileMenu } from "@/components/portal/SidebarProfileMenu";
 import { SidebarTooltip } from "@/components/portal/SidebarTooltip";
 import { useSidebar } from "@/components/providers/SidebarProvider";

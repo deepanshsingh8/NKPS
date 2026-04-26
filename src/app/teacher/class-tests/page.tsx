@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { useUrlState } from "@/lib/hooks/use-url-state";
+import { createClient } from "@/shared/lib/supabase/client";
+import { useUrlState } from "@/shared/lib/hooks/use-url-state";
 import {
   Card,
   CardContent,
@@ -48,7 +48,7 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName } from "@/shared/lib/utils";
 import { computeGrade, type GradeBand } from "@/lib/grading";
 import type { Class, Subject } from "@/shared/types";
 

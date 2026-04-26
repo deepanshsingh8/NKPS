@@ -2,7 +2,7 @@
 
 import { CmsSidebar } from "@/components/cms/CmsSidebar";
 import { SidebarProvider, useSidebar } from "@/components/providers/SidebarProvider";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 function CmsLayoutInner({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();

@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { adminFetch, adminPatch, adminDelete } from "@/lib/admin-api";
+import { createClient } from "@/shared/lib/supabase/client";
+import { adminFetch, adminPatch, adminDelete } from "@/shared/lib/admin-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

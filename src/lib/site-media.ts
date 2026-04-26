@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/shared/lib/supabase/admin";
 import type { SiteMedia, SectionCard } from "@/shared/types";
 
 /**

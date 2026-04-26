@@ -1,6 +1,6 @@
 "use client";
 
-import { SCHOOL } from "@/lib/constants";
+import { SCHOOL } from "@/shared/lib/constants";
 
 export function WhatsAppButton() {
   const whatsappUrl = `https://wa.me/${SCHOOL.whatsapp}?text=${encodeURIComponent("Hello! I'd like to know more about NK Public School.")}`;

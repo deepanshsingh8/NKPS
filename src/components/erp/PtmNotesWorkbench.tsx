@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import {
   Card,
   CardContent,
@@ -34,7 +34,7 @@ import {
   FileDown,
   Upload,
 } from "lucide-react";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName } from "@/shared/lib/utils";
 import type { Class, ExamType } from "@/shared/types";
 import { PtmImportDialog } from "@/components/erp/PtmImportDialog";
 

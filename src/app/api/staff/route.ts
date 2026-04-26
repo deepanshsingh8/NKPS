@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
-import { createPortalUser } from "@/lib/create-portal-user";
+import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { createPortalUser } from "@/shared/lib/create-portal-user";
 import { mirrorStaffToTeacher } from "@/lib/staff-teacher-sync";
 
 const VALID_CATEGORIES = ["management", "admin", "pgt", "tgt", "prt", "motherTeachers", "prePrimaryCoordinator", "primaryCoordinator", "middleCoordinator", "seniorCoordinator", "additionalStaff", "busDriver", "peon"];

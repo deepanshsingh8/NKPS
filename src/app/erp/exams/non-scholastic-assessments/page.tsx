@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { useUrlState } from "@/lib/hooks/use-url-state";
+import { createClient } from "@/shared/lib/supabase/client";
+import { useUrlState } from "@/shared/lib/hooks/use-url-state";
 import {
   Card,
   CardContent,
@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Save, Loader2, Sparkles } from "lucide-react";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName } from "@/shared/lib/utils";
 import type { Class, ExamType } from "@/shared/types";
 
 interface EnrolledStudent {

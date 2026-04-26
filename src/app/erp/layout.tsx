@@ -2,7 +2,7 @@
 
 import { ErpSidebar } from "@/components/erp/ErpSidebar";
 import { SidebarProvider, useSidebar } from "@/components/providers/SidebarProvider";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 function ErpLayoutInner({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();

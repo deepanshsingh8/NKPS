@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -44,9 +44,9 @@ import {
   Loader2,
   UserPlus,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { UpcomingEvents } from "@/components/shared/UpcomingEvents";
-import { linkChildSchema, type LinkChildData } from "@/lib/validations";
+import { linkChildSchema, type LinkChildData } from "@/shared/lib/validations";
 import type { Profile } from "@/shared/types";
 
 interface ChildInfo {

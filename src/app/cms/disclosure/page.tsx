@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,8 +39,8 @@ import {
   ExternalLink,
   ScrollText,
 } from "lucide-react";
-import { adminApi, adminFetch, adminDelete } from "@/lib/admin-api";
-import { uploadToStorage } from "@/lib/supabase/upload";
+import { adminApi, adminFetch, adminDelete } from "@/shared/lib/admin-api";
+import { uploadToStorage } from "@/shared/lib/supabase/upload";
 import { FileDropZone } from "@/components/shared/FileDropZone";
 import type {
   DisclosureItem,

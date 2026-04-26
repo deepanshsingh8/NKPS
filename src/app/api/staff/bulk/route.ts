@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
-import { staffBulkUploadSchema } from "@/lib/validations";
-import { createPortalUser } from "@/lib/create-portal-user";
+import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { staffBulkUploadSchema } from "@/shared/lib/validations";
+import { createPortalUser } from "@/shared/lib/create-portal-user";
 
 const VALID_CATEGORIES = [
   "management", "admin", "pgt", "tgt", "prt",

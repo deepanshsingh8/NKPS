@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { adminFetch } from "@/lib/admin-api";
+import { createClient } from "@/shared/lib/supabase/client";
+import { adminFetch } from "@/shared/lib/admin-api";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,7 +29,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName } from "@/shared/lib/utils";
 import type { Class, ExamType } from "@/shared/types";
 
 interface TemplateOption {

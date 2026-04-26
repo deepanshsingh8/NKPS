@@ -7,7 +7,7 @@
 // blocks PDF generation.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SCHOOL } from "@/lib/constants";
+import { SCHOOL } from "@/shared/lib/constants";
 
 export type TemplateKey =
   | "report_card"

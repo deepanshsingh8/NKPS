@@ -2,7 +2,7 @@
 
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { CounterAnimation } from "@/components/shared/CounterAnimation";
-import { SCHOOL } from "@/lib/constants";
+import { SCHOOL } from "@/shared/lib/constants";
 
 export function AchievementsCounter() {
   return (

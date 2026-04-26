@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,7 +12,7 @@ import {
   ArrowRight,
   Clock,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { UpcomingEvents } from "@/components/shared/UpcomingEvents";
 import type { Profile } from "@/shared/types";
 

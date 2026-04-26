@@ -1,9 +1,9 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { useUrlState } from "@/lib/hooks/use-url-state";
-import { adminFetch, adminDelete } from "@/lib/admin-api";
+import { createClient } from "@/shared/lib/supabase/client";
+import { useUrlState } from "@/shared/lib/hooks/use-url-state";
+import { adminFetch, adminDelete } from "@/shared/lib/admin-api";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/tabs";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName } from "@/shared/lib/utils";
 import { BasicRulesTab } from "@/components/admin/result-master/BasicRulesTab";
 import { SubjectsTab } from "@/components/admin/result-master/SubjectsTab";
 import { AdvancedTab } from "@/components/admin/result-master/AdvancedTab";

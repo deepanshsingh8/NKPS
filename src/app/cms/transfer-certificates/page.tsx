@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,8 +21,8 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Download, Trash2, Loader2, Search, UserCheck, FileText, Upload } from "lucide-react";
-import { adminFetch, adminDelete } from "@/lib/admin-api";
-import { uploadToStorage } from "@/lib/supabase/upload";
+import { adminFetch, adminDelete } from "@/shared/lib/admin-api";
+import { uploadToStorage } from "@/shared/lib/supabase/upload";
 import { FileDropZone } from "@/components/shared/FileDropZone";
 import { AcademicYearSelect } from "@/components/shared/AcademicYearSelect";
 import type { TransferCertificate, Student } from "@/shared/types";

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { adminFetch } from "@/lib/admin-api";
+import { createClient } from "@/shared/lib/supabase/client";
+import { adminFetch } from "@/shared/lib/admin-api";
 import {
   Select,
   SelectContent,

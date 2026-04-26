@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,8 +50,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { adminFetch, adminPatch, adminDelete } from "@/lib/admin-api";
-import { uploadToStorage } from "@/lib/supabase/upload";
+import { adminFetch, adminPatch, adminDelete } from "@/shared/lib/admin-api";
+import { uploadToStorage } from "@/shared/lib/supabase/upload";
 import { FileDropZone } from "@/components/shared/FileDropZone";
 import { ImageCropper } from "@/components/shared/ImageCropper";
 import { StaffBulkUpload } from "@/components/admin/StaffBulkUpload";

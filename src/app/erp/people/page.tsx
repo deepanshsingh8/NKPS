@@ -9,10 +9,10 @@ import {
   ArrowRight,
   type LucideIcon,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import type { UserRole } from "@/shared/types";
-import { type FeatureKey } from "@/lib/permissions";
-import { cn } from "@/lib/utils";
+import { type FeatureKey } from "@/shared/lib/permissions";
+import { cn } from "@/shared/lib/utils";
 
 type PeopleTile = {
   label: string;

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { verifyAdminOrEditorWithUser } from "@/lib/verify-admin";
+import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
 import {
   finalizeMarksheetSchema,
   unpublishMarksheetSchema,
-} from "@/lib/validations";
+} from "@/shared/lib/validations";
 import { buildMarksheetSnapshot } from "@/lib/marksheet-snapshot";
 
 // POST /api/erp/results/finalize-marksheet

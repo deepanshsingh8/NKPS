@@ -4,9 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Monitor, FlaskConical, Laptop, BookOpen, ArrowRight } from "lucide-react";
-import { FACILITIES } from "@/lib/constants";
+import { FACILITIES } from "@/shared/lib/constants";
 import { SectionHeading } from "@/components/shared/SectionHeading";
-import { fadeUp, staggerContainer } from "@/lib/animations";
+import { fadeUp, staggerContainer } from "@/shared/lib/animations";
 import type { SectionCard } from "@/shared/types";
 
 const defaultFacilityImages = [

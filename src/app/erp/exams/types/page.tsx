@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,8 +45,8 @@ import {
   Layers,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { adminApi } from "@/lib/admin-api";
-import { cn } from "@/lib/utils";
+import { adminApi } from "@/shared/lib/admin-api";
+import { cn } from "@/shared/lib/utils";
 import type {
   ExamType,
   ExamKind,

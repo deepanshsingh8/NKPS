@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
+import { verifyAdmin } from "@/shared/lib/verify-admin";
 import { computeRanksForClass } from "@/lib/final-result";
 
 type SortKey = "name" | "admission_no" | "previous_rank";

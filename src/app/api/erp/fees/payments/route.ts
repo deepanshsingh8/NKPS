@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { verifyAdminOrEditorWithUser } from "@/lib/verify-admin";
-import { feePaymentSchema } from "@/lib/validations";
-import { generateReceiptNumber } from "@/lib/password";
+import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
+import { feePaymentSchema } from "@/shared/lib/validations";
+import { generateReceiptNumber } from "@/shared/lib/password";
 
 export async function POST(request: Request) {
   try {

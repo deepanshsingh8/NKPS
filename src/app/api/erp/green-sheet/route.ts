@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/shared/lib/supabase/server";
 import { buildGreenSheetData } from "@/lib/green-sheet";
 
 export async function GET(request: Request) {

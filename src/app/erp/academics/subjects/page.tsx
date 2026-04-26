@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,8 +44,8 @@ import {
   Sparkles,
   Upload,
 } from "lucide-react";
-import { adminApi } from "@/lib/admin-api";
-import { cn, formatClassName } from "@/lib/utils";
+import { adminApi } from "@/shared/lib/admin-api";
+import { cn, formatClassName } from "@/shared/lib/utils";
 import QuickSetupWizard from "@/components/admin/QuickSetupWizard";
 import { SubjectBulkUpload } from "@/components/admin/SubjectBulkUpload";
 import type { Class, Subject, Teacher, Stream } from "@/shared/types";

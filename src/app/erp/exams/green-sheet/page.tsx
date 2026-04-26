@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import {
   Card,
   CardContent,
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName } from "@/shared/lib/utils";
 import type { Class } from "@/shared/types";
 import type { GreenSheetData } from "@/lib/green-sheet";
 

@@ -2,7 +2,7 @@
 
 import { StudentSidebar } from "@/components/portal/StudentSidebar";
 import { SidebarProvider, useSidebar } from "@/components/providers/SidebarProvider";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 function StudentLayoutInner({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();

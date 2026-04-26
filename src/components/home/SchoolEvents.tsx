@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import { motion } from "framer-motion";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
-import { staggerContainer, fadeUp } from "@/lib/animations";
+import { staggerContainer, fadeUp } from "@/shared/lib/animations";
 import type { CalendarEvent, CalendarEventType } from "@/shared/types";
 
 const EVENT_TYPE_COLORS: Record<CalendarEventType, string> = {

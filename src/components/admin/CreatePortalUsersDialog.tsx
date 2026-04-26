@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { adminFetch } from "@/lib/admin-api";
+import { adminFetch } from "@/shared/lib/admin-api";
 import {
   UserPlus,
   AlertTriangle,

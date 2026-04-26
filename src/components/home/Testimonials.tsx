@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Quote, Star } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import Image from "next/image";
 import type { SectionCard } from "@/shared/types";

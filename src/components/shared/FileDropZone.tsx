@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { Upload, X, FileText, Image as ImageIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 interface FileDropZoneProps {
   accept: string;

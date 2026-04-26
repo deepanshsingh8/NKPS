@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, ArrowLeft, GraduationCap, CheckCircle2 } from "lucide-react";
-import { registrationRequestSchema, type RegistrationRequestData } from "@/lib/validations";
+import { registrationRequestSchema, type RegistrationRequestData } from "@/shared/lib/validations";
 
 export default function PortalRegisterPage() {
   const [loading, setLoading] = useState(false);

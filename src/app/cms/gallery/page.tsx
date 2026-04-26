@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,12 +42,12 @@ import {
   LayoutGrid,
   Grid3x3,
 } from "lucide-react";
-import { adminFetch, adminDelete, adminApi } from "@/lib/admin-api";
-import { uploadToStorage } from "@/lib/supabase/upload";
+import { adminFetch, adminDelete, adminApi } from "@/shared/lib/admin-api";
+import { uploadToStorage } from "@/shared/lib/supabase/upload";
 import { FileDropZone } from "@/components/shared/FileDropZone";
 import { ImageCropper, type Crop } from "@/components/shared/ImageCropper";
 import { AcademicYearSelect } from "@/components/shared/AcademicYearSelect";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import type { GalleryImage, GalleryEvent } from "@/shared/types";
 
 const CATEGORIES = ["academics", "sports", "cultural", "campus", "events"];

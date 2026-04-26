@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { SidebarProfileMenu } from "./SidebarProfileMenu";
 import { SidebarTooltip } from "./SidebarTooltip";
 import { useSidebar } from "@/components/providers/SidebarProvider";

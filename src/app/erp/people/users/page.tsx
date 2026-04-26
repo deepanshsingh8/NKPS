@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,7 +44,7 @@ import {
   XCircle,
   KeyRound,
 } from "lucide-react";
-import { adminFetch } from "@/lib/admin-api";
+import { adminFetch } from "@/shared/lib/admin-api";
 import type { Profile, UserRole, RegistrationRequest, RegistrationStatus } from "@/shared/types";
 import { EditorPermissionsDialog } from "@/components/admin/EditorPermissionsDialog";
 

@@ -8,8 +8,8 @@ import { PageTransition } from "@/components/shared/PageTransition";
 import { SectionDivider } from "@/components/shared/SectionDivider";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { SectionHeading } from "@/components/shared/SectionHeading";
-import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/shared/lib/utils";
+import { createClient } from "@/shared/lib/supabase/client";
 
 interface TC {
   id: string;

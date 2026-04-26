@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useTransform } from "framer-motion";
 import { ArrowRight, Users, CalendarDays, GraduationCap, Building2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { useMouseMotion } from "@/hooks/useMousePosition";
 import type { SectionCard } from "@/shared/types";
 

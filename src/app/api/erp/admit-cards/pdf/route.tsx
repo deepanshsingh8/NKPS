@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/shared/lib/supabase/server";
 import { canViewReportCard } from "@/lib/report-card";
 import { getPdfTemplate } from "@/lib/pdf-templates";
-import { contentDispositionAttachment } from "@/lib/utils";
+import { contentDispositionAttachment } from "@/shared/lib/utils";
 import {
   AdmitCardPDF,
   type AdmitCardPayload,
@@ -29,7 +29,7 @@ async function loadLogo(): Promise<Buffer | null> {
   }
 }
 
-import { safeFetchBuffer } from "@/lib/safe-fetch";
+import { safeFetchBuffer } from "@/shared/lib/safe-fetch";
 
 // Fetch a student photo URL through the SSRF-resistant helper. Returns null
 // on any failure — admit card renders without the photo rather than failing

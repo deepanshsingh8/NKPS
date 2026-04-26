@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { createAdminClient } from "@/shared/lib/supabase/admin";
+import { rateLimit, clientIp } from "@/shared/lib/rate-limit";
 
 // Bucket name is constant — defined here once so the path-extraction logic
 // below stays in sync with the upload routes.

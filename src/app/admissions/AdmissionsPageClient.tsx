@@ -14,8 +14,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { SCHOOL } from "@/lib/constants";
-import { staggerContainer, fadeUp } from "@/lib/animations";
+import { SCHOOL } from "@/shared/lib/constants";
+import { staggerContainer, fadeUp } from "@/shared/lib/animations";
 import { ADMISSIONS_FAQS } from "./faqs";
 
 const steps = [

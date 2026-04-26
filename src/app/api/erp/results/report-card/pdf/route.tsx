@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/shared/lib/supabase/server";
+import { createAdminClient } from "@/shared/lib/supabase/admin";
 import { canViewReportCard, getReportCardData } from "@/lib/report-card";
 import type { ReportCardExamGroup } from "@/lib/report-card";
 import { ReportCardPDF } from "@/components/pdf/ReportCardPDF";
 import { getPdfTemplate } from "@/lib/pdf-templates";
-import { contentDispositionAttachment } from "@/lib/utils";
+import { contentDispositionAttachment } from "@/shared/lib/utils";
 import {
   computeFinalResult,
   computeRanksForClass,

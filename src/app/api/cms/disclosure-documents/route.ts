@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
+import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
 
 export async function POST(request: NextRequest) {
   const admin = await verifyAdminOrEditor("disclosure");

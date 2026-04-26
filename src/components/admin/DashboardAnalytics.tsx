@@ -7,8 +7,8 @@ import {
   GraduationCap,
   UserPlus,
 } from "lucide-react";
-import { adminFetch } from "@/lib/admin-api";
-import { cn } from "@/lib/utils";
+import { adminFetch } from "@/shared/lib/admin-api";
+import { cn } from "@/shared/lib/utils";
 
 interface AttendanceDay {
   date: string;

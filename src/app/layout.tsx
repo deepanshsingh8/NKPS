@@ -5,7 +5,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/components/ui/sonner";
 import { LayoutShell } from "@/components/layout/LayoutShell";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { SITE_URL, schoolJsonLd } from "@/lib/seo";
+import { SITE_URL, schoolJsonLd } from "@/shared/lib/seo";
 import "./globals.css";
 
 const inter = Inter({

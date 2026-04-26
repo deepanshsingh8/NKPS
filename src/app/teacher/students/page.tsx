@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { useUrlState } from "@/lib/hooks/use-url-state";
+import { createClient } from "@/shared/lib/supabase/client";
+import { useUrlState } from "@/shared/lib/hooks/use-url-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Loader2, Users, Search } from "lucide-react";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName } from "@/shared/lib/utils";
 
 interface ClassOption {
   id: string;

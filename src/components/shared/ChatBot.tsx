@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MessageCircle, X, Send, Maximize2, Minimize2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 function formatMessage(text: string) {
   // Split into lines and process

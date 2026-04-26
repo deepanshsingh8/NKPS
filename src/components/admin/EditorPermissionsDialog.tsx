@@ -12,8 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { adminFetch } from "@/lib/admin-api";
-import { FEATURE_CATALOG, type FeatureKey } from "@/lib/permissions";
+import { adminFetch } from "@/shared/lib/admin-api";
+import { FEATURE_CATALOG, type FeatureKey } from "@/shared/lib/permissions";
 
 interface Props {
   open: boolean;

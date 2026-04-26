@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { adminFetch, adminPatch, adminDelete } from "@/lib/admin-api";
+import { createClient } from "@/shared/lib/supabase/client";
+import { adminFetch, adminPatch, adminDelete } from "@/shared/lib/admin-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,7 +39,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName } from "@/shared/lib/utils";
 import type { Class } from "@/shared/types";
 
 type Scope = "scholastic" | "non_scholastic";

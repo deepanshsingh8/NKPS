@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyAdminOrEditorWithUser } from "@/lib/verify-admin";
+import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
 import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
 
 // Per-student results editor (admin / editor with `results` feature).

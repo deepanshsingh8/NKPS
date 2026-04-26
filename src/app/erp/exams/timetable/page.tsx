@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { adminFetch, adminPatch, adminDelete } from "@/lib/admin-api";
-import { useUrlState } from "@/lib/hooks/use-url-state";
+import { createClient } from "@/shared/lib/supabase/client";
+import { adminFetch, adminPatch, adminDelete } from "@/shared/lib/admin-api";
+import { useUrlState } from "@/shared/lib/hooks/use-url-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,7 +40,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName } from "@/shared/lib/utils";
 import type { Class, ExamType, Subject } from "@/shared/types";
 
 interface ExamSchedule {

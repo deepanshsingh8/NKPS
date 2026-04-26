@@ -2,7 +2,7 @@
 
 import { ParentSidebar } from "@/components/portal/ParentSidebar";
 import { SidebarProvider, useSidebar } from "@/components/providers/SidebarProvider";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 function ParentLayoutInner({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();

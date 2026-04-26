@@ -13,8 +13,8 @@ import {
   Pencil,
   ImageIcon,
 } from "lucide-react";
-import { adminFetch, adminDelete, adminPatch } from "@/lib/admin-api";
-import { uploadToStorage } from "@/lib/supabase/upload";
+import { adminFetch, adminDelete, adminPatch } from "@/shared/lib/admin-api";
+import { uploadToStorage } from "@/shared/lib/supabase/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { FileDropZone } from "@/components/shared/FileDropZone";
 import { ImageCropper } from "@/components/shared/ImageCropper";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { toast } from "sonner";
 import type { SiteMedia, SectionCard, SectionCardType } from "@/shared/types";
 

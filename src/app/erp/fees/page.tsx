@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { useUrlState } from "@/lib/hooks/use-url-state";
+import { createClient } from "@/shared/lib/supabase/client";
+import { useUrlState } from "@/shared/lib/hooks/use-url-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,9 +32,9 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, Bus, FileSpreadsheet } from "lucide-react";
-import { adminApi, adminFetch } from "@/lib/admin-api";
+import { adminApi, adminFetch } from "@/shared/lib/admin-api";
 import { downloadCSV } from "@/lib/csv-export";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName } from "@/shared/lib/utils";
 import { resolveEffectiveFeeStructures, FEE_FREQ_MULTIPLIER } from "@/lib/fees";
 import type { FeeStructure, FeePayment, Student, Stream } from "@/shared/types";
 

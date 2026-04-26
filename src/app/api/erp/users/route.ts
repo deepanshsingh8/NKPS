@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
-import { createUserSchema } from "@/lib/validations";
-import { generateSecurePassword } from "@/lib/password";
+import { createAdminClient } from "@/shared/lib/supabase/admin";
+import { createClient } from "@/shared/lib/supabase/server";
+import { createUserSchema } from "@/shared/lib/validations";
+import { generateSecurePassword } from "@/shared/lib/password";
 
 export async function POST(request: Request) {
   try {
@@ -175,8 +175,8 @@ export async function POST(request: Request) {
     // the credentials manually (otherwise the new user can never log in).
     let emailWarning: string | null = null;
     try {
-      const { sendEmail, buildWelcomeEmail } = await import("@/lib/email");
-      const { SITE_URL } = await import("@/lib/seo");
+      const { sendEmail, buildWelcomeEmail } = await import("@/shared/lib/email");
+      const { SITE_URL } = await import("@/shared/lib/seo");
       const loginUrl = `${SITE_URL}/portal/login`;
       const html = buildWelcomeEmail({
         fullName: full_name,

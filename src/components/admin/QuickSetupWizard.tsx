@@ -21,7 +21,7 @@ import {
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";
-import { cn, formatClassName } from "@/lib/utils";
+import { cn, formatClassName } from "@/shared/lib/utils";
 import {
   CBSE_GRADE_BANDS,
   CBSE_STREAM_CURRICULA,

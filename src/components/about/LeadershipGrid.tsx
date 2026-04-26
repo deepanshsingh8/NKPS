@@ -4,8 +4,8 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { GlassCard } from "@/components/shared/GlassCard";
-import { SCHOOL } from "@/lib/constants";
-import { staggerContainer, fadeUp } from "@/lib/animations";
+import { SCHOOL } from "@/shared/lib/constants";
+import { staggerContainer, fadeUp } from "@/shared/lib/animations";
 import type { SectionCard } from "@/shared/types";
 
 const defaultLeaderPhotos: Record<string, string> = {

@@ -15,12 +15,12 @@ import {
   UserCog,
   Sparkles,
 } from "lucide-react";
-import { adminFetch } from "@/lib/admin-api";
-import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
+import { adminFetch } from "@/shared/lib/admin-api";
+import { createClient } from "@/shared/lib/supabase/client";
+import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { DashboardAnalytics } from "@/components/admin/DashboardAnalytics";
-import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/lib/constants/calendar";
+import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/shared/lib/constants/calendar";
 import type { CalendarEventType } from "@/shared/types";
 
 type Scope = "cms" | "erp";

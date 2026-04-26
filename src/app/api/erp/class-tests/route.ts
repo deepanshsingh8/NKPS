@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { classTestCreateSchema } from "@/lib/validations";
+import { createClient } from "@/shared/lib/supabase/server";
+import { classTestCreateSchema } from "@/shared/lib/validations";
 
 // GET /api/erp/class-tests?class_id=&subject_id=
 // Returns class tests visible to the caller via RLS.

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { classTestMarksBulkSchema } from "@/lib/validations";
+import { createClient } from "@/shared/lib/supabase/server";
+import { classTestMarksBulkSchema } from "@/shared/lib/validations";
 import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
 import {
   getTeacherIdForUser,

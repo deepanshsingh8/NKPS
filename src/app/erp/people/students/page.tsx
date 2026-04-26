@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { adminFetch } from "@/lib/admin-api";
+import { createClient } from "@/shared/lib/supabase/client";
+import { adminFetch } from "@/shared/lib/admin-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,8 +56,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { StudentBulkUpload } from "@/components/admin/StudentBulkUpload";
 import { CreatePortalUsersDialog } from "@/components/admin/CreatePortalUsersDialog";
-import { useUrlState } from "@/lib/hooks/use-url-state";
-import { formatClassName } from "@/lib/utils";
+import { useUrlState } from "@/shared/lib/hooks/use-url-state";
+import { formatClassName } from "@/shared/lib/utils";
 import { downloadCSV, STUDENT_CSV_COLUMNS } from "@/lib/csv-export";
 import type { Student, Gender, BloodGroup, Stream, EnrollmentStatus } from "@/shared/types";
 

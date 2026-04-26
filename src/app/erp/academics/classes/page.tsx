@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, Layers, ListOrdered } from "lucide-react";
-import { adminApi, adminFetch } from "@/lib/admin-api";
+import { adminApi, adminFetch } from "@/shared/lib/admin-api";
 import type { Class, AcademicYear, Teacher, Stream } from "@/shared/types";
 
 type RollSortKey = "name" | "admission_no" | "previous_rank";

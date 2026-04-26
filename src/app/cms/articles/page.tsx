@@ -16,8 +16,8 @@ import {
   EyeOff,
   FileText,
 } from "lucide-react";
-import { adminFetch, adminDelete, adminPatch } from "@/lib/admin-api";
-import { uploadToStorage } from "@/lib/supabase/upload";
+import { adminFetch, adminDelete, adminPatch } from "@/shared/lib/admin-api";
+import { uploadToStorage } from "@/shared/lib/supabase/upload";
 import { slugify } from "@/lib/articles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

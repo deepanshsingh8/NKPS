@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/shared/lib/rate-limit";
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,

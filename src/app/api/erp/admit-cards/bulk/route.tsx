@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
+import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
 import { getPdfTemplate } from "@/lib/pdf-templates";
-import { contentDispositionAttachment } from "@/lib/utils";
-import { safeFetchBuffer } from "@/lib/safe-fetch";
+import { contentDispositionAttachment } from "@/shared/lib/utils";
+import { safeFetchBuffer } from "@/shared/lib/safe-fetch";
 import {
   AdmitCardPDF,
   type AdmitCardPayload,

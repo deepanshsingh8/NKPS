@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { attendanceBulkSchema } from "@/lib/validations";
+import { createClient } from "@/shared/lib/supabase/server";
+import { attendanceBulkSchema } from "@/shared/lib/validations";
 import {
   getTeacherIdForUser,
   teacherCanAccessClass,

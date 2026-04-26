@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { useUrlState } from "@/lib/hooks/use-url-state";
+import { createClient } from "@/shared/lib/supabase/client";
+import { useUrlState } from "@/shared/lib/hooks/use-url-state";
 import {
   Card,
   CardContent,
@@ -27,7 +27,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { BarChart3, TrendingUp, Users, Award, Pencil } from "lucide-react";
 import Link from "next/link";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName } from "@/shared/lib/utils";
 import { computeGrade, type GradeBand } from "@/lib/grading";
 import type { Class, ExamType } from "@/shared/types";
 

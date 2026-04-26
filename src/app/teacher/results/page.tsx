@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { useUrlState } from "@/lib/hooks/use-url-state";
+import { createClient } from "@/shared/lib/supabase/client";
+import { useUrlState } from "@/shared/lib/hooks/use-url-state";
 import {
   Card,
   CardContent,
@@ -37,7 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Save, Loader2, Download, Info, FileText } from "lucide-react";
-import { formatClassName } from "@/lib/utils";
+import { formatClassName } from "@/shared/lib/utils";
 import { computeGrade, type GradeBand } from "@/lib/grading";
 import { MarksImportDialog } from "@/components/erp/MarksImportDialog";
 import type { Class, Subject, ExamType } from "@/shared/types";

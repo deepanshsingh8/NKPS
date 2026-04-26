@@ -17,9 +17,9 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { SectionHeading } from "@/components/shared/SectionHeading";
-import { FACILITIES } from "@/lib/constants";
-import { staggerContainer, fadeUp } from "@/lib/animations";
-import { cn } from "@/lib/utils";
+import { FACILITIES } from "@/shared/lib/constants";
+import { staggerContainer, fadeUp } from "@/shared/lib/animations";
+import { cn } from "@/shared/lib/utils";
 import type { SectionCard } from "@/shared/types";
 
 const iconComponents = [

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/shared/lib/supabase/client";
 import { UpcomingEvents } from "@/components/shared/UpcomingEvents";
 import { Loader2 } from "lucide-react";
 

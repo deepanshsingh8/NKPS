@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { Users, ClipboardCheck, Lightbulb, BookOpenCheck } from "lucide-react";
-import { buildMetadata } from "@/lib/seo";
+import { buildMetadata } from "@/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "For Parents — NK Public School Jaipur",
