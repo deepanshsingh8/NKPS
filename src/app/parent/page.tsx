@@ -47,7 +47,7 @@ import {
 import { cn } from "@/lib/utils";
 import { UpcomingEvents } from "@/components/shared/UpcomingEvents";
 import { linkChildSchema, type LinkChildData } from "@/lib/validations";
-import type { Profile } from "@/types";
+import type { Profile } from "@/shared/types";
 
 interface ChildInfo {
   student_id: string;

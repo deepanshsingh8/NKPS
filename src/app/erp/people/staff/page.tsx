@@ -56,7 +56,7 @@ import { FileDropZone } from "@/components/shared/FileDropZone";
 import { ImageCropper } from "@/components/shared/ImageCropper";
 import { StaffBulkUpload } from "@/components/admin/StaffBulkUpload";
 import { CreatePortalUsersDialog } from "@/components/admin/CreatePortalUsersDialog";
-import type { StaffMember, StaffCategory } from "@/types";
+import type { StaffMember, StaffCategory } from "@/shared/types";
 import { downloadCSV, STAFF_CSV_COLUMNS } from "@/lib/csv-export";
 
 const CATEGORIES: { value: StaffCategory | "all"; label: string }[] = [

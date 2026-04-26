@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays } from "lucide-react";
-import type { CalendarEvent, CalendarEventType } from "@/types";
+import type { CalendarEvent, CalendarEventType } from "@/shared/types";
 
 const EVENT_TYPE_LABELS: Record<CalendarEventType, string> = {
   exam: "Exam",

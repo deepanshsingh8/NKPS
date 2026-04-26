@@ -5,7 +5,7 @@ import type {
   ExamKind,
   ResultMasterPassCriteriaType,
   ResultMasterRoundingMode,
-} from "@/types";
+} from "@/shared/types";
 
 // Human-readable labels for each supported pass-criteria type.
 // Kept local (not imported from `describePassCriteria`) because that helper

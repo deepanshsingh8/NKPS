@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { cn, dayOfWeekFromDate, formatTime12, timeStringToMinutes, nowMinutes } from "@/lib/utils";
 import { UpcomingEvents } from "@/components/shared/UpcomingEvents";
-import type { Profile } from "@/types";
+import type { Profile } from "@/shared/types";
 
 interface TeacherStats {
   classCount: number;

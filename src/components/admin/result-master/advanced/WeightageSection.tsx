@@ -17,7 +17,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { EXAM_KIND_LABEL } from "../helpers";
-import type { ExamKind } from "@/types";
+import type { ExamKind } from "@/shared/types";
 
 export interface WeightageRow {
   exam_type_id: string;

@@ -41,7 +41,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatClassName } from "@/lib/utils";
-import type { Class, ExamType, Subject } from "@/types";
+import type { Class, ExamType, Subject } from "@/shared/types";
 
 interface ExamSchedule {
   id: string;

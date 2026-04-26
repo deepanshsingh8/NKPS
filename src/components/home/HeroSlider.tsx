@@ -7,7 +7,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useMouseMotion } from "@/hooks/useMousePosition";
-import type { SectionCard } from "@/types";
+import type { SectionCard } from "@/shared/types";
 
 /* ─── Slide data ─── */
 const defaultSlides = [

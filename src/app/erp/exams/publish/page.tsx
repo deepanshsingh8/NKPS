@@ -48,7 +48,7 @@ import {
 import { toast } from "sonner";
 import { formatClassName } from "@/lib/utils";
 import { adminFetch, adminDelete } from "@/lib/admin-api";
-import type { Class, ExamType } from "@/types";
+import type { Class, ExamType } from "@/shared/types";
 
 interface PublishStatus {
   total: number;

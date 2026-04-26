@@ -24,7 +24,7 @@ import { SUPPORTED_PASS_CRITERIA_TYPES } from "@/lib/final-result";
 import type {
   ResultMaster,
   ResultMasterPassMarkMode,
-} from "@/types";
+} from "@/shared/types";
 import {
   defaultConfigFor,
   labelForCriteriaType,

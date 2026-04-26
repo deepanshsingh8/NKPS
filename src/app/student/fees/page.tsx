@@ -20,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { CreditCard, CheckCircle, AlertCircle, Loader2, Download } from "lucide-react";
 import { resolveEffectiveFeeStructures, sumAnnualized } from "@/lib/fees";
-import type { FeeStructure, FeePayment } from "@/types";
+import type { FeeStructure, FeePayment } from "@/shared/types";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {

@@ -50,7 +50,7 @@ import {
 import { toast } from "sonner";
 import { formatClassName } from "@/lib/utils";
 import { computeGrade, type GradeBand } from "@/lib/grading";
-import type { Class, Subject } from "@/types";
+import type { Class, Subject } from "@/shared/types";
 
 interface ClassTest {
   id: string;

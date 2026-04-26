@@ -1,4 +1,4 @@
-import type { CalendarEventType } from "@/types";
+import type { CalendarEventType } from "@/shared/types";
 
 export const EVENT_TYPE_LABELS: Record<CalendarEventType, string> = {
   exam: "Exam",

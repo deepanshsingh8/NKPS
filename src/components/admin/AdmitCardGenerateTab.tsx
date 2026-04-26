@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatClassName } from "@/lib/utils";
-import type { Class, ExamType } from "@/types";
+import type { Class, ExamType } from "@/shared/types";
 
 interface TemplateOption {
   id: string;

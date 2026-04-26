@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { DashboardAnalytics } from "@/components/admin/DashboardAnalytics";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/lib/constants/calendar";
-import type { CalendarEventType } from "@/types";
+import type { CalendarEventType } from "@/shared/types";
 
 type Scope = "cms" | "erp";
 

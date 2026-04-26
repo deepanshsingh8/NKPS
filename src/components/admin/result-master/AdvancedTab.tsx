@@ -10,7 +10,7 @@ import type {
   ResultMasterGraceCondition,
   ResultMasterNonScholasticPlacement,
   ResultMasterRoundingMode,
-} from "@/types";
+} from "@/shared/types";
 import type { GradeScale } from "@/lib/grading";
 import {
   mergeExamConfigsWithExamTypes,

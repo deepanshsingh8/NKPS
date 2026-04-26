@@ -59,7 +59,7 @@ import { CreatePortalUsersDialog } from "@/components/admin/CreatePortalUsersDia
 import { useUrlState } from "@/lib/hooks/use-url-state";
 import { formatClassName } from "@/lib/utils";
 import { downloadCSV, STUDENT_CSV_COLUMNS } from "@/lib/csv-export";
-import type { Student, Gender, BloodGroup, Stream, EnrollmentStatus } from "@/types";
+import type { Student, Gender, BloodGroup, Stream, EnrollmentStatus } from "@/shared/types";
 
 interface ClassOption {
   id: string;

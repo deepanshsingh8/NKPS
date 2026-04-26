@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { ResultMasterRoundingMode } from "@/types";
+import type { ResultMasterRoundingMode } from "@/shared/types";
 import { previewRound } from "../helpers";
 
 export function RoundingSection({

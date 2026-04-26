@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import type { ContactSubmission } from "@/types";
+import type { ContactSubmission } from "@/shared/types";
 
 type Filter = "all" | "unread" | "read";
 

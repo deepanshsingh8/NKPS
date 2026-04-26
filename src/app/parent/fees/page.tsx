@@ -22,7 +22,7 @@ import {
 import { CreditCard, CheckCircle, AlertCircle, Loader2, Users, Wallet, Download } from "lucide-react";
 import { toast } from "sonner";
 import { resolveEffectiveFeeStructures, sumAnnualized } from "@/lib/fees";
-import type { FeeStructure, FeePayment } from "@/types";
+import type { FeeStructure, FeePayment } from "@/shared/types";
 
 interface ChildOption {
   student_id: string;

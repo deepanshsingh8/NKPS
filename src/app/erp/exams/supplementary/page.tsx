@@ -36,7 +36,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { formatClassName } from "@/lib/utils";
-import type { Class, ExamType } from "@/types";
+import type { Class, ExamType } from "@/shared/types";
 import type { SupplementaryEligibleResult } from "@/lib/supplementary";
 
 interface RowState {

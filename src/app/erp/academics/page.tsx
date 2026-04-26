@@ -11,7 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { UserRole } from "@/types";
+import type { UserRole } from "@/shared/types";
 import { type FeatureKey } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 

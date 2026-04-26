@@ -43,7 +43,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { FileDropZone } from "@/components/shared/FileDropZone";
 import { ImageCropper } from "@/components/shared/ImageCropper";
 import { toast } from "sonner";
-import type { Article } from "@/types";
+import type { Article } from "@/shared/types";
 
 interface ArticleForm {
   title: string;

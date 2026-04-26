@@ -24,7 +24,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Clock, CalendarRange, Info } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
 import { formatClassName, formatShortDate } from "@/lib/utils";
-import type { Class, Subject, Teacher, TimetablePeriod } from "@/types";
+import type { Class, Subject, Teacher, TimetablePeriod } from "@/shared/types";
 
 const DAYS = [
   { value: 1, label: "Monday" },

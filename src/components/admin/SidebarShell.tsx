@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { UserRole } from "@/types";
+import type { UserRole } from "@/shared/types";
 import { FEATURE_CATALOG, type FeatureKey } from "@/lib/permissions";
 import {
   ChevronLeft,

@@ -22,7 +22,7 @@ import {
   Clock,
   TrendingUp,
 } from "lucide-react";
-import type { AttendanceStatus } from "@/types";
+import type { AttendanceStatus } from "@/shared/types";
 
 interface AttendanceRecord {
   date: string;

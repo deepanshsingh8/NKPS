@@ -29,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Save, Loader2, Sparkles } from "lucide-react";
 import { formatClassName } from "@/lib/utils";
-import type { Class, ExamType } from "@/types";
+import type { Class, ExamType } from "@/shared/types";
 
 interface EnrolledStudent {
   student_id: string;

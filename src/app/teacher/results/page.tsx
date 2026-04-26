@@ -40,7 +40,7 @@ import { Save, Loader2, Download, Info, FileText } from "lucide-react";
 import { formatClassName } from "@/lib/utils";
 import { computeGrade, type GradeBand } from "@/lib/grading";
 import { MarksImportDialog } from "@/components/erp/MarksImportDialog";
-import type { Class, Subject, ExamType } from "@/types";
+import type { Class, Subject, ExamType } from "@/shared/types";
 
 interface EnrolledStudent {
   student_id: string;

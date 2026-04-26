@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import { formatClassName } from "@/lib/utils";
-import type { Class } from "@/types";
+import type { Class } from "@/shared/types";
 import type { GreenSheetData } from "@/lib/green-sheet";
 
 interface AcademicYear {

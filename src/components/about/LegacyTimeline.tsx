@@ -2,7 +2,7 @@
 
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { SectionHeading } from "@/components/shared/SectionHeading";
-import type { SectionCard } from "@/types";
+import type { SectionCard } from "@/shared/types";
 
 const milestones = [
   {

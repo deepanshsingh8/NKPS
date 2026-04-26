@@ -48,7 +48,7 @@ import { FileDropZone } from "@/components/shared/FileDropZone";
 import { ImageCropper, type Crop } from "@/components/shared/ImageCropper";
 import { AcademicYearSelect } from "@/components/shared/AcademicYearSelect";
 import { cn } from "@/lib/utils";
-import type { GalleryImage, GalleryEvent } from "@/types";
+import type { GalleryImage, GalleryEvent } from "@/shared/types";
 
 const CATEGORIES = ["academics", "sports", "cultural", "campus", "events"];
 

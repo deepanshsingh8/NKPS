@@ -30,7 +30,7 @@ import type {
   FinalSubject,
   ResultMaster,
   ResultMasterSubject,
-} from "@/types";
+} from "@/shared/types";
 
 // Shape used for the student picker dropdown. We fetch via student_enrollments
 // because the `students` table has no `current_class_id` column — class

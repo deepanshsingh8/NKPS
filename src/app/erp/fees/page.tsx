@@ -36,7 +36,7 @@ import { adminApi, adminFetch } from "@/lib/admin-api";
 import { downloadCSV } from "@/lib/csv-export";
 import { formatClassName } from "@/lib/utils";
 import { resolveEffectiveFeeStructures, FEE_FREQ_MULTIPLIER } from "@/lib/fees";
-import type { FeeStructure, FeePayment, Student, Stream } from "@/types";
+import type { FeeStructure, FeePayment, Student, Stream } from "@/shared/types";
 
 const CLASS_NAMES = [
   "Nursery",

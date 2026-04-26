@@ -48,7 +48,7 @@ import { adminApi } from "@/lib/admin-api";
 import { cn, formatClassName } from "@/lib/utils";
 import QuickSetupWizard from "@/components/admin/QuickSetupWizard";
 import { SubjectBulkUpload } from "@/components/admin/SubjectBulkUpload";
-import type { Class, Subject, Teacher, Stream } from "@/types";
+import type { Class, Subject, Teacher, Stream } from "@/shared/types";
 
 type Tab = "subjects" | "assignments" | "streams";
 

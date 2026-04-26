@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCallerAccess } from "@/lib/verify-admin";
 import { resolveEffectiveFeeStructures, sumAnnualized } from "@/lib/fees";
-import type { FeeStructure } from "@/types";
+import type { FeeStructure } from "@/shared/types";
 import type { FeatureKey } from "@/lib/permissions";
 
 // Each analytics block maps to the permission that gates privileged access to

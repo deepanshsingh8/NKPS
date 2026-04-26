@@ -14,7 +14,7 @@ import {
   getDisclosureBoardResults,
 } from "@/lib/disclosure";
 import { ExternalLink, FileText, Download } from "lucide-react";
-import type { DisclosureItem, DisclosureBoardResult } from "@/types";
+import type { DisclosureItem, DisclosureBoardResult } from "@/shared/types";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({

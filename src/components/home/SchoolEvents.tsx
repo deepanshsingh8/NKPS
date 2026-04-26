@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { staggerContainer, fadeUp } from "@/lib/animations";
-import type { CalendarEvent, CalendarEventType } from "@/types";
+import type { CalendarEvent, CalendarEventType } from "@/shared/types";
 
 const EVENT_TYPE_COLORS: Record<CalendarEventType, string> = {
   exam: "bg-navy-700",

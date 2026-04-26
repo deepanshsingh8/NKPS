@@ -29,7 +29,7 @@ import { BarChart3, TrendingUp, Users, Award, Pencil } from "lucide-react";
 import Link from "next/link";
 import { formatClassName } from "@/lib/utils";
 import { computeGrade, type GradeBand } from "@/lib/grading";
-import type { Class, ExamType } from "@/types";
+import type { Class, ExamType } from "@/shared/types";
 
 interface SubjectBreakdown {
   subject_id: string;

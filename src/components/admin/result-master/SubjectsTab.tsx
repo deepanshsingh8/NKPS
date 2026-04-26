@@ -26,7 +26,7 @@ import type {
   ResultMasterSubject,
   ResultMasterSubjectRole,
   Subject,
-} from "@/types";
+} from "@/shared/types";
 
 interface SubjectRow {
   subject_id: string;

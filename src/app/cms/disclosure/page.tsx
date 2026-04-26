@@ -47,7 +47,7 @@ import type {
   DisclosureDocument,
   DisclosureBoardResult,
   ExamClass,
-} from "@/types";
+} from "@/shared/types";
 
 type TabKey = "general" | "documents" | "result_academics" | "staff" | "infrastructure";
 

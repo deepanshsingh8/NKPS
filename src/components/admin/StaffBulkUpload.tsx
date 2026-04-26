@@ -38,7 +38,7 @@ import {
   X,
 } from "lucide-react";
 import { adminFetch } from "@/lib/admin-api";
-import type { StaffCategory } from "@/types";
+import type { StaffCategory } from "@/shared/types";
 
 const CATEGORY_OPTIONS: { value: StaffCategory; label: string }[] = [
   { value: "management", label: "Management" },

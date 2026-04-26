@@ -52,7 +52,7 @@ import type {
   ExamKind,
   ExamClassLevel,
   AcademicYear,
-} from "@/types";
+} from "@/shared/types";
 
 const KIND_OPTIONS: { value: ExamKind; label: string; hint: string }[] = [
   { value: "term_exam", label: "Term Exam", hint: "Major exams (Half-Yearly, Annual)" },

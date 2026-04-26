@@ -23,7 +23,7 @@ import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { staggerContainer, fadeUp } from "@/lib/animations";
 import { cn } from "@/lib/utils";
-import type { SectionCard } from "@/types";
+import type { SectionCard } from "@/shared/types";
 
 const defaultActivities = [
   {

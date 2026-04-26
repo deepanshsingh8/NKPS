@@ -30,7 +30,7 @@ import { FileDropZone } from "@/components/shared/FileDropZone";
 import { ImageCropper } from "@/components/shared/ImageCropper";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import type { SiteMedia, SectionCard, SectionCardType } from "@/types";
+import type { SiteMedia, SectionCard, SectionCardType } from "@/shared/types";
 
 /* ─── Constants ─── */
 

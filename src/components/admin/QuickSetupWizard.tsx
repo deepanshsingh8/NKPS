@@ -29,7 +29,7 @@ import {
   getSubjectsForClass,
 } from "@/lib/cbse-curriculum";
 import type { CurriculumSubject } from "@/lib/cbse-curriculum";
-import type { Class, Subject } from "@/types";
+import type { Class, Subject } from "@/shared/types";
 
 interface AssignmentRow {
   id: string;

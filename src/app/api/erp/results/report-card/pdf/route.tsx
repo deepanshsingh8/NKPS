@@ -13,7 +13,7 @@ import {
   computeFinalResult,
   computeRanksForClass,
 } from "@/lib/final-result";
-import type { FinalResult } from "@/types";
+import type { FinalResult } from "@/shared/types";
 import type {
   MarksheetSnapshotV1,
   MarksheetSnapshotV2,

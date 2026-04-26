@@ -24,7 +24,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, Star, CalendarDays } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
-import type { AcademicYear } from "@/types";
+import type { AcademicYear } from "@/shared/types";
 
 export default function AdminAcademicYearsPage() {
   const [years, setYears] = useState<AcademicYear[]>([]);

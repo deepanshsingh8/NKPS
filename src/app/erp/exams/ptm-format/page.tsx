@@ -29,7 +29,7 @@ import {
   Star,
 } from "lucide-react";
 import { formatClassName } from "@/lib/utils";
-import type { Class, ExamType } from "@/types";
+import type { Class, ExamType } from "@/shared/types";
 
 interface PtmFormat {
   id: string;

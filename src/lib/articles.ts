@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Article } from "@/types";
+import type { Article } from "@/shared/types";
 
 export async function getLatestArticles(limit = 3): Promise<Article[]> {
   const supabase = createAdminClient();

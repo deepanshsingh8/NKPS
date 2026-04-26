@@ -24,7 +24,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import type { AttendanceStatus } from "@/types";
+import type { AttendanceStatus } from "@/shared/types";
 
 interface ChildOption {
   student_id: string;

@@ -25,7 +25,7 @@ import { adminFetch, adminDelete } from "@/lib/admin-api";
 import { uploadToStorage } from "@/lib/supabase/upload";
 import { FileDropZone } from "@/components/shared/FileDropZone";
 import { AcademicYearSelect } from "@/components/shared/AcademicYearSelect";
-import type { TransferCertificate, Student } from "@/types";
+import type { TransferCertificate, Student } from "@/shared/types";
 
 export default function AdminTransferCertificatesPage() {
   const [certificates, setCertificates] = useState<TransferCertificate[]>([]);

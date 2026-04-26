@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import { formatClassName } from "@/lib/utils";
-import type { Class, ExamType } from "@/types";
+import type { Class, ExamType } from "@/shared/types";
 import type { WhiteSheetData } from "@/lib/white-sheet";
 
 export default function AdminWhiteSheetPage() {

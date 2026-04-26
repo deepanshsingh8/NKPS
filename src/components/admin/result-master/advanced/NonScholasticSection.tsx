@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { ResultMasterNonScholasticPlacement } from "@/types";
+import type { ResultMasterNonScholasticPlacement } from "@/shared/types";
 
 export function NonScholasticSection({
   include,

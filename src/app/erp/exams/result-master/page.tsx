@@ -42,7 +42,7 @@ import type {
   Class,
   ResultMaster,
   ResultMasterSubject,
-} from "@/types";
+} from "@/shared/types";
 
 interface ClassOption extends Class {
   streams?: { name: string | null } | { name: string | null }[] | null;

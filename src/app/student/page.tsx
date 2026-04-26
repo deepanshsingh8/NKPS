@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UpcomingEvents } from "@/components/shared/UpcomingEvents";
-import type { Profile } from "@/types";
+import type { Profile } from "@/shared/types";
 
 interface StudentStats {
   attendancePercent: number | null;

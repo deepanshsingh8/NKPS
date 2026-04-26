@@ -32,7 +32,7 @@ import {
   Clock,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { Teacher } from "@/types";
+import type { Teacher } from "@/shared/types";
 import { SubstitutePickerDialog } from "@/components/admin/timetable/SubstitutePickerDialog";
 
 const HALF_DAY_OPTIONS = [

@@ -6,7 +6,7 @@ import { Quote, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import Image from "next/image";
-import type { SectionCard } from "@/types";
+import type { SectionCard } from "@/shared/types";
 
 const testimonials = [
   {

@@ -45,7 +45,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { adminFetch } from "@/lib/admin-api";
-import type { Profile, UserRole, RegistrationRequest, RegistrationStatus } from "@/types";
+import type { Profile, UserRole, RegistrationRequest, RegistrationStatus } from "@/shared/types";
 import { EditorPermissionsDialog } from "@/components/admin/EditorPermissionsDialog";
 
 const ROLES: UserRole[] = ["admin", "editor", "teacher", "student", "parent"];

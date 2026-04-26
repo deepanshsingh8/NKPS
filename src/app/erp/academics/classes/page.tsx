@@ -30,7 +30,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, Layers, ListOrdered } from "lucide-react";
 import { adminApi, adminFetch } from "@/lib/admin-api";
-import type { Class, AcademicYear, Teacher, Stream } from "@/types";
+import type { Class, AcademicYear, Teacher, Stream } from "@/shared/types";
 
 type RollSortKey = "name" | "admission_no" | "previous_rank";
 

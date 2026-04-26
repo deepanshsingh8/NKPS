@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { ResultMasterGraceCondition } from "@/types";
+import type { ResultMasterGraceCondition } from "@/shared/types";
 
 export function GraceSection({
   perSubjectMax,

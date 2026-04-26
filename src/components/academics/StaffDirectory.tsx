@@ -8,7 +8,7 @@ import { SectionHeading } from "@/components/shared/SectionHeading";
 import { STAFF } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { StaffMember } from "@/types";
+import type { StaffMember } from "@/shared/types";
 
 const PUBLIC_CATEGORIES = ["management", "pgt", "tgt", "prt", "motherTeachers", "admin"] as const;
 

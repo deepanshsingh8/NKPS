@@ -3,7 +3,7 @@ import type {
   DisclosureItem,
   DisclosureDocument,
   DisclosureBoardResult,
-} from "@/types";
+} from "@/shared/types";
 
 export async function getDisclosureItems(): Promise<DisclosureItem[]> {
   const supabase = createAdminClient();

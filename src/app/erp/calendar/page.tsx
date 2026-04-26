@@ -26,7 +26,7 @@ import { Plus, Trash2, Pencil, Loader2, CalendarDays } from "lucide-react";
 import { adminApi } from "@/lib/admin-api";
 import { formatClassName } from "@/lib/utils";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/lib/constants/calendar";
-import type { CalendarEvent, CalendarEventType } from "@/types";
+import type { CalendarEvent, CalendarEventType } from "@/shared/types";
 
 const EVENT_TYPES: CalendarEventType[] = [
   "exam",

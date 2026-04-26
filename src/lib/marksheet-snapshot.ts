@@ -18,7 +18,7 @@ import { getReportCardData } from "@/lib/report-card";
 import { getPdfTemplate } from "@/lib/pdf-templates";
 import type { PdfFooter } from "@/lib/pdf-templates";
 import { computeFinalResult, computeRanksForClass } from "@/lib/final-result";
-import type { FinalResult } from "@/types";
+import type { FinalResult } from "@/shared/types";
 
 export const MARKSHEET_SCHEMA_VERSION = "v1";
 

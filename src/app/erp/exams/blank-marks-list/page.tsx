@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Download, FileText } from "lucide-react";
 import { formatClassName } from "@/lib/utils";
-import type { Class, ExamType, Subject } from "@/types";
+import type { Class, ExamType, Subject } from "@/shared/types";
 
 export default function AdminBlankMarksListPage() {
   const [classes, setClasses] = useState<Class[]>([]);

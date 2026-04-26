@@ -7,7 +7,7 @@ import { Monitor, FlaskConical, Laptop, BookOpen, ArrowRight } from "lucide-reac
 import { FACILITIES } from "@/lib/constants";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { fadeUp, staggerContainer } from "@/lib/animations";
-import type { SectionCard } from "@/types";
+import type { SectionCard } from "@/shared/types";
 
 const defaultFacilityImages = [
   "/images/news/n1.jpg",
