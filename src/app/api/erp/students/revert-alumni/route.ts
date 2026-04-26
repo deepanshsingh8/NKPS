@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditorWithUser } from "@/lib/verify-admin";
+import { headers } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyAdmin } from "@/lib/verify-admin";
 import { z } from "zod";
 
 const revertAlumniSchema = z.object({
@@ -21,21 +23,25 @@ const revertAlumniSchema = z.object({
 // graduating a class then ungraduating individual rows is a high-blast-radius
 // operation that should sit with the principal.
 export async function POST(request: NextRequest) {
-  const auth = await verifyAdminOrEditorWithUser();
-  if (!auth) {
+  // Audit H5: switched from `verifyAdminOrEditorWithUser()` + manual role
+  // re-check to `verifyAdmin()` so the gate is unambiguous and a future
+  // refactor can't drop the explicit role check by accident.
+  const admin = await verifyAdmin();
+  if (!admin) {
+    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  }
+
+  // We still need the caller's user id for the audit log. Read it from the
+  // bearer token directly (verifyAdmin already validated it).
+  const headersList = await headers();
+  const accessToken = headersList.get("authorization")?.slice(7);
+  if (!accessToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { admin, user } = auth;
-
-  // Restrict to admins. verifyAdminOrEditorWithUser() with no featureKey lets
-  // both admins and any editor through, so re-confirm the role here.
-  const { data: callerProfile } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  if (callerProfile?.role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  const tokenAdmin = createAdminClient();
+  const { data: { user } } = await tokenAdmin.auth.getUser(accessToken);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = await request.json();
@@ -123,12 +129,19 @@ export async function POST(request: NextRequest) {
   // Audit trail. publish_events doubles as our central admin audit log
   // (migration 035 adds the `revert_alumni` event_type). The actor + reason
   // are the audit value here.
-  await admin.from("publish_events").insert({
+  // Audit L7: log if the audit insert itself fails (e.g. the deployment
+  // hasn't run migration 035 and the event_type is rejected). The route
+  // still returns success because the alumni flip already happened — the
+  // audit is best-effort, but at least the operator gets a server log.
+  const { error: auditErr } = await admin.from("publish_events").insert({
     event_type: "revert_alumni",
     student_id,
     actor_id: user.id,
     note: `Reverted alumni flag for ${student.full_name} (admission ${student.admission_no}, prev year ${student.alumni_passing_year ?? "—"}) · reason: ${reason}`,
   });
+  if (auditErr) {
+    console.error("[students.revert-alumni] audit insert:", auditErr);
+  }
 
   return NextResponse.json({
     success: true,

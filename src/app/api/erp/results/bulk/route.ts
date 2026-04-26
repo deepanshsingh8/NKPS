@@ -110,6 +110,78 @@ export async function POST(request: Request) {
     const scale = await resolveGradeScaleForClass(supabase, class_id);
     const bands = scale?.bands ?? [];
 
+    // Finalized-marksheet lock (audit C4):
+    // If any of the target students already has an active per-exam marksheet
+    // snapshot for THIS exam (or an active year-final for the class's year),
+    // their `results` row is the basis for an audit-frozen marksheet. Allow
+    // overwrite ONLY when the caller has the `publish_results` perm AND has
+    // explicitly asked to refinalize. Teachers can never silently overwrite a
+    // finalized marksheet.
+    const studentIds = entries.map((e) => e.student_id);
+    let allowFinalizedOverwrite = false;
+    if (profile.role === "admin") {
+      allowFinalizedOverwrite = true;
+    } else if (profile.role === "editor") {
+      const { data: pubPerm } = await supabase
+        .from("editor_permissions")
+        .select("feature_key")
+        .eq("editor_id", user.id)
+        .eq("feature_key", "publish_results")
+        .maybeSingle();
+      allowFinalizedOverwrite = !!pubPerm;
+    }
+    if (!allowFinalizedOverwrite) {
+      const { data: lockedPubs } = await supabase
+        .from("marksheet_publications")
+        .select("student_id")
+        .eq("class_id", class_id)
+        .eq("exam_type_id", exam_type_id)
+        .is("unpublished_at", null)
+        .in("student_id", studentIds);
+      const locked = new Set(
+        (lockedPubs ?? []).map((r) => r.student_id as string)
+      );
+      if (locked.size > 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Some students have a finalized marksheet for this exam. Unpublish it first or ask an admin with publish-results to overwrite.",
+            locked_student_count: locked.size,
+            locked_student_ids: Array.from(locked),
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Online-publish lock (audit H1):
+    // `is_published=true` on `results` means the row is currently visible to
+    // students/parents. Editors with the `results` perm but no
+    // `publish_results` shouldn't silently rewrite a published mark — that
+    // bypasses the surgical-unlock workflow. Same gate as the finalized
+    // check above; teachers can update their own subject's published rows
+    // (they're the source of truth) so we whitelist the teacher branch.
+    if (profile.role === "editor" && !allowFinalizedOverwrite) {
+      const { data: publishedRows } = await supabase
+        .from("results")
+        .select("student_id")
+        .eq("class_id", class_id)
+        .eq("subject_id", subject_id)
+        .eq("exam_type_id", exam_type_id)
+        .eq("is_published", true)
+        .in("student_id", studentIds);
+      if (publishedRows && publishedRows.length > 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Some entries are already published. Unpublish those rows first, or call this with publish-results permission.",
+            published_student_count: publishedRows.length,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     // Build records for upsert
     const records = entries.map((entry) => ({
       student_id: entry.student_id,

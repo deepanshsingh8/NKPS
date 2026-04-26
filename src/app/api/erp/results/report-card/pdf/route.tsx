@@ -76,6 +76,20 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    // Caller-role gate (audit H2): students/parents only see published marks
+    // through the live-compute path. The snapshot path (read further down)
+    // is unaffected because finalized snapshots are by definition published.
+    const { data: callerProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const callerRole = (callerProfile?.role as string | undefined) ?? "";
+    const callerIsStaff =
+      callerRole === "admin" ||
+      callerRole === "editor" ||
+      callerRole === "teacher";
+
     const generatedOn = new Date().toLocaleString("en-IN", {
       timeZone: "Asia/Kolkata",
       day: "2-digit",
@@ -343,6 +357,7 @@ export async function GET(request: Request) {
     const finalResult = await computeFinalResult(supabase, {
       student_id: studentId,
       academic_year_id: yearId,
+      includeUnpublished: callerIsStaff,
     });
 
     if (!finalResult) {

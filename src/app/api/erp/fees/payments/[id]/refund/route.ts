@@ -61,7 +61,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 
-  const { error: updateErr } = await admin
+  // Audit H6: optimistic-concurrency guard. The previous read-then-write
+  // sequence let two simultaneous refund POSTs both pass the
+  // `status !== "refunded"` precheck and both commit — the second silently
+  // overwrote the first's reason/amount/actor. The `.eq("status",
+  // existing.status)` clause makes the loser of the race affect zero rows.
+  const { data: updated, error: updateErr } = await admin
     .from("fee_payments")
     .update({
       status: "refunded",
@@ -70,10 +75,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
       refunded_at: new Date().toISOString(),
       refunded_by: user.id,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("status", existing.status)
+    .select("id");
   if (updateErr) {
     console.error("[fees.refund] update:", updateErr);
     return NextResponse.json({ error: "Failed to refund payment" }, { status: 500 });
+  }
+  if (!updated || updated.length === 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Payment was modified by another request. Refresh and try again.",
+      },
+      { status: 409 }
+    );
   }
 
   return NextResponse.json({ success: true, id });

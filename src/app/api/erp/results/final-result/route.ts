@@ -34,9 +34,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Privacy gate (audit H2): students/parents must only see published marks
+  // via the live-compute path. Resolve the caller's role and pass the
+  // includeUnpublished flag accordingly.
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  const callerRole = (callerProfile?.role as string | undefined) ?? "";
+  const isStaff =
+    callerRole === "admin" ||
+    callerRole === "editor" ||
+    callerRole === "teacher";
+
   const final = await computeFinalResult(supabase, {
     student_id: studentId,
     academic_year_id: academicYearId,
+    includeUnpublished: isStaff,
   });
   if (!final) {
     return NextResponse.json(
