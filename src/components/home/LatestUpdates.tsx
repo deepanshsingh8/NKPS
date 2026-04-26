@@ -107,6 +107,7 @@ export function LatestUpdates({ images, cards, articles }: LatestUpdatesProps = 
                     src={item.image}
                     alt={item.title}
                     fill
+                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
                     className="object-cover transition-transform duration-[800ms] ease-out group-hover:scale-[1.08]"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-navy-950/20 to-transparent group-hover:from-navy-950/30 transition-all duration-500" />

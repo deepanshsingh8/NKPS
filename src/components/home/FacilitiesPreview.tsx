@@ -79,6 +79,7 @@ export function FacilitiesPreview({ images, cards }: FacilitiesPreviewProps = {}
                     src={facility.image}
                     alt={`${facility.title} at NK Public School, Jaipur — CBSE school facility in Rajawas`}
                     fill
+                    sizes="(min-width: 1024px) 25vw, 50vw"
                     className="object-cover transition-transform duration-[800ms] ease-out group-hover:scale-[1.12]"
                   />
 
