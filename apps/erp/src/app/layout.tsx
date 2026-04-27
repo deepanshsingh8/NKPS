@@ -15,8 +15,11 @@ const playfair = Playfair_Display({
   display: "swap",
 });
 
+// Admin / portal layout — minimal wrapper. CMS and ERP pages each provide
+// their own sidebar layouts via /src/app/cms/layout.tsx and /src/app/erp/layout.tsx.
+// Public-site routes live in apps/website/.
 export const metadata: Metadata = {
-  title: "NKPS ERP",
+  title: "NKPS Admin",
 };
 
 export default function RootLayout({

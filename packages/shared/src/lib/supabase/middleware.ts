@@ -2,23 +2,37 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import {
   featureKeyForPath,
-  featureGroupForPath,
   isAdminOnlyPath,
 } from "@nkps/shared/lib/permissions";
 
-const LOGIN_PAGES = [
-  "/portal/login",
-  "/cms/login",
-  "/erp/login",
-];
+// updateSession is consumed by apps/erp's proxy.ts. The ERP app serves:
+//   /              admin dashboard
+//   /login         admin login
+//   /people, /exams, /fees, /timetable, /calendar, /attendance, /academics,
+//     /registrations  — admin/editor sub-areas
+//   /portal/*      portal login + password flows (any role)
+//   /teacher/*     teacher dashboard (teacher role only)
+//   /student/*     student dashboard (student role only)
+//   /parent/*      parent dashboard (parent role only)
+//   /auth/*        Supabase auth callbacks (no proxy needed)
+//
+// CMS lives at apps/cms with its own simple proxy. Website lives at
+// apps/website with no proxy.
 
-const PROTECTED_PREFIXES = ["/cms", "/erp", "/teacher", "/student", "/parent"];
+const LOGIN_PAGES = ["/login", "/portal/login"];
+
+const PORTAL_PUBLIC_PAGES = [
+  "/portal/login",
+  "/portal/register",
+  "/portal/forgot-password",
+  "/portal/reset-password",
+];
 
 function getDashboardPath(role: string): string {
   switch (role) {
     case "admin":
     case "editor":
-      return "/erp";
+      return "/";
     case "teacher":
       return "/teacher";
     case "student":
@@ -30,20 +44,34 @@ function getDashboardPath(role: string): string {
   }
 }
 
-function loginPageForPath(pathname: string): string {
-  if (pathname === "/cms" || pathname.startsWith("/cms/")) return "/cms/login";
-  if (pathname === "/erp" || pathname.startsWith("/erp/")) return "/erp/login";
-  return "/portal/login";
-}
-
-function isProtectedRoute(pathname: string): boolean {
-  // /student-life is a public page, not a protected ERP route
-  if (pathname.startsWith("/student-life")) return false;
-  return PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-}
-
 function isLoginPage(pathname: string): boolean {
   return LOGIN_PAGES.some((page) => pathname === page);
+}
+
+function isPortalPublic(pathname: string): boolean {
+  return PORTAL_PUBLIC_PAGES.some((page) => pathname === page);
+}
+
+// Inside apps/erp, every page route is "protected" except the explicit
+// login / portal-public / auth-callback paths.
+function isProtectedRoute(pathname: string): boolean {
+  if (isLoginPage(pathname)) return false;
+  if (isPortalPublic(pathname)) return false;
+  if (pathname.startsWith("/auth/")) return false;
+  return true;
+}
+
+// Admin-side pages are everything that isn't /portal, /teacher, /student,
+// /parent, /auth, or /login. Used to decide editor permission gating.
+function isAdminAreaPath(pathname: string): boolean {
+  return (
+    !pathname.startsWith("/portal") &&
+    !pathname.startsWith("/teacher") &&
+    !pathname.startsWith("/student") &&
+    !pathname.startsWith("/parent") &&
+    !pathname.startsWith("/auth") &&
+    pathname !== "/login"
+  );
 }
 
 export async function updateSession(request: NextRequest) {
@@ -76,21 +104,21 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // API routes: only refresh session, don't redirect
+  // API routes: refresh session only, no redirect (handlers do their own auth).
   if (pathname.startsWith("/api/")) {
     return supabaseResponse;
   }
 
-  // Unauthenticated users accessing protected routes → redirect to the login
-  // page for the module they're trying to enter (CMS or ERP).
-  if (!user && isProtectedRoute(pathname) && !isLoginPage(pathname)) {
+  // Unauthenticated → bounce to the right login page based on what they
+  // were trying to reach.
+  if (!user && isProtectedRoute(pathname)) {
     const url = request.nextUrl.clone();
-    url.pathname = loginPageForPath(pathname);
+    // Admin-area paths → /login; portal/teacher/student/parent → /portal/login.
+    url.pathname = isAdminAreaPath(pathname) ? "/login" : "/portal/login";
     return NextResponse.redirect(url);
   }
 
   if (user) {
-    // Fetch role and password-change flag from profiles
     const { data: profile } = await supabase
       .from("profiles")
       .select("role, must_change_password")
@@ -99,10 +127,10 @@ export async function updateSession(request: NextRequest) {
 
     const role = profile?.role ?? "student";
     const mustChangePassword = profile?.must_change_password ?? false;
-
     const dashboard = getDashboardPath(role);
 
-    // Force password change — redirect everywhere except change-password, reset-password, and settings
+    // Force password change — redirect everywhere except the change-password,
+    // reset-password, and settings pages themselves.
     if (
       mustChangePassword &&
       pathname !== "/portal/change-password" &&
@@ -114,45 +142,34 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // If password already changed, don't let them stay on the change-password page
+    // If password already changed, don't let users sit on the change-password page.
     if (!mustChangePassword && pathname === "/portal/change-password") {
       const url = request.nextUrl.clone();
       url.pathname = dashboard;
       return NextResponse.redirect(url);
     }
 
-    // Redirect logged-in users away from login pages to their dashboard
+    // Logged-in user on a login page → bounce to their dashboard.
     if (isLoginPage(pathname)) {
-      const url = request.nextUrl.clone();
-      // CMS login lands admin/editor on /cms; everyone else on their role
-      // dashboard. ERP login behaves the same as the generic dashboard map.
-      if (pathname === "/cms/login" && (role === "admin" || role === "editor")) {
-        url.pathname = "/cms";
-      } else {
-        url.pathname = dashboard;
-      }
-      return NextResponse.redirect(url);
-    }
-
-    // Module-level role gate. Only admin/editor may enter /cms or /erp admin
-    // surfaces. Other roles get bounced to their own dashboard.
-    const moduleGroup = featureGroupForPath(pathname);
-    if (moduleGroup && role !== "admin" && role !== "editor") {
       const url = request.nextUrl.clone();
       url.pathname = dashboard;
       return NextResponse.redirect(url);
     }
 
-    // Editor feature-level access control.
-    // Admins skip this entirely. Editors are blocked from admin-only routes
-    // and from features they have not been granted.
-    if (moduleGroup && role === "editor") {
+    // Admin-area role gate. Only admin/editor may enter / and admin sub-areas.
+    if (isAdminAreaPath(pathname) && role !== "admin" && role !== "editor") {
+      const url = request.nextUrl.clone();
+      url.pathname = dashboard;
+      return NextResponse.redirect(url);
+    }
+
+    // Editor feature-level access control on the admin area.
+    if (isAdminAreaPath(pathname) && role === "editor") {
       if (isAdminOnlyPath(pathname)) {
         const url = request.nextUrl.clone();
-        url.pathname = `/${moduleGroup}`;
+        url.pathname = "/";
         return NextResponse.redirect(url);
       }
-
       const featureKey = featureKeyForPath(pathname);
       if (featureKey) {
         const { data: perm } = await supabase
@@ -161,27 +178,25 @@ export async function updateSession(request: NextRequest) {
           .eq("editor_id", user.id)
           .eq("feature_key", featureKey)
           .maybeSingle();
-
         if (!perm) {
           const url = request.nextUrl.clone();
-          url.pathname = `/${moduleGroup}`;
+          url.pathname = "/";
           return NextResponse.redirect(url);
         }
       }
     }
 
+    // Role-specific portal gates.
     if (pathname.startsWith("/teacher") && role !== "teacher") {
       const url = request.nextUrl.clone();
       url.pathname = dashboard;
       return NextResponse.redirect(url);
     }
-
-    if (pathname.startsWith("/student") && !pathname.startsWith("/student-life") && role !== "student") {
+    if (pathname.startsWith("/student") && role !== "student") {
       const url = request.nextUrl.clone();
       url.pathname = dashboard;
       return NextResponse.redirect(url);
     }
-
     if (pathname.startsWith("/parent") && role !== "parent") {
       const url = request.nextUrl.clone();
       url.pathname = dashboard;

@@ -20,7 +20,7 @@ export function useUnreadCount() {
           // Cross-app 404s fail silently (CmsSidebar doesn't use the
           // pendingRegistration value; ErpSidebar doesn't use unreadCount).
           adminFetch("/api/contact/unread-count"),
-          adminFetch("/api/erp/registrations/pending-count"),
+          adminFetch("/api/registrations/pending-count"),
         ]);
 
         if (mounted) {

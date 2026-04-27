@@ -367,7 +367,7 @@ export function DashboardAnalytics() {
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
-        const res = await adminFetch("/api/erp/dashboard/analytics");
+        const res = await adminFetch("/api/dashboard/analytics");
         if (res.ok) {
           const json = await res.json();
           setData(json);

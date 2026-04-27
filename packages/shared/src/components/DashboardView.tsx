@@ -83,7 +83,7 @@ const erpStatCards = [
     iconBg: "bg-violet-100 dark:bg-violet-900/30",
     iconColor: "text-violet-600",
     accent: "from-violet-500/10 to-transparent",
-    href: "/erp/people/users",
+    href: "/people/users",
   },
   {
     key: "totalStudents" as const,
@@ -92,7 +92,7 @@ const erpStatCards = [
     iconBg: "bg-blue-100 dark:bg-blue-900/30",
     iconColor: "text-blue-600",
     accent: "from-blue-500/10 to-transparent",
-    href: "/erp/people/students",
+    href: "/people/students",
   },
   {
     key: "totalStaff" as const,
@@ -101,7 +101,7 @@ const erpStatCards = [
     iconBg: "bg-emerald-100 dark:bg-emerald-900/30",
     iconColor: "text-emerald-600",
     accent: "from-emerald-500/10 to-transparent",
-    href: "/erp/people/staff",
+    href: "/people/staff",
   },
   {
     key: "pendingRegistrations" as const,
@@ -110,7 +110,7 @@ const erpStatCards = [
     iconBg: "bg-orange-100 dark:bg-orange-900/30",
     iconColor: "text-orange-600",
     accent: "from-orange-500/10 to-transparent",
-    href: "/erp/registrations",
+    href: "/registrations",
   },
 ];
 
@@ -202,11 +202,9 @@ export function DashboardView({ scope }: { scope: Scope }) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // CMS app exposes /api/dashboard at its root (post-3.5b).
-        // ERP still lives in root project; its endpoint is /api/erp/dashboard
-        // until 3.5c extracts it. After 3.5c, this collapses to "/api/dashboard".
-        const dashUrl = scope === "cms" ? "/api/dashboard" : "/api/erp/dashboard";
-        const res = await adminFetch(dashUrl);
+        // Each app exposes /api/dashboard at its root (returns module-specific
+        // counts). Scope still determines which stat cards render below.
+        const res = await adminFetch("/api/dashboard");
         const data = await res.json();
         if (res.ok) {
           setStats(data.stats);
@@ -263,7 +261,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
 
   const showAnalytics = scope === "erp";
   const showEvents = scope === "erp";
-  const eventsHref = "/erp/calendar";
+  const eventsHref = "/calendar";
   const moduleLabel = scope === "cms" ? "Content" : "School operations";
 
   return (
