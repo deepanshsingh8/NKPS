@@ -202,7 +202,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await adminFetch("/api/admin/dashboard");
+        const res = await adminFetch(`/api/${scope}/dashboard`);
         const data = await res.json();
         if (res.ok) {
           setStats(data.stats);

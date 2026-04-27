@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAdmin } from "@nkps/shared/lib/verify-admin";
 import { isFeatureKey, type FeatureKey } from "@nkps/shared/lib/permissions";
 
-// GET /api/admin/editor-permissions?editor_id=<uuid>
+// GET /api/erp/editor-permissions?editor_id=<uuid>
 // Returns the list of feature_keys currently granted to that editor.
 export async function GET(request: NextRequest) {
   const admin = await verifyAdmin();
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-// PUT /api/admin/editor-permissions
+// PUT /api/erp/editor-permissions
 // Body: { editor_id: string, feature_keys: FeatureKey[] }
 // Atomically replaces that editor's permissions with the given set.
 export async function PUT(request: NextRequest) {

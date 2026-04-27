@@ -103,6 +103,16 @@ const nextConfig: NextConfig = {
       { source: "/api/admin/disclosure-documents/:path*", destination: "/api/cms/disclosure-documents/:path*", permanent: true },
       { source: "/api/admin/upload-url", destination: "/api/cms/upload-url", permanent: true },
       { source: "/api/admin/upload-url/:path*", destination: "/api/cms/upload-url/:path*", permanent: true },
+
+      // Phase 3.3: cross-cutting admin APIs split into module-specific halves.
+      { source: "/api/admin/contact", destination: "/api/cms/contact", permanent: true },
+      { source: "/api/admin/contact/:path*", destination: "/api/cms/contact/:path*", permanent: true },
+      { source: "/api/admin/dashboard/analytics", destination: "/api/erp/dashboard/analytics", permanent: true },
+      // /api/admin/dashboard split → no single redirect target (callers must
+      // pick /api/cms/dashboard or /api/erp/dashboard). Old clients hit /api/admin/dashboard
+      // and get a 404; that's the intended signal that they need to be updated.
+      { source: "/api/admin/editor-permissions", destination: "/api/erp/editor-permissions", permanent: true },
+      { source: "/api/admin/editor-permissions/:path*", destination: "/api/erp/editor-permissions/:path*", permanent: true },
     ];
   },
   async headers() {
