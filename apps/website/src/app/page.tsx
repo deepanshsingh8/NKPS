@@ -1,3 +1,111 @@
-export default function Home() {
-  return <main>Website skeleton (Phase 3.4a)</main>;
+import type { Metadata } from "next";
+import { HeroSlider } from "@/components/home/HeroSlider";
+import { QuickLinks } from "@/components/home/QuickLinks";
+import { FacilitiesPreview } from "@/components/home/FacilitiesPreview";
+import { StatsCounter } from "@/components/home/StatsCounter";
+import { LatestUpdates } from "@/components/home/LatestUpdates";
+import { Testimonials } from "@/components/home/Testimonials";
+import { SchoolEvents } from "@/components/home/SchoolEvents";
+import { SectionDivider } from "@nkps/shared/components/SectionDivider";
+import { MarqueeStrip } from "@nkps/shared/components/MarqueeStrip";
+import { PageTransition } from "@nkps/shared/components/PageTransition";
+import { getPageMedia, mediaUrl, getSectionCards } from "@/lib/site-media";
+import { getLatestArticles } from "@nkps/shared/lib/articles";
+import { buildMetadata } from "@nkps/shared/lib/seo";
+
+export const metadata: Metadata = buildMetadata({
+  title: "Best CBSE School in Jaipur — NK Public School Since 1985",
+  description:
+    "NK Public School, Rajawas — CBSE affiliated co-ed school in Jaipur offering Nursery to Class XII. 40+ years of holistic education, 20,000+ students, 300+ faculty on Grand Sikar Road.",
+  path: "/",
+});
+
+// ISR: revalidate every 60s, plus on-demand via revalidatePath from admin
+export const revalidate = 60;
+
+export default async function HomePage() {
+  const [media, heroCards, testimonialCards, updateCards, facilityCards, latestArticles] = await Promise.all([
+    getPageMedia("home"),
+    getSectionCards("hero_slider"),
+    getSectionCards("testimonials"),
+    getSectionCards("latest_updates"),
+    getSectionCards("facilities_preview"),
+    getLatestArticles(3),
+  ]);
+
+  const heroImages = [
+    mediaUrl(media, "hero_slide_1", "/images/hero/campus-1.jpg"),
+    mediaUrl(media, "hero_slide_2", "/images/hero/campus-2.avif"),
+    mediaUrl(media, "hero_slide_3", "/images/news/n5.jpg"),
+  ];
+
+  const facilityImages = [
+    mediaUrl(media, "facilities_preview_1", "/images/news/n1.jpg"),
+    mediaUrl(media, "facilities_preview_2", "/images/news/n2.jpg"),
+    mediaUrl(media, "facilities_preview_3", "/images/news/n4.jpg"),
+    mediaUrl(media, "facilities_preview_4", "/images/news/n6.jpg"),
+  ];
+
+  const statsBackground = mediaUrl(media, "stats_background", "/images/gallery/g10.jpg");
+
+  const updateImages = [
+    mediaUrl(media, "latest_update_1", "/images/news/n2.jpg"),
+    mediaUrl(media, "latest_update_2", "/images/news/n4.jpg"),
+    mediaUrl(media, "latest_update_3", "/images/news/n6.jpg"),
+  ];
+
+  return (
+    <PageTransition>
+      <HeroSlider images={heroImages} cards={heroCards} />
+
+      <MarqueeStrip
+        className="bg-navy-900 text-white/70 py-3"
+        items={[
+          "CBSE Affiliated",
+          "Established 1985",
+          "20000+ Students",
+          "Holistic Education",
+          "Sports Excellence",
+          "Smart Classrooms",
+          "Digital Learning",
+          "Character Building",
+        ]}
+      />
+
+      <section className="bg-cream-50/60 py-12 md:py-16 px-6">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="font-heading text-3xl md:text-4xl font-bold text-navy-900">
+            Best CBSE School in Jaipur — Since 1985
+          </h2>
+          <div className="mx-auto mt-4 h-1 w-16 rounded-full bg-gold-500" />
+          <p className="mt-6 text-base md:text-lg leading-relaxed text-gray-700">
+            NK Public School (NKPS), located on Grand Sikar Road in Rajawas, is a
+            CBSE-affiliated co-educational institution in North Jaipur. For over
+            40 years we have served more than 20,000 students from Nursery to
+            Class XII, combining rigorous academics with sports, arts and
+            character education. Our campus on the outskirts of Jaipur offers
+            smart classrooms, modern science and computer labs, a 10,000-volume
+            library, expansive sports grounds, an auditorium, and safe bus
+            transport across the city — everything a modern CBSE school in
+            Jaipur should be, backed by four decades of legacy.
+          </p>
+          <p className="mt-4 text-sm text-gray-500">
+            CBSE Affiliation No. 1730406 · Grand Sikar Road, Rajawas, Jaipur 302013
+          </p>
+        </div>
+      </section>
+
+      <QuickLinks />
+
+      <FacilitiesPreview images={facilityImages} cards={facilityCards} />
+
+      <StatsCounter backgroundImage={statsBackground} />
+
+      <LatestUpdates images={updateImages} cards={updateCards} articles={latestArticles} />
+
+      <SchoolEvents />
+
+      <Testimonials cards={testimonialCards} />
+    </PageTransition>
+  );
 }

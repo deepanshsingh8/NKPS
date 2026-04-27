@@ -2,13 +2,15 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-// Module ownership rules: each module can import from itself + @nkps/shared,
-// but never from a peer module. Enforces the website/cms/erp/shared split
-// so the codebase can be productized as standalone deployments.
+// Module-boundary rules. After Phase 3.4+, the modules live in:
+//   apps/website   — public marketing site
+//   apps/cms       — content management (Phase 3.5)
+//   apps/erp       — school operations (Phase 3.5)
+//   packages/shared — code consumed by all of the above
+//   src/cms, src/erp — legacy locations until Phase 3.5 extracts them
 //
-// `src/app/` is the consumer layer (glue) and is NOT restricted — Next.js
-// route handlers can import from any module. Cross-cutting admin endpoints
-// (e.g. /api/admin/dashboard) live here and need to span both modules.
+// Each module imports from itself + @nkps/shared only. ESLint catches
+// peer-module imports so the productization story stays clean.
 const moduleBoundaryRule = (forbidden) => ({
   "no-restricted-imports": [
     "error",
@@ -25,30 +27,21 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   globalIgnores([
-    ".next/**",
-    "out/**",
-    "build/**",
+    "**/.next/**",
+    "**/out/**",
+    "**/build/**",
+    "**/node_modules/**",
     "next-env.d.ts",
   ]),
-  // src/website/ — only website + shared
-  {
-    files: ["src/website/**/*.{ts,tsx,js,jsx}"],
-    rules: moduleBoundaryRule(["cms", "erp"]),
-  },
-  // src/cms/ — only cms + shared
+  // src/cms/ — only cms + shared (legacy location until 3.5)
   {
     files: ["src/cms/**/*.{ts,tsx,js,jsx}"],
     rules: moduleBoundaryRule(["website", "erp"]),
   },
-  // src/erp/ — only erp + shared
+  // src/erp/ — only erp + shared (legacy location until 3.5)
   {
     files: ["src/erp/**/*.{ts,tsx,js,jsx}"],
     rules: moduleBoundaryRule(["website", "cms"]),
-  },
-  // src/shared/ — only shared (cannot reach into any module)
-  {
-    files: ["src/shared/**/*.{ts,tsx,js,jsx}"],
-    rules: moduleBoundaryRule(["website", "cms", "erp"]),
   },
 ]);
 
