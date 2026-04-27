@@ -1,24 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -26,11 +26,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
+} from "@nkps/shared/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, Layers, ListOrdered } from "lucide-react";
-import { adminApi, adminFetch } from "@/shared/lib/admin-api";
-import type { Class, AcademicYear, Teacher, Stream } from "@/shared/types";
+import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
+import type { Class, AcademicYear, Teacher, Stream } from "@nkps/shared/types";
 
 type RollSortKey = "name" | "admission_no" | "previous_rank";
 

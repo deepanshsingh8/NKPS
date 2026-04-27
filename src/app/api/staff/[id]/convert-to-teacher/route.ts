@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import { promoteStaffToTeacher } from "@/erp/lib/staff-teacher-sync";
 
 interface RouteContext {

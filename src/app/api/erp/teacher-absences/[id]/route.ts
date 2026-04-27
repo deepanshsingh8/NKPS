@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 
 const halfDayValues = ["full", "first_half", "second_half"] as const;
 

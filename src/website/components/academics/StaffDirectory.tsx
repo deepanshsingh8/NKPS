@@ -4,11 +4,11 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Users, Loader2 } from "lucide-react";
-import { SectionHeading } from "@/shared/components/SectionHeading";
-import { STAFF } from "@/shared/lib/constants";
-import { createClient } from "@/shared/lib/supabase/client";
-import { cn } from "@/shared/lib/utils";
-import type { StaffMember } from "@/shared/types";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import { STAFF } from "@nkps/shared/lib/constants";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { cn } from "@nkps/shared/lib/utils";
+import type { StaffMember } from "@nkps/shared/types";
 
 const PUBLIC_CATEGORIES = ["management", "pgt", "tgt", "prt", "motherTeachers", "admin"] as const;
 

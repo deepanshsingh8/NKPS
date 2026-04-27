@@ -2,18 +2,18 @@ import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
-import { createClient } from "@/shared/lib/supabase/server";
-import { createAdminClient } from "@/shared/lib/supabase/admin";
+import { createClient } from "@nkps/shared/lib/supabase/server";
+import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { canViewReportCard, getReportCardData } from "@/erp/lib/report-card";
 import type { ReportCardExamGroup } from "@/erp/lib/report-card";
 import { ReportCardPDF } from "@/erp/components/pdf/ReportCardPDF";
 import { getPdfTemplate } from "@/erp/lib/pdf-templates";
-import { contentDispositionAttachment } from "@/shared/lib/utils";
+import { contentDispositionAttachment } from "@nkps/shared/lib/utils";
 import {
   computeFinalResult,
   computeRanksForClass,
 } from "@/erp/lib/final-result";
-import type { FinalResult } from "@/shared/types";
+import type { FinalResult } from "@nkps/shared/types";
 import type {
   MarksheetSnapshotV1,
   MarksheetSnapshotV2,

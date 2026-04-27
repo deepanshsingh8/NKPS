@@ -2,10 +2,10 @@
 
 import { motion } from "framer-motion";
 import { Award, BookOpen, Monitor, Trophy } from "lucide-react";
-import { SectionHeading } from "@/shared/components/SectionHeading";
-import { GlassCard } from "@/shared/components/GlassCard";
-import { staggerContainer, fadeUp } from "@/shared/lib/animations";
-import type { SectionCard } from "@/shared/types";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import { GlassCard } from "@nkps/shared/components/GlassCard";
+import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
+import type { SectionCard } from "@nkps/shared/types";
 
 const features = [
   {

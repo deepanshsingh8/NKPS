@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
-import { rateLimit } from "@/shared/lib/rate-limit";
+import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
+import { rateLimit } from "@nkps/shared/lib/rate-limit";
 
 const CLASS_ORDER = [
   "Nursery", "LKG", "UKG",

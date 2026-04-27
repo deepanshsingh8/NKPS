@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { createAdminClient } from "@/shared/lib/supabase/admin";
-import { verifyAdmin } from "@/shared/lib/verify-admin";
+import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
+import { verifyAdmin } from "@nkps/shared/lib/verify-admin";
 import { z } from "zod";
 
 const revertAlumniSchema = z.object({

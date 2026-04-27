@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/shared/lib/supabase/admin";
-import { createClient } from "@/shared/lib/supabase/server";
-import { sendEmail, buildRegistrationRejectedEmail } from "@/shared/lib/email";
+import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
+import { createClient } from "@nkps/shared/lib/supabase/server";
+import { sendEmail, buildRegistrationRejectedEmail } from "@nkps/shared/lib/email";
 
 export async function POST(request: Request) {
   try {

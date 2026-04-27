@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { adminFetch, adminDelete } from "@/shared/lib/admin-api";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { adminFetch, adminDelete } from "@nkps/shared/lib/admin-api";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Loader2,
   Plus,
@@ -32,7 +32,7 @@ import {
   Clock,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { Teacher } from "@/shared/types";
+import type { Teacher } from "@nkps/shared/types";
 import { SubstitutePickerDialog } from "@/erp/components/timetable/SubstitutePickerDialog";
 
 const HALF_DAY_OPTIONS = [

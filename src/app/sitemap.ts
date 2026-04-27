@@ -1,6 +1,6 @@
 import { MetadataRoute } from "next";
-import { getPublishedArticles } from "@/shared/lib/articles";
-import { SITE_URL } from "@/shared/lib/seo";
+import { getPublishedArticles } from "@nkps/shared/lib/articles";
+import { SITE_URL } from "@nkps/shared/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();

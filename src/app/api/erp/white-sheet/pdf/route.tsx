@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
-import { createClient } from "@/shared/lib/supabase/server";
+import { createClient } from "@nkps/shared/lib/supabase/server";
 import { getPdfTemplate } from "@/erp/lib/pdf-templates";
 import { WhiteSheetPDF } from "@/erp/components/pdf/WhiteSheetPDF";
 import { buildWhiteSheetData } from "@/erp/lib/white-sheet";
-import { contentDispositionAttachment } from "@/shared/lib/utils";
+import { contentDispositionAttachment } from "@nkps/shared/lib/utils";
 
 export const runtime = "nodejs";
 

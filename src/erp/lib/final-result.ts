@@ -18,7 +18,7 @@ import type {
   ResultMasterPassMarkMode,
   ResultMasterRoundingMode,
   ResultMasterSubjectRole,
-} from "@/shared/types";
+} from "@nkps/shared/types";
 
 export const SUPPORTED_PASS_CRITERIA_TYPES = [
   "all_main_subjects",

@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { createClient } from "@/shared/lib/supabase/client";
+import { createClient } from "@nkps/shared/lib/supabase/client";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
-import { Badge } from "@/shared/components/ui/badge";
-import { Button } from "@/shared/components/ui/button";
+} from "@nkps/shared/components/ui/card";
+import { Badge } from "@nkps/shared/components/ui/badge";
+import { Button } from "@nkps/shared/components/ui/button";
 import {
   Table,
   TableBody,
@@ -18,11 +18,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
+} from "@nkps/shared/components/ui/table";
 import { CreditCard, CheckCircle, AlertCircle, Loader2, Users, Wallet, Download } from "lucide-react";
 import { toast } from "sonner";
 import { resolveEffectiveFeeStructures, sumAnnualized } from "@/erp/lib/fees";
-import type { FeeStructure, FeePayment } from "@/shared/types";
+import type { FeeStructure, FeePayment } from "@nkps/shared/types";
 
 interface ChildOption {
   student_id: string;

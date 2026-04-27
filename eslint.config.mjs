@@ -2,7 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-// Module ownership rules: each module can import from itself + shared,
+// Module ownership rules: each module can import from itself + @nkps/shared,
 // but never from a peer module. Enforces the website/cms/erp/shared split
 // so the codebase can be productized as standalone deployments.
 //
@@ -15,7 +15,7 @@ const moduleBoundaryRule = (forbidden) => ({
     {
       patterns: forbidden.map((m) => ({
         group: [`@/${m}/*`],
-        message: `Cross-module import of @/${m}/* is forbidden here. If the code is genuinely shared, move it to @/shared/.`,
+        message: `Cross-module import of @/${m}/* is forbidden here. If the code is genuinely shared, move it to @nkps/shared.`,
       })),
     },
   ],

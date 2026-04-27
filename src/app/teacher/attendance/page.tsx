@@ -1,24 +1,24 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { useUrlState } from "@/shared/lib/hooks/use-url-state";
-import { Button } from "@/shared/components/ui/button";
-import { Badge } from "@/shared/components/ui/badge";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
-import { Input } from "@/shared/components/ui/input";
+} from "@nkps/shared/components/ui/card";
+import { Input } from "@nkps/shared/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -26,7 +26,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
+} from "@nkps/shared/components/ui/table";
 import { toast } from "sonner";
 import {
   ClipboardCheck,
@@ -34,8 +34,8 @@ import {
   CheckCircle2,
   Users,
 } from "lucide-react";
-import { formatClassName } from "@/shared/lib/utils";
-import type { AttendanceStatus } from "@/shared/types";
+import { formatClassName } from "@nkps/shared/lib/utils";
+import type { AttendanceStatus } from "@nkps/shared/types";
 
 interface ClassOption {
   id: string;

@@ -5,9 +5,9 @@ import { AnimatePresence, motion, useTransform } from "framer-motion";
 import { ArrowRight, Users, CalendarDays, GraduationCap, Building2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { cn } from "@/shared/lib/utils";
-import { useMouseMotion } from "@/shared/hooks/useMousePosition";
-import type { SectionCard } from "@/shared/types";
+import { cn } from "@nkps/shared/lib/utils";
+import { useMouseMotion } from "@nkps/shared/hooks/useMousePosition";
+import type { SectionCard } from "@nkps/shared/types";
 
 /* ─── Slide data ─── */
 const defaultSlides = [

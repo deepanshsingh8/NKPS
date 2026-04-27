@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
-import { enrollmentStatusSchema } from "@/shared/lib/validations";
+import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
+import { enrollmentStatusSchema } from "@nkps/shared/lib/validations";
 import { z } from "zod";
 
 const bulkStatusSchema = z.object({

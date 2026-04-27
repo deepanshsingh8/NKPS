@@ -2,19 +2,19 @@
 
 import { useEffect, useState, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { createClient } from "@/shared/lib/supabase/client";
-import { useUrlState } from "@/shared/lib/hooks/use-url-state";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import { Badge } from "@/shared/components/ui/badge";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Dialog,
   DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -22,21 +22,21 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
+} from "@nkps/shared/components/ui/table";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@/shared/components/ui/tabs";
-import { Card, CardContent } from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/tabs";
+import { Card, CardContent } from "@nkps/shared/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, Bus, FileSpreadsheet } from "lucide-react";
-import { adminApi, adminFetch } from "@/shared/lib/admin-api";
+import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import { downloadCSV } from "@/erp/lib/csv-export";
-import { formatClassName } from "@/shared/lib/utils";
+import { formatClassName } from "@nkps/shared/lib/utils";
 import { resolveEffectiveFeeStructures, FEE_FREQ_MULTIPLIER } from "@/erp/lib/fees";
-import type { FeeStructure, FeePayment, Student, Stream } from "@/shared/types";
+import type { FeeStructure, FeePayment, Student, Stream } from "@nkps/shared/types";
 
 const CLASS_NAMES = [
   "Nursery",

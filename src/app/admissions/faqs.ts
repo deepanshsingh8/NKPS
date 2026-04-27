@@ -1,4 +1,4 @@
-import { SCHOOL } from "@/shared/lib/constants";
+import { SCHOOL } from "@nkps/shared/lib/constants";
 
 export const ADMISSIONS_FAQS = [
   {

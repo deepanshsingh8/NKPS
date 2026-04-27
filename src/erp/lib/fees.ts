@@ -1,4 +1,4 @@
-import type { FeeStructure } from "@/shared/types";
+import type { FeeStructure } from "@nkps/shared/types";
 
 export const FEE_FREQ_MULTIPLIER: Record<string, number> = {
   monthly: 12,

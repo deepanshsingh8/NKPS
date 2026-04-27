@@ -16,21 +16,21 @@ import {
   EyeOff,
   FileText,
 } from "lucide-react";
-import { adminFetch, adminDelete, adminPatch } from "@/shared/lib/admin-api";
-import { uploadToStorage } from "@/shared/lib/supabase/upload";
-import { slugify } from "@/shared/lib/articles";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import { Badge } from "@/shared/components/ui/badge";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+import { adminFetch, adminDelete, adminPatch } from "@nkps/shared/lib/admin-api";
+import { uploadToStorage } from "@nkps/shared/lib/supabase/upload";
+import { slugify } from "@nkps/shared/lib/articles";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Badge } from "@nkps/shared/components/ui/badge";
+import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -38,12 +38,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/shared/components/ui/tabs";
-import { FileDropZone } from "@/shared/components/FileDropZone";
-import { ImageCropper } from "@/shared/components/ImageCropper";
+} from "@nkps/shared/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@nkps/shared/components/ui/tabs";
+import { FileDropZone } from "@nkps/shared/components/FileDropZone";
+import { ImageCropper } from "@nkps/shared/components/ImageCropper";
 import { toast } from "sonner";
-import type { Article } from "@/shared/types";
+import type { Article } from "@nkps/shared/types";
 
 interface ArticleForm {
   title: string;

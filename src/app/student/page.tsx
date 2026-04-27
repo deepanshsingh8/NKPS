@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
+import { createClient } from "@nkps/shared/lib/supabase/client";
 import Link from "next/link";
-import { Badge } from "@/shared/components/ui/badge";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   ClipboardCheck,
   BarChart3,
@@ -12,9 +12,9 @@ import {
   ArrowRight,
   Clock,
 } from "lucide-react";
-import { cn } from "@/shared/lib/utils";
-import { UpcomingEvents } from "@/shared/components/UpcomingEvents";
-import type { Profile } from "@/shared/types";
+import { cn } from "@nkps/shared/lib/utils";
+import { UpcomingEvents } from "@nkps/shared/components/UpcomingEvents";
+import type { Profile } from "@nkps/shared/types";
 
 interface StudentStats {
   attendancePercent: number | null;

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { rateLimit, clientIp } from "@/shared/lib/rate-limit";
-import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { rateLimit, clientIp } from "@nkps/shared/lib/rate-limit";
+import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 
 // Bucket name is constant — defined here once so the path-extraction logic
 // below stays in sync with the upload routes.

@@ -13,7 +13,7 @@ import {
 import {
   SidebarShell,
   type SidebarItem,
-} from "@/shared/components/SidebarShell";
+} from "@nkps/shared/components/SidebarShell";
 
 const cmsItems: SidebarItem[] = [
   { kind: "link", icon: LayoutDashboard, label: "Dashboard", href: "/cms" },

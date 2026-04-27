@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { adminFetch } from "@/shared/lib/admin-api";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+import { adminFetch } from "@nkps/shared/lib/admin-api";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -12,14 +12,14 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 

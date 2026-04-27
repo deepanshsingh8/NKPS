@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
-import { HALF_DAY_CUTOFF_PERIOD } from "@/shared/lib/constants";
+import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
+import { HALF_DAY_CUTOFF_PERIOD } from "@nkps/shared/lib/constants";
 
 const halfDayValues = ["full", "first_half", "second_half"] as const;
 

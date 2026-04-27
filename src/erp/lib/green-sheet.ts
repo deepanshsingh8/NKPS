@@ -11,7 +11,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { computeFinalResult, computeRanksForClass } from "@/erp/lib/final-result";
-import type { FinalResult } from "@/shared/types";
+import type { FinalResult } from "@nkps/shared/types";
 
 export interface GreenSheetExam {
   exam_type_id: string;

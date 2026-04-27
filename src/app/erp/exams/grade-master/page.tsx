@@ -1,19 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { adminFetch, adminPatch, adminDelete } from "@/shared/lib/admin-api";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import { Badge } from "@/shared/components/ui/badge";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { adminFetch, adminPatch, adminDelete } from "@nkps/shared/lib/admin-api";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Badge } from "@nkps/shared/components/ui/badge";
+import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -21,15 +21,15 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
+} from "@nkps/shared/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@nkps/shared/components/ui/tabs";
 import {
   Plus,
   Trash2,
@@ -39,8 +39,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatClassName } from "@/shared/lib/utils";
-import type { Class } from "@/shared/types";
+import { formatClassName } from "@nkps/shared/lib/utils";
+import type { Class } from "@nkps/shared/types";
 
 type Scope = "scholastic" | "non_scholastic";
 

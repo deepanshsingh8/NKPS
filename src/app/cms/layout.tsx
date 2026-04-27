@@ -1,8 +1,8 @@
 "use client";
 
 import { CmsSidebar } from "@/cms/components/CmsSidebar";
-import { SidebarProvider, useSidebar } from "@/shared/components/providers/SidebarProvider";
-import { cn } from "@/shared/lib/utils";
+import { SidebarProvider, useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
+import { cn } from "@nkps/shared/lib/utils";
 
 function CmsLayoutInner({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();

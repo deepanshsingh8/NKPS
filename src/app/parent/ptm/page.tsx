@@ -1,21 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
+import { createClient } from "@nkps/shared/lib/supabase/client";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
-import { Badge } from "@/shared/components/ui/badge";
+} from "@nkps/shared/components/ui/select";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Loader2,
   MessageSquare,

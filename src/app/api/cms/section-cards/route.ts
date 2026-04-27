@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import {
   sectionCardCreateSchema,
   sectionCardUpdateSchema,
-} from "@/shared/lib/validations";
+} from "@nkps/shared/lib/validations";
 
 export async function GET(request: NextRequest) {
   const admin = await verifyAdminOrEditor("site_media");

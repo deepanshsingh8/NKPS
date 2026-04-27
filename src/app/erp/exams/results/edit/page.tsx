@@ -2,25 +2,25 @@
 
 import { Suspense, useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
-import { adminFetch, adminPatch } from "@/shared/lib/admin-api";
-import { useUrlState } from "@/shared/lib/hooks/use-url-state";
-import { createClient } from "@/shared/lib/supabase/client";
+import { adminFetch, adminPatch } from "@nkps/shared/lib/admin-api";
+import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
+import { createClient } from "@nkps/shared/lib/supabase/client";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
-import { Input } from "@/shared/components/ui/input";
-import { Button } from "@/shared/components/ui/button";
-import { Badge } from "@/shared/components/ui/badge";
+} from "@nkps/shared/components/ui/card";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -28,7 +28,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
+} from "@nkps/shared/components/ui/table";
 import {
   Search,
   Loader2,
@@ -43,8 +43,8 @@ import {
   Plus,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatClassName } from "@/shared/lib/utils";
-import type { Class, ExamType } from "@/shared/types";
+import { formatClassName } from "@nkps/shared/lib/utils";
+import type { Class, ExamType } from "@nkps/shared/types";
 
 interface StudentRow {
   id: string;

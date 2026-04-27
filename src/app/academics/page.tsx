@@ -3,7 +3,7 @@ import { PageHeader } from "@/website/components/layout/PageHeader";
 import { CurriculumOverview } from "@/website/components/academics/CurriculumOverview";
 import { StaffDirectory } from "@/website/components/academics/StaffDirectory";
 import { JsonLd } from "@/website/components/seo/JsonLd";
-import { buildMetadata, breadcrumbJsonLd } from "@/shared/lib/seo";
+import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Academics & CBSE Curriculum — NK Public School Jaipur",

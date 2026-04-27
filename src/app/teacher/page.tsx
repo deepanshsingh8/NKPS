@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
+import { createClient } from "@nkps/shared/lib/supabase/client";
 import Link from "next/link";
-import { Badge } from "@/shared/components/ui/badge";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Users,
   BookOpen,
@@ -15,9 +15,9 @@ import {
   FileWarning,
   MapPin,
 } from "lucide-react";
-import { cn, dayOfWeekFromDate, formatTime12, timeStringToMinutes, nowMinutes } from "@/shared/lib/utils";
-import { UpcomingEvents } from "@/shared/components/UpcomingEvents";
-import type { Profile } from "@/shared/types";
+import { cn, dayOfWeekFromDate, formatTime12, timeStringToMinutes, nowMinutes } from "@nkps/shared/lib/utils";
+import { UpcomingEvents } from "@nkps/shared/components/UpcomingEvents";
+import type { Profile } from "@nkps/shared/types";
 
 interface TeacherStats {
   classCount: number;

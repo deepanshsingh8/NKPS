@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { TransferCertificatesPageClient } from "./TransferCertificatesPageClient";
 import { JsonLd } from "@/website/components/seo/JsonLd";
-import { buildMetadata, breadcrumbJsonLd } from "@/shared/lib/seo";
+import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Transfer Certificates — NK Public School Jaipur",

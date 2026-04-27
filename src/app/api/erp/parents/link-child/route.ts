@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/shared/lib/supabase/admin";
-import { createClient } from "@/shared/lib/supabase/server";
-import { linkChildSchema } from "@/shared/lib/validations";
-import { rateLimit, clientIp } from "@/shared/lib/rate-limit";
+import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
+import { createClient } from "@nkps/shared/lib/supabase/server";
+import { linkChildSchema } from "@nkps/shared/lib/validations";
+import { rateLimit, clientIp } from "@nkps/shared/lib/rate-limit";
 
 const MAX_CHILDREN_PER_PARENT = 10;
 

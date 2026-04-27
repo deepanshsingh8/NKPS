@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 
 const updateSchema = z.object({
   substitute_teacher_id: z.string().uuid().optional(),

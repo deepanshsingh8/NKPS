@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -21,7 +21,7 @@ import {
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";
-import { cn, formatClassName } from "@/shared/lib/utils";
+import { cn, formatClassName } from "@nkps/shared/lib/utils";
 import {
   CBSE_GRADE_BANDS,
   CBSE_STREAM_CURRICULA,
@@ -29,7 +29,7 @@ import {
   getSubjectsForClass,
 } from "@/erp/lib/cbse-curriculum";
 import type { CurriculumSubject } from "@/erp/lib/cbse-curriculum";
-import type { Class, Subject } from "@/shared/types";
+import type { Class, Subject } from "@nkps/shared/types";
 
 interface AssignmentRow {
   id: string;

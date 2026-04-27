@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import { Badge } from "@/shared/components/ui/badge";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -20,11 +20,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
+} from "@nkps/shared/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, Star, CalendarDays } from "lucide-react";
-import { adminApi } from "@/shared/lib/admin-api";
-import type { AcademicYear } from "@/shared/types";
+import { adminApi } from "@nkps/shared/lib/admin-api";
+import type { AcademicYear } from "@nkps/shared/types";
 
 export default function AdminAcademicYearsPage() {
   const [years, setYears] = useState<AcademicYear[]>([]);

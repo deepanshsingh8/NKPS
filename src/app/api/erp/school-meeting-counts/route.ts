@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/shared/lib/supabase/server";
-import { schoolMeetingCountSchema } from "@/shared/lib/validations";
+import { createClient } from "@nkps/shared/lib/supabase/server";
+import { schoolMeetingCountSchema } from "@nkps/shared/lib/validations";
 
 // GET /api/erp/school-meeting-counts?academic_year_id=&exam_type_id=&class_id=
 // Any combination of scope filters; NULL-scope rows are included when

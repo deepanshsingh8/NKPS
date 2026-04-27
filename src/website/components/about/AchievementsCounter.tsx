@@ -1,8 +1,8 @@
 "use client";
 
-import { SectionHeading } from "@/shared/components/SectionHeading";
-import { CounterAnimation } from "@/shared/components/CounterAnimation";
-import { SCHOOL } from "@/shared/lib/constants";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import { CounterAnimation } from "@nkps/shared/components/CounterAnimation";
+import { SCHOOL } from "@nkps/shared/lib/constants";
 
 export function AchievementsCounter() {
   return (

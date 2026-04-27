@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
-import type { FeatureKey } from "@/shared/lib/permissions";
+import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
+import type { FeatureKey } from "@nkps/shared/lib/permissions";
 
 // Map each proxied table to the editor feature_key required to write it.
 // Admins bypass this entirely. Editors must have the matching permission.

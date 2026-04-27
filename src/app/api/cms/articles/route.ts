@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
-import { slugify } from "@/shared/lib/articles";
+import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
+import { slugify } from "@nkps/shared/lib/articles";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 

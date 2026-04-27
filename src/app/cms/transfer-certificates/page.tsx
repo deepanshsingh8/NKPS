@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -18,14 +18,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
+} from "@nkps/shared/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Download, Trash2, Loader2, Search, UserCheck, FileText, Upload } from "lucide-react";
-import { adminFetch, adminDelete } from "@/shared/lib/admin-api";
-import { uploadToStorage } from "@/shared/lib/supabase/upload";
-import { FileDropZone } from "@/shared/components/FileDropZone";
-import { AcademicYearSelect } from "@/shared/components/AcademicYearSelect";
-import type { TransferCertificate, Student } from "@/shared/types";
+import { adminFetch, adminDelete } from "@nkps/shared/lib/admin-api";
+import { uploadToStorage } from "@nkps/shared/lib/supabase/upload";
+import { FileDropZone } from "@nkps/shared/components/FileDropZone";
+import { AcademicYearSelect } from "@nkps/shared/components/AcademicYearSelect";
+import type { TransferCertificate, Student } from "@nkps/shared/types";
 
 export default function AdminTransferCertificatesPage() {
   const [certificates, setCertificates] = useState<TransferCertificate[]>([]);

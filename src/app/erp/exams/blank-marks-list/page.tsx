@@ -1,24 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
+import { createClient } from "@nkps/shared/lib/supabase/client";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
-import { Button } from "@/shared/components/ui/button";
+} from "@nkps/shared/components/ui/select";
+import { Button } from "@nkps/shared/components/ui/button";
 import { Download, FileText } from "lucide-react";
-import { formatClassName } from "@/shared/lib/utils";
-import type { Class, ExamType, Subject } from "@/shared/types";
+import { formatClassName } from "@nkps/shared/lib/utils";
+import type { Class, ExamType, Subject } from "@nkps/shared/types";
 
 export default function AdminBlankMarksListPage() {
   const [classes, setClasses] = useState<Class[]>([]);

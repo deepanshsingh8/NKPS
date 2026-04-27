@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -19,14 +19,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
+} from "@nkps/shared/components/ui/table";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -39,15 +39,15 @@ import {
   ExternalLink,
   ScrollText,
 } from "lucide-react";
-import { adminApi, adminFetch, adminDelete } from "@/shared/lib/admin-api";
-import { uploadToStorage } from "@/shared/lib/supabase/upload";
-import { FileDropZone } from "@/shared/components/FileDropZone";
+import { adminApi, adminFetch, adminDelete } from "@nkps/shared/lib/admin-api";
+import { uploadToStorage } from "@nkps/shared/lib/supabase/upload";
+import { FileDropZone } from "@nkps/shared/components/FileDropZone";
 import type {
   DisclosureItem,
   DisclosureDocument,
   DisclosureBoardResult,
   ExamClass,
-} from "@/shared/types";
+} from "@nkps/shared/types";
 
 type TabKey = "general" | "documents" | "result_academics" | "staff" | "infrastructure";
 

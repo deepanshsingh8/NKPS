@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/website/components/layout/PageHeader";
-import { PageTransition } from "@/shared/components/PageTransition";
-import { AnimatedSection } from "@/shared/components/AnimatedSection";
+import { PageTransition } from "@nkps/shared/components/PageTransition";
+import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { Users, ClipboardCheck, Lightbulb, BookOpenCheck } from "lucide-react";
-import { buildMetadata } from "@/shared/lib/seo";
+import { buildMetadata } from "@nkps/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "For Parents — NK Public School Jaipur",

@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Quote, Star } from "lucide-react";
-import { cn } from "@/shared/lib/utils";
-import { SectionHeading } from "@/shared/components/SectionHeading";
+import { cn } from "@nkps/shared/lib/utils";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import Image from "next/image";
-import type { SectionCard } from "@/shared/types";
+import type { SectionCard } from "@nkps/shared/types";
 
 const testimonials = [
   {

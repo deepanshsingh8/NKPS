@@ -2,25 +2,25 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
-import { createClient } from "@/shared/lib/supabase/client";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import { Badge } from "@/shared/components/ui/badge";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -28,8 +28,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+} from "@nkps/shared/components/ui/table";
+import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Plus,
@@ -50,14 +50,14 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/shared/components/ui/dropdown-menu";
-import { adminFetch, adminPatch, adminDelete } from "@/shared/lib/admin-api";
-import { uploadToStorage } from "@/shared/lib/supabase/upload";
-import { FileDropZone } from "@/shared/components/FileDropZone";
-import { ImageCropper } from "@/shared/components/ImageCropper";
+} from "@nkps/shared/components/ui/dropdown-menu";
+import { adminFetch, adminPatch, adminDelete } from "@nkps/shared/lib/admin-api";
+import { uploadToStorage } from "@nkps/shared/lib/supabase/upload";
+import { FileDropZone } from "@nkps/shared/components/FileDropZone";
+import { ImageCropper } from "@nkps/shared/components/ImageCropper";
 import { StaffBulkUpload } from "@/erp/components/StaffBulkUpload";
 import { CreatePortalUsersDialog } from "@/erp/components/CreatePortalUsersDialog";
-import type { StaffMember, StaffCategory } from "@/shared/types";
+import type { StaffMember, StaffCategory } from "@nkps/shared/types";
 import { downloadCSV, STAFF_CSV_COLUMNS } from "@/erp/lib/csv-export";
 
 const CATEGORIES: { value: StaffCategory | "all"; label: string }[] = [

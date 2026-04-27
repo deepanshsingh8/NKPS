@@ -1,19 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { adminFetch } from "@/shared/lib/admin-api";
-import { Button } from "@/shared/components/ui/button";
-import { Label } from "@/shared/components/ui/label";
-import { Checkbox } from "@/shared/components/ui/checkbox";
-import { Card, CardContent } from "@/shared/components/ui/card";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { adminFetch } from "@nkps/shared/lib/admin-api";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Checkbox } from "@nkps/shared/components/ui/checkbox";
+import { Card, CardContent } from "@nkps/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -21,7 +21,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
+} from "@nkps/shared/components/ui/table";
 import {
   Download,
   Loader2,
@@ -29,8 +29,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatClassName } from "@/shared/lib/utils";
-import type { Class, ExamType } from "@/shared/types";
+import { formatClassName } from "@nkps/shared/lib/utils";
+import type { Class, ExamType } from "@nkps/shared/types";
 
 interface TemplateOption {
   id: string;

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getCallerAccess } from "@/shared/lib/verify-admin";
+import { getCallerAccess } from "@nkps/shared/lib/verify-admin";
 import { resolveEffectiveFeeStructures, sumAnnualized } from "@/erp/lib/fees";
-import type { FeeStructure } from "@/shared/types";
-import type { FeatureKey } from "@/shared/lib/permissions";
+import type { FeeStructure } from "@nkps/shared/types";
+import type { FeatureKey } from "@nkps/shared/lib/permissions";
 
 // Each analytics block maps to the permission that gates privileged access to
 // the underlying data. Blocks the caller can't see are simply absent from the

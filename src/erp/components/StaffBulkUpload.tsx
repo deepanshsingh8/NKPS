@@ -8,14 +8,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -23,11 +23,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import { Badge } from "@/shared/components/ui/badge";
+} from "@nkps/shared/components/ui/table";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import { toast } from "sonner";
 import {
   Upload,
@@ -37,8 +37,8 @@ import {
   CheckCircle2,
   X,
 } from "lucide-react";
-import { adminFetch } from "@/shared/lib/admin-api";
-import type { StaffCategory } from "@/shared/types";
+import { adminFetch } from "@nkps/shared/lib/admin-api";
+import type { StaffCategory } from "@nkps/shared/types";
 
 const CATEGORY_OPTIONS: { value: StaffCategory; label: string }[] = [
   { value: "management", label: "Management" },

@@ -2,11 +2,11 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { SectionHeading } from "@/shared/components/SectionHeading";
-import { GlassCard } from "@/shared/components/GlassCard";
-import { SCHOOL } from "@/shared/lib/constants";
-import { staggerContainer, fadeUp } from "@/shared/lib/animations";
-import type { SectionCard } from "@/shared/types";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import { GlassCard } from "@nkps/shared/components/GlassCard";
+import { SCHOOL } from "@nkps/shared/lib/constants";
+import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
+import type { SectionCard } from "@nkps/shared/types";
 
 const defaultLeaderPhotos: Record<string, string> = {
   "Dr. N.C. Lunayach": "/images/staff/managing-director.jpg",

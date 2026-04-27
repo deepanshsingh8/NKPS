@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/shared/lib/supabase/admin";
-import { contactFormSchema } from "@/shared/lib/validations";
-import { SCHOOL } from "@/shared/lib/constants";
-import { rateLimit, clientIp } from "@/shared/lib/rate-limit";
+import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
+import { contactFormSchema } from "@nkps/shared/lib/validations";
+import { SCHOOL } from "@nkps/shared/lib/constants";
+import { rateLimit, clientIp } from "@nkps/shared/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     // Send notification email to admin (non-blocking)
     try {
       const { sendEmail, buildContactNotificationEmail } = await import(
-        "@/shared/lib/email"
+        "@nkps/shared/lib/email"
       );
       const adminEmail =
         process.env.ADMIN_NOTIFICATION_EMAIL || SCHOOL.email[0];

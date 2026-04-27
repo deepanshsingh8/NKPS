@@ -5,7 +5,7 @@ import type {
   ExamKind,
   ResultMasterPassCriteriaType,
   ResultMasterRoundingMode,
-} from "@/shared/types";
+} from "@nkps/shared/types";
 
 // Human-readable labels for each supported pass-criteria type.
 // Kept local (not imported from `describePassCriteria`) because that helper

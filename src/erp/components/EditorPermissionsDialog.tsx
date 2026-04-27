@@ -7,13 +7,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
-import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+} from "@nkps/shared/components/ui/dialog";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { adminFetch } from "@/shared/lib/admin-api";
-import { FEATURE_CATALOG, isFeatureKey, type FeatureKey } from "@/shared/lib/permissions";
+import { adminFetch } from "@nkps/shared/lib/admin-api";
+import { FEATURE_CATALOG, isFeatureKey, type FeatureKey } from "@nkps/shared/lib/permissions";
 
 interface Props {
   open: boolean;

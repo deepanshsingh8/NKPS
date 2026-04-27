@@ -1,23 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
+import { createClient } from "@nkps/shared/lib/supabase/client";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
-import { Input } from "@/shared/components/ui/input";
-import { Button } from "@/shared/components/ui/button";
-import { Badge } from "@/shared/components/ui/badge";
+} from "@nkps/shared/components/ui/select";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -28,8 +28,8 @@ import {
   FileText,
   Star,
 } from "lucide-react";
-import { formatClassName } from "@/shared/lib/utils";
-import type { Class, ExamType } from "@/shared/types";
+import { formatClassName } from "@nkps/shared/lib/utils";
+import type { Class, ExamType } from "@nkps/shared/types";
 
 interface PtmFormat {
   id: string;

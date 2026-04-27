@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/shared/lib/supabase/admin";
-import { createClient } from "@/shared/lib/supabase/server";
-import { sendEmail, buildWelcomeEmail } from "@/shared/lib/email";
-import { generateSecurePassword } from "@/shared/lib/password";
-import { rateLimit } from "@/shared/lib/rate-limit";
+import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
+import { createClient } from "@nkps/shared/lib/supabase/server";
+import { sendEmail, buildWelcomeEmail } from "@nkps/shared/lib/email";
+import { generateSecurePassword } from "@nkps/shared/lib/password";
+import { rateLimit } from "@nkps/shared/lib/rate-limit";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -263,7 +263,7 @@ export async function POST(request: Request) {
     // travel through the controlled email channel, not the API response.
     let emailDelivered = false;
     try {
-      const { SITE_URL } = await import("@/shared/lib/seo");
+      const { SITE_URL } = await import("@nkps/shared/lib/seo");
       const loginUrl = `${SITE_URL}/portal/login`;
       const html = buildWelcomeEmail({
         fullName: full_name,

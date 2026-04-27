@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/shared/lib/supabase/admin";
-import { rateLimit, clientIp } from "@/shared/lib/rate-limit";
+import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
+import { rateLimit, clientIp } from "@nkps/shared/lib/rate-limit";
 
 const TC_BUCKET = "transfer-certificates";
 const SIGNED_URL_TTL_SECONDS = 60;

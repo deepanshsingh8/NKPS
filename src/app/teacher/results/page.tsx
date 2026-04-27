@@ -1,21 +1,21 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { useUrlState } from "@/shared/lib/hooks/use-url-state";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -23,7 +23,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
+} from "@nkps/shared/components/ui/table";
 import {
   Dialog,
   DialogClose,
@@ -31,16 +31,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/components/ui/dialog";
-import { Input } from "@/shared/components/ui/input";
-import { Button } from "@/shared/components/ui/button";
-import { Badge } from "@/shared/components/ui/badge";
+} from "@nkps/shared/components/ui/dialog";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import { toast } from "sonner";
 import { Save, Loader2, Download, Info, FileText } from "lucide-react";
-import { formatClassName } from "@/shared/lib/utils";
+import { formatClassName } from "@nkps/shared/lib/utils";
 import { computeGrade, type GradeBand } from "@/erp/lib/grading";
 import { MarksImportDialog } from "@/erp/components/MarksImportDialog";
-import type { Class, Subject, ExamType } from "@/shared/types";
+import type { Class, Subject, ExamType } from "@nkps/shared/types";
 
 interface EnrolledStudent {
   student_id: string;

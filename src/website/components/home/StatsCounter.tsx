@@ -3,10 +3,10 @@
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Users, CalendarDays, GraduationCap, Building2, Award, BookOpen } from "lucide-react";
-import { SCHOOL } from "@/shared/lib/constants";
-import { CounterAnimation } from "@/shared/components/CounterAnimation";
-import { SectionHeading } from "@/shared/components/SectionHeading";
-import { staggerContainer, fadeUp } from "@/shared/lib/animations";
+import { SCHOOL } from "@nkps/shared/lib/constants";
+import { CounterAnimation } from "@nkps/shared/components/CounterAnimation";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 
 const statIcons = [Users, CalendarDays, GraduationCap, Building2, Award, BookOpen];
 

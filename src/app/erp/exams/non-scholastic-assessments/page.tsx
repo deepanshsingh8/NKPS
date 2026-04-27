@@ -1,21 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { useUrlState } from "@/shared/lib/hooks/use-url-state";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -23,13 +23,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
-import { Button } from "@/shared/components/ui/button";
-import { Badge } from "@/shared/components/ui/badge";
+} from "@nkps/shared/components/ui/table";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import { toast } from "sonner";
 import { Save, Loader2, Sparkles } from "lucide-react";
-import { formatClassName } from "@/shared/lib/utils";
-import type { Class, ExamType } from "@/shared/types";
+import { formatClassName } from "@nkps/shared/lib/utils";
+import type { Class, ExamType } from "@nkps/shared/types";
 
 interface EnrolledStudent {
   student_id: string;

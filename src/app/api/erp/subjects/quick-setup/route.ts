@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/shared/lib/supabase/server";
-import { createAdminClient } from "@/shared/lib/supabase/admin";
+import { createClient } from "@nkps/shared/lib/supabase/server";
+import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 
 interface SubjectInput {
   name: string;

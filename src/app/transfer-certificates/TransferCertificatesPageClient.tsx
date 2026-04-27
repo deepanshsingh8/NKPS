@@ -4,11 +4,11 @@ import { useState } from "react";
 import { Download, Search, Info, AlertTriangle, Loader2, FileText, GraduationCap } from "lucide-react";
 import { motion } from "framer-motion";
 import { PageHeader } from "@/website/components/layout/PageHeader";
-import { PageTransition } from "@/shared/components/PageTransition";
-import { SectionDivider } from "@/shared/components/SectionDivider";
-import { AnimatedSection } from "@/shared/components/AnimatedSection";
-import { SectionHeading } from "@/shared/components/SectionHeading";
-import { cn } from "@/shared/lib/utils";
+import { PageTransition } from "@nkps/shared/components/PageTransition";
+import { SectionDivider } from "@nkps/shared/components/SectionDivider";
+import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import { cn } from "@nkps/shared/lib/utils";
 
 interface LookupResult {
   studentName: string;

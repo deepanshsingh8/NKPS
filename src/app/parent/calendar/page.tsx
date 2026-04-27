@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { UpcomingEvents } from "@/shared/components/UpcomingEvents";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { UpcomingEvents } from "@nkps/shared/components/UpcomingEvents";
 import { Loader2 } from "lucide-react";
 
 export default function ParentCalendarPage() {

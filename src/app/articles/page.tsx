@@ -3,11 +3,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Newspaper } from "lucide-react";
 import { PageHeader } from "@/website/components/layout/PageHeader";
-import { PageTransition } from "@/shared/components/PageTransition";
-import { SectionDivider } from "@/shared/components/SectionDivider";
+import { PageTransition } from "@nkps/shared/components/PageTransition";
+import { SectionDivider } from "@nkps/shared/components/SectionDivider";
 import { JsonLd } from "@/website/components/seo/JsonLd";
-import { getPublishedArticles } from "@/shared/lib/articles";
-import { buildMetadata, breadcrumbJsonLd } from "@/shared/lib/seo";
+import { getPublishedArticles } from "@nkps/shared/lib/articles";
+import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 
 export const revalidate = 300;
 

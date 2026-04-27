@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/shared/lib/verify-admin";
-import { isFeatureKey, type FeatureKey } from "@/shared/lib/permissions";
+import { verifyAdmin } from "@nkps/shared/lib/verify-admin";
+import { isFeatureKey, type FeatureKey } from "@nkps/shared/lib/permissions";
 
 // GET /api/admin/editor-permissions?editor_id=<uuid>
 // Returns the list of feature_keys currently granted to that editor.

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/shared/lib/verify-admin";
-import { resultMasterCreateSchema } from "@/shared/lib/validations";
+import { verifyAdmin } from "@nkps/shared/lib/verify-admin";
+import { resultMasterCreateSchema } from "@nkps/shared/lib/validations";
 import { validatePassCriteria } from "@/erp/lib/result-master-validation";
 
 // GET /api/erp/result-masters?class_id=&academic_year_id=

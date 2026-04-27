@@ -1,22 +1,22 @@
 "use client";
 
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
-import type { ResultMasterRoundingMode } from "@/shared/types";
+} from "@nkps/shared/components/ui/select";
+import type { ResultMasterRoundingMode } from "@nkps/shared/types";
 import { previewRound } from "../helpers";
 
 export function RoundingSection({

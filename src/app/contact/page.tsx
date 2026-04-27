@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { ContactPageClient } from "./ContactPageClient";
 import { CONTACT_FAQS } from "./faqs";
 import { JsonLd } from "@/website/components/seo/JsonLd";
-import { buildMetadata, breadcrumbJsonLd, faqJsonLd } from "@/shared/lib/seo";
-import { SCHOOL } from "@/shared/lib/constants";
+import { buildMetadata, breadcrumbJsonLd, faqJsonLd } from "@nkps/shared/lib/seo";
+import { SCHOOL } from "@nkps/shared/lib/constants";
 
 export const metadata: Metadata = buildMetadata({
   title: "Contact NK Public School — Grand Sikar Road, Jaipur",

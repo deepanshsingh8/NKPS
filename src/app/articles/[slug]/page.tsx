@@ -5,9 +5,9 @@ import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ArrowLeft, Calendar, User } from "lucide-react";
-import { PageTransition } from "@/shared/components/PageTransition";
-import { getArticleBySlug, getPublishedArticles } from "@/shared/lib/articles";
-import { SITE_URL } from "@/shared/lib/seo";
+import { PageTransition } from "@nkps/shared/components/PageTransition";
+import { getArticleBySlug, getPublishedArticles } from "@nkps/shared/lib/articles";
+import { SITE_URL } from "@nkps/shared/lib/seo";
 
 export const revalidate = 300;
 

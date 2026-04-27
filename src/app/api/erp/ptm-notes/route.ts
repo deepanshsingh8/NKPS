@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/shared/lib/supabase/server";
-import { ptmNotesBulkSchema } from "@/shared/lib/validations";
+import { createClient } from "@nkps/shared/lib/supabase/server";
+import { ptmNotesBulkSchema } from "@nkps/shared/lib/validations";
 
 // GET /api/erp/ptm-notes?class_id=&exam_type_id=&student_id=
 // Returns ptm_notes matching the filters. RLS scopes visibility:

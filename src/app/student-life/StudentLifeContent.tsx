@@ -18,12 +18,12 @@ import {
   Star,
 } from "lucide-react";
 import { PageHeader } from "@/website/components/layout/PageHeader";
-import { PageTransition } from "@/shared/components/PageTransition";
-import { AnimatedSection } from "@/shared/components/AnimatedSection";
-import { SectionHeading } from "@/shared/components/SectionHeading";
-import { staggerContainer, fadeUp } from "@/shared/lib/animations";
-import { cn } from "@/shared/lib/utils";
-import type { SectionCard } from "@/shared/types";
+import { PageTransition } from "@nkps/shared/components/PageTransition";
+import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
+import { cn } from "@nkps/shared/lib/utils";
+import type { SectionCard } from "@nkps/shared/types";
 
 const defaultActivities = [
   {

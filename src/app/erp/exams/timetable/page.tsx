@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { adminFetch, adminPatch, adminDelete } from "@/shared/lib/admin-api";
-import { useUrlState } from "@/shared/lib/hooks/use-url-state";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import { Card, CardContent } from "@/shared/components/ui/card";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { adminFetch, adminPatch, adminDelete } from "@nkps/shared/lib/admin-api";
+import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Card, CardContent } from "@nkps/shared/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -15,14 +15,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -30,7 +30,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
+} from "@nkps/shared/components/ui/table";
 import {
   Plus,
   Pencil,
@@ -40,8 +40,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatClassName } from "@/shared/lib/utils";
-import type { Class, ExamType, Subject } from "@/shared/types";
+import { formatClassName } from "@nkps/shared/lib/utils";
+import type { Class, ExamType, Subject } from "@nkps/shared/types";
 
 interface ExamSchedule {
   id: string;

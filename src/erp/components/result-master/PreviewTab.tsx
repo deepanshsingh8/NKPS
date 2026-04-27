@@ -1,24 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { adminFetch } from "@/shared/lib/admin-api";
-import { Button } from "@/shared/components/ui/button";
-import { Label } from "@/shared/components/ui/label";
-import { Badge } from "@/shared/components/ui/badge";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { adminFetch } from "@nkps/shared/lib/admin-api";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   AlertTriangle,
   Download,
@@ -30,7 +30,7 @@ import type {
   FinalSubject,
   ResultMaster,
   ResultMasterSubject,
-} from "@/shared/types";
+} from "@nkps/shared/types";
 
 // Shape used for the student picker dropdown. We fetch via student_enrollments
 // because the `students` table has no `current_class_id` column — class

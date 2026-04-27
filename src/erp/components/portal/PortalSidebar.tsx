@@ -4,10 +4,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
-import { cn } from "@/shared/lib/utils";
-import { SidebarProfileMenu } from "@/shared/components/SidebarProfileMenu";
-import { SidebarTooltip } from "@/shared/components/SidebarTooltip";
-import { useSidebar } from "@/shared/components/providers/SidebarProvider";
+import { cn } from "@nkps/shared/lib/utils";
+import { SidebarProfileMenu } from "@nkps/shared/components/SidebarProfileMenu";
+import { SidebarTooltip } from "@nkps/shared/components/SidebarTooltip";
+import { useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
 
 interface PortalSidebarProps {
   title: string;

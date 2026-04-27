@@ -1,15 +1,15 @@
 "use client";
 
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Badge } from "@/shared/components/ui/badge";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Badge } from "@nkps/shared/components/ui/badge";
+import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -17,7 +17,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { EXAM_KIND_LABEL } from "../helpers";
-import type { ExamKind } from "@/shared/types";
+import type { ExamKind } from "@nkps/shared/types";
 
 export interface WeightageRow {
   exam_type_id: string;

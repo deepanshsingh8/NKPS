@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { createClient } from "@/shared/lib/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
-import { Badge } from "@/shared/components/ui/badge";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@nkps/shared/components/ui/card";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import { Loader2, Clock, Users, Sun } from "lucide-react";
 import {
   cn,
@@ -12,7 +12,7 @@ import {
   formatTime12,
   nowMinutes,
   timeStringToMinutes,
-} from "@/shared/lib/utils";
+} from "@nkps/shared/lib/utils";
 
 interface ChildOption {
   student_id: string;

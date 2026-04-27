@@ -1,19 +1,19 @@
 "use client";
 
-import { Label } from "@/shared/components/ui/label";
+import { Label } from "@nkps/shared/components/ui/label";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import type { GradeScale } from "@/erp/lib/grading";
 
 export function GradeScaleSection({

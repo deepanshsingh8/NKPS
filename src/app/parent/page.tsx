@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
+import { createClient } from "@nkps/shared/lib/supabase/client";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Badge } from "@/shared/components/ui/badge";
-import { Button } from "@/shared/components/ui/button";
+import { Badge } from "@nkps/shared/components/ui/badge";
+import { Button } from "@nkps/shared/components/ui/button";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -22,16 +22,16 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/shared/components/ui/dialog";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+} from "@nkps/shared/components/ui/dialog";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   ClipboardCheck,
   BarChart3,
@@ -44,10 +44,10 @@ import {
   Loader2,
   UserPlus,
 } from "lucide-react";
-import { cn } from "@/shared/lib/utils";
-import { UpcomingEvents } from "@/shared/components/UpcomingEvents";
-import { linkChildSchema, type LinkChildData } from "@/shared/lib/validations";
-import type { Profile } from "@/shared/types";
+import { cn } from "@nkps/shared/lib/utils";
+import { UpcomingEvents } from "@nkps/shared/components/UpcomingEvents";
+import { linkChildSchema, type LinkChildData } from "@nkps/shared/lib/validations";
+import type { Profile } from "@nkps/shared/types";
 
 interface ChildInfo {
   student_id: string;

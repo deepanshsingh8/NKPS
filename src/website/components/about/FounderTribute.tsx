@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { AnimatedSection } from "@/shared/components/AnimatedSection";
-import { SCHOOL } from "@/shared/lib/constants";
+import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
+import { SCHOOL } from "@nkps/shared/lib/constants";
 
 interface FounderTributeProps {
   photoUrl?: string;

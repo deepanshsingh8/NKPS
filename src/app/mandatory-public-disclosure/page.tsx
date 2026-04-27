@@ -1,21 +1,21 @@
 import { Metadata } from "next";
 import { PageHeader } from "@/website/components/layout/PageHeader";
-import { PageTransition } from "@/shared/components/PageTransition";
-import { AnimatedSection } from "@/shared/components/AnimatedSection";
+import { PageTransition } from "@nkps/shared/components/PageTransition";
+import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/shared/components/ui/accordion";
+} from "@nkps/shared/components/ui/accordion";
 import {
   getDisclosureItems,
   getDisclosureDocuments,
   getDisclosureBoardResults,
 } from "@/website/lib/disclosure";
 import { ExternalLink, FileText, Download } from "lucide-react";
-import type { DisclosureItem, DisclosureBoardResult } from "@/shared/types";
-import { buildMetadata } from "@/shared/lib/seo";
+import type { DisclosureItem, DisclosureBoardResult } from "@nkps/shared/types";
+import { buildMetadata } from "@nkps/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Mandatory Public Disclosure — NK Public School Jaipur",

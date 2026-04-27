@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  transpilePackages: ["@nkps/shared"],
   images: {
     minimumCacheTTL: 2678400,
     formats: ["image/webp"],

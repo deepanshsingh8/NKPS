@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
-import { feeRefundSchema } from "@/shared/lib/validations";
+import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
+import { feeRefundSchema } from "@nkps/shared/lib/validations";
 
 interface RouteContext {
   params: Promise<{ id: string }>;

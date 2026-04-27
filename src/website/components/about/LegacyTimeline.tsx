@@ -1,8 +1,8 @@
 "use client";
 
-import { AnimatedSection } from "@/shared/components/AnimatedSection";
-import { SectionHeading } from "@/shared/components/SectionHeading";
-import type { SectionCard } from "@/shared/types";
+import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import type { SectionCard } from "@nkps/shared/types";
 
 const milestones = [
   {

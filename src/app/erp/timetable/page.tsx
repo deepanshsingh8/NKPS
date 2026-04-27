@@ -1,30 +1,30 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { useUrlState } from "@/shared/lib/hooks/use-url-state";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Clock, CalendarRange, Info } from "lucide-react";
-import { adminApi } from "@/shared/lib/admin-api";
-import { formatClassName, formatShortDate } from "@/shared/lib/utils";
-import type { Class, Subject, Teacher, TimetablePeriod } from "@/shared/types";
+import { adminApi } from "@nkps/shared/lib/admin-api";
+import { formatClassName, formatShortDate } from "@nkps/shared/lib/utils";
+import type { Class, Subject, Teacher, TimetablePeriod } from "@nkps/shared/types";
 
 const DAYS = [
   { value: 1, label: "Monday" },

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/shared/lib/supabase/server";
+import { createClient } from "@nkps/shared/lib/supabase/server";
 import { canViewReportCard } from "@/erp/lib/report-card";
 import { computeFinalResult } from "@/erp/lib/final-result";
 

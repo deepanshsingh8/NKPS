@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/shared/lib/verify-admin";
+import { verifyAdmin } from "@nkps/shared/lib/verify-admin";
 import { computeFinalResult } from "@/erp/lib/final-result";
 
 type RouteContext = { params: Promise<{ id: string }> };

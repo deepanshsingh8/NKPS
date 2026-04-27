@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { Mail, MailOpen, Phone, ChevronDown, ChevronUp } from "lucide-react";
-import { adminFetch, adminPatch } from "@/shared/lib/admin-api";
-import { Badge } from "@/shared/components/ui/badge";
-import { Button } from "@/shared/components/ui/button";
-import { cn } from "@/shared/lib/utils";
+import { adminFetch, adminPatch } from "@nkps/shared/lib/admin-api";
+import { Badge } from "@nkps/shared/components/ui/badge";
+import { Button } from "@nkps/shared/components/ui/button";
+import { cn } from "@nkps/shared/lib/utils";
 import { toast } from "sonner";
-import type { ContactSubmission } from "@/shared/types";
+import type { ContactSubmission } from "@nkps/shared/types";
 
 type Filter = "all" | "unread" | "read";
 

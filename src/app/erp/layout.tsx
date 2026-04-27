@@ -1,8 +1,8 @@
 "use client";
 
 import { ErpSidebar } from "@/erp/components/ErpSidebar";
-import { SidebarProvider, useSidebar } from "@/shared/components/providers/SidebarProvider";
-import { cn } from "@/shared/lib/utils";
+import { SidebarProvider, useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
+import { cn } from "@nkps/shared/lib/utils";
 
 function ErpLayoutInner({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();

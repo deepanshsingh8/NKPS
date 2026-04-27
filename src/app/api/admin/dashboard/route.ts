@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCallerAccess } from "@/shared/lib/verify-admin";
-import type { FeatureKey } from "@/shared/lib/permissions";
+import { getCallerAccess } from "@nkps/shared/lib/verify-admin";
+import type { FeatureKey } from "@nkps/shared/lib/permissions";
 
 // Privileged counts — students, staff, admissions, fees — never appear in the
 // response for an editor who lacks the grant, so nothing leaks into the DOM.

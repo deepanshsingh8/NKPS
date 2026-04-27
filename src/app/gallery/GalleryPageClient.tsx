@@ -5,12 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { X, Download, Calendar, Filter, ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import { PageHeader } from "@/website/components/layout/PageHeader";
-import { PageTransition } from "@/shared/components/PageTransition";
-import { SectionDivider } from "@/shared/components/SectionDivider";
-import { AnimatedSection } from "@/shared/components/AnimatedSection";
-import { SectionHeading } from "@/shared/components/SectionHeading";
-import { cn } from "@/shared/lib/utils";
-import { createClient } from "@/shared/lib/supabase/client";
+import { PageTransition } from "@nkps/shared/components/PageTransition";
+import { SectionDivider } from "@nkps/shared/components/SectionDivider";
+import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import { cn } from "@nkps/shared/lib/utils";
+import { createClient } from "@nkps/shared/lib/supabase/client";
 
 const categories = ["All", "Academics", "Sports", "Cultural", "Campus", "Events"];
 

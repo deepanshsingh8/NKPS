@@ -8,9 +8,9 @@ import {
   Calendar,
   ArrowRight,
 } from "lucide-react";
-import { staggerContainer, fadeUp } from "@/shared/lib/animations";
-import { SectionHeading } from "@/shared/components/SectionHeading";
-import { cn } from "@/shared/lib/utils";
+import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import { cn } from "@nkps/shared/lib/utils";
 
 const links = [
   {

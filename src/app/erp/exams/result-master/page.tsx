@@ -1,12 +1,12 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { useUrlState } from "@/shared/lib/hooks/use-url-state";
-import { adminFetch, adminDelete } from "@/shared/lib/admin-api";
-import { Button } from "@/shared/components/ui/button";
-import { Label } from "@/shared/components/ui/label";
-import { Card, CardContent } from "@/shared/components/ui/card";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
+import { adminFetch, adminDelete } from "@nkps/shared/lib/admin-api";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Card, CardContent } from "@nkps/shared/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -14,23 +14,23 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@/shared/components/ui/tabs";
+} from "@nkps/shared/components/ui/tabs";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { formatClassName } from "@/shared/lib/utils";
+import { formatClassName } from "@nkps/shared/lib/utils";
 import { BasicRulesTab } from "@/erp/components/result-master/BasicRulesTab";
 import { SubjectsTab } from "@/erp/components/result-master/SubjectsTab";
 import { AdvancedTab } from "@/erp/components/result-master/AdvancedTab";
@@ -42,7 +42,7 @@ import type {
   Class,
   ResultMaster,
   ResultMasterSubject,
-} from "@/shared/types";
+} from "@nkps/shared/types";
 
 interface ClassOption extends Class {
   streams?: { name: string | null } | { name: string | null }[] | null;

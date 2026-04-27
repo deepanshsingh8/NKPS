@@ -17,10 +17,10 @@ import {
   ArrowRight,
   type LucideIcon,
 } from "lucide-react";
-import { createClient } from "@/shared/lib/supabase/client";
-import type { UserRole } from "@/shared/types";
-import { type FeatureKey } from "@/shared/lib/permissions";
-import { cn } from "@/shared/lib/utils";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import type { UserRole } from "@nkps/shared/types";
+import { type FeatureKey } from "@nkps/shared/lib/permissions";
+import { cn } from "@nkps/shared/lib/utils";
 
 type ExamTile = {
   label: string;

@@ -18,7 +18,7 @@ import { getReportCardData } from "@/erp/lib/report-card";
 import { getPdfTemplate } from "@/erp/lib/pdf-templates";
 import type { PdfFooter } from "@/erp/lib/pdf-templates";
 import { computeFinalResult, computeRanksForClass } from "@/erp/lib/final-result";
-import type { FinalResult } from "@/shared/types";
+import type { FinalResult } from "@nkps/shared/types";
 
 export const MARKSHEET_SCHEMA_VERSION = "v1";
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
-import { feeWaiverSchema } from "@/shared/lib/validations";
-import { generateReceiptNumber } from "@/shared/lib/password";
+import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
+import { feeWaiverSchema } from "@nkps/shared/lib/validations";
+import { generateReceiptNumber } from "@nkps/shared/lib/password";
 
 // POST /api/erp/fees/waivers
 // Records a fee waiver as a fee_payments row with payment_method='waiver',

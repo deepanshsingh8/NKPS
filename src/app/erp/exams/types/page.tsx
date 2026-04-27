@@ -1,24 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -26,7 +26,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
+} from "@nkps/shared/components/ui/table";
 import { toast } from "sonner";
 import {
   Plus,
@@ -45,14 +45,14 @@ import {
   Layers,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { adminApi } from "@/shared/lib/admin-api";
-import { cn } from "@/shared/lib/utils";
+import { adminApi } from "@nkps/shared/lib/admin-api";
+import { cn } from "@nkps/shared/lib/utils";
 import type {
   ExamType,
   ExamKind,
   ExamClassLevel,
   AcademicYear,
-} from "@/shared/types";
+} from "@nkps/shared/types";
 
 const KIND_OPTIONS: { value: ExamKind; label: string; hint: string }[] = [
   { value: "term_exam", label: "Term Exam", hint: "Major exams (Half-Yearly, Annual)" },

@@ -6,26 +6,26 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { PageHeader } from "@/website/components/layout/PageHeader";
-import { AnimatedSection } from "@/shared/components/AnimatedSection";
-import { SectionHeading } from "@/shared/components/SectionHeading";
-import { PageTransition } from "@/shared/components/PageTransition";
-import { SectionDivider } from "@/shared/components/SectionDivider";
+import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import { PageTransition } from "@nkps/shared/components/PageTransition";
+import { SectionDivider } from "@nkps/shared/components/SectionDivider";
 import {
   FacebookIcon,
   InstagramIcon,
   YoutubeIcon,
-} from "@/shared/components/SocialIcons";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+} from "@nkps/shared/components/SocialIcons";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/shared/components/ui/accordion";
-import { contactFormSchema, type ContactFormData } from "@/shared/lib/validations";
-import { SCHOOL } from "@/shared/lib/constants";
-import { staggerContainer, fadeUp } from "@/shared/lib/animations";
+} from "@nkps/shared/components/ui/accordion";
+import { contactFormSchema, type ContactFormData } from "@nkps/shared/lib/validations";
+import { SCHOOL } from "@nkps/shared/lib/constants";
+import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import { CONTACT_FAQS } from "./faqs";
 
 const contactCards = [

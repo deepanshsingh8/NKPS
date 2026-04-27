@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { Badge } from "@/shared/components/ui/badge";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Progress,
   ProgressLabel,
   ProgressValue,
-} from "@/shared/components/ui/progress";
+} from "@nkps/shared/components/ui/progress";
 import {
   ClipboardCheck,
   CalendarDays,
@@ -22,7 +22,7 @@ import {
   Clock,
   TrendingUp,
 } from "lucide-react";
-import type { AttendanceStatus } from "@/shared/types";
+import type { AttendanceStatus } from "@nkps/shared/types";
 
 interface AttendanceRecord {
   date: string;

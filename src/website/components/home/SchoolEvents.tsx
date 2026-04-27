@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
+import { createClient } from "@nkps/shared/lib/supabase/client";
 import { motion } from "framer-motion";
-import { SectionHeading } from "@/shared/components/SectionHeading";
-import { AnimatedSection } from "@/shared/components/AnimatedSection";
-import { staggerContainer, fadeUp } from "@/shared/lib/animations";
-import type { CalendarEvent, CalendarEventType } from "@/shared/types";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
+import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
+import type { CalendarEvent, CalendarEventType } from "@nkps/shared/types";
 
 const EVENT_TYPE_COLORS: Record<CalendarEventType, string> = {
   exam: "bg-navy-700",

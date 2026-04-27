@@ -6,12 +6,12 @@ import { StatsCounter } from "@/website/components/home/StatsCounter";
 import { LatestUpdates } from "@/website/components/home/LatestUpdates";
 import { Testimonials } from "@/website/components/home/Testimonials";
 import { SchoolEvents } from "@/website/components/home/SchoolEvents";
-import { SectionDivider } from "@/shared/components/SectionDivider";
-import { MarqueeStrip } from "@/shared/components/MarqueeStrip";
-import { PageTransition } from "@/shared/components/PageTransition";
+import { SectionDivider } from "@nkps/shared/components/SectionDivider";
+import { MarqueeStrip } from "@nkps/shared/components/MarqueeStrip";
+import { PageTransition } from "@nkps/shared/components/PageTransition";
 import { getPageMedia, mediaUrl, getSectionCards } from "@/website/lib/site-media";
-import { getLatestArticles } from "@/shared/lib/articles";
-import { buildMetadata } from "@/shared/lib/seo";
+import { getLatestArticles } from "@nkps/shared/lib/articles";
+import { buildMetadata } from "@nkps/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Best CBSE School in Jaipur — NK Public School Since 1985",

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { adminFetch } from "@/shared/lib/admin-api";
-import { Button } from "@/shared/components/ui/button";
+import { adminFetch } from "@nkps/shared/lib/admin-api";
+import { Button } from "@nkps/shared/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import { Loader2, UserCheck, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 

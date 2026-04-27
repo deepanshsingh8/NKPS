@@ -1,30 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { adminPatch } from "@/shared/lib/admin-api";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+import { adminPatch } from "@nkps/shared/lib/admin-api";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { SUPPORTED_PASS_CRITERIA_TYPES } from "@/erp/lib/final-result";
 import type {
   ResultMaster,
   ResultMasterPassMarkMode,
-} from "@/shared/types";
+} from "@nkps/shared/types";
 import {
   defaultConfigFor,
   labelForCriteriaType,

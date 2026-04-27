@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Phone, Mail } from "lucide-react";
-import { FacebookIcon, InstagramIcon, YoutubeIcon } from "@/shared/components/SocialIcons";
-import { SCHOOL } from "@/shared/lib/constants";
+import { FacebookIcon, InstagramIcon, YoutubeIcon } from "@nkps/shared/components/SocialIcons";
+import { SCHOOL } from "@nkps/shared/lib/constants";
 
 export function TopBar() {
   return (

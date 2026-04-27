@@ -13,24 +13,24 @@ import {
   Pencil,
   ImageIcon,
 } from "lucide-react";
-import { adminFetch, adminDelete, adminPatch } from "@/shared/lib/admin-api";
-import { uploadToStorage } from "@/shared/lib/supabase/upload";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+import { adminFetch, adminDelete, adminPatch } from "@nkps/shared/lib/admin-api";
+import { uploadToStorage } from "@nkps/shared/lib/supabase/upload";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
-import { Badge } from "@/shared/components/ui/badge";
-import { FileDropZone } from "@/shared/components/FileDropZone";
-import { ImageCropper } from "@/shared/components/ImageCropper";
-import { cn } from "@/shared/lib/utils";
+} from "@nkps/shared/components/ui/dialog";
+import { Badge } from "@nkps/shared/components/ui/badge";
+import { FileDropZone } from "@nkps/shared/components/FileDropZone";
+import { ImageCropper } from "@nkps/shared/components/ImageCropper";
+import { cn } from "@nkps/shared/lib/utils";
 import { toast } from "sonner";
-import type { SiteMedia, SectionCard, SectionCardType } from "@/shared/types";
+import type { SiteMedia, SectionCard, SectionCardType } from "@nkps/shared/types";
 
 /* ─── Constants ─── */
 

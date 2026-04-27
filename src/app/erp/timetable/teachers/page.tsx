@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { adminFetch } from "@/shared/lib/admin-api";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { adminFetch } from "@nkps/shared/lib/admin-api";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import { Loader2, UserCog } from "lucide-react";
 import { toast } from "sonner";
-import type { Teacher } from "@/shared/types";
+import type { Teacher } from "@nkps/shared/types";
 import {
   TeacherWeekGrid,
   type TeacherPeriod,

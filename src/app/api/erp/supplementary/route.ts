@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/shared/lib/supabase/server";
-import { supplementaryAttemptsBulkSchema } from "@/shared/lib/validations";
+import { createClient } from "@nkps/shared/lib/supabase/server";
+import { supplementaryAttemptsBulkSchema } from "@nkps/shared/lib/validations";
 
 // GET /api/erp/supplementary?class_id=&parent_exam_type_id=&student_id=
 // List existing supplementary_attempts. RLS scopes visibility per role.

@@ -11,7 +11,7 @@ import type {
   ReportCardExamGroup,
   ReportCardStudent,
 } from "@/erp/lib/report-card";
-import type { FinalResult, FinalSubject } from "@/shared/types";
+import type { FinalResult, FinalSubject } from "@nkps/shared/types";
 
 const styles = StyleSheet.create({
   page: {

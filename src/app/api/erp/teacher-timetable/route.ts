@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 
 // GET /api/erp/teacher-timetable?teacher_id=<uuid>
 // Returns the teacher's weekly schedule joined with class + subject info,

@@ -1,21 +1,21 @@
 "use client";
 
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
-import type { ResultMasterGraceCondition } from "@/shared/types";
+} from "@nkps/shared/components/ui/select";
+import type { ResultMasterGraceCondition } from "@nkps/shared/types";
 
 export function GraceSection({
   perSubjectMax,

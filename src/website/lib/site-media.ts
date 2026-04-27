@@ -1,5 +1,5 @@
-import { createAdminClient } from "@/shared/lib/supabase/admin";
-import type { SiteMedia, SectionCard } from "@/shared/types";
+import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
+import type { SiteMedia, SectionCard } from "@nkps/shared/types";
 
 /**
  * Fetch all site media for a given page, keyed by slot name.

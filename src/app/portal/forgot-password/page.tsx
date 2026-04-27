@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import { Button } from "@/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Button } from "@nkps/shared/components/ui/button";
 import { Loader2, ArrowLeft, Mail, CheckCircle } from "lucide-react";
 
 export default function ForgotPasswordPage() {

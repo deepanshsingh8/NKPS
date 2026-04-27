@@ -1,13 +1,13 @@
 "use client";
 
-import { Label } from "@/shared/components/ui/label";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 
 export function DisplaySection({
   showRank,

@@ -2,18 +2,18 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
-import { createClient } from "@/shared/lib/supabase/client";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import { Badge } from "@/shared/components/ui/badge";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -21,8 +21,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+} from "@nkps/shared/components/ui/table";
+import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Plus,
@@ -42,13 +42,13 @@ import {
   LayoutGrid,
   Grid3x3,
 } from "lucide-react";
-import { adminFetch, adminDelete, adminApi } from "@/shared/lib/admin-api";
-import { uploadToStorage } from "@/shared/lib/supabase/upload";
-import { FileDropZone } from "@/shared/components/FileDropZone";
-import { ImageCropper, type Crop } from "@/shared/components/ImageCropper";
-import { AcademicYearSelect } from "@/shared/components/AcademicYearSelect";
-import { cn } from "@/shared/lib/utils";
-import type { GalleryImage, GalleryEvent } from "@/shared/types";
+import { adminFetch, adminDelete, adminApi } from "@nkps/shared/lib/admin-api";
+import { uploadToStorage } from "@nkps/shared/lib/supabase/upload";
+import { FileDropZone } from "@nkps/shared/components/FileDropZone";
+import { ImageCropper, type Crop } from "@nkps/shared/components/ImageCropper";
+import { AcademicYearSelect } from "@nkps/shared/components/AcademicYearSelect";
+import { cn } from "@nkps/shared/lib/utils";
+import type { GalleryImage, GalleryEvent } from "@nkps/shared/types";
 
 const CATEGORIES = ["academics", "sports", "cultural", "campus", "events"];
 

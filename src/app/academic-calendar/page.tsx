@@ -1,9 +1,9 @@
 import { Metadata } from "next";
 import { PageHeader } from "@/website/components/layout/PageHeader";
 import { JsonLd } from "@/website/components/seo/JsonLd";
-import { buildMetadata, breadcrumbJsonLd } from "@/shared/lib/seo";
-import { createClient } from "@/shared/lib/supabase/server";
-import type { CalendarEvent, CalendarEventType } from "@/shared/types";
+import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
+import { createClient } from "@nkps/shared/lib/supabase/server";
+import type { CalendarEvent, CalendarEventType } from "@nkps/shared/types";
 
 export const metadata: Metadata = buildMetadata({
   title: "Academic Calendar — NK Public School Jaipur",

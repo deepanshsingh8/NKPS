@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
+import { createClient } from "@nkps/shared/lib/supabase/client";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
-import { Badge } from "@/shared/components/ui/badge";
+} from "@nkps/shared/components/ui/card";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -16,11 +16,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
-import { Button } from "@/shared/components/ui/button";
+} from "@nkps/shared/components/ui/table";
+import { Button } from "@nkps/shared/components/ui/button";
 import { CreditCard, CheckCircle, AlertCircle, Loader2, Download } from "lucide-react";
 import { resolveEffectiveFeeStructures, sumAnnualized } from "@/erp/lib/fees";
-import type { FeeStructure, FeePayment } from "@/shared/types";
+import type { FeeStructure, FeePayment } from "@nkps/shared/types";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {

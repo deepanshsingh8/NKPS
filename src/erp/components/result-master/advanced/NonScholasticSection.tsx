@@ -1,21 +1,21 @@
 "use client";
 
-import { Label } from "@/shared/components/ui/label";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
-import type { ResultMasterNonScholasticPlacement } from "@/shared/types";
+} from "@nkps/shared/components/ui/select";
+import type { ResultMasterNonScholasticPlacement } from "@nkps/shared/types";
 
 export function NonScholasticSection({
   include,

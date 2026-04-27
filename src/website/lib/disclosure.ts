@@ -1,9 +1,9 @@
-import { createAdminClient } from "@/shared/lib/supabase/admin";
+import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import type {
   DisclosureItem,
   DisclosureDocument,
   DisclosureBoardResult,
-} from "@/shared/types";
+} from "@nkps/shared/types";
 
 export async function getDisclosureItems(): Promise<DisclosureItem[]> {
   const supabase = createAdminClient();

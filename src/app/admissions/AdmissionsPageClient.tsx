@@ -4,18 +4,18 @@ import Link from "next/link";
 import { Phone, Mail, ArrowRight, GraduationCap, ClipboardList, FileText, Users, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { PageHeader } from "@/website/components/layout/PageHeader";
-import { PageTransition } from "@/shared/components/PageTransition";
-import { SectionDivider } from "@/shared/components/SectionDivider";
-import { AnimatedSection } from "@/shared/components/AnimatedSection";
-import { SectionHeading } from "@/shared/components/SectionHeading";
+import { PageTransition } from "@nkps/shared/components/PageTransition";
+import { SectionDivider } from "@nkps/shared/components/SectionDivider";
+import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/shared/components/ui/accordion";
-import { SCHOOL } from "@/shared/lib/constants";
-import { staggerContainer, fadeUp } from "@/shared/lib/animations";
+} from "@nkps/shared/components/ui/accordion";
+import { SCHOOL } from "@nkps/shared/lib/constants";
+import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import { ADMISSIONS_FAQS } from "./faqs";
 
 const steps = [

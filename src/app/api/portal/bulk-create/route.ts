@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { verifyAdminWithUser } from "@/shared/lib/verify-admin";
-import { createPortalUser } from "@/shared/lib/create-portal-user";
-import { rateLimit } from "@/shared/lib/rate-limit";
+import { verifyAdminWithUser } from "@nkps/shared/lib/verify-admin";
+import { createPortalUser } from "@nkps/shared/lib/create-portal-user";
+import { rateLimit } from "@nkps/shared/lib/rate-limit";
 
 export const maxDuration = 120;
 

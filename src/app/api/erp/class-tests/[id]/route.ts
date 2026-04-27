@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/shared/lib/supabase/server";
-import { classTestUpdateSchema } from "@/shared/lib/validations";
+import { createClient } from "@nkps/shared/lib/supabase/server";
+import { classTestUpdateSchema } from "@nkps/shared/lib/validations";
 import {
   getTeacherIdForUser,
   teacherTeachesClassSubject,

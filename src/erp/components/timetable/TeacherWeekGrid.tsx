@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@/shared/components/ui/button";
+import { Button } from "@nkps/shared/components/ui/button";
 import { CalendarPlus } from "lucide-react";
 
 const DAYS = [

@@ -6,11 +6,11 @@ import { FounderTribute } from "@/website/components/about/FounderTribute";
 import { LeadershipGrid } from "@/website/components/about/LeadershipGrid";
 import { WhyChooseUs } from "@/website/components/about/WhyChooseUs";
 import { AchievementsCounter } from "@/website/components/about/AchievementsCounter";
-import { PageTransition } from "@/shared/components/PageTransition";
-import { SectionDivider } from "@/shared/components/SectionDivider";
+import { PageTransition } from "@nkps/shared/components/PageTransition";
+import { SectionDivider } from "@nkps/shared/components/SectionDivider";
 import { JsonLd } from "@/website/components/seo/JsonLd";
 import { getPageMedia, mediaUrl, getSectionCards } from "@/website/lib/site-media";
-import { buildMetadata, breadcrumbJsonLd } from "@/shared/lib/seo";
+import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "About NK Public School — Legacy Since 1985 in Jaipur",

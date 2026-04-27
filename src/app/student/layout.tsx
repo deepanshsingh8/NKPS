@@ -1,8 +1,8 @@
 "use client";
 
 import { StudentSidebar } from "@/erp/components/portal/StudentSidebar";
-import { SidebarProvider, useSidebar } from "@/shared/components/providers/SidebarProvider";
-import { cn } from "@/shared/lib/utils";
+import { SidebarProvider, useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
+import { cn } from "@nkps/shared/lib/utils";
 
 function StudentLayoutInner({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();

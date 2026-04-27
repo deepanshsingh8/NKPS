@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
-import { studentBulkUploadSchema } from "@/shared/lib/validations";
+import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
+import { studentBulkUploadSchema } from "@nkps/shared/lib/validations";
 
 export const maxDuration = 120; // Allow up to 2 minutes for large uploads
 

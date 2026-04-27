@@ -4,10 +4,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Monitor, FlaskConical, Laptop, BookOpen, ArrowRight } from "lucide-react";
-import { FACILITIES } from "@/shared/lib/constants";
-import { SectionHeading } from "@/shared/components/SectionHeading";
-import { fadeUp, staggerContainer } from "@/shared/lib/animations";
-import type { SectionCard } from "@/shared/types";
+import { FACILITIES } from "@nkps/shared/lib/constants";
+import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import { fadeUp, staggerContainer } from "@nkps/shared/lib/animations";
+import type { SectionCard } from "@nkps/shared/types";
 
 const defaultFacilityImages = [
   "/images/news/n1.jpg",

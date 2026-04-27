@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { GalleryPageClient } from "./GalleryPageClient";
 import { JsonLd } from "@/website/components/seo/JsonLd";
-import { buildMetadata, breadcrumbJsonLd } from "@/shared/lib/seo";
+import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Photo Gallery — Life at NK Public School Jaipur",

@@ -1,24 +1,24 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
+import { createClient } from "@nkps/shared/lib/supabase/client";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/shared/components/ui/card";
+} from "@nkps/shared/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
-import { Button } from "@/shared/components/ui/button";
+} from "@nkps/shared/components/ui/select";
+import { Button } from "@nkps/shared/components/ui/button";
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
-import { formatClassName } from "@/shared/lib/utils";
-import type { Class } from "@/shared/types";
+import { formatClassName } from "@nkps/shared/lib/utils";
+import type { Class } from "@nkps/shared/types";
 import type { GreenSheetData } from "@/erp/lib/green-sheet";
 
 interface AcademicYear {

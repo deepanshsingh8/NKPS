@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
-import { HALF_DAY_CUTOFF_PERIOD } from "@/shared/lib/constants";
+import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
+import { HALF_DAY_CUTOFF_PERIOD } from "@nkps/shared/lib/constants";
 
 // Substitute-suggestion algorithm.
 //

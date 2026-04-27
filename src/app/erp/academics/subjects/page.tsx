@@ -1,25 +1,25 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { createClient } from "@/shared/lib/supabase/client";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import { Badge } from "@/shared/components/ui/badge";
+import { createClient } from "@nkps/shared/lib/supabase/client";
+import { Button } from "@nkps/shared/components/ui/button";
+import { Input } from "@nkps/shared/components/ui/input";
+import { Label } from "@nkps/shared/components/ui/label";
+import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/shared/components/ui/dialog";
+} from "@nkps/shared/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/components/ui/select";
+} from "@nkps/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -27,7 +27,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/shared/components/ui/table";
+} from "@nkps/shared/components/ui/table";
 import { toast } from "sonner";
 import {
   Plus,
@@ -44,11 +44,11 @@ import {
   Sparkles,
   Upload,
 } from "lucide-react";
-import { adminApi } from "@/shared/lib/admin-api";
-import { cn, formatClassName } from "@/shared/lib/utils";
+import { adminApi } from "@nkps/shared/lib/admin-api";
+import { cn, formatClassName } from "@nkps/shared/lib/utils";
 import QuickSetupWizard from "@/erp/components/QuickSetupWizard";
 import { SubjectBulkUpload } from "@/erp/components/SubjectBulkUpload";
-import type { Class, Subject, Teacher, Stream } from "@/shared/types";
+import type { Class, Subject, Teacher, Stream } from "@nkps/shared/types";
 
 type Tab = "subjects" | "assignments" | "streams";
 
