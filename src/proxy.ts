@@ -5,19 +5,19 @@ export async function proxy(request: NextRequest) {
   return await updateSession(request);
 }
 
+// Root project (transitional) only serves ERP/portal/teacher/student/parent
+// after Phase 3.5b. CMS routes were extracted to apps/cms; the website was
+// extracted to apps/website in 3.4b. CMS-related matchers removed below.
 export const config = {
   matcher: [
-    "/cms/:path*",
     "/erp/:path*",
     "/teacher/:path*",
     "/student/:path*",
     "/parent/:path*",
     "/portal/:path*",
     "/api/erp/:path*",
-    "/api/cms/:path*",
     "/api/admin/:path*",
     "/api/portal/:path*",
     "/api/staff/:path*",
-    "/api/transfer-certificates/:path*",
   ],
 };

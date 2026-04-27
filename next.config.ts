@@ -29,30 +29,10 @@ const nextConfig: NextConfig = {
       // /admin/login → /erp/login (ERP is the primary staff entry).
       { source: "/admin/login", destination: "/erp/login", permanent: true },
 
-      // CMS module: /admin/content/* and CMS-only top-level paths flatten under /cms.
-      { source: "/admin/content/gallery", destination: "/cms/gallery", permanent: true },
-      { source: "/admin/content/gallery/:path*", destination: "/cms/gallery/:path*", permanent: true },
-      { source: "/admin/content/articles", destination: "/cms/articles", permanent: true },
-      { source: "/admin/content/articles/:path*", destination: "/cms/articles/:path*", permanent: true },
-      { source: "/admin/content/site-media", destination: "/cms/site-media", permanent: true },
-      { source: "/admin/content/site-media/:path*", destination: "/cms/site-media/:path*", permanent: true },
-      { source: "/admin/content/disclosure", destination: "/cms/disclosure", permanent: true },
-      { source: "/admin/content/disclosure/:path*", destination: "/cms/disclosure/:path*", permanent: true },
-      { source: "/admin/content", destination: "/cms", permanent: true },
-      { source: "/admin/transfer-certificates", destination: "/cms/transfer-certificates", permanent: true },
-      { source: "/admin/transfer-certificates/:path*", destination: "/cms/transfer-certificates/:path*", permanent: true },
-      { source: "/admin/contact", destination: "/cms/contact", permanent: true },
-      { source: "/admin/contact/:path*", destination: "/cms/contact/:path*", permanent: true },
-
-      // Convenience short-form CMS aliases (no longer go through /admin).
-      { source: "/admin/gallery", destination: "/cms/gallery", permanent: true },
-      { source: "/admin/gallery/:path*", destination: "/cms/gallery/:path*", permanent: true },
-      { source: "/admin/articles", destination: "/cms/articles", permanent: true },
-      { source: "/admin/articles/:path*", destination: "/cms/articles/:path*", permanent: true },
-      { source: "/admin/site-media", destination: "/cms/site-media", permanent: true },
-      { source: "/admin/site-media/:path*", destination: "/cms/site-media/:path*", permanent: true },
-      { source: "/admin/disclosure", destination: "/cms/disclosure", permanent: true },
-      { source: "/admin/disclosure/:path*", destination: "/cms/disclosure/:path*", permanent: true },
+      // NOTE: CMS-side legacy /admin/content/* and /admin/(gallery|articles|...)
+      // redirects were removed in Phase 3.5b. CMS now lives in apps/cms on its
+      // own subdomain; cross-subdomain redirects (nkps.com/admin/articles →
+      // cms.nkps.com/articles) will be wired via Vercel rewrites in Phase 3.6.
 
       // ERP module: every non-CMS /admin/* route maps 1:1 to /erp/*.
       { source: "/admin/academics", destination: "/erp/academics", permanent: true },
@@ -92,25 +72,14 @@ const nextConfig: NextConfig = {
       // Bare /admin → /erp (the primary staff dashboard).
       { source: "/admin", destination: "/erp", permanent: true },
 
-      // CMS-side admin API renames (CMS-only endpoints relocated under /api/cms/*).
-      { source: "/api/admin/articles", destination: "/api/cms/articles", permanent: true },
-      { source: "/api/admin/articles/:path*", destination: "/api/cms/articles/:path*", permanent: true },
-      { source: "/api/admin/site-media", destination: "/api/cms/site-media", permanent: true },
-      { source: "/api/admin/site-media/:path*", destination: "/api/cms/site-media/:path*", permanent: true },
-      { source: "/api/admin/section-cards", destination: "/api/cms/section-cards", permanent: true },
-      { source: "/api/admin/section-cards/:path*", destination: "/api/cms/section-cards/:path*", permanent: true },
-      { source: "/api/admin/disclosure-documents", destination: "/api/cms/disclosure-documents", permanent: true },
-      { source: "/api/admin/disclosure-documents/:path*", destination: "/api/cms/disclosure-documents/:path*", permanent: true },
-      { source: "/api/admin/upload-url", destination: "/api/cms/upload-url", permanent: true },
-      { source: "/api/admin/upload-url/:path*", destination: "/api/cms/upload-url/:path*", permanent: true },
+      // NOTE: /api/admin/{articles,site-media,section-cards,disclosure-documents,
+      // upload-url,contact} redirects were removed in Phase 3.5b — those endpoints
+      // now live in apps/cms (cms.nkps.com/api/...) and aren't reachable from
+      // the root project anymore. Vercel cross-subdomain rewrites will handle
+      // legacy /api/admin/* hits in Phase 3.6 if needed.
 
-      // Phase 3.3: cross-cutting admin APIs split into module-specific halves.
-      { source: "/api/admin/contact", destination: "/api/cms/contact", permanent: true },
-      { source: "/api/admin/contact/:path*", destination: "/api/cms/contact/:path*", permanent: true },
+      // /api/admin/dashboard/analytics still lives in root (under /api/erp/).
       { source: "/api/admin/dashboard/analytics", destination: "/api/erp/dashboard/analytics", permanent: true },
-      // /api/admin/dashboard split → no single redirect target (callers must
-      // pick /api/cms/dashboard or /api/erp/dashboard). Old clients hit /api/admin/dashboard
-      // and get a 404; that's the intended signal that they need to be updated.
       { source: "/api/admin/editor-permissions", destination: "/api/erp/editor-permissions", permanent: true },
       { source: "/api/admin/editor-permissions/:path*", destination: "/api/erp/editor-permissions/:path*", permanent: true },
     ];

@@ -13,7 +13,13 @@ export function useUnreadCount() {
     const fetchCounts = async () => {
       try {
         const [contactRes, regRes] = await Promise.all([
-          adminFetch("/api/cms/contact/unread-count"),
+          // Each app exposes its own unread/pending endpoint at a stable URL.
+          // - In apps/cms, /api/contact/unread-count returns CMS contact unread.
+          // - In apps/erp (or root pre-3.5c), /api/erp/registrations/pending-count
+          //   returns pending registration count.
+          // Cross-app 404s fail silently (CmsSidebar doesn't use the
+          // pendingRegistration value; ErpSidebar doesn't use unreadCount).
+          adminFetch("/api/contact/unread-count"),
           adminFetch("/api/erp/registrations/pending-count"),
         ]);
 

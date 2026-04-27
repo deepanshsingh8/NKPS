@@ -53,7 +53,7 @@ const cmsStatCards = [
     iconBg: "bg-amber-100 dark:bg-amber-900/30",
     iconColor: "text-amber-600",
     accent: "from-amber-500/10 to-transparent",
-    href: "/cms/gallery",
+    href: "/gallery",
   },
   {
     key: "tcCount" as const,
@@ -62,7 +62,7 @@ const cmsStatCards = [
     iconBg: "bg-gold-300/30 dark:bg-gold-500/20",
     iconColor: "text-gold-600",
     accent: "from-gold-500/10 to-transparent",
-    href: "/cms/transfer-certificates",
+    href: "/transfer-certificates",
   },
   {
     key: "unreadCount" as const,
@@ -71,7 +71,7 @@ const cmsStatCards = [
     iconBg: "bg-rose-100 dark:bg-rose-900/30",
     iconColor: "text-rose-600",
     accent: "from-rose-500/10 to-transparent",
-    href: "/cms/contact",
+    href: "/contact",
   },
 ];
 
@@ -202,7 +202,11 @@ export function DashboardView({ scope }: { scope: Scope }) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await adminFetch(`/api/${scope}/dashboard`);
+        // CMS app exposes /api/dashboard at its root (post-3.5b).
+        // ERP still lives in root project; its endpoint is /api/erp/dashboard
+        // until 3.5c extracts it. After 3.5c, this collapses to "/api/dashboard".
+        const dashUrl = scope === "cms" ? "/api/dashboard" : "/api/erp/dashboard";
+        const res = await adminFetch(dashUrl);
         const data = await res.json();
         if (res.ok) {
           setStats(data.stats);

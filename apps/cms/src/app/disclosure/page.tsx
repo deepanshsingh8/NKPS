@@ -282,7 +282,7 @@ function DocumentsTab({
       const fileName = `${doc.doc_key}-${Date.now()}.${fileExt}`;
       const url = await uploadToStorage("disclosure-documents", fileName, file);
 
-      const res = await adminFetch("/api/cms/disclosure-documents", {
+      const res = await adminFetch("/api/disclosure-documents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, fileName: file.name, docKey: doc.doc_key }),
@@ -307,7 +307,7 @@ function DocumentsTab({
 
     setUploadingKey(doc.doc_key);
     try {
-      const res = await adminDelete("/api/cms/disclosure-documents", {
+      const res = await adminDelete("/api/disclosure-documents", {
         id: doc.id,
         fileUrl: doc.file_url,
       });

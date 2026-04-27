@@ -95,7 +95,7 @@ export default function AdminArticlesPage() {
 
   const fetchArticles = useCallback(async () => {
     try {
-      const res = await adminFetch("/api/cms/articles");
+      const res = await adminFetch("/api/articles");
       const data = await res.json();
       if (res.ok) setArticles((data.data as Article[]) ?? []);
       else toast.error(data.error || "Failed to load articles");
@@ -215,7 +215,7 @@ export default function AdminArticlesPage() {
       };
 
       if (editing) {
-        const res = await adminFetch("/api/cms/articles", {
+        const res = await adminFetch("/api/articles", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: editing.id, data: payload }),
@@ -227,7 +227,7 @@ export default function AdminArticlesPage() {
         }
         toast.success("Article updated");
       } else {
-        const res = await adminFetch("/api/cms/articles", {
+        const res = await adminFetch("/api/articles", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -253,7 +253,7 @@ export default function AdminArticlesPage() {
   const handleDelete = async (article: Article) => {
     if (!confirm(`Delete "${article.title}"? This cannot be undone.`)) return;
     try {
-      const res = await adminDelete("/api/cms/articles", { id: article.id });
+      const res = await adminDelete("/api/articles", { id: article.id });
       if (!res.ok) {
         const d = await res.json();
         toast.error(d.error || "Delete failed");
@@ -268,7 +268,7 @@ export default function AdminArticlesPage() {
 
   const handleTogglePublish = async (article: Article) => {
     try {
-      const res = await adminPatch("/api/cms/articles", {
+      const res = await adminPatch("/api/articles", {
         id: article.id,
         data: { is_published: !article.is_published },
       });

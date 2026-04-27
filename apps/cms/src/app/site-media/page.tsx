@@ -329,7 +329,7 @@ function SlotCard({
       const fileName = `${item.slot}-${Date.now()}.${fileExt}`;
       const url = await uploadToStorage("site-media", fileName, file);
 
-      const res = await adminFetch("/api/cms/site-media", {
+      const res = await adminFetch("/api/site-media", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slot: item.slot, url }),
@@ -351,7 +351,7 @@ function SlotCard({
   const handleReset = async () => {
     setResetting(true);
     try {
-      const res = await adminPatch("/api/cms/site-media", {
+      const res = await adminPatch("/api/site-media", {
         slot: item.slot,
         action: "reset",
       });
@@ -577,8 +577,8 @@ export default function AdminSiteMediaPage() {
   const fetchMedia = useCallback(async () => {
     try {
       const [mediaRes, cardsRes] = await Promise.all([
-        adminFetch("/api/cms/site-media"),
-        adminFetch("/api/cms/section-cards"),
+        adminFetch("/api/site-media"),
+        adminFetch("/api/section-cards"),
       ]);
       const mediaData = await mediaRes.json();
       const cardsData = await cardsRes.json();
@@ -687,7 +687,7 @@ export default function AdminSiteMediaPage() {
         const updates: Record<string, unknown> = { ...payload };
         delete updates.section;
         if (imageUrl) updates.image_url = imageUrl;
-        const res = await adminFetch("/api/cms/section-cards", {
+        const res = await adminFetch("/api/section-cards", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: editing.id, data: updates }),
@@ -700,7 +700,7 @@ export default function AdminSiteMediaPage() {
         toast.success("Card updated");
       } else {
         if (imageUrl) payload.image_url = imageUrl;
-        const res = await adminFetch("/api/cms/section-cards", {
+        const res = await adminFetch("/api/section-cards", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -727,7 +727,7 @@ export default function AdminSiteMediaPage() {
     if (!confirm(`Delete this card? This cannot be undone.`)) return;
 
     try {
-      const res = await adminDelete("/api/cms/section-cards", { id: card.id });
+      const res = await adminDelete("/api/section-cards", { id: card.id });
       if (!res.ok) {
         const data = await res.json();
         toast.error(data.error || "Delete failed");
@@ -742,7 +742,7 @@ export default function AdminSiteMediaPage() {
 
   const handleToggleCard = async (card: SectionCard) => {
     try {
-      const res = await adminPatch("/api/cms/section-cards", {
+      const res = await adminPatch("/api/section-cards", {
         id: card.id,
         data: { is_active: !card.is_active },
       });

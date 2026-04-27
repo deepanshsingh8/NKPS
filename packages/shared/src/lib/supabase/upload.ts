@@ -13,7 +13,10 @@ export async function uploadToStorage(
   file: File
 ): Promise<string> {
   // 1. Get a signed upload URL from the server
-  const res = await adminFetch("/api/cms/upload-url", {
+  // Each app exposes /api/upload-url at its root (signed-URL generator).
+  // Currently only apps/cms needs this (uploads to gallery / TC / site-media
+  // / disclosure-documents / staff-photos buckets).
+  const res = await adminFetch("/api/upload-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ bucket, fileName }),

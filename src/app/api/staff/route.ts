@@ -3,7 +3,7 @@ import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import { createPortalUser } from "@nkps/shared/lib/create-portal-user";
 import { mirrorStaffToTeacher } from "@/erp/lib/staff-teacher-sync";
 import { staffCreateSchema, staffUpdateSchema } from "@nkps/shared/lib/validations";
-import { extractStoragePath } from "@/lib/storage-paths";
+import { extractStoragePath } from "@nkps/shared/lib/storage-paths";
 
 export async function POST(request: NextRequest) {
   const admin = await verifyAdminOrEditor("staff");
