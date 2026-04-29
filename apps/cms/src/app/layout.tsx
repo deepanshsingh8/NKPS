@@ -1,30 +1,35 @@
-"use client";
+import type { Metadata } from "next";
+import { Inter, Playfair_Display } from "next/font/google";
+import { Toaster } from "@nkps/shared/components/ui/sonner";
+import { CmsShell } from "@/components/CmsShell";
+import "./globals.css";
 
-import { CmsSidebar } from "@/components/CmsSidebar";
-import { SidebarProvider, useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
-import { cn } from "@nkps/shared/lib/utils";
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  display: "swap",
+});
 
-function CmsLayoutInner({ children }: { children: React.ReactNode }) {
-  const { collapsed } = useSidebar();
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  display: "swap",
+});
 
-  return (
-    <div className="flex min-h-screen bg-gray-50">
-      <CmsSidebar />
-      <main className={cn("flex-1 p-8 transition-all duration-300", collapsed ? "ml-[72px]" : "ml-64")}>
-        {children}
-      </main>
-    </div>
-  );
-}
+export const metadata: Metadata = {
+  title: "NKPS CMS",
+  robots: { index: false, follow: false },
+};
 
-export default function CmsLayout({
+export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <SidebarProvider>
-      <CmsLayoutInner>{children}</CmsLayoutInner>
-    </SidebarProvider>
+    <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
+      <body className="min-h-screen antialiased">
+        <CmsShell>{children}</CmsShell>
+        <Toaster position="top-right" richColors />
+      </body>
+    </html>
   );
 }
