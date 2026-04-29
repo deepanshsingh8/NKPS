@@ -330,7 +330,7 @@ export default function AdminResultsPage() {
         <Link
           href={
             selectedClassId && selectedExamTypeId
-              ? `/erp/exams/results/edit?class_id=${encodeURIComponent(selectedClassId)}&exam_type_id=${encodeURIComponent(selectedExamTypeId)}`
+              ? `/exams/results/edit?class_id=${encodeURIComponent(selectedClassId)}&exam_type_id=${encodeURIComponent(selectedExamTypeId)}`
               : "/exams/results/edit"
           }
           className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-white dark:bg-card px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-900/40 transition-colors"

@@ -16,8 +16,8 @@ export default function ErpLoginPage() {
         { label: "Parents", color: "bg-rose-400" },
       ]}
       redirectByRole={{
-        admin: "/erp",
-        editor: "/erp",
+        admin: "/",
+        editor: "/",
         teacher: "/teacher",
         student: "/student",
         parent: "/parent",

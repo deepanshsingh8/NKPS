@@ -14,8 +14,8 @@ export default function CmsLoginPage() {
         { label: "Editors", color: "bg-blue-400" },
       ]}
       redirectByRole={{
-        admin: "/cms",
-        editor: "/cms",
+        admin: "/",
+        editor: "/",
       }}
     />
   );
