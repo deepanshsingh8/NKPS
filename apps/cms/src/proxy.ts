@@ -66,8 +66,9 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     // Run on all paths EXCEPT static assets + Next.js internals + API routes.
-    // API routes have their own auth checks; we don't want the proxy adding
-    // latency to every API call.
-    "/((?!api|_next/static|_next/image|_next/dev|favicon.ico).*)",
+    // The `.*\\.` arm excludes anything containing a literal dot — i.e. files
+    // with extensions like /images/logo.png. Without it, the auth gate
+    // intercepts public assets and the Image optimizer gets a 307 → null.
+    "/((?!api|_next/static|_next/image|_next/dev|favicon.ico|.*\\.).*)",
   ],
 };

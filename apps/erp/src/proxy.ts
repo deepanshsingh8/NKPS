@@ -11,7 +11,9 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     // Run on all paths EXCEPT static assets + Next.js internals + auth callback.
-    // updateSession will check auth and role gates on what it sees.
-    "/((?!_next/static|_next/image|_next/dev|favicon.ico).*)",
+    // The `.*\\.` arm excludes anything containing a literal dot — i.e. files
+    // with extensions like /images/logo.png. Without it, the auth gate
+    // intercepts public assets and the Image optimizer gets a 307 → null.
+    "/((?!_next/static|_next/image|_next/dev|favicon.ico|.*\\.).*)",
   ],
 };
