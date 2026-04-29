@@ -46,22 +46,26 @@ export async function POST(request: Request) {
     let status: "paid" | "partial" = requestedStatus ?? "paid";
     const { data: structure } = await admin
       .from("fee_structures")
-      .select("amount")
+      .select("amount, academic_year_id")
       .eq("id", fee_structure_id)
       .maybeSingle();
-    if (structure) {
-      const expected = Number(structure.amount);
-      if (Number.isFinite(expected) && amount_paid > expected) {
-        return NextResponse.json(
-          {
-            error: `Amount paid (${amount_paid}) exceeds the fee structure amount (${expected}). Reduce the amount, or split the surplus into a separate fee.`,
-          },
-          { status: 400 }
-        );
-      }
-      if (status === "paid" && expected > amount_paid) {
-        status = "partial";
-      }
+    if (!structure) {
+      return NextResponse.json(
+        { error: "Fee structure not found" },
+        { status: 400 }
+      );
+    }
+    const expected = Number(structure.amount);
+    if (Number.isFinite(expected) && amount_paid > expected) {
+      return NextResponse.json(
+        {
+          error: `Amount paid (${amount_paid}) exceeds the fee structure amount (${expected}). Reduce the amount, or split the surplus into a separate fee.`,
+        },
+        { status: 400 }
+      );
+    }
+    if (status === "paid" && expected > amount_paid) {
+      status = "partial";
     }
 
     // Auto-generate receipt number with cryptographically secure random digits
@@ -72,6 +76,7 @@ export async function POST(request: Request) {
       .insert({
         student_id,
         fee_structure_id,
+        academic_year_id: structure.academic_year_id,
         amount_paid,
         payment_method,
         month: month || null,

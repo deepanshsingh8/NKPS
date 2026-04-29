@@ -29,6 +29,20 @@ export async function POST(request: Request) {
   const { student_id, fee_structure_id, waiver_amount, waiver_reason, month } =
     parsed.data;
 
+  // Pull the structure's academic year so the waiver row joins the dues
+  // compute (which filters fee_payments.academic_year_id directly).
+  const { data: structure } = await admin
+    .from("fee_structures")
+    .select("academic_year_id")
+    .eq("id", fee_structure_id)
+    .maybeSingle();
+  if (!structure) {
+    return NextResponse.json(
+      { error: "Fee structure not found" },
+      { status: 400 }
+    );
+  }
+
   // Receipt number is still generated for waivers — it's the easiest way to
   // reference the entry in dues lists / parent-facing screens.
   const receipt_number = generateReceiptNumber();
@@ -38,6 +52,7 @@ export async function POST(request: Request) {
     .insert({
       student_id,
       fee_structure_id,
+      academic_year_id: structure.academic_year_id,
       amount_paid: 0,
       payment_method: "waiver",
       waiver_amount,

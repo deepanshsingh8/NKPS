@@ -4003,3 +4003,17 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 048 — backfill fee_payments.academic_year_id from fee_structures
+-- (mirrored from scripts/migration-048-fee-payments-backfill-academic-year.sql)
+-- The dues compute filters fee_payments.academic_year_id directly; the POST
+-- handlers now also populate it on insert. This statement repairs rows that
+-- were inserted before the fix.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+UPDATE fee_payments fp
+SET academic_year_id = fs.academic_year_id
+FROM fee_structures fs
+WHERE fp.fee_structure_id = fs.id
+  AND fp.academic_year_id IS NULL;
