@@ -13,14 +13,14 @@ import {
   Bus,
   CheckCircle,
 } from "lucide-react";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { PageTransition } from "@/components/shared/PageTransition";
-import { AnimatedSection } from "@/components/shared/AnimatedSection";
-import { SectionHeading } from "@/components/shared/SectionHeading";
-import { FACILITIES } from "@/lib/constants";
-import { staggerContainer, fadeUp } from "@/lib/animations";
-import { cn } from "@/lib/utils";
-import type { SectionCard } from "@/types";
+import { PageHeader } from "@/website/components/layout/PageHeader";
+import { PageTransition } from "@/shared/components/PageTransition";
+import { AnimatedSection } from "@/shared/components/AnimatedSection";
+import { SectionHeading } from "@/shared/components/SectionHeading";
+import { FACILITIES } from "@/shared/lib/constants";
+import { staggerContainer, fadeUp } from "@/shared/lib/animations";
+import { cn } from "@/shared/lib/utils";
+import type { SectionCard } from "@/shared/types";
 
 const iconComponents = [
   Monitor,

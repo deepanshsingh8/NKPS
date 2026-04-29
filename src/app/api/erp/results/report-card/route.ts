@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { canViewReportCard, getReportCardData } from "@/lib/report-card";
+import { createClient } from "@/shared/lib/supabase/server";
+import { canViewReportCard, getReportCardData } from "@/erp/lib/report-card";
 
 export async function GET(request: Request) {
   try {

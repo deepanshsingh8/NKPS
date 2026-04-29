@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
-import { createClient } from "@/lib/supabase/server";
-import { getPdfTemplate } from "@/lib/pdf-templates";
-import { contentDispositionAttachment } from "@/lib/utils";
+import { createClient } from "@/shared/lib/supabase/server";
+import { getPdfTemplate } from "@/erp/lib/pdf-templates";
+import { contentDispositionAttachment } from "@/shared/lib/utils";
 import {
   PtmNotesReportPDF,
   type PtmReportStudentBlock,
-} from "@/components/pdf/PtmNotesReportPDF";
+} from "@/erp/components/pdf/PtmNotesReportPDF";
 
 export const runtime = "nodejs";
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditorWithUser } from "@/lib/verify-admin";
-import type { FeatureKey } from "@/lib/permissions";
+import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
+import type { FeatureKey } from "@/shared/lib/permissions";
 
 // Map each proxied table to the editor feature_key required to write it.
 // Admins bypass this entirely. Editors must have the matching permission.
@@ -36,7 +36,7 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   class_subjects: ["id", "class_id", "subject_id", "teacher_id", "created_at"],
   student_enrollments: ["id", "student_id", "class_id", "stream_id", "roll_number", "enrollment_date", "has_transport", "updated_at"],
   fee_structures: ["id", "academic_year_id", "class_name", "class_level", "stream_id", "fee_type", "amount", "due_date", "frequency", "is_active", "description", "created_at", "updated_at"],
-  fee_payments: ["id", "student_id", "fee_structure_id", "amount_paid", "payment_date", "payment_method", "receipt_number", "month", "status", "recorded_by", "remarks", "created_at"],
+  fee_payments: ["id", "student_id", "fee_structure_id", "amount_paid", "payment_date", "payment_method", "receipt_number", "month", "status", "recorded_by", "remarks", "cheque_number", "cheque_date", "bank_name", "payer_name", "transaction_ref", "payment_provider", "created_at"],
   exam_types: ["id", "name", "academic_year_id", "max_marks", "weightage", "sort_order", "kind", "upper_header", "class_level", "created_at"],
   calendar_events: ["id", "title", "description", "event_type", "start_date", "end_date", "class_id", "created_by", "created_at"],
   gallery_events: ["id", "title", "description", "event_date", "academic_year", "cover_image_url", "is_public", "sort_order", "created_at", "updated_at"],
@@ -145,6 +145,17 @@ export async function POST(request: NextRequest) {
           { error: "This record already exists. Duplicate entries are not allowed." },
           { status: 409 }
         );
+      }
+      // FK violation: the row is referenced by other tables. Surface a
+      // user-actionable message instead of the generic 500 — for fees the
+      // typical cause is recorded payments, and the right move is to
+      // deactivate rather than delete.
+      if (result.error.code === "23503") {
+        const msg =
+          action === "delete"
+            ? "Cannot delete: other records reference this row. Deactivate it instead, or remove the dependent records first."
+            : "This change references a record that doesn't exist or is invalid.";
+        return NextResponse.json({ error: msg }, { status: 409 });
       }
       // Don't echo Supabase's error.message — it can leak column/table names
       // and constraint hints. The detailed log above is enough for debugging.

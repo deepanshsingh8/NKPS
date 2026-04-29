@@ -2,22 +2,22 @@ import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { canViewReportCard, getReportCardData } from "@/lib/report-card";
-import type { ReportCardExamGroup } from "@/lib/report-card";
-import { ReportCardPDF } from "@/components/pdf/ReportCardPDF";
-import { getPdfTemplate } from "@/lib/pdf-templates";
-import { contentDispositionAttachment } from "@/lib/utils";
+import { createClient } from "@/shared/lib/supabase/server";
+import { createAdminClient } from "@/shared/lib/supabase/admin";
+import { canViewReportCard, getReportCardData } from "@/erp/lib/report-card";
+import type { ReportCardExamGroup } from "@/erp/lib/report-card";
+import { ReportCardPDF } from "@/erp/components/pdf/ReportCardPDF";
+import { getPdfTemplate } from "@/erp/lib/pdf-templates";
+import { contentDispositionAttachment } from "@/shared/lib/utils";
 import {
   computeFinalResult,
   computeRanksForClass,
-} from "@/lib/final-result";
-import type { FinalResult } from "@/types";
+} from "@/erp/lib/final-result";
+import type { FinalResult } from "@/shared/types";
 import type {
   MarksheetSnapshotV1,
   MarksheetSnapshotV2,
-} from "@/lib/marksheet-snapshot";
+} from "@/erp/lib/marksheet-snapshot";
 
 export const runtime = "nodejs";
 
@@ -75,6 +75,20 @@ export async function GET(request: Request) {
     if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    // Caller-role gate (audit H2): students/parents only see published marks
+    // through the live-compute path. The snapshot path (read further down)
+    // is unaffected because finalized snapshots are by definition published.
+    const { data: callerProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const callerRole = (callerProfile?.role as string | undefined) ?? "";
+    const callerIsStaff =
+      callerRole === "admin" ||
+      callerRole === "editor" ||
+      callerRole === "teacher";
 
     const generatedOn = new Date().toLocaleString("en-IN", {
       timeZone: "Asia/Kolkata",
@@ -343,6 +357,7 @@ export async function GET(request: Request) {
     const finalResult = await computeFinalResult(supabase, {
       student_id: studentId,
       academic_year_id: yearId,
+      includeUnpublished: callerIsStaff,
     });
 
     if (!finalResult) {
@@ -422,6 +437,9 @@ export async function GET(request: Request) {
       }>;
     }> = [];
     if (resultMasterProp.include_non_scholastic) {
+      // M9 — scope to the report's class so prior-year assessments don't
+      // resurface on the current year's card. `class_id` IS the year scope
+      // here (every class belongs to exactly one academic_year).
       const { data: assessments } = await supabase
         .from("non_scholastic_assessments")
         .select(
@@ -430,6 +448,7 @@ export async function GET(request: Request) {
              parent:non_scholastic_subjects(id, name, sort_order, is_active))`
         )
         .eq("student_id", studentId)
+        .eq("class_id", classId)
         .eq("is_published", true)
         .order("updated_at", { ascending: false });
       type Row = {

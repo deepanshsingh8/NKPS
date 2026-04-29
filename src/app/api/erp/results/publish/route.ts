@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { verifyAdminOrEditorWithUser } from "@/lib/verify-admin";
-import { publishResultsSchema } from "@/lib/validations";
+import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
+import { publishResultsSchema } from "@/shared/lib/validations";
 
 // POST /api/erp/results/publish
 // Body: { class_id, exam_type_id, is_published }

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { verifyAdminOrEditorWithUser } from "@/lib/verify-admin";
+import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
 import {
   finalizeMarksheetSchema,
   unpublishMarksheetSchema,
-} from "@/lib/validations";
-import { buildMarksheetSnapshot } from "@/lib/marksheet-snapshot";
+} from "@/shared/lib/validations";
+import { buildMarksheetSnapshot } from "@/erp/lib/marksheet-snapshot";
 
 // POST /api/erp/results/finalize-marksheet
 // Body: { class_id, exam_type_id, student_ids?: [] }

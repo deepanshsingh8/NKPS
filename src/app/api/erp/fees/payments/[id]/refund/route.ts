@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditorWithUser } from "@/lib/verify-admin";
-import { feeRefundSchema } from "@/lib/validations";
+import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
+import { feeRefundSchema } from "@/shared/lib/validations";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -10,6 +10,12 @@ interface RouteContext {
 // Marks a previously-recorded payment as refunded with reason + amount.
 // The DB CHECK constraint (`fee_payments_refund_consistent`) enforces that
 // `refund_amount > 0` whenever status flips to 'refunded'.
+//
+// **Single refund per payment.** Partial-refunds are supported in the sense
+// that `refund_amount` may be less than `amount_paid`, but a payment can
+// only be refunded once. To split a refund across two events, record the
+// surplus as a separate fee_payments row first, then refund each
+// independently. (Audit M17 — UI copy was previously ambiguous.)
 export async function POST(request: NextRequest, context: RouteContext) {
   const auth = await verifyAdminOrEditorWithUser("fees");
   if (!auth) {
@@ -42,7 +48,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
   if (existing.status === "refunded") {
     return NextResponse.json(
-      { error: "Payment is already refunded" },
+      {
+        error:
+          "This payment is already refunded. Only one refund per payment is supported — record a follow-up payment if you need to split the refund.",
+      },
       { status: 400 }
     );
   }
@@ -61,7 +70,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 
-  const { error: updateErr } = await admin
+  // Audit H6: optimistic-concurrency guard. The previous read-then-write
+  // sequence let two simultaneous refund POSTs both pass the
+  // `status !== "refunded"` precheck and both commit — the second silently
+  // overwrote the first's reason/amount/actor. The `.eq("status",
+  // existing.status)` clause makes the loser of the race affect zero rows.
+  const { data: updated, error: updateErr } = await admin
     .from("fee_payments")
     .update({
       status: "refunded",
@@ -70,10 +84,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
       refunded_at: new Date().toISOString(),
       refunded_by: user.id,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("status", existing.status)
+    .select("id");
   if (updateErr) {
     console.error("[fees.refund] update:", updateErr);
     return NextResponse.json({ error: "Failed to refund payment" }, { status: 500 });
+  }
+  if (!updated || updated.length === 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Payment was modified by another request. Refresh and try again.",
+      },
+      { status: 409 }
+    );
   }
 
   return NextResponse.json({ success: true, id });

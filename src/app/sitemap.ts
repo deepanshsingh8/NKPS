@@ -1,6 +1,6 @@
 import { MetadataRoute } from "next";
-import { getPublishedArticles } from "@/lib/articles";
-import { SITE_URL } from "@/lib/seo";
+import { getPublishedArticles } from "@/shared/lib/articles";
+import { SITE_URL } from "@/shared/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
@@ -16,6 +16,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/contact`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE_URL}/transfer-certificates`, lastModified: now, changeFrequency: "weekly", priority: 0.5 },
     { url: `${SITE_URL}/mandatory-public-disclosure`, lastModified: now, changeFrequency: "yearly", priority: 0.5 },
+    { url: `${SITE_URL}/for-parents`, lastModified: now, changeFrequency: "yearly", priority: 0.5 },
     { url: `${SITE_URL}/articles`, lastModified: now, changeFrequency: "weekly", priority: 0.7 },
   ];
 

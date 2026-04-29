@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
-import { ptmFormatSchema } from "@/lib/validations";
+import { verifyAdmin } from "@/shared/lib/verify-admin";
+import { ptmFormatSchema } from "@/shared/lib/validations";
 
 // PATCH /api/erp/ptm-formats/[id] — admin-only. Same is_default-clearing
 // logic as POST so flipping a template to default doesn't collide with the

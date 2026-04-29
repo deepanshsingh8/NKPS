@@ -1,4 +1,4 @@
-import { SCHOOL } from "@/lib/constants";
+import { SCHOOL } from "@/shared/lib/constants";
 
 export const ADMISSIONS_FAQS = [
   {

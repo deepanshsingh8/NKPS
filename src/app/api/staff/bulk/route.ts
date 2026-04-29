@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
-import { staffBulkUploadSchema } from "@/lib/validations";
-import { createPortalUser } from "@/lib/create-portal-user";
+import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { staffBulkUploadSchema } from "@/shared/lib/validations";
+import { createPortalUser } from "@/shared/lib/create-portal-user";
 
 const VALID_CATEGORIES = [
   "management", "admin", "pgt", "tgt", "prt",
@@ -104,10 +104,12 @@ export async function POST(request: Request) {
             .insert(record);
 
           if (singleError) {
-            errors.push({
-              name: record.name,
-              error: singleError.message,
-            });
+            console.error("Staff bulk single-insert failed:", singleError);
+            const friendly =
+              singleError.code === "23505"
+                ? "A staff member with this name + category already exists"
+                : "Failed to insert this row";
+            errors.push({ name: record.name, error: friendly });
           } else {
             inserted++;
           }

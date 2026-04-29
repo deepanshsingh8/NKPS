@@ -1,8 +1,8 @@
 "use client";
 
-import { TeacherSidebar } from "@/components/portal/TeacherSidebar";
-import { SidebarProvider, useSidebar } from "@/components/providers/SidebarProvider";
-import { cn } from "@/lib/utils";
+import { TeacherSidebar } from "@/erp/components/portal/TeacherSidebar";
+import { SidebarProvider, useSidebar } from "@/shared/components/providers/SidebarProvider";
+import { cn } from "@/shared/lib/utils";
 
 function TeacherLayoutInner({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();

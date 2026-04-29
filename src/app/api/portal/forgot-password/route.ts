@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { sendEmail, buildPasswordResetEmail } from "@/lib/email";
-import { SCHOOL } from "@/lib/constants";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { createAdminClient } from "@/shared/lib/supabase/admin";
+import { sendEmail, buildPasswordResetEmail } from "@/shared/lib/email";
+import { SCHOOL } from "@/shared/lib/constants";
+import { rateLimit, clientIp } from "@/shared/lib/rate-limit";
 
 // Always wait at least this long before responding so an attacker can't tell
 // from latency whether the email was registered or not.
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     // Derive the site origin from the request so the reset link always points
     // at the same host the user is currently on (production, Vercel preview,
     // localhost) — falling back to the configured site URL.
-    const { SITE_URL } = await import("@/lib/seo");
+    const { SITE_URL } = await import("@/shared/lib/seo");
     const origin = request.headers.get("origin") || SITE_URL;
 
     const supabase = createAdminClient();

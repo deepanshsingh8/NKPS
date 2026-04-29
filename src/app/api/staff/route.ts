@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
-import { createPortalUser } from "@/lib/create-portal-user";
-import { mirrorStaffToTeacher } from "@/lib/staff-teacher-sync";
-
-const VALID_CATEGORIES = ["management", "admin", "pgt", "tgt", "prt", "motherTeachers", "prePrimaryCoordinator", "primaryCoordinator", "middleCoordinator", "seniorCoordinator", "additionalStaff", "busDriver", "peon"];
+import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { createPortalUser } from "@/shared/lib/create-portal-user";
+import { mirrorStaffToTeacher } from "@/erp/lib/staff-teacher-sync";
+import { staffCreateSchema, staffUpdateSchema } from "@/shared/lib/validations";
+import { extractStoragePath } from "@/lib/storage-paths";
 
 export async function POST(request: NextRequest) {
   const admin = await verifyAdminOrEditor("staff");
@@ -12,14 +12,25 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { name, subject, category, photo_url, sort_order, email, phone, date_of_birth, address, qualifications } = await request.json();
-
-    if (!name || !subject || !category || !VALID_CATEGORIES.includes(category)) {
+    const parsed = staffCreateSchema.safeParse(await request.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Missing required fields or invalid category" },
+        { error: "Invalid data", details: parsed.error.flatten() },
         { status: 400 }
       );
     }
+    const {
+      name,
+      subject,
+      category,
+      photo_url,
+      sort_order,
+      email,
+      phone,
+      date_of_birth,
+      address,
+      qualifications,
+    } = parsed.data;
 
     const { data, error: insertError } = await admin
       .from("staff_members")
@@ -80,20 +91,21 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const { id, old_photo_url, ...updates } = await request.json();
-
-    if (!id) {
+    const parsed = staffUpdateSchema.safeParse(await request.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Missing staff member ID" },
+        { error: "Invalid data", details: parsed.error.flatten() },
         { status: 400 }
       );
     }
+    const { id, old_photo_url, ...updates } = parsed.data;
 
-    // If photo is being replaced, delete old one from storage
+    // If photo is being replaced, delete old one from storage. L2 — derive
+    // the path via extractStoragePath so cache-buster query strings and
+    // nested folders don't silently no-op the delete.
     if (updates.photo_url && old_photo_url) {
-      const urlParts = (old_photo_url as string).split("/");
-      const fileName = urlParts[urlParts.length - 1];
-      await admin.storage.from("staff-photos").remove([fileName]);
+      const path = extractStoragePath(old_photo_url, "staff-photos");
+      if (path) await admin.storage.from("staff-photos").remove([path]);
     }
 
     const { error } = await admin
@@ -142,11 +154,8 @@ export async function DELETE(request: NextRequest) {
         .in("id", ids);
 
       const photoFiles = (rows ?? [])
-        .filter((r) => r.photo_url)
-        .map((r) => {
-          const parts = (r.photo_url as string).split("/");
-          return parts[parts.length - 1];
-        });
+        .map((r) => extractStoragePath(r.photo_url as string | null, "staff-photos"))
+        .filter((p): p is string => !!p);
 
       if (photoFiles.length > 0) {
         await admin.storage.from("staff-photos").remove(photoFiles);
@@ -171,11 +180,10 @@ export async function DELETE(request: NextRequest) {
     // Single delete: { id, photo_url }
     const { id, photo_url } = body;
 
-    // Remove photo from storage if exists
+    // Remove photo from storage if exists.
     if (photo_url) {
-      const urlParts = (photo_url as string).split("/");
-      const fileName = urlParts[urlParts.length - 1];
-      await admin.storage.from("staff-photos").remove([fileName]);
+      const path = extractStoragePath(photo_url, "staff-photos");
+      if (path) await admin.storage.from("staff-photos").remove([path]);
     }
 
     const { error } = await admin

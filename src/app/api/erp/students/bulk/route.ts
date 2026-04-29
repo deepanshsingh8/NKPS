@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
-import { studentBulkUploadSchema } from "@/lib/validations";
+import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { studentBulkUploadSchema } from "@/shared/lib/validations";
 
 export const maxDuration = 120; // Allow up to 2 minutes for large uploads
 
@@ -238,7 +238,10 @@ export async function POST(request: Request) {
             full_name: p.fullName,
             class_name: p.className,
             section: p.section,
-            error: `Student upsert failed: ${batchError.message}`,
+            error:
+              batchError.code === "23505"
+                ? "Duplicate admission number"
+                : "Student upsert failed",
           });
         }
         continue;
@@ -310,7 +313,7 @@ export async function POST(request: Request) {
                 full_name: enrollmentStudents[j].fullName,
                 class_name: enrollmentStudents[j].className,
                 section: enrollmentStudents[j].section,
-                error: `Enrollment failed: ${singleError.message}`,
+                error: "Enrollment failed",
               });
             } else {
               inserted++;

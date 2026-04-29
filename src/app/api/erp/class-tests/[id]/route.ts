@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { classTestUpdateSchema } from "@/lib/validations";
+import { createClient } from "@/shared/lib/supabase/server";
+import { classTestUpdateSchema } from "@/shared/lib/validations";
 import {
   getTeacherIdForUser,
   teacherTeachesClassSubject,
-} from "@/lib/teacher-scope";
+} from "@/erp/lib/teacher-scope";
 
 interface RouteParams {
   params: Promise<{ id: string }>;

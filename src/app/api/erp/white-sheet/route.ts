@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { buildWhiteSheetData } from "@/lib/white-sheet";
+import { createClient } from "@/shared/lib/supabase/server";
+import { buildWhiteSheetData } from "@/erp/lib/white-sheet";
 
 export async function GET(request: Request) {
   const supabase = await createClient();

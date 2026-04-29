@@ -5,27 +5,27 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { AnimatedSection } from "@/components/shared/AnimatedSection";
-import { SectionHeading } from "@/components/shared/SectionHeading";
-import { PageTransition } from "@/components/shared/PageTransition";
-import { SectionDivider } from "@/components/shared/SectionDivider";
+import { PageHeader } from "@/website/components/layout/PageHeader";
+import { AnimatedSection } from "@/shared/components/AnimatedSection";
+import { SectionHeading } from "@/shared/components/SectionHeading";
+import { PageTransition } from "@/shared/components/PageTransition";
+import { SectionDivider } from "@/shared/components/SectionDivider";
 import {
   FacebookIcon,
   InstagramIcon,
   YoutubeIcon,
-} from "@/components/shared/SocialIcons";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/shared/components/SocialIcons";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion";
-import { contactFormSchema, type ContactFormData } from "@/lib/validations";
-import { SCHOOL } from "@/lib/constants";
-import { staggerContainer, fadeUp } from "@/lib/animations";
+} from "@/shared/components/ui/accordion";
+import { contactFormSchema, type ContactFormData } from "@/shared/lib/validations";
+import { SCHOOL } from "@/shared/lib/constants";
+import { staggerContainer, fadeUp } from "@/shared/lib/animations";
 import { CONTACT_FAQS } from "./faqs";
 
 const contactCards = [

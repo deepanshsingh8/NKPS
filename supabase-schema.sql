@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS transfer_certificates (
   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
   student_name text NOT NULL,
   admission_no text,
+  student_dob date,
   file_url text NOT NULL,
   academic_year text NOT NULL,
   upload_date date DEFAULT current_date,
@@ -47,6 +48,9 @@ CREATE INDEX IF NOT EXISTS idx_tc_admission_no ON transfer_certificates(admissio
 CREATE INDEX IF NOT EXISTS idx_tc_student_name ON transfer_certificates(student_name);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tc_tc_number ON transfer_certificates(tc_number) WHERE tc_number IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_tc_student_id ON transfer_certificates(student_id);
+CREATE INDEX IF NOT EXISTS idx_tc_admission_dob
+  ON transfer_certificates(admission_no, student_dob)
+  WHERE student_dob IS NOT NULL AND admission_no IS NOT NULL;
 
 -- Contact Submissions
 CREATE TABLE IF NOT EXISTS contact_submissions (
@@ -960,8 +964,12 @@ ALTER TABLE fee_structures
 
 ALTER TABLE fee_payments
   DROP CONSTRAINT IF EXISTS fee_payments_amount_positive;
+-- Migration 040 — relaxed for waiver rows where amount_paid is intentionally 0.
 ALTER TABLE fee_payments
-  ADD CONSTRAINT fee_payments_amount_positive CHECK (amount_paid > 0);
+  ADD CONSTRAINT fee_payments_amount_positive CHECK (
+    (payment_method = 'waiver' AND amount_paid = 0)
+    OR amount_paid > 0
+  );
 
 ALTER TABLE payment_orders
   DROP CONSTRAINT IF EXISTS payment_orders_amount_positive;
@@ -1002,12 +1010,15 @@ CREATE POLICY "Authenticated users can delete gallery images"
   ON gallery_images FOR DELETE
   USING (auth.role() = 'authenticated');
 
--- Transfer Certificates: public read, authenticated write
+-- Transfer Certificates: authenticated-only reads, server-mediated public
+-- lookup. Public anonymous SELECTs return zero rows. Public users find
+-- their TC via `/api/transfer-certificates/lookup`, which uses the service
+-- role on the server after an exact (admission_no, dob) match.
 ALTER TABLE transfer_certificates ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public can view transfer certificates"
+CREATE POLICY "Authenticated users can view transfer certificates"
   ON transfer_certificates FOR SELECT
-  USING (true);
+  USING (auth.role() = 'authenticated');
 
 CREATE POLICY "Authenticated users can insert transfer certificates"
   ON transfer_certificates FOR INSERT
@@ -2199,7 +2210,9 @@ CREATE POLICY "Admins can manage non_scholastic_sub_subjects"
 
 CREATE TABLE IF NOT EXISTS exam_schedules (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  exam_type_id uuid NOT NULL REFERENCES exam_types(id) ON DELETE CASCADE,
+  -- M15 (migration 046): exam_type_id flipped to SET NULL so deleting an
+  -- exam_type doesn't silently revoke the published timetable.
+  exam_type_id uuid REFERENCES exam_types(id) ON DELETE SET NULL,
   class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
   subject_id uuid NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
   exam_date date NOT NULL,
@@ -2699,8 +2712,10 @@ CREATE TABLE IF NOT EXISTS marksheet_publications (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
-  exam_type_id uuid REFERENCES exam_types(id) ON DELETE CASCADE,
-  academic_year_id uuid REFERENCES academic_years(id) ON DELETE CASCADE,
+  -- Migration 041: RESTRICT (was CASCADE) — snapshots are audit-quality and
+  -- must not be silently wiped when reference data is deleted.
+  exam_type_id uuid REFERENCES exam_types(id) ON DELETE RESTRICT,
+  academic_year_id uuid REFERENCES academic_years(id) ON DELETE RESTRICT,
   kind text NOT NULL DEFAULT 'per_exam'
     CHECK (kind IN ('per_exam', 'year_final')),
   version int NOT NULL,
@@ -2767,7 +2782,10 @@ CREATE TABLE IF NOT EXISTS publish_events (
     )
   ),
   class_id uuid REFERENCES classes(id) ON DELETE SET NULL,
-  exam_type_id uuid REFERENCES exam_types(id) ON DELETE CASCADE,
+  -- Migration 041: SET NULL (was CASCADE) — audit log entries should outlive
+  -- the exam type they reference. The note text carries enough context to
+  -- understand the event without the FK.
+  exam_type_id uuid REFERENCES exam_types(id) ON DELETE SET NULL,
   student_id uuid REFERENCES students(id) ON DELETE SET NULL,
   actor_id uuid REFERENCES profiles(id) ON DELETE SET NULL,
   acted_at timestamptz DEFAULT now(),
@@ -3504,7 +3522,9 @@ ALTER TABLE result_masters
 CREATE TABLE IF NOT EXISTS supplementary_attempts (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-  parent_exam_type_id uuid NOT NULL REFERENCES exam_types(id) ON DELETE CASCADE,
+  -- M15 (migration 046): flipped to SET NULL so an exam_type cleanup
+  -- doesn't destroy the audit trail of supplementary attempts.
+  parent_exam_type_id uuid REFERENCES exam_types(id) ON DELETE SET NULL,
   subject_id uuid NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
   class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
   retest_date date,
@@ -3814,3 +3834,163 @@ ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_waiver_consistent
 CREATE INDEX IF NOT EXISTS idx_fee_payments_refund_status
   ON fee_payments(status)
   WHERE status = 'refunded';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 040 — Allow waiver rows (amount_paid = 0) past the
+-- fee_payments_amount_positive check. Already applied inline above next to
+-- the original constraint definition, repeated here so a fresh schema
+-- install is guaranteed to be in the relaxed state regardless of statement
+-- ordering.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE fee_payments DROP CONSTRAINT IF EXISTS fee_payments_amount_positive;
+ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_amount_positive CHECK (
+  (payment_method = 'waiver' AND amount_paid = 0)
+  OR amount_paid > 0
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 041 — marksheet_publications RESTRICT instead of CASCADE on
+-- exam_type_id and academic_year_id. Already applied inline above.
+-- publish_events.exam_type_id flipped to SET NULL for the same reason.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- (No-op for fresh installs — schema above already declares the corrected
+-- ON DELETE rules. Migration file ships the explicit DROP/ADD CONSTRAINT
+-- pair for upgraded deployments.)
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 043 — DB hygiene round 2 (mirrored from
+-- scripts/migration-043-db-hygiene-2.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+DO $$
+DECLARE
+  v_count int;
+  v_keep uuid;
+BEGIN
+  SELECT COUNT(*) INTO v_count FROM academic_years WHERE is_current = true;
+  IF v_count > 1 THEN
+    SELECT id INTO v_keep
+    FROM academic_years
+    WHERE is_current = true
+    ORDER BY created_at DESC NULLS LAST, id DESC
+    LIMIT 1;
+    UPDATE academic_years SET is_current = false
+    WHERE is_current = true AND id <> v_keep;
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS academic_years_one_current
+  ON academic_years(is_current)
+  WHERE is_current = true;
+
+CREATE INDEX IF NOT EXISTS idx_attendance_marked_by ON attendance(marked_by);
+CREATE INDEX IF NOT EXISTS idx_fee_payments_recorded_by ON fee_payments(recorded_by);
+CREATE INDEX IF NOT EXISTS idx_fee_payments_fee_structure_id ON fee_payments(fee_structure_id);
+CREATE INDEX IF NOT EXISTS idx_fee_payments_refunded_by ON fee_payments(refunded_by);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_created_by ON calendar_events(created_by);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_class_id ON calendar_events(class_id);
+CREATE INDEX IF NOT EXISTS idx_registration_requests_reviewed_by ON registration_requests(reviewed_by);
+CREATE INDEX IF NOT EXISTS idx_marksheet_publications_published_by ON marksheet_publications(published_by);
+CREATE INDEX IF NOT EXISTS idx_marksheet_publications_unpublished_by ON marksheet_publications(unpublished_by);
+CREATE INDEX IF NOT EXISTS idx_publish_events_actor_id ON publish_events(actor_id);
+CREATE INDEX IF NOT EXISTS idx_publish_events_class_id ON publish_events(class_id);
+CREATE INDEX IF NOT EXISTS idx_payment_orders_fee_structure_id ON payment_orders(fee_structure_id);
+CREATE INDEX IF NOT EXISTS idx_payment_orders_parent_id ON payment_orders(parent_id);
+CREATE INDEX IF NOT EXISTS idx_editor_permissions_granted_by ON editor_permissions(granted_by);
+CREATE INDEX IF NOT EXISTS idx_substitutions_assigned_by ON substitutions(assigned_by);
+CREATE INDEX IF NOT EXISTS idx_exam_schedules_invigilator_teacher_id ON exam_schedules(invigilator_teacher_id);
+CREATE INDEX IF NOT EXISTS idx_results_subject_id ON results(subject_id);
+CREATE INDEX IF NOT EXISTS idx_ptm_notes_recorded_by ON ptm_notes(recorded_by);
+CREATE INDEX IF NOT EXISTS idx_school_meeting_counts_exam_type_id ON school_meeting_counts(exam_type_id);
+CREATE INDEX IF NOT EXISTS idx_school_meeting_counts_class_id ON school_meeting_counts(class_id);
+CREATE INDEX IF NOT EXISTS idx_supplementary_attempts_subject_id ON supplementary_attempts(subject_id);
+CREATE INDEX IF NOT EXISTS idx_supplementary_attempts_entered_by ON supplementary_attempts(entered_by);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 044 — Payment-method specific details on fee_payments
+-- (mirrored from scripts/migration-044-payment-method-details.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE fee_payments
+  ADD COLUMN IF NOT EXISTS cheque_number    text,
+  ADD COLUMN IF NOT EXISTS cheque_date      date,
+  ADD COLUMN IF NOT EXISTS bank_name        text,
+  ADD COLUMN IF NOT EXISTS payer_name       text,
+  ADD COLUMN IF NOT EXISTS transaction_ref  text,
+  ADD COLUMN IF NOT EXISTS payment_provider text;
+
+COMMENT ON COLUMN fee_payments.cheque_number IS
+  'Cheque instrument number. Required when payment_method=cheque (enforced in API).';
+COMMENT ON COLUMN fee_payments.cheque_date IS
+  'Date written on the cheque (often differs from payment_date).';
+COMMENT ON COLUMN fee_payments.bank_name IS
+  'Drawee bank for cheques; originating bank for bank_transfer.';
+COMMENT ON COLUMN fee_payments.payer_name IS
+  'Name on the instrument or transfer; defaults to student/father if blank.';
+COMMENT ON COLUMN fee_payments.transaction_ref IS
+  'UTR / NEFT ref / UPI txn id / gateway-side reference for manual online entries.';
+COMMENT ON COLUMN fee_payments.payment_provider IS
+  'Free-text label for the channel (PhonePe, GPay, Paytm, Razorpay, etc.).';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 046 — Audit-log FKs flipped to SET NULL (mirrored from
+-- scripts/migration-046-audit-fk-set-null.sql). Defensive re-statement so a
+-- fresh DB built from this file doesn't need to apply the migration on top.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE supplementary_attempts
+  ALTER COLUMN parent_exam_type_id DROP NOT NULL;
+ALTER TABLE supplementary_attempts
+  DROP CONSTRAINT IF EXISTS supplementary_attempts_parent_exam_type_id_fkey;
+ALTER TABLE supplementary_attempts
+  ADD CONSTRAINT supplementary_attempts_parent_exam_type_id_fkey
+  FOREIGN KEY (parent_exam_type_id) REFERENCES exam_types(id) ON DELETE SET NULL;
+
+ALTER TABLE exam_schedules
+  ALTER COLUMN exam_type_id DROP NOT NULL;
+ALTER TABLE exam_schedules
+  DROP CONSTRAINT IF EXISTS exam_schedules_exam_type_id_fkey;
+ALTER TABLE exam_schedules
+  ADD CONSTRAINT exam_schedules_exam_type_id_fkey
+  FOREIGN KEY (exam_type_id) REFERENCES exam_types(id) ON DELETE SET NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 045 — updated_at triggers sweep (mirrored from
+-- scripts/migration-045-updated-at-triggers-sweep.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+DO $$
+DECLARE
+  t text;
+  tables text[] := ARRAY[
+    'gallery_images',
+    'transfer_certificates',
+    'disclosure_items',
+    'disclosure_documents',
+    'disclosure_board_results',
+    'site_media',
+    'result_master_subjects',
+    'class_test_results',
+    'non_scholastic_assessments',
+    'non_scholastic_sub_subject_classes'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tables LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = t
+    ) AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = t AND column_name = 'updated_at'
+    ) THEN
+      EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', 'set_updated_at_' || t, t);
+      EXECUTE format(
+        'CREATE TRIGGER %I BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION public.set_updated_at()',
+        'set_updated_at_' || t,
+        t
+      );
+    END IF;
+  END LOOP;
+END $$;

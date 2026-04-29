@@ -22,121 +22,86 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      {
-        source: "/admin/exam-types",
-        destination: "/admin/exams/types",
-        permanent: false,
-      },
-      {
-        source: "/admin/exam-types/:path*",
-        destination: "/admin/exams/types/:path*",
-        permanent: false,
-      },
-      {
-        source: "/admin/results",
-        destination: "/admin/exams/results",
-        permanent: false,
-      },
-      {
-        source: "/admin/gallery",
-        destination: "/admin/content/gallery",
-        permanent: false,
-      },
-      {
-        source: "/admin/gallery/:path*",
-        destination: "/admin/content/gallery/:path*",
-        permanent: false,
-      },
-      {
-        source: "/admin/articles",
-        destination: "/admin/content/articles",
-        permanent: false,
-      },
-      {
-        source: "/admin/articles/:path*",
-        destination: "/admin/content/articles/:path*",
-        permanent: false,
-      },
-      {
-        source: "/admin/site-media",
-        destination: "/admin/content/site-media",
-        permanent: false,
-      },
-      {
-        source: "/admin/site-media/:path*",
-        destination: "/admin/content/site-media/:path*",
-        permanent: false,
-      },
-      {
-        source: "/admin/disclosure",
-        destination: "/admin/content/disclosure",
-        permanent: false,
-      },
-      {
-        source: "/admin/disclosure/:path*",
-        destination: "/admin/content/disclosure/:path*",
-        permanent: false,
-      },
-      {
-        source: "/admin/classes",
-        destination: "/admin/academics/classes",
-        permanent: false,
-      },
-      {
-        source: "/admin/classes/:path*",
-        destination: "/admin/academics/classes/:path*",
-        permanent: false,
-      },
-      {
-        source: "/admin/subjects",
-        destination: "/admin/academics/subjects",
-        permanent: false,
-      },
-      {
-        source: "/admin/subjects/:path*",
-        destination: "/admin/academics/subjects/:path*",
-        permanent: false,
-      },
-      {
-        source: "/admin/academic-years",
-        destination: "/admin/academics/years",
-        permanent: false,
-      },
-      {
-        source: "/admin/academic-years/:path*",
-        destination: "/admin/academics/years/:path*",
-        permanent: false,
-      },
-      {
-        source: "/admin/users",
-        destination: "/admin/people/users",
-        permanent: false,
-      },
-      {
-        source: "/admin/users/:path*",
-        destination: "/admin/people/users/:path*",
-        permanent: false,
-      },
-      {
-        source: "/admin/students",
-        destination: "/admin/people/students",
-        permanent: false,
-      },
-      {
-        source: "/admin/students/:path*",
-        destination: "/admin/people/students/:path*",
-        permanent: false,
-      },
-      {
-        source: "/admin/staff",
-        destination: "/admin/people/staff",
-        permanent: false,
-      },
-      {
-        source: "/admin/staff/:path*",
-        destination: "/admin/people/staff/:path*",
-        permanent: false,
-      },
+      // Legacy /erp-login alias → /erp/login.
+      { source: "/erp-login", destination: "/erp/login", permanent: true },
+
+      // /admin/login → /erp/login (ERP is the primary staff entry).
+      { source: "/admin/login", destination: "/erp/login", permanent: true },
+
+      // CMS module: /admin/content/* and CMS-only top-level paths flatten under /cms.
+      { source: "/admin/content/gallery", destination: "/cms/gallery", permanent: true },
+      { source: "/admin/content/gallery/:path*", destination: "/cms/gallery/:path*", permanent: true },
+      { source: "/admin/content/articles", destination: "/cms/articles", permanent: true },
+      { source: "/admin/content/articles/:path*", destination: "/cms/articles/:path*", permanent: true },
+      { source: "/admin/content/site-media", destination: "/cms/site-media", permanent: true },
+      { source: "/admin/content/site-media/:path*", destination: "/cms/site-media/:path*", permanent: true },
+      { source: "/admin/content/disclosure", destination: "/cms/disclosure", permanent: true },
+      { source: "/admin/content/disclosure/:path*", destination: "/cms/disclosure/:path*", permanent: true },
+      { source: "/admin/content", destination: "/cms", permanent: true },
+      { source: "/admin/transfer-certificates", destination: "/cms/transfer-certificates", permanent: true },
+      { source: "/admin/transfer-certificates/:path*", destination: "/cms/transfer-certificates/:path*", permanent: true },
+      { source: "/admin/contact", destination: "/cms/contact", permanent: true },
+      { source: "/admin/contact/:path*", destination: "/cms/contact/:path*", permanent: true },
+
+      // Convenience short-form CMS aliases (no longer go through /admin).
+      { source: "/admin/gallery", destination: "/cms/gallery", permanent: true },
+      { source: "/admin/gallery/:path*", destination: "/cms/gallery/:path*", permanent: true },
+      { source: "/admin/articles", destination: "/cms/articles", permanent: true },
+      { source: "/admin/articles/:path*", destination: "/cms/articles/:path*", permanent: true },
+      { source: "/admin/site-media", destination: "/cms/site-media", permanent: true },
+      { source: "/admin/site-media/:path*", destination: "/cms/site-media/:path*", permanent: true },
+      { source: "/admin/disclosure", destination: "/cms/disclosure", permanent: true },
+      { source: "/admin/disclosure/:path*", destination: "/cms/disclosure/:path*", permanent: true },
+
+      // ERP module: every non-CMS /admin/* route maps 1:1 to /erp/*.
+      { source: "/admin/academics", destination: "/erp/academics", permanent: true },
+      { source: "/admin/academics/:path*", destination: "/erp/academics/:path*", permanent: true },
+      { source: "/admin/attendance", destination: "/erp/attendance", permanent: true },
+      { source: "/admin/attendance/:path*", destination: "/erp/attendance/:path*", permanent: true },
+      { source: "/admin/calendar", destination: "/erp/calendar", permanent: true },
+      { source: "/admin/calendar/:path*", destination: "/erp/calendar/:path*", permanent: true },
+      { source: "/admin/exams", destination: "/erp/exams", permanent: true },
+      { source: "/admin/exams/:path*", destination: "/erp/exams/:path*", permanent: true },
+      { source: "/admin/fees", destination: "/erp/fees", permanent: true },
+      { source: "/admin/fees/:path*", destination: "/erp/fees/:path*", permanent: true },
+      { source: "/admin/people", destination: "/erp/people", permanent: true },
+      { source: "/admin/people/:path*", destination: "/erp/people/:path*", permanent: true },
+      { source: "/admin/registrations", destination: "/erp/registrations", permanent: true },
+      { source: "/admin/registrations/:path*", destination: "/erp/registrations/:path*", permanent: true },
+      { source: "/admin/timetable", destination: "/erp/timetable", permanent: true },
+      { source: "/admin/timetable/:path*", destination: "/erp/timetable/:path*", permanent: true },
+
+      // Legacy ERP convenience aliases.
+      { source: "/admin/exam-types", destination: "/erp/exams/types", permanent: true },
+      { source: "/admin/exam-types/:path*", destination: "/erp/exams/types/:path*", permanent: true },
+      { source: "/admin/results", destination: "/erp/exams/results", permanent: true },
+      { source: "/admin/classes", destination: "/erp/academics/classes", permanent: true },
+      { source: "/admin/classes/:path*", destination: "/erp/academics/classes/:path*", permanent: true },
+      { source: "/admin/subjects", destination: "/erp/academics/subjects", permanent: true },
+      { source: "/admin/subjects/:path*", destination: "/erp/academics/subjects/:path*", permanent: true },
+      { source: "/admin/academic-years", destination: "/erp/academics/years", permanent: true },
+      { source: "/admin/academic-years/:path*", destination: "/erp/academics/years/:path*", permanent: true },
+      { source: "/admin/users", destination: "/erp/people/users", permanent: true },
+      { source: "/admin/users/:path*", destination: "/erp/people/users/:path*", permanent: true },
+      { source: "/admin/students", destination: "/erp/people/students", permanent: true },
+      { source: "/admin/students/:path*", destination: "/erp/people/students/:path*", permanent: true },
+      { source: "/admin/staff", destination: "/erp/people/staff", permanent: true },
+      { source: "/admin/staff/:path*", destination: "/erp/people/staff/:path*", permanent: true },
+
+      // Bare /admin → /erp (the primary staff dashboard).
+      { source: "/admin", destination: "/erp", permanent: true },
+
+      // CMS-side admin API renames (CMS-only endpoints relocated under /api/cms/*).
+      { source: "/api/admin/articles", destination: "/api/cms/articles", permanent: true },
+      { source: "/api/admin/articles/:path*", destination: "/api/cms/articles/:path*", permanent: true },
+      { source: "/api/admin/site-media", destination: "/api/cms/site-media", permanent: true },
+      { source: "/api/admin/site-media/:path*", destination: "/api/cms/site-media/:path*", permanent: true },
+      { source: "/api/admin/section-cards", destination: "/api/cms/section-cards", permanent: true },
+      { source: "/api/admin/section-cards/:path*", destination: "/api/cms/section-cards/:path*", permanent: true },
+      { source: "/api/admin/disclosure-documents", destination: "/api/cms/disclosure-documents", permanent: true },
+      { source: "/api/admin/disclosure-documents/:path*", destination: "/api/cms/disclosure-documents/:path*", permanent: true },
+      { source: "/api/admin/upload-url", destination: "/api/cms/upload-url", permanent: true },
+      { source: "/api/admin/upload-url/:path*", destination: "/api/cms/upload-url/:path*", permanent: true },
     ];
   },
   async headers() {

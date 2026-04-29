@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
-import { DailySubstitutionSheetPDF, type DailySubstitutionRow } from "@/components/pdf/DailySubstitutionSheetPDF";
-import { SCHOOL } from "@/lib/constants";
-import { HALF_DAY_CUTOFF_PERIOD } from "@/lib/constants";
+import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { DailySubstitutionSheetPDF, type DailySubstitutionRow } from "@/erp/components/pdf/DailySubstitutionSheetPDF";
+import { SCHOOL } from "@/shared/lib/constants";
+import { HALF_DAY_CUTOFF_PERIOD } from "@/shared/lib/constants";
 
 export const runtime = "nodejs";
 

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { AdmissionsPageClient } from "./AdmissionsPageClient";
 import { ADMISSIONS_FAQS } from "./faqs";
-import { JsonLd } from "@/components/seo/JsonLd";
-import { buildMetadata, breadcrumbJsonLd, faqJsonLd } from "@/lib/seo";
+import { JsonLd } from "@/website/components/seo/JsonLd";
+import { buildMetadata, breadcrumbJsonLd, faqJsonLd } from "@/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Admissions — Apply to NK Public School Jaipur (CBSE, Nursery–XII)",

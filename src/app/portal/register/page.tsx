@@ -5,18 +5,18 @@ import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { Button } from "@/shared/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/components/ui/select";
 import { Loader2, ArrowLeft, GraduationCap, CheckCircle2 } from "lucide-react";
-import { registrationRequestSchema, type RegistrationRequestData } from "@/lib/validations";
+import { registrationRequestSchema, type RegistrationRequestData } from "@/shared/lib/validations";
 
 export default function PortalRegisterPage() {
   const [loading, setLoading] = useState(false);

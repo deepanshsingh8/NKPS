@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/shared/lib/rate-limit";
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
     let systemPrompt = BASE_SYSTEM_PROMPT;
     try {
       const { getDisclosureItems, getDisclosureDocuments, getDisclosureBoardResults } =
-        await import("@/lib/disclosure");
+        await import("@/website/lib/disclosure");
       const [discItems, discDocs, discResults] = await Promise.all([
         getDisclosureItems(),
         getDisclosureDocuments(),

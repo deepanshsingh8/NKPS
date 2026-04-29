@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { registrationRequestSchema } from "@/lib/validations";
-import { sendEmail, buildRegistrationReceivedEmail } from "@/lib/email";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { createAdminClient } from "@/shared/lib/supabase/admin";
+import { registrationRequestSchema } from "@/shared/lib/validations";
+import { sendEmail, buildRegistrationReceivedEmail } from "@/shared/lib/email";
+import { rateLimit, clientIp } from "@/shared/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
+import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
+import { rateLimit } from "@/shared/lib/rate-limit";
 
 const CLASS_ORDER = [
   "Nursery", "LKG", "UKG",
@@ -10,9 +11,30 @@ const CLASS_ORDER = [
 
 export async function POST(request: NextRequest) {
   try {
-    const admin = await verifyAdminOrEditor("students");
-    if (!admin) {
+    const auth = await verifyAdminOrEditorWithUser("students");
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { admin, user } = auth;
+
+    // M5 — high-blast endpoint (one call mutates an entire class's
+    // is_active / is_alumni). Cap to 10 calls per actor per hour so a
+    // compromised editor token can't graduate every class in seconds.
+    const limit = rateLimit({
+      name: "students-promote",
+      key: user.id,
+      max: 10,
+      windowSeconds: 3600,
+    });
+    if (!limit.ok) {
+      return NextResponse.json(
+        {
+          error: `Too many promotion runs in the last hour. Try again in ${Math.ceil(
+            limit.resetSeconds / 60
+          )} minute(s).`,
+        },
+        { status: 429 }
+      );
     }
 
     const body = await request.json();
@@ -187,8 +209,9 @@ export async function POST(request: NextRequest) {
               .insert(toInsert);
 
             if (error) {
+              console.error("Promote enrollments insert failed:", error);
               summary.errors.push(
-                `Failed to create promotion enrollments: ${error.message}`
+                `Failed to create promotion enrollments for ${toInsert.length} student(s)`
               );
             } else {
               summary.promoted = toInsert.length;
@@ -240,8 +263,9 @@ export async function POST(request: NextRequest) {
               .insert(toInsert);
 
             if (error) {
+              console.error("Promote retained-enrollments insert failed:", error);
               summary.errors.push(
-                `Failed to create retained enrollments: ${error.message}`
+                `Failed to create retained enrollments for ${toInsert.length} student(s)`
               );
             } else {
               summary.retained = toInsert.length;

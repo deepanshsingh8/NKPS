@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { verifyAdminOrEditorWithUser } from "@/lib/verify-admin";
+import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
 import {
   finalizeYearFinalSchema,
   unpublishMarksheetSchema,
-} from "@/lib/validations";
-import { buildYearFinalSnapshot } from "@/lib/marksheet-snapshot";
+} from "@/shared/lib/validations";
+import { buildYearFinalSnapshot } from "@/erp/lib/marksheet-snapshot";
 
 // POST /api/erp/results/finalize-year-final
 // Body: { class_id, academic_year_id, student_ids?, unpublish_reason_on_refinalize? }

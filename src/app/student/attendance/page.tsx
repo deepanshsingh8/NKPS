@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { Badge } from "@/components/ui/badge";
+import { createClient } from "@/shared/lib/supabase/client";
+import { Badge } from "@/shared/components/ui/badge";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/shared/components/ui/card";
 import {
   Progress,
   ProgressLabel,
   ProgressValue,
-} from "@/components/ui/progress";
+} from "@/shared/components/ui/progress";
 import {
   ClipboardCheck,
   CalendarDays,
@@ -22,7 +22,7 @@ import {
   Clock,
   TrendingUp,
 } from "lucide-react";
-import type { AttendanceStatus } from "@/types";
+import type { AttendanceStatus } from "@/shared/types";
 
 interface AttendanceRecord {
   date: string;

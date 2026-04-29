@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
-import { resultMasterCreateSchema } from "@/lib/validations";
-import { validatePassCriteria } from "@/lib/result-master-validation";
+import { verifyAdmin } from "@/shared/lib/verify-admin";
+import { resultMasterCreateSchema } from "@/shared/lib/validations";
+import { validatePassCriteria } from "@/erp/lib/result-master-validation";
 
 // GET /api/erp/result-masters?class_id=&academic_year_id=
 // Returns { master, subjects, exam_configs }. master === null when no config

@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
-import { createClient } from "@/lib/supabase/server";
-import { getPdfTemplate } from "@/lib/pdf-templates";
-import { BlankMarksListPDF } from "@/components/pdf/BlankMarksListPDF";
-import { contentDispositionAttachment } from "@/lib/utils";
+import { createClient } from "@/shared/lib/supabase/server";
+import { getPdfTemplate } from "@/erp/lib/pdf-templates";
+import { BlankMarksListPDF } from "@/erp/components/pdf/BlankMarksListPDF";
+import { contentDispositionAttachment } from "@/shared/lib/utils";
 
 export const runtime = "nodejs";
 

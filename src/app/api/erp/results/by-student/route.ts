@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyAdminOrEditorWithUser } from "@/lib/verify-admin";
-import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
+import { verifyAdminOrEditorWithUser } from "@/shared/lib/verify-admin";
+import { computeGrade, resolveGradeScaleForClass } from "@/erp/lib/grading";
 
 // Per-student results editor (admin / editor with `results` feature).
 // Lets staff search a student and edit/delete their marks across exams,
@@ -365,7 +365,7 @@ const unlockSchema = z.object({
 // PATCH /api/erp/results/by-student
 // Surgical unlock: flips is_published=false for either a single row or all
 // rows for one (student, exam) — the "A1" workflow. Avoids the class-wide
-// unpublish toggle on /admin/exams/publish for one-off corrections.
+// unpublish toggle on /erp/exams/publish for one-off corrections.
 export async function PATCH(request: NextRequest) {
   const auth = await verifyAdminOrEditorWithUser("results");
   if (!auth) {

@@ -1,8 +1,8 @@
 import { Metadata } from "next";
 import { StudentLifeContent } from "./StudentLifeContent";
-import { JsonLd } from "@/components/seo/JsonLd";
-import { getPageMedia, mediaUrl, getSectionCards } from "@/lib/site-media";
-import { buildMetadata, breadcrumbJsonLd } from "@/lib/seo";
+import { JsonLd } from "@/website/components/seo/JsonLd";
+import { getPageMedia, mediaUrl, getSectionCards } from "@/website/lib/site-media";
+import { buildMetadata, breadcrumbJsonLd } from "@/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Student Life & Activities — NK Public School Jaipur",

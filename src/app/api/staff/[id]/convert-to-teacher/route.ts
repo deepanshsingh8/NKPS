@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@/lib/verify-admin";
-import { promoteStaffToTeacher } from "@/lib/staff-teacher-sync";
+import { verifyAdminOrEditor } from "@/shared/lib/verify-admin";
+import { promoteStaffToTeacher } from "@/erp/lib/staff-teacher-sync";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -23,7 +23,13 @@ export async function POST(_request: NextRequest, context: RouteContext) {
 
   const result = await promoteStaffToTeacher(admin, id);
   if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: 500 });
+    // L3 — don't echo the helper's raw error to the caller; it can leak
+    // schema/constraint details. Log the detail for debugging instead.
+    console.error("[convert-to-teacher] promote failed:", result.error);
+    return NextResponse.json(
+      { error: "Failed to convert this staff member to a teacher" },
+      { status: 500 }
+    );
   }
   return NextResponse.json({
     success: true,

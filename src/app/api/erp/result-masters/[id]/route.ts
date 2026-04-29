@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
-import { resultMasterUpdateSchema } from "@/lib/validations";
-import { validatePassCriteria } from "@/lib/result-master-validation";
+import { verifyAdmin } from "@/shared/lib/verify-admin";
+import { resultMasterUpdateSchema } from "@/shared/lib/validations";
+import { validatePassCriteria } from "@/erp/lib/result-master-validation";
 
 type RouteContext = { params: Promise<{ id: string }> };
 

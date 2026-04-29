@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
+import { verifyAdmin } from "@/shared/lib/verify-admin";
 import { z } from "zod";
 
 const subSubjectSchema = z.object({
@@ -43,30 +43,11 @@ export async function GET(request: NextRequest) {
   }
 
   let rows = data ?? [];
-  if (classId && rows.length > 0) {
-    const subIds = rows.map((r) => r.id as string);
-    const { data: linkRows } = await admin
-      .from("non_scholastic_sub_subject_classes")
-      .select("sub_subject_id, class_id")
-      .in("sub_subject_id", subIds);
-    // sub_subject_ids that have at least one explicit class link.
-    const scopedSubs = new Set<string>();
-    // sub_subject_ids that have a link matching the requested class.
-    const allowedSubs = new Set<string>();
-    for (const r of linkRows ?? []) {
-      const sid = r.sub_subject_id as string;
-      scopedSubs.add(sid);
-      if (r.class_id === classId) allowedSubs.add(sid);
-    }
-    rows = rows.filter(
-      (r) => !scopedSubs.has(r.id as string) || allowedSubs.has(r.id as string)
-    );
-  }
 
-  // Always attach the canonical class_ids array (empty = global) so the
-  // admin masters editor can render multi-select state without an extra
-  // round-trip per row.
-  let classIdsBySub = new Map<string, string[]>();
+  // L13 — single fetch of class-link rows, partitioned in JS for both the
+  // class_id filter and the per-row class_ids attachment. Previously we
+  // queried the join table twice when class_id was supplied.
+  const classIdsBySub = new Map<string, string[]>();
   if (rows.length > 0) {
     const { data: linkRows } = await admin
       .from("non_scholastic_sub_subject_classes")
@@ -75,14 +56,23 @@ export async function GET(request: NextRequest) {
         "sub_subject_id",
         rows.map((r) => r.id as string)
       );
-    classIdsBySub = new Map<string, string[]>();
     for (const r of linkRows ?? []) {
       const sid = r.sub_subject_id as string;
       const arr = classIdsBySub.get(sid) ?? [];
       arr.push(r.class_id as string);
       classIdsBySub.set(sid, arr);
     }
+
+    if (classId) {
+      // sub_subject is shown when it's either un-scoped (no link rows) or
+      // has an explicit link to the requested class.
+      rows = rows.filter((r) => {
+        const links = classIdsBySub.get(r.id as string);
+        return !links || links.length === 0 || links.includes(classId);
+      });
+    }
   }
+
   const enriched = rows.map((r) => ({
     ...r,
     class_ids: classIdsBySub.get(r.id as string) ?? [],

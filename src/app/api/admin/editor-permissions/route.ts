@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/verify-admin";
-import { isFeatureKey, type FeatureKey } from "@/lib/permissions";
+import { verifyAdmin } from "@/shared/lib/verify-admin";
+import { isFeatureKey, type FeatureKey } from "@/shared/lib/permissions";
 
 // GET /api/admin/editor-permissions?editor_id=<uuid>
 // Returns the list of feature_keys currently granted to that editor.
@@ -54,14 +54,14 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Silently drop keys that aren't in the current FEATURE_CATALOG. This
+    // covers two real cases: (1) the dialog round-trips stale grants from
+    // the DB after a feature_key was retired, (2) a future client sends an
+    // unknown key. Rejecting outright would lock the admin out of saving
+    // until they manually purged the old row.
     const validKeys: FeatureKey[] = [];
     for (const k of rawKeys) {
-      if (!isFeatureKey(k)) {
-        return NextResponse.json(
-          { error: `Invalid feature_key: ${k}` },
-          { status: 400 }
-        );
-      }
+      if (!isFeatureKey(k)) continue;
       if (!validKeys.includes(k)) validKeys.push(k);
     }
 

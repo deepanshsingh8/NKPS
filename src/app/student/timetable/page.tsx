@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { createClient } from "@/shared/lib/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { Badge } from "@/shared/components/ui/badge";
 import { Loader2, Clock, Sun } from "lucide-react";
 import {
   dayOfWeekFromDate,
@@ -11,7 +11,7 @@ import {
   nowMinutes,
   timeStringToMinutes,
   cn,
-} from "@/lib/utils";
+} from "@/shared/lib/utils";
 
 interface TimetableEntry {
   id: string;

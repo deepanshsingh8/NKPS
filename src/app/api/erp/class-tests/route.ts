@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { classTestCreateSchema } from "@/lib/validations";
+import { createClient } from "@/shared/lib/supabase/server";
+import { classTestCreateSchema } from "@/shared/lib/validations";
+import {
+  getTeacherIdForUser,
+  teacherTeachesClassSubject,
+} from "@/erp/lib/teacher-scope";
 
 // GET /api/erp/class-tests?class_id=&subject_id=
 // Returns class tests visible to the caller via RLS.
@@ -76,6 +80,27 @@ export async function POST(request: Request) {
       { error: "Invalid data", details: parsed.error.flatten() },
       { status: 400 }
     );
+  }
+
+  // M12 — teacher ownership check on the create path. PATCH/DELETE/marks
+  // already gate via teacherTeachesClassSubject; this closes the gap so a
+  // teacher can't seed tests for a class/subject they don't teach.
+  if (profile.role === "teacher") {
+    const teacherId = await getTeacherIdForUser(supabase, user.id);
+    if (
+      !teacherId ||
+      !(await teacherTeachesClassSubject(
+        supabase,
+        teacherId,
+        parsed.data.class_id,
+        parsed.data.subject_id
+      ))
+    ) {
+      return NextResponse.json(
+        { error: "You don't teach this class/subject" },
+        { status: 403 }
+      );
+    }
   }
 
   const { error, data } = await supabase

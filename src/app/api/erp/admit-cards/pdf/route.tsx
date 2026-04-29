@@ -2,17 +2,17 @@ import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { promises as fs } from "fs";
 import path from "path";
-import { createClient } from "@/lib/supabase/server";
-import { canViewReportCard } from "@/lib/report-card";
-import { getPdfTemplate } from "@/lib/pdf-templates";
-import { contentDispositionAttachment } from "@/lib/utils";
+import { createClient } from "@/shared/lib/supabase/server";
+import { canViewReportCard } from "@/erp/lib/report-card";
+import { getPdfTemplate } from "@/erp/lib/pdf-templates";
+import { contentDispositionAttachment } from "@/shared/lib/utils";
 import {
   AdmitCardPDF,
   type AdmitCardPayload,
   type AdmitCardScheduleRow,
   type AdmitCardTemplateConfig,
-} from "@/components/pdf/AdmitCardPDF";
-import { generateAdmitCardQrBuffer } from "@/lib/admit-card-qr";
+} from "@/erp/components/pdf/AdmitCardPDF";
+import { generateAdmitCardQrBuffer } from "@/erp/lib/admit-card-qr";
 
 export const runtime = "nodejs";
 
@@ -29,7 +29,7 @@ async function loadLogo(): Promise<Buffer | null> {
   }
 }
 
-import { safeFetchBuffer } from "@/lib/safe-fetch";
+import { safeFetchBuffer } from "@/shared/lib/safe-fetch";
 
 // Fetch a student photo URL through the SSRF-resistant helper. Returns null
 // on any failure — admit card renders without the photo rather than failing

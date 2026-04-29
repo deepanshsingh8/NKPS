@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
-import { linkChildSchema } from "@/lib/validations";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { createAdminClient } from "@/shared/lib/supabase/admin";
+import { createClient } from "@/shared/lib/supabase/server";
+import { linkChildSchema } from "@/shared/lib/validations";
+import { rateLimit, clientIp } from "@/shared/lib/rate-limit";
 
 const MAX_CHILDREN_PER_PARENT = 10;
 
@@ -92,14 +92,19 @@ export async function POST(request: Request) {
       .eq("admission_no", admission_no)
       .single();
 
-    if (!student || !student.is_active) {
-      return NextResponse.json(
-        { error: "No student found with this admission number" },
-        { status: 404 }
-      );
-    }
-
-    // Verify date of birth
+    // Audit H4: collapse "no such admission no" and "DOB mismatch" into a
+    // single generic message so an attacker can't enumerate which
+    // admission_nos exist by submitting a known-bad DOB. The "DOB missing"
+    // branch stays distinct because that's genuinely a school-side data
+    // gap the parent needs to be told about.
+    const verifyFailed = NextResponse.json(
+      {
+        error:
+          "We couldn't verify a child with those details. Double-check the admission number and date of birth, then try again.",
+      },
+      { status: 400 }
+    );
+    if (!student || !student.is_active) return verifyFailed;
     if (!student.date_of_birth) {
       return NextResponse.json(
         {
@@ -109,13 +114,7 @@ export async function POST(request: Request) {
         { status: 422 }
       );
     }
-
-    if (student.date_of_birth !== date_of_birth) {
-      return NextResponse.json(
-        { error: "The date of birth does not match our records" },
-        { status: 400 }
-      );
-    }
+    if (student.date_of_birth !== date_of_birth) return verifyFailed;
 
     // Check for existing link
     const { data: existingLink } = await supabase
