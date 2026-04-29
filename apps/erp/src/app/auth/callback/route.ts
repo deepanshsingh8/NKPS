@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   // Always exchange the code server-side. This avoids the PKCE "code verifier
   // not found" error that occurs when the reset link is opened in a different
   // browser/context (e.g. Gmail in-app browser on mobile).
-  let response = NextResponse.redirect(
+  const response = NextResponse.redirect(
     `${origin}${isPasswordReset ? "/portal/reset-password" : next}`
   );
 

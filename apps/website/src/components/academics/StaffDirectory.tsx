@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Users, Loader2 } from "lucide-react";
@@ -72,35 +72,39 @@ export function StaffDirectory() {
   const [dbStaff, setDbStaff] = useState<Record<string, StaffMember[]> | null>(null);
   const [dbLoading, setDbLoading] = useState(true);
 
-  // Fetch staff from DB
-  const fetchStaff = useCallback(async () => {
-    try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("staff_members")
-        .select("*")
-        .eq("is_active", true)
-        .in("category", PUBLIC_CATEGORIES as unknown as string[])
-        .order("sort_order")
-        .order("name");
-
-      if (!error && data && data.length > 0) {
-        const grouped: Record<string, StaffMember[]> = {};
-        for (const member of data as StaffMember[]) {
-          if (!grouped[member.category]) grouped[member.category] = [];
-          grouped[member.category].push(member);
-        }
-        setDbStaff(grouped);
-      }
-    } catch {
-      // Silently fall back to constants
-    }
-    setDbLoading(false);
-  }, []);
-
   useEffect(() => {
-    fetchStaff();
-  }, [fetchStaff]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("staff_members")
+          .select("*")
+          .eq("is_active", true)
+          .in("category", PUBLIC_CATEGORIES as unknown as string[])
+          .order("sort_order")
+          .order("name");
+
+        if (cancelled) return;
+
+        if (!error && data && data.length > 0) {
+          const grouped: Record<string, StaffMember[]> = {};
+          for (const member of data as StaffMember[]) {
+            if (!grouped[member.category]) grouped[member.category] = [];
+            grouped[member.category].push(member);
+          }
+          setDbStaff(grouped);
+        }
+      } catch {
+        // Silently fall back to constants
+      } finally {
+        if (!cancelled) setDbLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Use DB data if available, otherwise fall back to constants
   const getStaffForTab = (key: TabKey): Array<{ name: string; subject: string; photo_url?: string | null }> => {

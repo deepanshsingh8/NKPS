@@ -47,7 +47,7 @@ export function DisplaySection({
           >
             Show class rank
             <span className="ml-2 text-[10px] font-normal text-gray-500">
-              Adds a "Rank" row to the Final Result panel. Computing rank is
+              Adds a &ldquo;Rank&rdquo; row to the Final Result panel. Computing rank is
               relatively expensive on large classes (one extra pass over all
               students).
             </span>

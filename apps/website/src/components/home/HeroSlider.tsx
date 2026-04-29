@@ -88,11 +88,14 @@ function AnimatedHeading({
   text: string;
   slideKey: number;
 }) {
-  const [animate, setAnimate] = useState(false);
+  // Derive `animate` from whether the timeout for the current slideKey has
+  // fired. Using a state value rather than calling setAnimate(false) in the
+  // effect body avoids the synchronous-setState-in-effect warning.
+  const [readyKey, setReadyKey] = useState<number | null>(null);
+  const animate = readyKey === slideKey;
 
   useEffect(() => {
-    setAnimate(false);
-    const t = setTimeout(() => setAnimate(true), 150);
+    const t = setTimeout(() => setReadyKey(slideKey), 150);
     return () => clearTimeout(t);
   }, [slideKey]);
 
