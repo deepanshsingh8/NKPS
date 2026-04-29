@@ -3,36 +3,49 @@
 import { useEffect, useState } from "react";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
 
-export function useUnreadCount() {
+type UseUnreadCountOptions = {
+  contact?: boolean;
+  registrations?: boolean;
+};
+
+export function useUnreadCount({
+  contact = false,
+  registrations = false,
+}: UseUnreadCountOptions = {}) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [pendingRegistrationCount, setPendingRegistrationCount] = useState(0);
 
   useEffect(() => {
+    if (!contact && !registrations) return;
     let mounted = true;
 
     const fetchCounts = async () => {
       try {
-        const [contactRes, regRes] = await Promise.all([
-          // Each app exposes its own unread/pending endpoint at a stable URL.
-          // - In apps/cms, /api/contact/unread-count returns CMS contact unread.
-          // - In apps/erp (or root pre-3.5c), /api/erp/registrations/pending-count
-          //   returns pending registration count.
-          // Cross-app 404s fail silently (CmsSidebar doesn't use the
-          // pendingRegistration value; ErpSidebar doesn't use unreadCount).
-          adminFetch("/api/contact/unread-count"),
-          adminFetch("/api/registrations/pending-count"),
-        ]);
+        const tasks: Array<Promise<unknown>> = [];
 
-        if (mounted) {
-          if (contactRes.ok) {
-            const data = await contactRes.json();
-            setUnreadCount(data.count ?? 0);
-          }
-          if (regRes.ok) {
-            const data = await regRes.json();
-            setPendingRegistrationCount(data.count ?? 0);
-          }
+        if (contact) {
+          tasks.push(
+            adminFetch("/api/contact/unread-count").then(async (res) => {
+              if (mounted && res.ok) {
+                const data = await res.json();
+                setUnreadCount(data.count ?? 0);
+              }
+            })
+          );
         }
+
+        if (registrations) {
+          tasks.push(
+            adminFetch("/api/registrations/pending-count").then(async (res) => {
+              if (mounted && res.ok) {
+                const data = await res.json();
+                setPendingRegistrationCount(data.count ?? 0);
+              }
+            })
+          );
+        }
+
+        await Promise.all(tasks);
       } catch {
         // Silently fail — badges just won't show
       }
@@ -45,7 +58,7 @@ export function useUnreadCount() {
       mounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [contact, registrations]);
 
   return { unreadCount, pendingRegistrationCount };
 }

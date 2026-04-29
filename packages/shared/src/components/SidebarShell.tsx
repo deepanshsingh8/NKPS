@@ -74,7 +74,11 @@ export function SidebarShell({
 }: SidebarShellProps) {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebar();
-  const { unreadCount, pendingRegistrationCount } = useUnreadCount();
+  const { unreadCount, pendingRegistrationCount } = useUnreadCount({
+    contact: !!unreadBadgeHrefs && unreadBadgeHrefs.size > 0,
+    registrations:
+      !!pendingRegistrationBadgeHrefs && pendingRegistrationBadgeHrefs.size > 0,
+  });
   const [userRole, setUserRole] = useState<UserRole>("admin");
   const [permissions, setPermissions] = useState<Set<FeatureKey> | null>(null);
   const [groupOverrides, setGroupOverrides] = useState<Record<string, boolean>>(
