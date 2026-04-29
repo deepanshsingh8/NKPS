@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@nkps/shared/lib/supabase/server";
 import { buildSupplementaryEligible } from "@/lib/supplementary";
 
-// GET /api/erp/supplementary/eligible?class_id=&exam_type_id=
+// GET /api/supplementary/eligible?class_id=&exam_type_id=
 // Returns the eligibility list (failing-but-close students per subject)
 // for the given class+exam, plus any pre-existing attempt rows. Admin or
 // teacher (RLS-scoped at the row level), editors with `supplementary_exams`.
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   if (!profile) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (profile.role === "editor") {
+  if (profile.role !== "admin" && profile.role !== "teacher") {
     const { data: perm } = await supabase
       .from("editor_permissions")
       .select("feature_key")
@@ -33,8 +33,6 @@ export async function GET(request: NextRequest) {
     if (!perm) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-  } else if (profile.role !== "admin" && profile.role !== "teacher") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const params = request.nextUrl.searchParams;

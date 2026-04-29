@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@nkps/shared/lib/supabase/server";
 import { ptmNotesBulkSchema } from "@nkps/shared/lib/validations";
 
-// GET /api/erp/ptm-notes?class_id=&exam_type_id=&student_id=
+// GET /api/ptm-notes?class_id=&exam_type_id=&student_id=
 // Returns ptm_notes matching the filters. RLS scopes visibility:
 //   - admins: all rows
 //   - teachers: rows for students in their class scope
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: data ?? [] });
 }
 
-// POST /api/erp/ptm-notes
+// POST /api/ptm-notes
 // Body: { exam_type_id?, entries: [{ student_id, meeting_date, attendance,
 //   teacher_remarks?, parent_remarks?, action_points? }] }
 //
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
   if (!profile) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (profile.role === "editor") {
+  if (profile.role !== "admin" && profile.role !== "teacher") {
     const { data: perm } = await supabase
       .from("editor_permissions")
       .select("feature_key")
@@ -92,8 +92,6 @@ export async function POST(request: Request) {
     if (!perm) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-  } else if (profile.role !== "admin" && profile.role !== "teacher") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = await request.json();

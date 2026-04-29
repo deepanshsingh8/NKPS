@@ -48,11 +48,11 @@ import { adminFetch } from "@nkps/shared/lib/admin-api";
 import type { Profile, UserRole, RegistrationRequest, RegistrationStatus } from "@nkps/shared/types";
 import { EditorPermissionsDialog } from "@/components/EditorPermissionsDialog";
 
-const ROLES: UserRole[] = ["admin", "editor", "teacher", "student", "parent"];
+const ROLES: UserRole[] = ["admin", "staff", "teacher", "student", "parent"];
 
 const roleBadgeColors: Record<UserRole, string> = {
   admin: "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400",
-  editor: "bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400",
+  staff: "bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400",
   teacher: "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
   student: "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400",
   parent: "bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
@@ -400,8 +400,8 @@ export default function AdminUsersPage() {
             <TabsTrigger value="admin">
               Admins ({profiles.filter((p) => p.role === "admin").length})
             </TabsTrigger>
-            <TabsTrigger value="editor">
-              Editors ({profiles.filter((p) => p.role === "editor").length})
+            <TabsTrigger value="staff">
+              Staff ({profiles.filter((p) => p.role === "staff").length})
             </TabsTrigger>
             <TabsTrigger value="teacher">
               Teachers ({profiles.filter((p) => p.role === "teacher").length})
@@ -423,7 +423,7 @@ export default function AdminUsersPage() {
           </TabsList>
 
           {/* User tabs */}
-          {["all", "admin", "editor", "teacher", "student", "parent"].map((tab) => (
+          {["all", "admin", "staff", "teacher", "student", "parent"].map((tab) => (
             <TabsContent key={tab} value={tab}>
               <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 <div className="relative flex-1">
@@ -505,7 +505,7 @@ export default function AdminUsersPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {profile.role === "editor" && (
+                            {(profile.role === "staff" || profile.role === "teacher") && (
                               <Button
                                 variant="outline"
                                 size="sm"

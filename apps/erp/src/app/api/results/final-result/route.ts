@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   const callerRole = (callerProfile?.role as string | undefined) ?? "";
   const isStaff =
     callerRole === "admin" ||
-    callerRole === "editor" ||
+    callerRole === "staff" ||
     callerRole === "teacher";
 
   const final = await computeFinalResult(supabase, {

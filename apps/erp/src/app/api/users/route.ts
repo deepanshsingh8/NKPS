@@ -276,7 +276,7 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const validRoles = ["admin", "editor", "teacher", "student", "parent"];
+    const validRoles = ["admin", "staff", "teacher", "student", "parent"];
     if (!validRoles.includes(role)) {
       return NextResponse.json(
         { error: "Invalid role" },
@@ -305,6 +305,16 @@ export async function PATCH(request: Request) {
         { error: "Failed to update role" },
         { status: 500 }
       );
+    }
+
+    // Editor capability is only valid for staff/teacher (and admin, which
+    // bypasses the table). When the new role can't hold capability, drop any
+    // stale grants so a future re-promotion doesn't reinstate the old set.
+    if (role === "admin" || role === "student" || role === "parent") {
+      await supabase
+        .from("editor_permissions")
+        .delete()
+        .eq("editor_id", id);
     }
 
     return NextResponse.json({ success: true });

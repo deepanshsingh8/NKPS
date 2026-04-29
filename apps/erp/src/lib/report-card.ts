@@ -64,14 +64,14 @@ export async function canViewReportCard(
 
   if (!profile) return false;
 
-  // Admins and teachers see every student's report card. Editors are gated
-  // on the `results` feature key (audit H3): a permissionless editor or one
-  // with only e.g. `gallery` rights can no longer pull a student's
-  // marksheet by URL.
+  // Admins and teachers see every student's report card. Staff and any
+  // capability-bearing user are gated on the `results` feature key
+  // (audit H3): a permissionless staff member or one with only e.g.
+  // `gallery` rights can no longer pull a student's marksheet by URL.
   if (profile.role === "admin" || profile.role === "teacher") {
     return true;
   }
-  if (profile.role === "editor") {
+  if (profile.role === "staff") {
     const { data: perm } = await supabase
       .from("editor_permissions")
       .select("feature_key")

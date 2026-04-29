@@ -71,9 +71,12 @@ export async function verifyAdminWithUser() {
 }
 
 /**
- * Like verifyAdmin but also allows the "editor" role.
- * If a featureKey is provided, editors must have that feature granted in
- * editor_permissions; admins always pass.
+ * Like verifyAdmin but also allows the editor capability — i.e., a row in
+ * editor_permissions for the given featureKey, regardless of base role.
+ * Admins always pass.
+ *
+ * If featureKey is omitted, any non-admin caller must have at least one
+ * editor_permissions row to pass.
  *
  * Fails closed if `must_change_password = true`.
  */
@@ -86,17 +89,15 @@ export async function verifyAdminOrEditor(featureKey?: FeatureKey) {
   if (!user || !profile) return null;
   if (profile.must_change_password) return null;
   if (profile.role === "admin") return admin;
-  if (profile.role !== "editor") return null;
 
-  if (featureKey) {
-    const { data: perm } = await admin
-      .from("editor_permissions")
-      .select("feature_key")
-      .eq("editor_id", user.id)
-      .eq("feature_key", featureKey)
-      .maybeSingle();
-    if (!perm) return null;
-  }
+  const query = admin
+    .from("editor_permissions")
+    .select("feature_key")
+    .eq("editor_id", user.id);
+  const { data: perm } = featureKey
+    ? await query.eq("feature_key", featureKey).maybeSingle()
+    : await query.limit(1).maybeSingle();
+  if (!perm) return null;
   return admin;
 }
 
@@ -123,7 +124,6 @@ export async function getCallerAccess(): Promise<
   if (profile.role === "admin") {
     return { admin, isAdmin: true, permissions: new Set() };
   }
-  if (profile.role !== "editor") return null;
 
   const { data: rows } = await admin
     .from("editor_permissions")
@@ -133,6 +133,7 @@ export async function getCallerAccess(): Promise<
   for (const r of rows ?? []) {
     if (r.feature_key) permissions.add(r.feature_key as FeatureKey);
   }
+  if (permissions.size === 0) return null;
   return { admin, isAdmin: false, permissions };
 }
 
@@ -152,16 +153,14 @@ export async function verifyAdminOrEditorWithUser(featureKey?: FeatureKey) {
   if (!user || !profile) return null;
   if (profile.must_change_password) return null;
   if (profile.role === "admin") return { admin, user };
-  if (profile.role !== "editor") return null;
 
-  if (featureKey) {
-    const { data: perm } = await admin
-      .from("editor_permissions")
-      .select("feature_key")
-      .eq("editor_id", user.id)
-      .eq("feature_key", featureKey)
-      .maybeSingle();
-    if (!perm) return null;
-  }
+  const query = admin
+    .from("editor_permissions")
+    .select("feature_key")
+    .eq("editor_id", user.id);
+  const { data: perm } = featureKey
+    ? await query.eq("feature_key", featureKey).maybeSingle()
+    : await query.limit(1).maybeSingle();
+  if (!perm) return null;
   return { admin, user };
 }

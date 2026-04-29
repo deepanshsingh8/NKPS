@@ -89,6 +89,17 @@ export const FEATURE_CATALOG: readonly FeatureDef[] = [
 
 export const FEATURE_KEYS: readonly FeatureKey[] = FEATURE_CATALOG.map((f) => f.key);
 
+export type ProfileRole = "admin" | "staff" | "teacher" | "student" | "parent";
+
+// Roles that may hold editor capability (i.e., be granted feature_keys in
+// editor_permissions). Admins bypass capability checks entirely; students and
+// parents cannot be granted editor features. Used by the API that grants
+// permissions and by the users-page UI that decides whether to render the
+// "Permissions" button.
+export function canHoldEditorCapability(role: string): boolean {
+  return role === "staff" || role === "teacher";
+}
+
 const FEATURE_KEY_SET = new Set<string>(FEATURE_KEYS);
 
 export function isFeatureKey(value: unknown): value is FeatureKey {

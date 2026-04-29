@@ -216,17 +216,25 @@ export default function SettingsPage() {
   };
 
   const getDashboardPath = (): { url: string; external: boolean } => {
-    // For admin/editor, honour the ?from=cms|erp hint set by the sidebar that
+    // For admin/staff, honour the ?from=cms|erp hint set by the sidebar that
     // linked here so users return to the module they came from instead of
     // always being bounced to ERP. CMS lives in a separate app.
-    if (profile?.role === "admin" || profile?.role === "editor") {
+    if (profile?.role === "admin" || profile?.role === "staff") {
       const from = searchParams.get("from");
       if (from === "cms") return { url: getCmsUrl("/"), external: true };
       if (from === "erp") return { url: "/", external: false };
       return { url: "/", external: false };
     }
+    // Teachers — including those with editor capability — return to the
+    // teacher portal. The ?from hint still applies for users who arrived
+    // here via the SwitchAppMenu link from CMS/ERP admin.
+    if (profile?.role === "teacher") {
+      const from = searchParams.get("from");
+      if (from === "cms") return { url: getCmsUrl("/"), external: true };
+      if (from === "erp") return { url: "/", external: false };
+      return { url: "/teacher", external: false };
+    }
     switch (profile?.role) {
-      case "teacher": return { url: "/teacher", external: false };
       default: return { url: "/student", external: false };
     }
   };

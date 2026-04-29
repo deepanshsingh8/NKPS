@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     if (!profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (profile.role === "editor") {
+    if (profile.role !== "admin") {
       const { data: perm } = await supabase
         .from("editor_permissions")
         .select("feature_key")
@@ -46,8 +46,6 @@ export async function POST(request: Request) {
       if (!perm) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
-    } else if (profile.role !== "admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await request.json();

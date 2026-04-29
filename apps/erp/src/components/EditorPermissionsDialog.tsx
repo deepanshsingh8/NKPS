@@ -111,9 +111,9 @@ export function EditorPermissionsDialog({
               <ShieldCheck className="h-5 w-5 text-purple-700 dark:text-purple-400" />
             </div>
             <div>
-              <DialogTitle>Edit Permissions</DialogTitle>
+              <DialogTitle>Editor Capability</DialogTitle>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                Choose which admin features {editorName} can access
+                Choose which CMS / ERP features {editorName} can access
               </p>
             </div>
           </div>
@@ -143,8 +143,8 @@ export function EditorPermissionsDialog({
             />
 
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              Editors always have access to the dashboard. User management stays
-              admin-only.
+              Anyone with a granted feature gets the matching dashboard tile and
+              sidebar entry. User management and master config stay admin-only.
             </p>
           </div>
         )}

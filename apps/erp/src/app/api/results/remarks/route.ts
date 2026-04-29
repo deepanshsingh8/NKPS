@@ -96,7 +96,7 @@ export async function POST(request: Request) {
     if (!profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (profile.role === "editor") {
+    if (profile.role !== "admin" && profile.role !== "teacher") {
       const { data: perm } = await supabase
         .from("editor_permissions")
         .select("feature_key")
@@ -106,8 +106,6 @@ export async function POST(request: Request) {
       if (!perm) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
-    } else if (profile.role !== "admin" && profile.role !== "teacher") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -150,16 +148,16 @@ export async function POST(request: Request) {
       }
     }
 
-    // M10 — admins/editors can silently clobber a teacher's draft remark.
-    // When the caller is admin/editor, look at the existing rows for the
-    // students they're about to write. If any was authored by a profile
-    // whose role is "teacher" AND the new entry differs from the existing
-    // text, we 409 unless body.force_overwrite is set. Teachers writing
-    // their own remarks always overwrite — they are the canonical author.
-    if (
-      (profile.role === "admin" || profile.role === "editor") &&
-      !forceOverwrite
-    ) {
+    // M10 — non-teacher capability holders (admin/staff/teacher-with-grant
+    // who isn't the class teacher) can silently clobber a teacher's draft
+    // remark. When the caller is anyone other than the canonical teacher
+    // path above, look at the existing rows for the students they're about
+    // to write. If any was authored by a profile whose role is "teacher"
+    // AND the new entry differs from the existing text, we 409 unless
+    // body.force_overwrite is set. The teacher branch above already returned
+    // for non-class-teachers, so reaching here as a teacher means this IS
+    // the class teacher — they are the canonical author and always overwrite.
+    if (profile.role !== "teacher" && !forceOverwrite) {
       const studentIdsToWrite = entries
         .filter((e) => e.remark && e.remark.trim().length > 0)
         .map((e) => e.student_id);

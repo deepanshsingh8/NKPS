@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     if (!profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (profile.role === "editor") {
+    if (profile.role !== "admin" && profile.role !== "teacher") {
       const { data: perm } = await supabase
         .from("editor_permissions")
         .select("feature_key")
@@ -38,8 +38,6 @@ export async function POST(request: Request) {
       if (!perm) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
-    } else if (profile.role !== "admin" && profile.role !== "teacher") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -121,7 +119,10 @@ export async function POST(request: Request) {
     let allowFinalizedOverwrite = false;
     if (profile.role === "admin") {
       allowFinalizedOverwrite = true;
-    } else if (profile.role === "editor") {
+    } else {
+      // Anyone with the publish_results capability (typically staff, but a
+      // teacher could be granted it too) can refinalize. Plain teachers
+      // without that grant cannot silently overwrite a finalized marksheet.
       const { data: pubPerm } = await supabase
         .from("editor_permissions")
         .select("feature_key")
@@ -156,12 +157,16 @@ export async function POST(request: Request) {
 
     // Online-publish lock (audit H1):
     // `is_published=true` on `results` means the row is currently visible to
-    // students/parents. Editors with the `results` perm but no
-    // `publish_results` shouldn't silently rewrite a published mark — that
-    // bypasses the surgical-unlock workflow. Same gate as the finalized
-    // check above; teachers can update their own subject's published rows
-    // (they're the source of truth) so we whitelist the teacher branch.
-    if (profile.role === "editor" && !allowFinalizedOverwrite) {
+    // students/parents. A non-admin/non-teacher with the `results` perm but
+    // no `publish_results` shouldn't silently rewrite a published mark —
+    // that bypasses the surgical-unlock workflow. Teachers can update their
+    // own subject's published rows (they're the source of truth) so we
+    // whitelist the teacher branch.
+    if (
+      profile.role !== "admin" &&
+      profile.role !== "teacher" &&
+      !allowFinalizedOverwrite
+    ) {
       const { data: publishedRows } = await supabase
         .from("results")
         .select("student_id")

@@ -2,9 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FeatureKey } from "@nkps/shared/lib/permissions";
 
 // Cookie-auth gating helper. Most routes use createClient() (cookies) and
-// only need to know whether the calling profile is an admin or an editor with
-// a particular feature_key granted. verifyAdmin* in verify-admin.ts solves the
-// same problem for Bearer-auth routes.
+// only need to know whether the caller is an admin or holds the editor
+// capability for a given feature_key. Editor capability is granted via the
+// editor_permissions table and is independent of base role — admin always
+// passes, and any other role passes only if the matching row exists.
+// verifyAdmin* in verify-admin.ts solves the same problem for Bearer-auth.
 export async function callerHasAdminOrEditorPerm(
   supabase: SupabaseClient,
   userId: string,
@@ -18,7 +20,6 @@ export async function callerHasAdminOrEditorPerm(
   if (!profile) return false;
   if (profile.must_change_password) return false;
   if (profile.role === "admin") return true;
-  if (profile.role !== "editor") return false;
   const { data: perm } = await supabase
     .from("editor_permissions")
     .select("feature_key")

@@ -133,7 +133,7 @@ export interface Article {
 // ERP System Types
 // =============================================================
 
-export type UserRole = 'admin' | 'editor' | 'teacher' | 'student' | 'parent';
+export type UserRole = 'admin' | 'staff' | 'teacher' | 'student' | 'parent';
 
 export interface Profile {
   id: string;

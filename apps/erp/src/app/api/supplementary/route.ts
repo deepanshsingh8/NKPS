@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@nkps/shared/lib/supabase/server";
 import { supplementaryAttemptsBulkSchema } from "@nkps/shared/lib/validations";
 
-// GET /api/erp/supplementary?class_id=&parent_exam_type_id=&student_id=
+// GET /api/supplementary?class_id=&parent_exam_type_id=&student_id=
 // List existing supplementary_attempts. RLS scopes visibility per role.
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: data ?? [] });
 }
 
-// POST /api/erp/supplementary
+// POST /api/supplementary
 // Body: { class_id, parent_exam_type_id, retest_date?, entries: [{
 //   student_id, subject_id, marks_obtained, max_marks, passed }] }
 // Bulk upsert with onConflict on (student_id, parent_exam_type_id, subject_id).
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   if (!profile) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (profile.role === "editor") {
+  if (profile.role !== "admin" && profile.role !== "teacher") {
     const { data: perm } = await supabase
       .from("editor_permissions")
       .select("feature_key")
@@ -71,8 +71,6 @@ export async function POST(request: Request) {
     if (!perm) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-  } else if (profile.role !== "admin" && profile.role !== "teacher") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = await request.json();

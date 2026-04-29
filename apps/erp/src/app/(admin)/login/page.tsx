@@ -17,7 +17,7 @@ export default function ErpLoginPage() {
       ]}
       redirectByRole={{
         admin: "/",
-        editor: "/",
+        staff: "/",
         teacher: "/teacher",
         student: "/student",
         parent: "/parent",

@@ -25,7 +25,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 function getDashboardPath(role: string): string {
   switch (role) {
     case "admin":
-    case "editor":
+    case "staff":
       return "/";
     case "teacher":
       return "/teacher";

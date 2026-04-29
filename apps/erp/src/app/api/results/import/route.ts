@@ -29,7 +29,7 @@ function normalizeKey(key: string): string {
     .replace(/[^a-z0-9_]/g, "");
 }
 
-// POST /api/erp/results/import — multipart/form-data upload.
+// POST /api/results/import — multipart/form-data upload.
 // Fields: file, class_id, exam_type_id, subject_id, dry_run ("true" | "false")
 // Returns: { summary, rows }. Commits only when dry_run=false AND all rows are valid.
 export async function POST(request: NextRequest) {
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
   if (!profile) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (profile.role === "editor") {
+  if (profile.role !== "admin" && profile.role !== "teacher") {
     const { data: perm } = await supabase
       .from("editor_permissions")
       .select("feature_key")
@@ -59,8 +59,6 @@ export async function POST(request: NextRequest) {
     if (!perm) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-  } else if (profile.role !== "admin" && profile.role !== "teacher") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   let form: FormData;

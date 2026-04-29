@@ -106,7 +106,7 @@ export const createUserSchema = z.object({
   full_name: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
   phone: phoneOptionalSchema,
-  role: z.enum(["admin", "editor", "teacher", "student", "parent"], {
+  role: z.enum(["admin", "staff", "teacher", "student", "parent"], {
     message: "Please select a role",
   }),
 });

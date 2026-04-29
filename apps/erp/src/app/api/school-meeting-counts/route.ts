@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@nkps/shared/lib/supabase/server";
 import { schoolMeetingCountSchema } from "@nkps/shared/lib/validations";
 
-// GET /api/erp/school-meeting-counts?academic_year_id=&exam_type_id=&class_id=
+// GET /api/school-meeting-counts?academic_year_id=&exam_type_id=&class_id=
 // Any combination of scope filters; NULL-scope rows are included when
 // exam_type_id / class_id are absent from the query. Authenticated read only.
 export async function GET(request: NextRequest) {
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: data ?? [] });
 }
 
-// PUT /api/erp/school-meeting-counts — upsert on (year, exam_type, class).
+// PUT /api/school-meeting-counts — upsert on (year, exam_type, class).
 // Uses an expression-based unique index in the DB; we replicate the upsert
 // key resolution here because Supabase's onConflict can't target expression
 // indexes.
@@ -67,7 +67,7 @@ export async function PUT(request: Request) {
   if (!profile) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (profile.role === "editor") {
+  if (profile.role !== "admin" && profile.role !== "teacher") {
     const { data: perm } = await supabase
       .from("editor_permissions")
       .select("feature_key")
@@ -77,8 +77,6 @@ export async function PUT(request: Request) {
     if (!perm) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-  } else if (profile.role !== "admin" && profile.role !== "teacher") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = await request.json();

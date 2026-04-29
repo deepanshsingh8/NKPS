@@ -13,9 +13,13 @@ interface PortalSidebarProps {
   title: string;
   role: string;
   navLinks: { href: string; label: string; icon: React.ReactNode }[];
+  // Optional sidebar slot rendered just above the profile menu — used by the
+  // teacher sidebar to show the SwitchAppMenu when the user holds editor
+  // capability. Students/parents don't pass this.
+  footerExtra?: React.ReactNode;
 }
 
-export function PortalSidebar({ title, role, navLinks }: PortalSidebarProps) {
+export function PortalSidebar({ title, role, navLinks, footerExtra }: PortalSidebarProps) {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebar();
 
@@ -113,6 +117,7 @@ export function PortalSidebar({ title, role, navLinks }: PortalSidebarProps) {
         </div>
       </nav>
 
+      {footerExtra}
       <SidebarProfileMenu settingsHref="/portal/settings" collapsed={collapsed} />
     </aside>
   );

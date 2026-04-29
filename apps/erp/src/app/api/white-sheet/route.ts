@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   if (!profile) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (profile.role === "editor") {
+  if (profile.role !== "admin") {
     const { data: perm } = await supabase
       .from("editor_permissions")
       .select("feature_key")
@@ -30,8 +30,6 @@ export async function GET(request: Request) {
     if (!perm) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-  } else if (profile.role !== "admin") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);

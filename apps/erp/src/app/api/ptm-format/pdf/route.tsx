@@ -25,7 +25,7 @@ async function loadLogo(): Promise<Buffer | null> {
   }
 }
 
-// GET /api/erp/ptm-format/pdf?class_id&exam_type_id?&template_id?
+// GET /api/ptm-format/pdf?class_id&exam_type_id?&template_id?
 // Admin + teacher + editor(ptm_format). Generates one page per student in
 // the class. Performance snapshot requires exam_type_id; otherwise that
 // section is rendered empty.
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
   if (!profile) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (profile.role === "editor") {
+  if (profile.role !== "admin" && profile.role !== "teacher") {
     const { data: perm } = await supabase
       .from("editor_permissions")
       .select("feature_key")
@@ -56,8 +56,6 @@ export async function GET(request: Request) {
     if (!perm) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-  } else if (profile.role !== "admin" && profile.role !== "teacher") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);

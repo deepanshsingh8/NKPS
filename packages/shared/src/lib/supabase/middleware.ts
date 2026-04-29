@@ -9,7 +9,8 @@ import {
 //   /              admin dashboard
 //   /login         admin login
 //   /people, /exams, /fees, /timetable, /calendar, /attendance, /academics,
-//     /registrations  — admin/editor sub-areas
+//     /registrations  — admin/staff sub-areas, plus teachers with the
+//     matching editor_permissions feature_key.
 //   /portal/*      portal login + password flows (any role)
 //   /teacher/*     teacher dashboard (teacher role only)
 //   /student/*     student dashboard (student role only)
@@ -31,7 +32,7 @@ const PORTAL_PUBLIC_PAGES = [
 function getDashboardPath(role: string): string {
   switch (role) {
     case "admin":
-    case "editor":
+    case "staff":
       return "/";
     case "teacher":
       return "/teacher";
@@ -156,18 +157,27 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Admin-area role gate. Only admin/editor may enter / and admin sub-areas.
-    if (isAdminAreaPath(pathname) && role !== "admin" && role !== "editor") {
+    // Admin-area role gate. Admin/staff may enter freely; teachers are allowed
+    // in only if they hold at least one editor capability (per-feature gate
+    // below filters them further). Students and parents are bounced.
+    if (
+      isAdminAreaPath(pathname) &&
+      role !== "admin" &&
+      role !== "staff" &&
+      role !== "teacher"
+    ) {
       const url = request.nextUrl.clone();
       url.pathname = dashboard;
       return NextResponse.redirect(url);
     }
 
-    // Editor feature-level access control on the admin area.
-    if (isAdminAreaPath(pathname) && role === "editor") {
+    // Per-feature capability gate on the admin area. Admins bypass; everyone
+    // else (staff and teachers) must hold the matching editor_permissions row.
+    // Admin-only paths (e.g. /people/users) reject all non-admins.
+    if (isAdminAreaPath(pathname) && role !== "admin") {
       if (isAdminOnlyPath(pathname)) {
         const url = request.nextUrl.clone();
-        url.pathname = "/";
+        url.pathname = role === "teacher" ? "/teacher" : "/";
         return NextResponse.redirect(url);
       }
       const featureKey = featureKeyForPath(pathname);
@@ -180,9 +190,17 @@ export async function updateSession(request: NextRequest) {
           .maybeSingle();
         if (!perm) {
           const url = request.nextUrl.clone();
-          url.pathname = "/";
+          url.pathname = role === "teacher" ? "/teacher" : "/";
           return NextResponse.redirect(url);
         }
+      } else if (pathname !== "/" && role === "teacher") {
+        // Teacher hit an admin-area page that has no feature mapping (e.g. an
+        // unmapped dashboard). Without a grant, they go back to /teacher.
+        // Staff is allowed on the admin root and unmapped pages — their
+        // sidebar will guide them to what they can actually use.
+        const url = request.nextUrl.clone();
+        url.pathname = "/teacher";
+        return NextResponse.redirect(url);
       }
     }
 

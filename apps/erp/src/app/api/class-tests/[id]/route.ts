@@ -31,7 +31,7 @@ async function loadClassTestAndAuthorize(
   if (!profile) {
     return { ok: false, status: 401, error: "Unauthorized" };
   }
-  if (profile.role === "editor") {
+  if (profile.role !== "admin" && profile.role !== "teacher") {
     const { data: perm } = await supabase
       .from("editor_permissions")
       .select("feature_key")
@@ -41,8 +41,6 @@ async function loadClassTestAndAuthorize(
     if (!perm) {
       return { ok: false, status: 403, error: "Forbidden" };
     }
-  } else if (profile.role !== "admin" && profile.role !== "teacher") {
-    return { ok: false, status: 403, error: "Forbidden" };
   }
 
   const { data: ct } = await supabase

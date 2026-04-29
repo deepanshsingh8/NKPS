@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdmin } from "@nkps/shared/lib/verify-admin";
-import { isFeatureKey, type FeatureKey } from "@nkps/shared/lib/permissions";
+import {
+  isFeatureKey,
+  canHoldEditorCapability,
+  type FeatureKey,
+} from "@nkps/shared/lib/permissions";
 
-// GET /api/erp/editor-permissions?editor_id=<uuid>
+// GET /api/editor-permissions?editor_id=<uuid>
 // Returns the list of feature_keys currently granted to that editor.
 export async function GET(request: NextRequest) {
   const admin = await verifyAdmin();
@@ -30,7 +34,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-// PUT /api/erp/editor-permissions
+// PUT /api/editor-permissions
 // Body: { editor_id: string, feature_keys: FeatureKey[] }
 // Atomically replaces that editor's permissions with the given set.
 export async function PUT(request: NextRequest) {
@@ -65,8 +69,9 @@ export async function PUT(request: NextRequest) {
       if (!validKeys.includes(k)) validKeys.push(k);
     }
 
-    // Verify the target is actually an editor — prevents granting features to
-    // admins (pointless) or other roles (confusing).
+    // Editor capability is meaningful only for staff and teachers. Admins
+    // bypass capability checks entirely (granting them features is harmless
+    // but pointless); students and parents cannot hold any.
     const { data: profile } = await admin
       .from("profiles")
       .select("role")
@@ -76,9 +81,9 @@ export async function PUT(request: NextRequest) {
     if (!profile) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-    if (profile.role !== "editor") {
+    if (!canHoldEditorCapability(profile.role)) {
       return NextResponse.json(
-        { error: "Permissions can only be assigned to editors" },
+        { error: "Editor capability can only be granted to staff or teachers" },
         { status: 400 }
       );
     }
@@ -94,7 +99,7 @@ export async function PUT(request: NextRequest) {
     // calling this today, an admin (or future code path) editing their own
     // row can lock themselves out of the admin role or grant their second
     // editor identity unbounded power. Block it; admins manage their own
-    // role via /api/erp/users.
+    // role via /api/users.
     if (user?.id && user.id === editorId) {
       return NextResponse.json(
         { error: "You cannot modify your own permissions" },

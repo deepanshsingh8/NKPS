@@ -121,54 +121,178 @@ ln -sf ../../.env.local apps/erp/.env.local
 
 ## Production deployment (subdomains)
 
-Each app deploys to its own Vercel project on its own subdomain:
+Each app is its own Vercel project on its own subdomain, all pointing at the same Supabase. Setup is one-time; after that, every push to `main` auto-deploys all three apps.
 
 | Subdomain | Vercel project | Root directory |
 |---|---|---|
-| `nkps.com` | `nkps-website` | `apps/website` |
-| `cms.nkps.com` | `nkps-cms` | `apps/cms` |
-| `erp.nkps.com` | `nkps-erp` | `apps/erp` |
+| `nkpublicschool.com` | `nkps-website` | `apps/website` |
+| `cms.nkpublicschool.com` | `nkps-cms` | `apps/cms` |
+| `erp.nkpublicschool.com` | `nkps-erp` | `apps/erp` |
 
-### Vercel project setup (per app)
+### Environment variable reference
 
-1. Import the GitHub repo into Vercel.
-2. **Root directory**: set to `apps/website`, `apps/cms`, or `apps/erp` accordingly.
-3. **Framework preset**: Next.js (auto-detected).
-4. **Install command**: `pnpm install --frozen-lockfile` (Vercel detects from `packageManager`).
-5. **Build command**: leave blank (uses `next build` from the app's package.json).
-6. **Environment variables**: copy `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` into each project. The website app additionally needs `ANTHROPIC_API_KEY` (chatbot), `NEXT_PUBLIC_GA_ID` (analytics), `NEXT_PUBLIC_GSC_VERIFICATION` (Search Console). The ERP app additionally needs `RESEND_API_KEY` (welcome emails), `SITE_URL` (links in emails).
+Per-app required vars. Missing one will either fail the build or break a runtime feature.
 
-### Supabase configuration for subdomain auth
+| Variable | website | cms | erp | Notes |
+|---|:---:|:---:|:---:|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | ✅ | ✅ | Same value in all three projects |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | ✅ | ✅ | Same value in all three projects |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | ✅ | ✅ | Same value in all three projects |
+| `NEXT_PUBLIC_WEBSITE_URL` | ✅ | ✅ | ✅ | `https://nkpublicschool.com` |
+| `NEXT_PUBLIC_CMS_URL` | ✅ | ✅ | ✅ | `https://cms.nkpublicschool.com` |
+| `NEXT_PUBLIC_ERP_URL` | ✅ | ✅ | ✅ | `https://erp.nkpublicschool.com` |
+| `NEXT_PUBLIC_SITE_URL` | ✅ | – | – | Public canonical URL (`https://nkpublicschool.com`) — used for SEO, sitemap, JSON-LD |
+| `ANTHROPIC_API_KEY` | ✅ | – | – | Chatbot on the public site |
+| `NEXT_PUBLIC_GA_ID` | ✅ | – | – | GA4 measurement ID; leave blank to disable |
+| `NEXT_PUBLIC_GSC_VERIFICATION` | ✅ | – | – | Search Console meta-tag verification token (only if verifying via tag) |
+| `GMAIL_USER` | ✅ | – | ✅ | Gmail address used for SMTP |
+| `GMAIL_APP_PASSWORD` | ✅ | – | ✅ | Gmail app password (not the account password) |
+| `FROM_EMAIL` | ✅ | – | ✅ | `NK Public School <noreply@…>` — must use the `GMAIL_USER` mailbox |
+| `REPLY_TO_EMAIL` | ✅ | – | ✅ | Where replies route (e.g. `nkps.rajawas@gmail.com`) |
 
-Auth cookies must be visible across all three subdomains. In Supabase Studio → Authentication → URL Configuration:
+Why each app sends mail:
+- **website** — public contact form (`apps/website/src/app/api/contact/route.ts`).
+- **erp** — portal forgot-password, register, registration approve/reject.
+- **cms** — does not send mail directly; only manages submissions.
 
-1. **Site URL**: `https://nkps.com`
-2. **Redirect URLs** (allowlist): `https://nkps.com/**`, `https://cms.nkps.com/**`, `https://erp.nkps.com/**`, `http://localhost:3001/**`, `http://localhost:3002/**`, `http://localhost:3003/**`
-3. **Cookie domain**: set to `.nkps.com` (note the leading dot) so cookies set by one subdomain are read by the others.
+> Note: production uses Gmail SMTP via `nodemailer` (see `packages/shared/src/lib/email.ts`). `RESEND_API_KEY` mentioned in some older notes is not used.
 
-Email templates (password reset, signup confirmation) should point to `https://erp.nkps.com/auth/callback` since the ERP app owns auth callback routes.
+---
 
-### Cross-subdomain redirects
+### Step 0 — Before merging to main
 
-Legacy `/admin/*`, `/cms/*`, `/erp/*` URLs from the pre-monorepo era can be redirected at the website level via Vercel `vercel.json` rewrites. Add to `apps/website/vercel.json`:
+Verify the branch is deployable.
+
+```bash
+pnpm install --frozen-lockfile
+pnpm run lint
+pnpm run typecheck
+pnpm exec turbo run build
+```
+
+All four must pass. CI (`.github/workflows/ci.yml`) runs the same gates on PRs to `main`.
+
+Also make sure no uncommitted changes are sitting in your working tree (`git status`).
+
+### Step 1 — Create the two new Vercel projects (cms, erp)
+
+Do this **before** merging. Both projects can be pointed at the `phase-3-monorepo` branch first so you can preview-deploy and verify before they ever touch production.
+
+For each new project (`nkps-cms` and `nkps-erp`):
+
+1. Vercel dashboard → **Add New… → Project** → import this GitHub repo.
+2. **Project Name**: `nkps-cms` or `nkps-erp`.
+3. **Framework Preset**: Next.js (auto-detected).
+4. **Root Directory**: `apps/cms` or `apps/erp` (use the "Edit" link next to Root Directory).
+5. **Build & Output Settings**: leave defaults — Vercel uses `next build` from the app's `package.json`, and pnpm workspaces are auto-detected.
+6. **Install Command**: leave blank — Vercel honours the root `packageManager` field and runs `pnpm install` against the workspace.
+7. **Production Branch** (Project → Settings → Git): `main`.
+8. **Environment Variables**: add every variable in the column for that app from the table above. Set the scope to *Production, Preview, Development*.
+9. Deploy from the `phase-3-monorepo` branch as a preview. Confirm it builds.
+
+### Step 2 — Repoint the existing Vercel project to `apps/website`
+
+The current production project (the one serving `nkpublicschool.com`) builds from the repo root. After the merge, root is no longer a Next.js app, so **the existing project will fail to build** unless its Root Directory is updated.
+
+Two safe approaches — pick one:
+
+**Approach A (recommended): change Root Directory just before the merge.**
+1. Existing Vercel project → Settings → General → **Root Directory** → `apps/website` → Save.
+2. Settings → Git → **Production Branch** = `main` (likely already is).
+3. Settings → Environment Variables → add the website-column vars from the table above (the existing project already has Supabase/Anthropic/GA vars; just add the missing cross-app URL vars: `NEXT_PUBLIC_WEBSITE_URL`, `NEXT_PUBLIC_CMS_URL`, `NEXT_PUBLIC_ERP_URL`, plus `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `FROM_EMAIL`, `REPLY_TO_EMAIL` if not already present).
+4. Don't trigger a deploy yet — the merge in Step 5 will trigger it.
+
+**Approach B (zero-risk, slightly more work):** create a brand-new `nkps-website` project the same way as Step 1 (root = `apps/website`), assign it the apex domain after Step 5, and delete the old project once verified.
+
+### Step 3 — Set up DNS for the new subdomains
+
+In whatever DNS provider hosts `nkpublicschool.com`, add:
+
+| Type | Name | Value |
+|---|---|---|
+| CNAME | `cms` | `cname.vercel-dns.com` |
+| CNAME | `erp` | `cname.vercel-dns.com` |
+
+Then in each Vercel project → Settings → Domains, add `cms.nkpublicschool.com` (to `nkps-cms`) and `erp.nkpublicschool.com` (to `nkps-erp`). Vercel will issue SSL certs automatically once DNS propagates (a few minutes to an hour).
+
+### Step 4 — Configure Supabase for cross-subdomain auth
+
+In Supabase Studio → **Authentication → URL Configuration**:
+
+1. **Site URL**: `https://nkpublicschool.com`
+2. **Additional Redirect URLs** (one per line):
+   ```
+   https://nkpublicschool.com/**
+   https://cms.nkpublicschool.com/**
+   https://erp.nkpublicschool.com/**
+   http://localhost:3001/**
+   http://localhost:3002/**
+   http://localhost:3003/**
+   ```
+3. **Cookie domain**: `.nkpublicschool.com` (leading dot — required so the auth cookie set on one subdomain is readable from the others).
+
+In Supabase Studio → **Authentication → Email Templates**, update the link in each template (Confirm signup, Reset password, Magic link, Invite user) to use:
+```
+https://erp.nkpublicschool.com/auth/callback?...
+```
+The ERP app owns the `/auth/callback` route. If you currently use the default `{{ .SiteURL }}/auth/callback`, change `SiteURL` references to the literal ERP URL, or update the Site URL above to the ERP subdomain (only if your password-reset/signup flows live exclusively in ERP, which they do today).
+
+### Step 5 — Merge `phase-3-monorepo` → `main`
+
+```bash
+git checkout main
+git pull
+git merge --no-ff phase-3-monorepo
+git push origin main
+```
+
+This single push triggers all three Vercel projects to build and deploy in parallel.
+
+### Step 6 — Smoke test
+
+In order, with a fresh browser session:
+
+- [ ] `https://nkpublicschool.com` loads, navigation works, gallery + about pages render
+- [ ] Public contact form submits successfully and an email lands in the configured inbox
+- [ ] `https://cms.nkpublicschool.com/login` loads → log in as admin → CMS dashboard renders, gallery/articles/contact lists work
+- [ ] `https://erp.nkpublicschool.com/login` loads → log in as admin → ERP dashboard renders, students/exams pages work
+- [ ] Log into ERP, then open `https://cms.nkpublicschool.com` in the same tab — you should already be authenticated (cross-subdomain cookie working). If not, recheck the cookie domain in Step 4.
+- [ ] Trigger a portal forgot-password — the email link points to `https://erp.nkpublicschool.com/auth/callback…` and successfully signs the user in.
+- [ ] Editor login: an editor account with only CMS permissions can access cms.* but is bounced from erp.*, and vice versa.
+
+### Step 7 — Optional: legacy URL redirects
+
+External bookmarks and old crawler URLs may still hit the apex domain at `/admin/...`, `/cms/...`, `/erp/...`, or `/portal/...`. Add `apps/website/vercel.json` to send them to the right subdomain:
 
 ```json
 {
   "redirects": [
-    { "source": "/admin/login", "destination": "https://erp.nkps.com/login", "permanent": true },
-    { "source": "/admin/articles", "destination": "https://cms.nkps.com/articles", "permanent": true },
-    { "source": "/admin/gallery", "destination": "https://cms.nkps.com/gallery", "permanent": true },
-    { "source": "/admin/(.*)", "destination": "https://erp.nkps.com/$1", "permanent": true },
-    { "source": "/cms", "destination": "https://cms.nkps.com", "permanent": true },
-    { "source": "/cms/(.*)", "destination": "https://cms.nkps.com/$1", "permanent": true },
-    { "source": "/erp", "destination": "https://erp.nkps.com", "permanent": true },
-    { "source": "/erp/(.*)", "destination": "https://erp.nkps.com/$1", "permanent": true },
-    { "source": "/portal/(.*)", "destination": "https://erp.nkps.com/portal/$1", "permanent": true }
+    { "source": "/admin/login", "destination": "https://erp.nkpublicschool.com/login", "permanent": true },
+    { "source": "/admin/articles", "destination": "https://cms.nkpublicschool.com/articles", "permanent": true },
+    { "source": "/admin/gallery", "destination": "https://cms.nkpublicschool.com/gallery", "permanent": true },
+    { "source": "/admin/(.*)", "destination": "https://erp.nkpublicschool.com/$1", "permanent": true },
+    { "source": "/cms", "destination": "https://cms.nkpublicschool.com", "permanent": true },
+    { "source": "/cms/(.*)", "destination": "https://cms.nkpublicschool.com/$1", "permanent": true },
+    { "source": "/erp", "destination": "https://erp.nkpublicschool.com", "permanent": true },
+    { "source": "/erp/(.*)", "destination": "https://erp.nkpublicschool.com/$1", "permanent": true },
+    { "source": "/portal/(.*)", "destination": "https://erp.nkpublicschool.com/portal/$1", "permanent": true }
   ]
 }
 ```
 
-(These can be added incrementally as old links surface. They're not on the critical path for go-live.)
+Commit + push — the website project picks it up on the next deploy. Not on the critical path for go-live.
+
+### Rollback
+
+If something goes wrong post-merge:
+
+- **Build broke on one project**: in Vercel → Deployments → previous green deploy → "Promote to Production". Each project rolls back independently.
+- **Auth broken across subdomains**: revert the Supabase cookie-domain change first (it's the most common breaker). Cookie domain mismatches manifest as users being signed out on every navigation between subdomains.
+- **Need to fully revert the merge**: `git revert -m 1 <merge-sha>` on `main`. The three projects will redeploy the pre-merge website code; cms/erp projects will fail their next build (no `apps/cms` / `apps/erp` exists on pre-merge `main`) — pause those projects in Vercel until the next forward fix.
+
+### Day-2 operations
+
+After the initial cutover, deploys are normal: push to `main`, all three projects rebuild. Per-app preview deploys run on PRs automatically. Use feature branches; CI will run lint + typecheck + build for all three apps on every PR.
 
 ## Adding a new feature
 

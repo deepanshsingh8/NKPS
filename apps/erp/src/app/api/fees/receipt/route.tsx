@@ -68,7 +68,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const isAdmin = profile.role === "admin" || profile.role === "editor";
+    // "Office bucket": admin always, plus staff (replaces the old editor role)
+    // and any teacher granted the `fees` capability. Students/parents follow
+    // the owner-student / linked-parent paths below.
+    let isAdmin = profile.role === "admin" || profile.role === "staff";
+    if (!isAdmin && profile.role === "teacher") {
+      const { data: perm } = await admin
+        .from("editor_permissions")
+        .select("feature_key")
+        .eq("editor_id", user.id)
+        .eq("feature_key", "fees")
+        .maybeSingle();
+      if (perm) isAdmin = true;
+    }
     const isOwnerStudent =
       profile.role === "student" && profile.student_id === payment.student_id;
 

@@ -79,30 +79,28 @@ export default function AdminAcademicsHubPage() {
         .then(({ data }) => {
           const role = (data?.role as UserRole) ?? null;
           setUserRole(role);
-          if (role === "editor") {
-            supabase
-              .from("editor_permissions")
-              .select("feature_key")
-              .eq("editor_id", user.id)
-              .then(({ data: rows }) => {
-                setPermissions(
-                  new Set<FeatureKey>(
-                    (rows ?? []).map((r) => r.feature_key as FeatureKey)
-                  )
-                );
-              });
-          } else {
+          if (role === "admin") {
             setPermissions(new Set());
+            return;
           }
+          supabase
+            .from("editor_permissions")
+            .select("feature_key")
+            .eq("editor_id", user.id)
+            .then(({ data: rows }) => {
+              setPermissions(
+                new Set<FeatureKey>(
+                  (rows ?? []).map((r) => r.feature_key as FeatureKey)
+                )
+              );
+            });
         });
     });
   }, []);
 
   const visibleTiles = tiles.filter((t) => {
-    if (userRole === "editor") {
-      return t.featureKey ? permissions?.has(t.featureKey) : true;
-    }
-    return true;
+    if (userRole === "admin") return true;
+    return t.featureKey ? permissions?.has(t.featureKey) : true;
   });
 
   return (
@@ -117,7 +115,7 @@ export default function AdminAcademicsHubPage() {
         </p>
       </div>
 
-      {userRole === "editor" && permissions === null ? (
+      {userRole !== "admin" && permissions === null ? (
         <div className="flex items-center justify-center h-40">
           <div className="h-6 w-6 animate-spin rounded-full border-4 border-navy-900 border-t-transparent" />
         </div>

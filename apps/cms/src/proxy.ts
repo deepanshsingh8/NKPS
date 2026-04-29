@@ -45,15 +45,26 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user && isLogin) {
-    // Verify the user is admin or editor before bouncing to dashboard.
-    // Other roles (teacher/student/parent) shouldn't be in the CMS app at
-    // all; show them the login page so they can sign out and try again.
+    // Bounce to dashboard only if the caller can actually use the CMS:
+    // admin/staff always; teachers only if they hold any editor capability.
+    // Students/parents stay on the login page so they can sign out and re-enter
+    // through the correct app.
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
-    if (profile?.role === "admin" || profile?.role === "editor") {
+    let allowed = profile?.role === "admin" || profile?.role === "staff";
+    if (!allowed && profile?.role === "teacher") {
+      const { data: perm } = await supabase
+        .from("editor_permissions")
+        .select("feature_key")
+        .eq("editor_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      allowed = !!perm;
+    }
+    if (allowed) {
       const url = request.nextUrl.clone();
       url.pathname = "/";
       return NextResponse.redirect(url);

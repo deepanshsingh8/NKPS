@@ -87,7 +87,7 @@ export async function GET(request: Request) {
     const callerRole = (callerProfile?.role as string | undefined) ?? "";
     const callerIsStaff =
       callerRole === "admin" ||
-      callerRole === "editor" ||
+      callerRole === "staff" ||
       callerRole === "teacher";
 
     const generatedOn = new Date().toLocaleString("en-IN", {

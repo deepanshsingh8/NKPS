@@ -45,8 +45,8 @@ type SidebarShellProps = {
   sections: SidebarSection[];
   headerTitle: string;
   headerSubtitle: string;
-  // Hrefs an editor can always see regardless of feature_key permissions
-  // (typically the module dashboard, e.g. "/cms" or "/erp").
+  // Hrefs always shown to staff/teachers regardless of their feature_key
+  // permissions (typically the module dashboard, e.g. "/cms" or "/erp").
   editorAlwaysAllowedHrefs: ReadonlySet<string>;
   // Where the profile menu's "Settings" link should land.
   settingsHref?: string;
@@ -124,39 +124,43 @@ export function SidebarShell({
           if (!data?.role) return;
           const role = data.role as UserRole;
           setUserRole(role);
-          if (role === "editor") {
-            supabase
-              .from("editor_permissions")
-              .select("feature_key")
-              .eq("editor_id", user.id)
-              .then(({ data: rows }) => {
-                const keys = new Set<FeatureKey>(
-                  (rows ?? []).map((r) => r.feature_key as FeatureKey)
-                );
-                setPermissions(keys);
-              });
-          } else {
+          // Admins skip the lookup — they always see everything. Staff and
+          // teachers may hold editor capability via editor_permissions rows;
+          // students/parents never reach this shell.
+          if (role === "admin") {
             setPermissions(new Set());
+            return;
           }
+          supabase
+            .from("editor_permissions")
+            .select("feature_key")
+            .eq("editor_id", user.id)
+            .then(({ data: rows }) => {
+              const keys = new Set<FeatureKey>(
+                (rows ?? []).map((r) => r.feature_key as FeatureKey)
+              );
+              setPermissions(keys);
+            });
         });
     });
   }, []);
 
-  const isEditor = userRole === "editor";
+  const isAdmin = userRole === "admin";
 
-  const isEditorAllowed = (href: string): boolean => {
+  const isCapabilityAllowed = (href: string): boolean => {
     if (editorAlwaysAllowedHrefs.has(href)) return true;
     const key = HREF_TO_FEATURE_KEY[href];
     if (!key) return false;
     return permissions?.has(key) ?? false;
   };
 
-  // Hide everything until permissions load to avoid flash of forbidden links.
-  const editorReady = !isEditor || permissions !== null;
+  // Hide everything until permissions load (for non-admins) to avoid flash of
+  // forbidden links.
+  const permissionsReady = isAdmin || permissions !== null;
 
   const filterItem = (item: SidebarItem): SidebarItem | null => {
     if (item.kind === "link") {
-      return isEditor && !isEditorAllowed(item.href) ? null : item;
+      return !isAdmin && !isCapabilityAllowed(item.href) ? null : item;
     }
     const visibleChildren = item.children
       .map(filterItem)
@@ -165,7 +169,7 @@ export function SidebarShell({
     return { ...item, children: visibleChildren };
   };
 
-  const visibleSections = !editorReady
+  const visibleSections = !permissionsReady
     ? sections.map((s) => ({ ...s, items: [] as SidebarItem[] }))
     : sections.map((s) => ({
         ...s,

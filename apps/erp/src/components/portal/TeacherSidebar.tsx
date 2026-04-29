@@ -12,6 +12,8 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { PortalSidebar } from "./PortalSidebar";
+import { SwitchAppMenu } from "./SwitchAppMenu";
+import { useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
 
 const navLinks = [
   {
@@ -62,7 +64,13 @@ const navLinks = [
 ];
 
 export function TeacherSidebar() {
+  const { collapsed } = useSidebar();
   return (
-    <PortalSidebar title="Teacher Portal" role="Teacher" navLinks={navLinks} />
+    <PortalSidebar
+      title="Teacher Portal"
+      role="Teacher"
+      navLinks={navLinks}
+      footerExtra={<SwitchAppMenu collapsed={collapsed} />}
+    />
   );
 }

@@ -19,7 +19,7 @@ function safeFilename(...parts: string[]): string {
     .replace(/_+/g, "_");
 }
 
-// GET /api/erp/results/export?class_id&exam_type_id&subject_id
+// GET /api/results/export?class_id&exam_type_id&subject_id
 // Returns a CSV with one row per enrolled student and their current marks
 // (blank if not yet entered) for the chosen class + subject + exam.
 export async function GET(request: NextRequest) {
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   if (!profile) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (profile.role === "editor") {
+  if (profile.role !== "admin" && profile.role !== "teacher") {
     const { data: perm } = await supabase
       .from("editor_permissions")
       .select("feature_key")
@@ -49,8 +49,6 @@ export async function GET(request: NextRequest) {
     if (!perm) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-  } else if (profile.role !== "admin" && profile.role !== "teacher") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const params = request.nextUrl.searchParams;
