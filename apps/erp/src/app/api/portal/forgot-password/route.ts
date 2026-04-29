@@ -54,9 +54,10 @@ export async function POST(request: Request) {
 
     // Derive the site origin from the request so the reset link always points
     // at the same host the user is currently on (production, Vercel preview,
-    // localhost) — falling back to the configured site URL.
-    const { SITE_URL } = await import("@nkps/shared/lib/seo");
-    const origin = request.headers.get("origin") || SITE_URL;
+    // localhost) — falling back to the configured ERP URL since /auth/confirm
+    // and the reset-password page both live on the ERP app.
+    const { getErpUrl } = await import("@nkps/shared/lib/cross-app");
+    const origin = request.headers.get("origin") || getErpUrl();
 
     const supabase = createAdminClient();
 
