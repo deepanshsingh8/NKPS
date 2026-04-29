@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "@nkps/shared/components/ui/dialog";
 import { ImageCropper } from "@nkps/shared/components/ImageCropper";
+import { getCmsUrl } from "@nkps/shared/lib/cross-app";
 
 interface ProfileData {
   id: string;
@@ -214,19 +215,28 @@ export default function SettingsPage() {
     setChangingPassword(false);
   };
 
-  const getDashboardPath = () => {
+  const getDashboardPath = (): { url: string; external: boolean } => {
     // For admin/editor, honour the ?from=cms|erp hint set by the sidebar that
     // linked here so users return to the module they came from instead of
-    // always being bounced to ERP.
+    // always being bounced to ERP. CMS lives in a separate app.
     if (profile?.role === "admin" || profile?.role === "editor") {
       const from = searchParams.get("from");
-      if (from === "cms") return "/cms";
-      if (from === "erp") return "/erp";
-      return "/erp";
+      if (from === "cms") return { url: getCmsUrl("/"), external: true };
+      if (from === "erp") return { url: "/", external: false };
+      return { url: "/", external: false };
     }
     switch (profile?.role) {
-      case "teacher": return "/teacher";
-      default: return "/student";
+      case "teacher": return { url: "/teacher", external: false };
+      default: return { url: "/student", external: false };
+    }
+  };
+
+  const goToDashboard = () => {
+    const { url, external } = getDashboardPath();
+    if (external) {
+      window.location.href = url;
+    } else {
+      router.push(url);
     }
   };
 
@@ -244,7 +254,7 @@ export default function SettingsPage() {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => router.push(getDashboardPath())}
+            onClick={goToDashboard}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-navy-900 dark:hover:text-white transition-colors mb-4"
           >
             <ArrowLeft className="h-4 w-4" />

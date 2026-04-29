@@ -11,20 +11,21 @@ import {
 import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { cn } from "@nkps/shared/lib/utils";
+import { getCmsUrl, getErpUrl } from "@nkps/shared/lib/cross-app";
 
 const links = [
   {
     icon: GraduationCap,
     title: "ERP Login",
     description: "Students, parents, teachers & staff — academic records, results, fees, attendance",
-    href: "/erp/login",
+    href: getErpUrl("/portal/login"),
     featured: true,
   },
   {
     icon: LayoutGrid,
     title: "CMS Login",
     description: "Admins & editors — manage gallery, articles, transfer certificates, and site content",
-    href: "/cms/login",
+    href: getCmsUrl("/login"),
     featured: false,
   },
   {

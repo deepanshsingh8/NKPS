@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { Settings, LogOut, ChevronUp, ExternalLink } from "lucide-react";
 import { cn } from "@nkps/shared/lib/utils";
+import { getWebsiteUrl } from "@nkps/shared/lib/cross-app";
 import { toast } from "sonner";
 
 interface UserProfile {
@@ -104,7 +105,7 @@ export function SidebarProfileMenu({
             Settings
           </Link>
           <Link
-            href="/"
+            href={getWebsiteUrl("/")}
             onClick={() => setOpen(false)}
             className="flex items-center gap-3 px-4 py-3 text-sm text-white/70 hover:bg-white/5 hover:text-white transition-colors"
           >

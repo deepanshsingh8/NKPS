@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@nkps/shared/components/ui/select";
 import { Loader2, ArrowLeft, GraduationCap, CheckCircle2 } from "lucide-react";
+import { getWebsiteUrl } from "@nkps/shared/lib/cross-app";
 import { registrationRequestSchema, type RegistrationRequestData } from "@nkps/shared/lib/validations";
 
 export default function PortalRegisterPage() {
@@ -286,7 +287,7 @@ export default function PortalRegisterPage() {
           </div>
           <div className="mt-3 text-center">
             <Link
-              href="/"
+              href={getWebsiteUrl("/")}
               className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-navy-900 transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />

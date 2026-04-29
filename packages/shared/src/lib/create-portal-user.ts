@@ -67,8 +67,8 @@ export async function createPortalUser({
 
   try {
     const { sendEmail, buildWelcomeEmail } = await import("@nkps/shared/lib/email");
-    const { SITE_URL } = await import("@nkps/shared/lib/seo");
-    const loginUrl = `${SITE_URL}/portal/login`;
+    const { getErpUrl } = await import("@nkps/shared/lib/cross-app");
+    const loginUrl = getErpUrl("/portal/login");
     const html = buildWelcomeEmail({
       fullName,
       email,

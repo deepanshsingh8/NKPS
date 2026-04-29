@@ -263,8 +263,8 @@ export async function POST(request: Request) {
     // travel through the controlled email channel, not the API response.
     let emailDelivered = false;
     try {
-      const { SITE_URL } = await import("@nkps/shared/lib/seo");
-      const loginUrl = `${SITE_URL}/portal/login`;
+      const { getErpUrl } = await import("@nkps/shared/lib/cross-app");
+      const loginUrl = getErpUrl("/portal/login");
       const html = buildWelcomeEmail({
         fullName: full_name,
         email,

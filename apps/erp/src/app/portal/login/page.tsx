@@ -13,6 +13,7 @@ import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { getWebsiteUrl } from "@nkps/shared/lib/cross-app";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -25,7 +26,7 @@ function getDashboardPath(role: string): string {
   switch (role) {
     case "admin":
     case "editor":
-      return "/erp";
+      return "/";
     case "teacher":
       return "/teacher";
     case "student":
@@ -271,7 +272,7 @@ export default function PortalLoginPage() {
           {/* Back to website link */}
           <div className="mt-3 text-center">
             <Link
-              href="/"
+              href={getWebsiteUrl("/")}
               className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-navy-900 transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />

@@ -197,8 +197,8 @@ export async function POST(request: Request) {
     let emailWarning: string | null = null;
     try {
       const { sendEmail, buildWelcomeEmail } = await import("@nkps/shared/lib/email");
-      const { SITE_URL } = await import("@nkps/shared/lib/seo");
-      const loginUrl = `${SITE_URL}/portal/login`;
+      const { getErpUrl } = await import("@nkps/shared/lib/cross-app");
+      const loginUrl = getErpUrl("/portal/login");
       const html = buildWelcomeEmail({
         fullName: full_name,
         email,
@@ -221,10 +221,10 @@ export async function POST(request: Request) {
 
     // L16 — when we auto-create a teachers + staff_members shadow row, the
     // staff side defaults to category 'tgt' and subject '—'. Surface a
-    // notice so the admin remembers to recategorize on /erp/people/staff.
+    // notice so the admin remembers to recategorize on /people/staff.
     const staffNotice =
       role === "teacher"
-        ? "A staff_members entry was auto-created with default category 'tgt' and subject '—'. Visit /erp/people/staff to recategorize."
+        ? "A staff_members entry was auto-created with default category 'tgt' and subject '—'. Visit /people/staff to recategorize."
         : null;
 
     return NextResponse.json({
