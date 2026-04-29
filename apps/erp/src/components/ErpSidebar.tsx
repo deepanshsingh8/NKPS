@@ -97,7 +97,17 @@ const erpItems: SidebarItem[] = [
     ],
   },
   { kind: "link", icon: CreditCard, label: "Fees", href: "/fees" },
-  { kind: "link", icon: Clock, label: "Timetable", href: "/timetable" },
+  {
+    kind: "group",
+    icon: Clock,
+    label: "Timetable",
+    landingHref: "/timetable",
+    children: [
+      { kind: "link", icon: Clock, label: "Class Timetable", href: "/timetable" },
+      { kind: "link", icon: UserCog, label: "Teacher Timetable", href: "/timetable/teachers" },
+      { kind: "link", icon: RefreshCw, label: "Substitutions", href: "/timetable/substitutions" },
+    ],
+  },
   { kind: "link", icon: Calendar, label: "Calendar", href: "/calendar" },
   { kind: "link", icon: CheckSquare, label: "Attendance", href: "/attendance" },
 ];
