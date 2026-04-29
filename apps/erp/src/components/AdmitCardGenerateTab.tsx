@@ -227,7 +227,7 @@ export function AdmitCardGenerateTab({
         params.set("student_ids", Array.from(selectedIds).join(","));
       }
       const res = await adminFetch(
-        `/api/erp/admit-cards/bulk?${params.toString()}`
+        `/api/admit-cards/bulk?${params.toString()}`
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -259,7 +259,7 @@ export function AdmitCardGenerateTab({
       template_id: selectedTemplateId,
     });
     const res = await adminFetch(
-      `/api/erp/admit-cards/pdf?${params.toString()}`
+      `/api/admit-cards/pdf?${params.toString()}`
     );
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -378,7 +378,7 @@ export function AdmitCardGenerateTab({
                   href="/exams/timetable"
                   className="underline font-medium"
                 >
-                  /erp/exams/timetable
+                  /exams/timetable
                 </a>{" "}
                 first for a complete card.
               </div>

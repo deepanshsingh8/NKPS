@@ -96,7 +96,7 @@ export default function AdminBlankMarksListPage() {
     if (!canDownload) return;
     setDownloading(true);
     try {
-      const url = `/api/erp/blank-marks-list/pdf?class_id=${encodeURIComponent(
+      const url = `/api/blank-marks-list/pdf?class_id=${encodeURIComponent(
         classId
       )}&exam_type_id=${encodeURIComponent(
         examTypeId

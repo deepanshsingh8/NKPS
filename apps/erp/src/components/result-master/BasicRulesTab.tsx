@@ -136,7 +136,7 @@ export function BasicRulesTab({
     }
     setSaving(true);
     try {
-      const res = await adminPatch(`/api/erp/result-masters/${master.id}`, {
+      const res = await adminPatch(`/api/result-masters/${master.id}`, {
         pass_mark_mode: form.pass_mark_mode,
         pass_mark_value: Number(form.pass_mark_value),
         pass_criteria_type: form.pass_criteria_type,

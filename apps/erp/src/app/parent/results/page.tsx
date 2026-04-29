@@ -154,7 +154,7 @@ export default function ParentResultsPage() {
       setLoadingResults(true);
 
       const res = await fetch(
-        `/api/erp/results/report-card?student_id=${selectedChild}`
+        `/api/results/report-card?student_id=${selectedChild}`
       );
 
       if (!res.ok) {
@@ -192,7 +192,7 @@ export default function ParentResultsPage() {
     setDownloading(true);
     try {
       const res = await fetch(
-        `/api/erp/results/report-card/pdf?student_id=${selectedChild}&exam_type_id=${selectedExam}`
+        `/api/results/report-card/pdf?student_id=${selectedChild}&exam_type_id=${selectedExam}`
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

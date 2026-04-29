@@ -173,7 +173,7 @@ export function PreviewTab({
       setPreviewError(null);
       try {
         const res = await adminFetch(
-          `/api/erp/result-masters/${resultMaster.id}/preview?student_id=${studentId}`
+          `/api/result-masters/${resultMaster.id}/preview?student_id=${studentId}`
         );
         const body = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -232,7 +232,7 @@ export function PreviewTab({
   // URL works as long as a result_master exists for the class/year (which
   // is guaranteed inside this tab).
   const previewPdfHref = selectedStudent
-    ? `/api/erp/results/report-card/pdf?student_id=${selectedStudent.student_id}&academic_year_id=${academicYearId}`
+    ? `/api/results/report-card/pdf?student_id=${selectedStudent.student_id}&academic_year_id=${academicYearId}`
     : undefined;
 
   return (

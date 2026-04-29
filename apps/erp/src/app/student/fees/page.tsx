@@ -265,7 +265,7 @@ export default function StudentFeesPage() {
                         size="icon-sm"
                         onClick={() =>
                           window.open(
-                            `/api/erp/fees/receipt?payment_id=${p.id}`,
+                            `/api/fees/receipt?payment_id=${p.id}`,
                             "_blank",
                             "noopener"
                           )

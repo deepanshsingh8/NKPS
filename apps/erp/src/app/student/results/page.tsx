@@ -87,7 +87,7 @@ export default function StudentResultsPage() {
 
       // Fetch report card via API using the students table ID
       const res = await fetch(
-        `/api/erp/results/report-card?student_id=${sid}`
+        `/api/results/report-card?student_id=${sid}`
       );
 
       if (!res.ok) {
@@ -122,7 +122,7 @@ export default function StudentResultsPage() {
     setDownloading(true);
     try {
       const res = await fetch(
-        `/api/erp/results/report-card/pdf?student_id=${studentId}&exam_type_id=${selectedExam}`
+        `/api/results/report-card/pdf?student_id=${studentId}&exam_type_id=${selectedExam}`
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

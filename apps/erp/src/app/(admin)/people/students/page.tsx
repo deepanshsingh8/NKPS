@@ -269,8 +269,8 @@ export default function AdminStudentsPage() {
 
     try {
       const url = selectedClassId
-        ? `/api/erp/students?class_id=${selectedClassId}`
-        : `/api/erp/students`;
+        ? `/api/students?class_id=${selectedClassId}`
+        : `/api/students`;
       const res = await adminFetch(url);
       const json = await res.json();
 
@@ -1354,7 +1354,7 @@ export default function AdminStudentsPage() {
                           variant="ghost"
                           size="icon-sm"
                           onClick={() =>
-                            router.push(`/erp/fees?student_id=${student.id}`)
+                            router.push(`/fees?student_id=${student.id}`)
                           }
                           aria-label="View fees / record payment"
                           className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"

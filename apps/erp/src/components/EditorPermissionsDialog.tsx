@@ -35,7 +35,7 @@ export function EditorPermissionsDialog({
   useEffect(() => {
     if (!open || !editorId) return;
     setLoading(true);
-    adminFetch(`/api/erp/editor-permissions?editor_id=${editorId}`)
+    adminFetch(`/api/editor-permissions?editor_id=${editorId}`)
       .then((res) => res.json())
       .then((data) => {
         // Drop stale keys not in the current catalog so they neither appear

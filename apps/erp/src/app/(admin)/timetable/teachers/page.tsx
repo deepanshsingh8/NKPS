@@ -57,7 +57,7 @@ export default function AdminTeacherTimetablePage() {
     }
     setPeriodsLoading(true);
     const res = await adminFetch(
-      `/api/erp/teacher-timetable?teacher_id=${teacherId}`
+      `/api/teacher-timetable?teacher_id=${teacherId}`
     );
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));

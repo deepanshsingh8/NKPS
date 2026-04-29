@@ -152,7 +152,7 @@ export default function ParentPtmPage() {
     async function load() {
       setLoadingNotes(true);
       const res = await fetch(
-        `/api/erp/ptm-notes?student_id=${encodeURIComponent(selectedChild)}`
+        `/api/ptm-notes?student_id=${encodeURIComponent(selectedChild)}`
       );
       if (cancelled) return;
       if (!res.ok) {

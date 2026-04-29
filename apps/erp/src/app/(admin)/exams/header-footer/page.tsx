@@ -85,7 +85,7 @@ export default function HeaderFooterPage() {
   const loadTemplate = useCallback(async (key: string) => {
     setLoading(true);
     try {
-      const res = await adminFetch(`/api/erp/pdf-templates?template_key=${key}`);
+      const res = await adminFetch(`/api/pdf-templates?template_key=${key}`);
       if (!res.ok) {
         toast.error("Failed to load template");
         return;

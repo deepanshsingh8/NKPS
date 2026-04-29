@@ -239,7 +239,7 @@ export function PtmNotesWorkbench({
     let cancelled = false;
     async function load() {
       const examParam = examTypeId === "__none__" ? "null" : examTypeId;
-      const url = `/api/erp/school-meeting-counts?academic_year_id=${encodeURIComponent(
+      const url = `/api/school-meeting-counts?academic_year_id=${encodeURIComponent(
         academicYearId
       )}&exam_type_id=${encodeURIComponent(examParam)}&class_id=${encodeURIComponent(classId)}`;
       const res = await fetch(url);
@@ -372,7 +372,7 @@ export function PtmNotesWorkbench({
     if (!classId) return;
     const qs = new URLSearchParams({ class_id: classId });
     if (examTypeId !== "__none__") qs.set("exam_type_id", examTypeId);
-    const res = await fetch(`/api/erp/ptm-notes/report?${qs.toString()}`);
+    const res = await fetch(`/api/ptm-notes/report?${qs.toString()}`);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       toast.error(body.error ?? "Failed to generate report");

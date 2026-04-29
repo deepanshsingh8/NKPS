@@ -103,7 +103,7 @@ export default function AdminSupplementaryPage() {
       setLoadingData(true);
       try {
         const res = await fetch(
-          `/api/erp/supplementary/eligible?class_id=${encodeURIComponent(
+          `/api/supplementary/eligible?class_id=${encodeURIComponent(
             classId
           )}&exam_type_id=${encodeURIComponent(examTypeId)}`
         );
@@ -231,7 +231,7 @@ export default function AdminSupplementaryPage() {
       toast.success(`Saved ${body.count} retest entries`);
       // Reload
       const reload = await fetch(
-        `/api/erp/supplementary/eligible?class_id=${encodeURIComponent(
+        `/api/supplementary/eligible?class_id=${encodeURIComponent(
           classId
         )}&exam_type_id=${encodeURIComponent(examTypeId)}`
       );

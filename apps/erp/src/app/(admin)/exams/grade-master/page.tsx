@@ -455,7 +455,7 @@ function EditScaleDialog({
         }
         scaleId = body.data.id;
       } else {
-        const res = await adminPatch(`/api/erp/grade-scales/${scale.id}`, {
+        const res = await adminPatch(`/api/grade-scales/${scale.id}`, {
           name: payload.name,
           is_default: payload.is_default,
           bands: payload.bands,
@@ -787,7 +787,7 @@ function DeleteScaleDialog({
         }
         // 1. Promote the chosen scale to default.
         const promoteRes = await adminPatch(
-          `/api/erp/grade-scales/${promoteCandidate}`,
+          `/api/grade-scales/${promoteCandidate}`,
           { is_default: true }
         );
         if (!promoteRes.ok) {
@@ -797,7 +797,7 @@ function DeleteScaleDialog({
         }
         // 2. Delete the original (no longer default).
         const delRes = await adminDelete(
-          `/api/erp/grade-scales/${scale.id}`,
+          `/api/grade-scales/${scale.id}`,
           {}
         );
         if (!delRes.ok) {
@@ -807,7 +807,7 @@ function DeleteScaleDialog({
         }
         toast.success("Default promoted and scale deleted");
       } else {
-        const res = await adminDelete(`/api/erp/grade-scales/${scale.id}`, {});
+        const res = await adminDelete(`/api/grade-scales/${scale.id}`, {});
         if (!res.ok) {
           const body = await res.json();
           toast.error(body.error ?? "Failed to delete scale");

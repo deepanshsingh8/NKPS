@@ -324,7 +324,7 @@ export function AdvancedTab({
       })),
     };
     const res = await adminFetch(
-      `/api/erp/result-masters/${master.id}/exam-configs`,
+      `/api/result-masters/${master.id}/exam-configs`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -406,7 +406,7 @@ export function AdvancedTab({
     if (Object.keys(patch).length === 0) return true;
 
     const res = await adminPatch(
-      `/api/erp/result-masters/${master.id}`,
+      `/api/result-masters/${master.id}`,
       patch
     );
     const body = (await res.json()) as { error?: string };

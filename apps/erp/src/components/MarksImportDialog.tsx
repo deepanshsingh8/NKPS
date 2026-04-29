@@ -114,7 +114,7 @@ export function MarksImportDialog({
   }
 
   function downloadTemplate() {
-    const url = `/api/erp/results/export?class_id=${classId}&exam_type_id=${examTypeId}&subject_id=${subjectId}`;
+    const url = `/api/results/export?class_id=${classId}&exam_type_id=${examTypeId}&subject_id=${subjectId}`;
     window.open(url, "_blank");
   }
 

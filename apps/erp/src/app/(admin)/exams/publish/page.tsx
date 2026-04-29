@@ -170,8 +170,8 @@ export default function AdminPublishPage() {
         exam_type_id: selectedExamTypeId,
       }).toString();
       const [statusRes, listRes] = await Promise.all([
-        adminFetch(`/api/erp/results/publish?${q}`),
-        adminFetch(`/api/erp/results/finalize-marksheet?${q}`),
+        adminFetch(`/api/results/publish?${q}`),
+        adminFetch(`/api/results/finalize-marksheet?${q}`),
       ]);
       if (statusRes.ok) {
         const data = await statusRes.json();

@@ -369,7 +369,7 @@ function AdminFeesContent() {
   const downloadReceipt = async (paymentId: string) => {
     try {
       const res = await adminFetch(
-        `/api/erp/fees/receipt?payment_id=${paymentId}`
+        `/api/fees/receipt?payment_id=${paymentId}`
       );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -727,7 +727,7 @@ function AdminFeesContent() {
     setRefundSubmitting(true);
     try {
       const res = await fetch(
-        `/api/erp/fees/payments/${refundPaymentId}/refund`,
+        `/api/fees/payments/${refundPaymentId}/refund`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

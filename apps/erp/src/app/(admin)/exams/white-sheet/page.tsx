@@ -75,7 +75,7 @@ export default function AdminWhiteSheetPage() {
       setError(null);
       try {
         const res = await fetch(
-          `/api/erp/white-sheet?class_id=${encodeURIComponent(
+          `/api/white-sheet?class_id=${encodeURIComponent(
             classId
           )}&exam_type_id=${encodeURIComponent(examTypeId)}`
         );
@@ -102,7 +102,7 @@ export default function AdminWhiteSheetPage() {
     if (!classId || !examTypeId) return;
     setDownloading(format);
     try {
-      const url = `/api/erp/white-sheet/${format}?class_id=${encodeURIComponent(
+      const url = `/api/white-sheet/${format}?class_id=${encodeURIComponent(
         classId
       )}&exam_type_id=${encodeURIComponent(examTypeId)}`;
       const res = await fetch(url);

@@ -164,7 +164,7 @@ export default function StudentAdmitCardsPage() {
     setDownloading(examTypeId);
     try {
       const res = await fetch(
-        `/api/erp/admit-cards/pdf?student_id=${studentId}&exam_type_id=${examTypeId}`
+        `/api/admit-cards/pdf?student_id=${studentId}&exam_type_id=${examTypeId}`
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

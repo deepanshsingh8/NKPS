@@ -214,7 +214,7 @@ export default function NonScholasticMastersPage() {
     };
     const res = editingSubject
       ? await adminPatch(
-          `/api/erp/non-scholastic/subjects/${editingSubject.id}`,
+          `/api/non-scholastic/subjects/${editingSubject.id}`,
           payload
         )
       : await adminFetch("/api/non-scholastic/subjects", {
@@ -235,7 +235,7 @@ export default function NonScholasticMastersPage() {
   const confirmDeleteSubject = async () => {
     if (!deleteSubjectTarget) return;
     const res = await adminDelete(
-      `/api/erp/non-scholastic/subjects/${deleteSubjectTarget.id}`,
+      `/api/non-scholastic/subjects/${deleteSubjectTarget.id}`,
       {}
     );
     const body = await res.json();
@@ -295,7 +295,7 @@ export default function NonScholasticMastersPage() {
     };
     const res = editingSubSubject
       ? await adminPatch(
-          `/api/erp/non-scholastic/sub-subjects/${editingSubSubject.id}`,
+          `/api/non-scholastic/sub-subjects/${editingSubSubject.id}`,
           payload
         )
       : await adminFetch("/api/non-scholastic/sub-subjects", {
@@ -318,7 +318,7 @@ export default function NonScholasticMastersPage() {
   const confirmDeleteSubSubject = async () => {
     if (!deleteSubSubjectTarget) return;
     const res = await adminDelete(
-      `/api/erp/non-scholastic/sub-subjects/${deleteSubSubjectTarget.id}`,
+      `/api/non-scholastic/sub-subjects/${deleteSubSubjectTarget.id}`,
       {}
     );
     const body = await res.json();

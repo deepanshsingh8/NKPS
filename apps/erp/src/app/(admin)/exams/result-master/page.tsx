@@ -131,7 +131,7 @@ function AdminResultMasterContent() {
       // Main bundle + grade scales (scholastic only) fetched in parallel.
       const [masterRes, gradeScalesRes] = await Promise.all([
         adminFetch(
-          `/api/erp/result-masters?class_id=${urlClassId}&academic_year_id=${urlYearId}`
+          `/api/result-masters?class_id=${urlClassId}&academic_year_id=${urlYearId}`
         ),
         adminFetch("/api/grade-scales"),
       ]);
@@ -206,7 +206,7 @@ function AdminResultMasterContent() {
   const handleDelete = async () => {
     if (!bundle?.master) return;
     const res = await adminDelete(
-      `/api/erp/result-masters/${bundle.master.id}`,
+      `/api/result-masters/${bundle.master.id}`,
       {}
     );
     if (!res.ok) {

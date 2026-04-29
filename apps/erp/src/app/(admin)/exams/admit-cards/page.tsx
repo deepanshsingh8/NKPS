@@ -184,7 +184,7 @@ export default function AdmitCardsPage() {
             body: JSON.stringify(payload),
           })
         : await adminPatch(
-            `/api/erp/admit-card-templates/${editing.id}`,
+            `/api/admit-card-templates/${editing.id}`,
             payload
           );
       const body = await res.json();
@@ -212,7 +212,7 @@ export default function AdmitCardsPage() {
         }
         // Promote the chosen one to default, then delete the original.
         const pRes = await adminPatch(
-          `/api/erp/admit-card-templates/${promoteCandidate}`,
+          `/api/admit-card-templates/${promoteCandidate}`,
           { is_default: true }
         );
         if (!pRes.ok) {
@@ -222,7 +222,7 @@ export default function AdmitCardsPage() {
         }
       }
       const res = await adminDelete(
-        `/api/erp/admit-card-templates/${deleteTarget.id}`,
+        `/api/admit-card-templates/${deleteTarget.id}`,
         {}
       );
       const body = await res.json();

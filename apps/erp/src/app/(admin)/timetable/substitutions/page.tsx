@@ -128,7 +128,7 @@ export default function AdminSubstitutionsPage() {
 
   const fetchAbsences = useCallback(async () => {
     setLoadingAbsences(true);
-    const res = await adminFetch(`/api/erp/teacher-absences?date=${date}`);
+    const res = await adminFetch(`/api/teacher-absences?date=${date}`);
     if (!res.ok) {
       toast.error("Failed to load absences");
       setAbsences([]);
@@ -154,7 +154,7 @@ export default function AdminSubstitutionsPage() {
   const fetchPeriodsFor = useCallback(async (absenceId: string) => {
     setPeriodsLoading(true);
     const res = await adminFetch(
-      `/api/erp/substitutions/suggest?absence_id=${absenceId}`
+      `/api/substitutions/suggest?absence_id=${absenceId}`
     );
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -178,7 +178,7 @@ export default function AdminSubstitutionsPage() {
     if (!confirm("Remove this absence? Any assigned substitutes for it will also be removed.")) {
       return;
     }
-    const res = await adminDelete(`/api/erp/teacher-absences/${id}`, {});
+    const res = await adminDelete(`/api/teacher-absences/${id}`, {});
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       toast.error(body.error ?? "Failed to delete");
@@ -189,7 +189,7 @@ export default function AdminSubstitutionsPage() {
   };
 
   const handleUnassign = async (substitutionId: string) => {
-    const res = await adminDelete(`/api/erp/substitutions/${substitutionId}`, {});
+    const res = await adminDelete(`/api/substitutions/${substitutionId}`, {});
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       toast.error(body.error ?? "Failed to unassign");
@@ -200,7 +200,7 @@ export default function AdminSubstitutionsPage() {
   };
 
   const handlePrint = async () => {
-    const res = await adminFetch(`/api/erp/substitutions/sheet?date=${date}`);
+    const res = await adminFetch(`/api/substitutions/sheet?date=${date}`);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       toast.error(body.error ?? "Failed to generate sheet");

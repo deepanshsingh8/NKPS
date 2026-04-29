@@ -164,7 +164,7 @@ export default function AdminPtmFormatPage() {
       const res = await fetch(
         isNew
           ? "/api/ptm-formats"
-          : `/api/erp/ptm-formats/${draft.id}`,
+          : `/api/ptm-formats/${draft.id}`,
         {
           method: isNew ? "POST" : "PATCH",
           headers: {
@@ -195,7 +195,7 @@ export default function AdminPtmFormatPage() {
     if (!confirm(`Delete template "${draft.name}"?`)) return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/erp/ptm-formats/${draft.id}`, {
+      const res = await fetch(`/api/ptm-formats/${draft.id}`, {
         method: "DELETE",
         headers: { Authorization: await getAuthHeader() },
       });
@@ -223,7 +223,7 @@ export default function AdminPtmFormatPage() {
       if (genExamId !== "__none__") qs.set("exam_type_id", genExamId);
       if (genTemplateId !== "__default__")
         qs.set("template_id", genTemplateId);
-      const res = await fetch(`/api/erp/ptm-format/pdf?${qs.toString()}`);
+      const res = await fetch(`/api/ptm-format/pdf?${qs.toString()}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         toast.error(body.error ?? "Failed to generate");

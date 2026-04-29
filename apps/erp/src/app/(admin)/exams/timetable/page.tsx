@@ -131,7 +131,7 @@ export default function TimetablePage() {
     }
     setLoadingSchedules(true);
     const res = await adminFetch(
-      `/api/erp/exam-schedules?exam_type_id=${selectedExamTypeId}&class_id=${selectedClassId}`
+      `/api/exam-schedules?exam_type_id=${selectedExamTypeId}&class_id=${selectedClassId}`
     );
     if (res.ok) {
       const { data } = (await res.json()) as { data: ExamSchedule[] };
@@ -228,7 +228,7 @@ export default function TimetablePage() {
         notes: form.notes.trim() || null,
       };
       const res = editing
-        ? await adminPatch(`/api/erp/exam-schedules/${editing.id}`, payload)
+        ? await adminPatch(`/api/exam-schedules/${editing.id}`, payload)
         : await adminFetch("/api/exam-schedules", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -250,7 +250,7 @@ export default function TimetablePage() {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     const res = await adminDelete(
-      `/api/erp/exam-schedules/${deleteTarget.id}`,
+      `/api/exam-schedules/${deleteTarget.id}`,
       {}
     );
     const body = await res.json();

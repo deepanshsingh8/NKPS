@@ -79,7 +79,7 @@ export function SubstitutePickerDialog({
     async function load() {
       setLoading(true);
       const res = await adminFetch(
-        `/api/erp/substitutions/suggest?absence_id=${absenceId}`
+        `/api/substitutions/suggest?absence_id=${absenceId}`
       );
       if (cancelled) return;
       const body = await res.json().catch(() => ({}));

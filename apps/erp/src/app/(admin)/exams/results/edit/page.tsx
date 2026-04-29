@@ -224,7 +224,7 @@ function AdminResultsEditPageInner() {
     setLoadingDetail(true);
     try {
       const res = await adminFetch(
-        `/api/erp/results/by-student?student_id=${encodeURIComponent(studentId)}`
+        `/api/results/by-student?student_id=${encodeURIComponent(studentId)}`
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -758,7 +758,7 @@ function SubjectRow({
     setDeleting(true);
     try {
       const res = await adminFetch(
-        `/api/erp/results/by-student?id=${encodeURIComponent(row.id)}`,
+        `/api/results/by-student?id=${encodeURIComponent(row.id)}`,
         { method: "DELETE" }
       );
       const body = await res.json().catch(() => ({}));

@@ -369,7 +369,7 @@ export default function TeacherResultsPage() {
       setRemarksLoading(true);
       try {
         const res = await fetch(
-          `/api/erp/results/remarks?class_id=${selectedClassId}&exam_type_id=${selectedExamTypeId}`
+          `/api/results/remarks?class_id=${selectedClassId}&exam_type_id=${selectedExamTypeId}`
         );
         if (!res.ok) return;
         const data = await res.json();
@@ -575,7 +575,7 @@ export default function TeacherResultsPage() {
 
   function downloadExport() {
     if (!selectedClassId || !selectedSubjectId || !selectedExamTypeId) return;
-    const url = `/api/erp/results/export?class_id=${selectedClassId}&subject_id=${selectedSubjectId}&exam_type_id=${selectedExamTypeId}`;
+    const url = `/api/results/export?class_id=${selectedClassId}&subject_id=${selectedSubjectId}&exam_type_id=${selectedExamTypeId}`;
     window.open(url, "_blank");
   }
 
@@ -861,7 +861,7 @@ export default function TeacherResultsPage() {
                           {isClassTeacher && selectedClassRow?.academic_year_id ? (
                             <TableCell className="text-right">
                               <a
-                                href={`/api/erp/results/report-card/pdf?student_id=${student.student_id}&academic_year_id=${selectedClassRow.academic_year_id}`}
+                                href={`/api/results/report-card/pdf?student_id=${student.student_id}&academic_year_id=${selectedClassRow.academic_year_id}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 title="Preview the year-final report card (uses the live result master)"

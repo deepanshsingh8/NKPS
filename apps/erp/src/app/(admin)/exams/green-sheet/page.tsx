@@ -87,7 +87,7 @@ export default function AdminGreenSheetPage() {
       setError(null);
       try {
         const res = await fetch(
-          `/api/erp/green-sheet?class_id=${encodeURIComponent(
+          `/api/green-sheet?class_id=${encodeURIComponent(
             classId
           )}&academic_year_id=${encodeURIComponent(yearId)}`
         );
@@ -114,7 +114,7 @@ export default function AdminGreenSheetPage() {
     if (!classId || !yearId) return;
     setDownloading(format);
     try {
-      const url = `/api/erp/green-sheet/${format}?class_id=${encodeURIComponent(
+      const url = `/api/green-sheet/${format}?class_id=${encodeURIComponent(
         classId
       )}&academic_year_id=${encodeURIComponent(yearId)}`;
       const res = await fetch(url);

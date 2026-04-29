@@ -260,7 +260,7 @@ export default function TeacherClassTestsPage() {
     setLoadingTests(true);
     try {
       const res = await fetch(
-        `/api/erp/class-tests?class_id=${selectedClassId}&subject_id=${selectedSubjectId}`
+        `/api/class-tests?class_id=${selectedClassId}&subject_id=${selectedSubjectId}`
       );
       const data = await res.json();
       if (!res.ok) {
@@ -315,7 +315,7 @@ export default function TeacherClassTestsPage() {
     setSaving(true);
     try {
       if (editingTest) {
-        const res = await fetch(`/api/erp/class-tests/${editingTest.id}`, {
+        const res = await fetch(`/api/class-tests/${editingTest.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -362,7 +362,7 @@ export default function TeacherClassTestsPage() {
     if (!deletingTest) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/erp/class-tests/${deletingTest.id}`, {
+      const res = await fetch(`/api/class-tests/${deletingTest.id}`, {
         method: "DELETE",
       });
       const data = await res.json();
@@ -380,7 +380,7 @@ export default function TeacherClassTestsPage() {
   }
 
   async function togglePublish(test: ClassTest) {
-    const res = await fetch(`/api/erp/class-tests/${test.id}`, {
+    const res = await fetch(`/api/class-tests/${test.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_published: !test.is_published }),
@@ -408,7 +408,7 @@ export default function TeacherClassTestsPage() {
           .eq("class_id", test.class_id)
           .eq("status", "active")
           .order("roll_number", { ascending: true }),
-        fetch(`/api/erp/class-tests/${test.id}/marks`),
+        fetch(`/api/class-tests/${test.id}/marks`),
       ]);
       const marksData = await marksRes.json();
       const enrolled: EnrolledStudent[] = (enrollments ?? []).map((e) => ({
@@ -467,7 +467,7 @@ export default function TeacherClassTestsPage() {
     }
     setSavingMarks(true);
     try {
-      const res = await fetch(`/api/erp/class-tests/${activeTest.id}/marks`, {
+      const res = await fetch(`/api/class-tests/${activeTest.id}/marks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ entries }),

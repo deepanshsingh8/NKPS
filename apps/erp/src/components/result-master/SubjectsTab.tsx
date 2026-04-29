@@ -163,7 +163,7 @@ export function SubjectsTab({
           })),
       };
       const res = await adminFetch(
-        `/api/erp/result-masters/${master.id}/subjects`,
+        `/api/result-masters/${master.id}/subjects`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
