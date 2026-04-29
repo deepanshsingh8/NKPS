@@ -22,7 +22,7 @@ function dayOfWeekFromIsoDate(yyyymmdd: string): number {
   return js;
 }
 
-// GET /api/erp/teacher-absences
+// GET /api/teacher-absences
 //   ?date=YYYY-MM-DD              → all absences on that date with teacher info
 //   ?teacher_id=<uuid>            → all absences for one teacher (history)
 //   ?from=YYYY-MM-DD&to=YYYY-MM-DD → range
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data });
 }
 
-// POST /api/erp/teacher-absences
+// POST /api/teacher-absences
 // Creates the absence row AND returns the affected periods (the timetable
 // rows on absence_date for that teacher, filtered by half_day). One round-
 // trip lets the UI jump straight into the substitution picker.

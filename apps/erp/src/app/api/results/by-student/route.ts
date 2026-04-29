@@ -13,7 +13,7 @@ import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
 // PATCH ?unlock=row|exam first to flip is_published=false on just those
 // rows (no class-wide republish needed).
 
-// GET /api/erp/results/by-student?student_id=...
+// GET /api/results/by-student?student_id=...
 // Returns: student summary, list of exams the student has results for,
 // and all results grouped by exam → subject.
 export async function GET(request: NextRequest) {
@@ -231,7 +231,7 @@ const upsertSchema = z.object({
   marks_obtained: z.number().finite().min(0),
 });
 
-// POST /api/erp/results/by-student
+// POST /api/results/by-student
 // Upserts one (student, exam_type, subject) row. Recomputes grade. Refuses
 // to mutate a published row — caller must surgical-unlock first via PATCH.
 export async function POST(request: NextRequest) {
@@ -314,7 +314,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ data: upserted });
 }
 
-// DELETE /api/erp/results/by-student?id=...
+// DELETE /api/results/by-student?id=...
 // Deletes a single result row. Refuses if published.
 export async function DELETE(request: NextRequest) {
   const auth = await verifyAdminOrEditorWithUser("results");
@@ -362,7 +362,7 @@ const unlockSchema = z.object({
   exam_type_id: z.string().uuid().optional(),
 });
 
-// PATCH /api/erp/results/by-student
+// PATCH /api/results/by-student
 // Surgical unlock: flips is_published=false for either a single row or all
 // rows for one (student, exam) — the "A1" workflow. Avoids the class-wide
 // unpublish toggle on /erp/exams/publish for one-off corrections.

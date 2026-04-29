@@ -6,7 +6,7 @@ import {
   teacherTeachesClassSubject,
 } from "@/lib/teacher-scope";
 
-// GET /api/erp/class-tests?class_id=&subject_id=
+// GET /api/class-tests?class_id=&subject_id=
 // Returns class tests visible to the caller via RLS.
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: data ?? [] });
 }
 
-// POST /api/erp/class-tests — create a new class test.
+// POST /api/class-tests — create a new class test.
 // Teacher or admin only; RLS further restricts teachers to their class-subject combos.
 export async function POST(request: Request) {
   const supabase = await createClient();

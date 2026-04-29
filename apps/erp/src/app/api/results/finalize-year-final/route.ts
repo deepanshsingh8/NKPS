@@ -6,7 +6,7 @@ import {
 } from "@nkps/shared/lib/validations";
 import { buildYearFinalSnapshot } from "@/lib/marksheet-snapshot";
 
-// POST /api/erp/results/finalize-year-final
+// POST /api/results/finalize-year-final
 // Body: { class_id, academic_year_id, student_ids?, unpublish_reason_on_refinalize? }
 //
 // Snapshots the year-end final-result aggregate for each target student. Use

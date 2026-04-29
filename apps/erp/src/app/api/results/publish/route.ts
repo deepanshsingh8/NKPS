@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import { publishResultsSchema } from "@nkps/shared/lib/validations";
 
-// POST /api/erp/results/publish
+// POST /api/results/publish
 // Body: { class_id, exam_type_id, is_published }
 // Bulk-toggles `results.is_published` for the given class+exam scope.
 // Logs a publish_events row. Admin (or editor with publish_results) only.
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   return NextResponse.json({ success: true, affected, is_published });
 }
 
-// GET /api/erp/results/publish?class_id=&exam_type_id=
+// GET /api/results/publish?class_id=&exam_type_id=
 // Returns the current publish state for a (class, exam) pair:
 // total results rows + count published. Used by the admin page to render
 // the status ("N of M results published").

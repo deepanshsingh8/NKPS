@@ -6,7 +6,7 @@ import {
 } from "@nkps/shared/lib/validations";
 import { buildMarksheetSnapshot } from "@/lib/marksheet-snapshot";
 
-// POST /api/erp/results/finalize-marksheet
+// POST /api/results/finalize-marksheet
 // Body: { class_id, exam_type_id, student_ids?: [] }
 //   - no student_ids → finalize every active enrollment in the class
 //   - with student_ids → finalize only those
@@ -155,7 +155,7 @@ export async function POST(request: Request) {
   });
 }
 
-// DELETE /api/erp/results/finalize-marksheet
+// DELETE /api/results/finalize-marksheet
 // Body: { class_id, exam_type_id, unpublish_reason, student_ids?: [] }
 // Unpublishes active marksheet rows for the scope. Reason required.
 export async function DELETE(request: Request) {
@@ -209,7 +209,7 @@ export async function DELETE(request: Request) {
   return NextResponse.json({ success: true, affected });
 }
 
-// GET /api/erp/results/finalize-marksheet?class_id=&exam_type_id=
+// GET /api/results/finalize-marksheet?class_id=&exam_type_id=
 // Returns a per-student snapshot of finalize status for the admin UI.
 export async function GET(request: Request) {
   const auth = await verifyAdminOrEditorWithUser("publish_results");

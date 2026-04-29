@@ -24,7 +24,7 @@ async function loadLogo(): Promise<Buffer | null> {
   }
 }
 
-// GET /api/erp/ptm-notes/report?class_id&exam_type_id
+// GET /api/ptm-notes/report?class_id&exam_type_id
 // Admin + teacher + editor(ptm_notes). Parents don't get a whole-class PDF.
 export async function GET(request: Request) {
   const supabase = await createClient();

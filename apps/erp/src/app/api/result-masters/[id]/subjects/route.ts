@@ -4,7 +4,7 @@ import { resultMasterSubjectsPutSchema } from "@nkps/shared/lib/validations";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-// PUT /api/erp/result-masters/[id]/subjects
+// PUT /api/result-masters/[id]/subjects
 // Wholesale replace the subjects list. Supabase JS has no native transactions;
 // we stage the insert rows first, delete the old, then insert. If insert fails
 // we surface a clear error — the master is left subject-less (caller should

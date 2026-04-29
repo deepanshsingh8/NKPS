@@ -6,7 +6,7 @@ import {
   teacherCanAccessClass,
 } from "@/lib/teacher-scope";
 
-// GET /api/erp/non-scholastic-assessments?class_id=&exam_type_id=&sub_subject_id=&student_id=
+// GET /api/non-scholastic-assessments?class_id=&exam_type_id=&sub_subject_id=&student_id=
 // Returns assessments matching the filters. RLS handles role-based access.
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: data ?? [] });
 }
 
-// POST /api/erp/non-scholastic-assessments
+// POST /api/non-scholastic-assessments
 // Body: { class_id, exam_type_id, entries: [{ student_id, sub_subject_id, grade_label, remarks? }] }
 // A null grade_label clears the existing assessment row.
 export async function POST(request: Request) {

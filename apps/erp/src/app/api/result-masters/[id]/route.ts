@@ -13,7 +13,7 @@ const IMMUTABLE_FIELDS = [
   "updated_at",
 ] as const;
 
-// PATCH /api/erp/result-masters/[id]
+// PATCH /api/result-masters/[id]
 // Partial update. Immutable fields are rejected with 400 before Zod parse.
 // Validates pass_criteria_type against SUPPORTED_PASS_CRITERIA_TYPES and the
 // config shape against the type (via validatePassCriteria).
@@ -91,7 +91,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   return NextResponse.json({ data: updated });
 }
 
-// DELETE /api/erp/result-masters/[id]
+// DELETE /api/result-masters/[id]
 // FK cascade on result_master_subjects handles child cleanup.
 export async function DELETE(_request: NextRequest, context: RouteContext) {
   const admin = await verifyAdmin();

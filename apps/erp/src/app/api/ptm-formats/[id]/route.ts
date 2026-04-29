@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyAdmin } from "@nkps/shared/lib/verify-admin";
 import { ptmFormatSchema } from "@nkps/shared/lib/validations";
 
-// PATCH /api/erp/ptm-formats/[id] — admin-only. Same is_default-clearing
+// PATCH /api/ptm-formats/[id] — admin-only. Same is_default-clearing
 // logic as POST so flipping a template to default doesn't collide with the
 // partial unique index.
 export async function PATCH(
@@ -45,7 +45,7 @@ export async function PATCH(
   return NextResponse.json({ data });
 }
 
-// DELETE /api/erp/ptm-formats/[id] — admin-only. Rejects deleting the
+// DELETE /api/ptm-formats/[id] — admin-only. Rejects deleting the
 // last remaining active template so the generate flow always has a row to
 // fall back to.
 export async function DELETE(

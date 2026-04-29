@@ -3,7 +3,7 @@ import { createClient } from "@nkps/shared/lib/supabase/server";
 import { verifyAdmin } from "@nkps/shared/lib/verify-admin";
 import { ptmFormatSchema } from "@nkps/shared/lib/validations";
 
-// GET /api/erp/ptm-formats — list all templates (any authenticated user).
+// GET /api/ptm-formats — list all templates (any authenticated user).
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -26,7 +26,7 @@ export async function GET() {
   return NextResponse.json({ data: data ?? [] });
 }
 
-// POST /api/erp/ptm-formats — create (admin only).
+// POST /api/ptm-formats — create (admin only).
 export async function POST(request: Request) {
   const admin = await verifyAdmin();
   if (!admin) {

@@ -9,11 +9,11 @@ const upsertSchema = z.object({
   note: z.string().max(500).nullable().optional(),
 });
 
-// GET /api/erp/substitutions?date=YYYY-MM-DD
+// GET /api/substitutions?date=YYYY-MM-DD
 //   Daily list for the staffroom-noticeboard sheet. Joins absence + period +
 //   substitute info in one shot.
 //
-// GET /api/erp/substitutions?absence_id=<uuid>
+// GET /api/substitutions?absence_id=<uuid>
 //   All substitutions for a single absence (used by the substitutions UI to
 //   refresh after assignment).
 export async function GET(request: NextRequest) {

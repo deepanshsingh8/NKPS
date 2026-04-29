@@ -63,7 +63,7 @@ function parseDateValue(raw: unknown): string | null {
   return null;
 }
 
-// POST /api/erp/ptm-notes/import — multipart/form-data upload.
+// POST /api/ptm-notes/import — multipart/form-data upload.
 // Fields: file, class_id, exam_type_id (optional), dry_run ("true" | "false")
 // Returns: { summary, rows }. Commits only when dry_run=false AND all rows are valid.
 export async function POST(request: NextRequest) {

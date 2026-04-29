@@ -3,7 +3,7 @@ import { createClient } from "@nkps/shared/lib/supabase/server";
 import { canViewReportCard } from "@/lib/report-card";
 import { computeFinalResult } from "@/lib/final-result";
 
-// GET /api/erp/results/final-result?student_id=&academic_year_id=
+// GET /api/results/final-result?student_id=&academic_year_id=
 // Returns the computed FinalResult as JSON. Useful for diagnostics, admin
 // preview before flipping a result master toggle, and for tests that need
 // to assert against the computed structure rather than the PDF binary.

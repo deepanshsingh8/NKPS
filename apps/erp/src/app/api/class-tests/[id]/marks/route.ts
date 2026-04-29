@@ -11,7 +11,7 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// GET /api/erp/class-tests/[id]/marks — load existing marks for this test.
+// GET /api/class-tests/[id]/marks — load existing marks for this test.
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   const supabase = await createClient();
@@ -35,7 +35,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   return NextResponse.json({ data: data ?? [] });
 }
 
-// POST /api/erp/class-tests/[id]/marks — bulk upsert marks.
+// POST /api/class-tests/[id]/marks — bulk upsert marks.
 // Body: { entries: [{ student_id, marks_obtained | null, remarks? }] }
 // Null marks_obtained clears the row for that student.
 export async function POST(request: NextRequest, { params }: RouteParams) {

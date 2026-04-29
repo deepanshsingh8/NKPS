@@ -6,7 +6,7 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
-// POST /api/erp/fees/payments/[id]/refund
+// POST /api/fees/payments/[id]/refund
 // Marks a previously-recorded payment as refunded with reason + amount.
 // The DB CHECK constraint (`fee_payments_refund_consistent`) enforces that
 // `refund_amount > 0` whenever status flips to 'refunded'.

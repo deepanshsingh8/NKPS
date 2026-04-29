@@ -3,7 +3,7 @@ import { verifyAdmin } from "@nkps/shared/lib/verify-admin";
 import { resultMasterCreateSchema } from "@nkps/shared/lib/validations";
 import { validatePassCriteria } from "@/lib/result-master-validation";
 
-// GET /api/erp/result-masters?class_id=&academic_year_id=
+// GET /api/result-masters?class_id=&academic_year_id=
 // Returns { master, subjects, exam_configs }. master === null when no config
 // exists — UI renders empty state. exam_configs is always loaded so the admin
 // can configure weightage (class_exam_configs) even before creating the master.
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-// POST /api/erp/result-masters
+// POST /api/result-masters
 // Creates a single result_masters row. Subjects are written via the PUT
 // /[id]/subjects endpoint immediately after.
 export async function POST(request: NextRequest) {

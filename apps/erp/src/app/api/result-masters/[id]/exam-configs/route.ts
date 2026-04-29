@@ -4,7 +4,7 @@ import { resultMasterExamConfigsPutSchema } from "@nkps/shared/lib/validations";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-// PUT /api/erp/result-masters/[id]/exam-configs
+// PUT /api/result-masters/[id]/exam-configs
 // Upsert class_exam_configs for the master's class scoped to the master's
 // academic year. Rows for OTHER academic years' exam_types are left untouched
 // — critical, since a class carries weightages across multiple years.

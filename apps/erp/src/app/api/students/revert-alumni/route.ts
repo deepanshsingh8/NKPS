@@ -17,7 +17,7 @@ const revertAlumniSchema = z.object({
   reactivate_academic_year_id: z.string().uuid().optional(),
 });
 
-// POST /api/erp/students/revert-alumni
+// POST /api/students/revert-alumni
 // Admin-only: clears the alumni flags on a student so they can be re-enrolled.
 // We don't expose this through the editor `students` permission because
 // graduating a class then ungraduating individual rows is a high-blast-radius

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 
-// GET /api/erp/teacher-timetable?teacher_id=<uuid>
+// GET /api/teacher-timetable?teacher_id=<uuid>
 // Returns the teacher's weekly schedule joined with class + subject info,
 // ordered by day_of_week then start_time. Time-ordered (not period_number-
 // ordered) because classes run on staggered schedules — see

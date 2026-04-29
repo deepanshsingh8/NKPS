@@ -4,7 +4,7 @@ import { computeFinalResult } from "@/lib/final-result";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-// GET /api/erp/result-masters/[id]/preview?student_id=
+// GET /api/result-masters/[id]/preview?student_id=
 // Computes the final-result bundle for a single student under the class/year
 // the master belongs to. Verifies enrollment first so admin can't preview a
 // student who isn't in the master's class.
