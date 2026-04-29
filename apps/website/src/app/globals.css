@@ -2,6 +2,10 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Tailwind v4 stops auto-scanning at workspace boundaries. Without this,
+   classes used only inside @nkps/shared components get tree-shaken away. */
+@source "../../../../packages/shared/src/**/*.{ts,tsx,js,jsx}";
+
 /* Override dark variant: use class-based (.dark) instead of media query (prefers-color-scheme).
    Since no .dark class is applied anywhere, all dark: utilities become inert. */
 @custom-variant dark (&:is(.dark *));
