@@ -1,45 +1,72 @@
 # NKPS Modules
 
-This codebase is split into four modules so it can be deployed in three productization tiers:
+NKPS is a turborepo with three independent Next.js apps and one shared package.
+The repo can be deployed in three productization tiers:
 
-| Tier | Modules deployed | Suitable for |
+| Tier | Apps deployed | Suitable for |
 |---|---|---|
-| **Website** | `website` + `shared` | School with a public site, no admin |
-| **Website + CMS** | `website` + `cms` + `shared` | School that wants content management (gallery, articles, TC uploads, contact) |
-| **Website + CMS + ERP** | All four | Full school management (students, exams, fees, timetable, attendance, etc.) |
+| **Website** | `apps/website` + `packages/shared` | School with a public site, no admin |
+| **Website + CMS** | `apps/website` + `apps/cms` + `packages/shared` | School that wants content management (gallery, articles, TC uploads, contact) |
+| **Website + CMS + ERP** | All three apps + `packages/shared` | Full school management (students, exams, fees, timetable, attendance, portal/teacher/student/parent dashboards) |
 
-## Code modules
+## Repo layout
 
 ```
-src/
-  app/              ← Next.js routes (consumer/glue layer; can import from any module)
-  middleware.ts     ← edge auth gate
-  shared/           ← Foundation used by every deployment
-    components/     ← ui primitives, providers, sidebar shell, dashboard view, page primitives
-    lib/            ← Supabase clients, types, validations, email, permissions, utils
-    hooks/          ← cross-module React hooks
-    types/          ← TypeScript definitions
-  website/          ← Public marketing site (always present)
-    components/     ← about, academics, home, layout (Navbar/Footer), seo
-    lib/            ← disclosure, site-media (read-side)
-  cms/              ← Content management (optional — Tier 2+)
-    components/     ← CmsSidebar
-    lib/            ← (currently empty — CMS logic lives in app/cms/* and app/api/cms/*)
-  erp/              ← School operations (optional — Tier 3 only)
-    components/     ← ErpSidebar, dialogs, bulk uploads, result-master/, timetable/, portal/, pdf/
-    lib/            ← admit-card-qr, fees, grading, final-result, report-card, etc.
+.
+├── apps/
+│   ├── website/           ← public marketing site                (subdomain: nkps.com)
+│   │   └── src/
+│   │       ├── app/       ← public routes (/, /about, /academics, …)
+│   │       ├── components/ ← website-only React components
+│   │       └── lib/       ← website-only data helpers (site-media, disclosure)
+│   │
+│   ├── cms/               ← content management (subdomain: cms.nkps.com)
+│   │   └── src/
+│   │       ├── app/       ← admin routes (/, /articles, /gallery, /contact, …)
+│   │       ├── components/ ← CmsSidebar
+│   │       ├── proxy.ts   ← CMS auth gate (admin/editor only)
+│   │       └── …
+│   │
+│   └── erp/               ← school operations (subdomain: erp.nkps.com)
+│       └── src/
+│           ├── app/
+│           │   ├── (admin)/   ← admin pages with sidebar (/, /people, /exams, …)
+│           │   ├── portal/    ← portal login + password flows
+│           │   ├── teacher/   ← teacher dashboard
+│           │   ├── student/   ← student dashboard
+│           │   ├── parent/    ← parent dashboard
+│           │   ├── auth/      ← Supabase auth callbacks
+│           │   └── api/       ← all ERP + portal + staff API routes
+│           ├── components/    ← ErpSidebar, dialogs, bulk uploads, pdf/, etc.
+│           ├── lib/           ← ERP business logic (final-result, fees, grading, …)
+│           └── proxy.ts       ← ERP auth gate (multi-role)
+│
+├── packages/
+│   └── shared/            ← code consumed by every app
+│       └── src/
+│           ├── components/ ← ui primitives, providers, sidebar shell, dashboard view
+│           ├── lib/        ← Supabase clients, validations, email, permissions, utils
+│           ├── hooks/      ← useUnreadCount, useMousePosition
+│           └── types/      ← TypeScript types
+│
+├── pnpm-workspace.yaml    ← declares apps/* and packages/* as workspaces
+├── turbo.json             ← build/dev/lint pipelines
+├── eslint.config.mjs      ← module-boundary enforcement
+└── supabase-schema.sql    ← consolidated DB schema (see DB section below)
 ```
 
-Module boundaries are enforced by ESLint (`eslint.config.mjs`):
-- A module file can only import from itself + `@/shared/*`.
-- `src/app/` is unrestricted (it's the consumer layer).
+## Module-boundary enforcement
+
+ESLint blocks cross-app imports. Each app can only import from itself + `@nkps/shared/*`. There's no path between, e.g., `apps/website` and `apps/cms` — the only way they share code is through `packages/shared`.
+
+Run `pnpm run lint` to verify. Zero violations is the goal.
 
 ## Database modules
 
 Run the corresponding sections from `supabase-schema.sql` for the tier you want.
 
 ### Base (every deployment)
-Required for auth, profiles, and the calendar (used by website + ERP):
+Required for auth, profiles, and calendar:
 
 | Table | Purpose |
 |---|---|
@@ -49,105 +76,231 @@ Required for auth, profiles, and the calendar (used by website + ERP):
 | `notifications` | Cross-module notification fanout |
 
 ### CMS (Tier 2+)
-Adds content-management tables:
+Adds content-management tables: `gallery_images`, `gallery_events`, `articles`, `site_media`, `section_cards`, `transfer_certificates`, `contact_submissions`, `disclosure_items`, `disclosure_documents`, `disclosure_board_results`, `staff_members`.
 
-| Table | Purpose |
-|---|---|
-| `gallery_images` | Photo gallery items |
-| `gallery_events` | Gallery event grouping (with cover photos) |
-| `articles` | News / blog posts |
-| `site_media` | Per-page media slots (hero images, etc.) |
-| `section_cards` | Configurable cards on home/about pages |
-| `transfer_certificates` | TC PDFs (uploaded externally; stored URL + metadata) |
-| `contact_submissions` | Contact form submissions |
-| `disclosure_items` | Mandatory public disclosure (text fields) |
-| `disclosure_documents` | Mandatory public disclosure (uploaded PDFs) |
-| `disclosure_board_results` | Board exam results table for disclosure page |
-| `staff_members` | Public staff directory (also linked from `teachers` if ERP is present) |
-
-Storage buckets needed: `gallery`, `transfer-certificates`, `site-media`, `staff-photos`, `disclosure-documents`.
+Storage buckets: `gallery`, `transfer-certificates`, `site-media`, `staff-photos`, `disclosure-documents`.
 
 ### ERP (Tier 3)
-Adds school-operations tables. Several have FKs into base/CMS tables:
+Adds `academic_years`, `streams`, `classes`, `subjects`, `class_subjects`, `stream_subjects`, `students`, `student_subjects`, `student_enrollments`, `parents`, `student_parents`, `teachers`, `attendance`, `exam_types`, `exam_schedules`, `result_masters`, `result_master_subjects`, `class_grade_scales`, `grade_scales`, `grade_bands`, `class_exam_configs`, `results`, `marksheet_publications`, `class_tests`, `class_test_results`, `non_scholastic_*`, `student_remarks`, `ptm_notes`, `ptm_formats`, `supplementary_attempts`, `fee_structures`, `fee_payments`, `payment_orders`, `timetable_periods`, `substitutions`, `teacher_absences`, `school_meeting_counts`, `pdf_header_configs`, `pdf_footer_configs`, `admit_card_templates`, `registration_requests`, `publish_events`.
 
-| Table | Purpose |
-|---|---|
-| `academic_years` | Year-by-year scoping for everything below |
-| `streams` | Class streams (Science / Commerce / Arts) |
-| `classes` | Class sections (e.g. "VII-B", "IX-Science-A") |
-| `subjects` | Subject catalog |
-| `class_subjects`, `stream_subjects` | Subject mappings |
-| `students`, `student_subjects`, `student_enrollments` | Student records |
-| `parents`, `student_parents` | Parent records + linkage |
-| `teachers` | Teaching staff (FK to `profiles` if portal account exists) |
-| `attendance` | Daily attendance log |
-| `exam_types`, `exam_schedules` | Exam catalog + scheduling |
-| `result_masters`, `result_master_subjects` | Exam configuration (pass marks, weightages, grading) |
-| `class_grade_scales`, `grade_scales`, `grade_bands` | Grade boundaries |
-| `class_exam_configs` | Per-class exam-specific overrides |
-| `results` | Computed marks per (student, subject, exam) |
-| `marksheet_publications` | Per-class publication state for results |
-| `class_tests`, `class_test_results` | In-class assessments (lighter than full exams) |
-| `non_scholastic_subjects`, `non_scholastic_sub_subjects`, `non_scholastic_sub_subject_classes`, `non_scholastic_assessments` | Co-scholastic grading |
-| `student_remarks` | PTM / report-card remarks |
-| `ptm_notes`, `ptm_formats` | PTM workflow + report formats |
-| `supplementary_attempts` | Supplementary exam attempts |
-| `fee_structures`, `fee_payments`, `payment_orders` | Fees |
-| `timetable_periods`, `substitutions`, `teacher_absences`, `school_meeting_counts` | Timetable + substitution workflow |
-| `pdf_header_configs`, `pdf_footer_configs`, `admit_card_templates` | PDF customization |
-| `registration_requests` | Self-registration flow |
-| `publish_events` | Audit log for marksheet publications |
-
-Storage bucket needed: `avatars` (for teacher/student/parent profile photos).
+Storage bucket: `avatars`.
 
 ### Cross-module FKs
 
-A few CMS tables reference ERP tables when both modules are deployed:
+- `transfer_certificates.student_id` → `students(id)` (ON DELETE SET NULL — TCs survive student deletion). For CMS-only deployments, skip the FK constraint.
+- `staff_members` rows can be linked to `teachers` in ERP deployments.
 
-- `transfer_certificates.student_id` → `students(id)` (ON DELETE SET NULL — TCs survive student deletion)
-- `staff_members` rows can be cross-linked to `teachers` in ERP deployments
+## Local development
 
-For **CMS-only deployments**, skip the FK constraint on `transfer_certificates.student_id` (the column can remain `NULL` for all rows). The `staff_members` table stands alone.
+```bash
+# install once
+pnpm install
 
-## Deployment recipes
+# run a single app (each on its own port)
+pnpm run dev:website    # → http://localhost:3001
+pnpm run dev:cms        # → http://localhost:3002
+pnpm run dev:erp        # → http://localhost:3003
 
-### Fresh install — Tier 1 (Website only)
+# run all three concurrently via turbo
+pnpm run dev
 
-1. In Supabase: run the **Base** section from `supabase-schema.sql`.
-2. Create the `gallery` and `staff-photos` storage buckets (the public site uses these).
-3. Deploy the Next.js app with default config.
+# build all three
+pnpm run build
 
-### Fresh install — Tier 2 (Website + CMS)
+# typecheck and lint
+pnpm run typecheck
+pnpm run lint
+```
 
-1. Run **Base** + **CMS** sections.
-2. Create all CMS storage buckets (above).
-3. Deploy with the CMS routes enabled (no separate flag — CMS is detected from data presence).
+Each app needs its own `.env.local` with `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. For local dev, symlink them all to a root `.env.local`:
+```bash
+ln -sf ../../.env.local apps/website/.env.local
+ln -sf ../../.env.local apps/cms/.env.local
+ln -sf ../../.env.local apps/erp/.env.local
+```
 
-### Fresh install — Tier 3 (Website + CMS + ERP)
+## Production deployment (subdomains)
 
-1. Run **Base** + **CMS** + **ERP** sections.
-2. Create all storage buckets.
-3. Apply all migrations 001–046 in numeric order (these are incremental refinements on top of the consolidated schema).
-4. Deploy.
+Each app is its own Vercel project on its own subdomain, all pointing at the same Supabase. Setup is one-time; after that, every push to `main` auto-deploys all three apps.
 
-### Upgrading an existing tier
+| Subdomain | Vercel project | Root directory |
+|---|---|---|
+| `nkpublicschool.com` | `nkps-website` | `apps/website` |
+| `cms.nkpublicschool.com` | `nkps-cms` | `apps/cms` |
+| `erp.nkpublicschool.com` | `nkps-erp` | `apps/erp` |
 
-- **Tier 1 → Tier 2**: run only the CMS section, then create CMS storage buckets. No data migration needed.
-- **Tier 2 → Tier 3**: run the ERP section + apply migrations 001–046, then create the `avatars` bucket.
+### Environment variable reference
 
-## Migration history
+Per-app required vars. Missing one will either fail the build or break a runtime feature.
 
-Migrations live in `scripts/migration-*.sql`. They are numbered chronologically (001 onwards). Each one was applied to production at a known point in time; they're preserved as history rather than re-grouped by module so the audit trail stays intact.
+| Variable | website | cms | erp | Notes |
+|---|:---:|:---:|:---:|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | ✅ | ✅ | Same value in all three projects |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | ✅ | ✅ | Same value in all three projects |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | ✅ | ✅ | Same value in all three projects |
+| `NEXT_PUBLIC_WEBSITE_URL` | ✅ | ✅ | ✅ | `https://nkpublicschool.com` |
+| `NEXT_PUBLIC_CMS_URL` | ✅ | ✅ | ✅ | `https://cms.nkpublicschool.com` |
+| `NEXT_PUBLIC_ERP_URL` | ✅ | ✅ | ✅ | `https://erp.nkpublicschool.com` |
+| `NEXT_PUBLIC_SITE_URL` | ✅ | – | – | Public canonical URL (`https://nkpublicschool.com`) — used for SEO, sitemap, JSON-LD |
+| `ANTHROPIC_API_KEY` | ✅ | – | – | Chatbot on the public site |
+| `NEXT_PUBLIC_GA_ID` | ✅ | – | – | GA4 measurement ID; leave blank to disable |
+| `NEXT_PUBLIC_GSC_VERIFICATION` | ✅ | – | – | Search Console meta-tag verification token (only if verifying via tag) |
+| `GMAIL_USER` | ✅ | – | ✅ | Gmail address used for SMTP |
+| `GMAIL_APP_PASSWORD` | ✅ | – | ✅ | Gmail app password (not the account password) |
+| `FROM_EMAIL` | ✅ | – | ✅ | `NK Public School <noreply@…>` — must use the `GMAIL_USER` mailbox |
+| `REPLY_TO_EMAIL` | ✅ | – | ✅ | Where replies route (e.g. `nkps.rajawas@gmail.com`) |
 
-For new deployments, prefer the consolidated `supabase-schema.sql` over replaying migrations — it captures the full state as of migration 046.
+Why each app sends mail:
+- **website** — public contact form (`apps/website/src/app/api/contact/route.ts`).
+- **erp** — portal forgot-password, register, registration approve/reject.
+- **cms** — does not send mail directly; only manages submissions.
+
+> Note: production uses Gmail SMTP via `nodemailer` (see `packages/shared/src/lib/email.ts`). `RESEND_API_KEY` mentioned in some older notes is not used.
+
+---
+
+### Step 0 — Before merging to main
+
+Verify the branch is deployable.
+
+```bash
+pnpm install --frozen-lockfile
+pnpm run lint
+pnpm run typecheck
+pnpm exec turbo run build
+```
+
+All four must pass. CI (`.github/workflows/ci.yml`) runs the same gates on PRs to `main`.
+
+Also make sure no uncommitted changes are sitting in your working tree (`git status`).
+
+### Step 1 — Create the two new Vercel projects (cms, erp)
+
+Do this **before** merging. Both projects can be pointed at the `phase-3-monorepo` branch first so you can preview-deploy and verify before they ever touch production.
+
+For each new project (`nkps-cms` and `nkps-erp`):
+
+1. Vercel dashboard → **Add New… → Project** → import this GitHub repo.
+2. **Project Name**: `nkps-cms` or `nkps-erp`.
+3. **Framework Preset**: Next.js (auto-detected).
+4. **Root Directory**: `apps/cms` or `apps/erp` (use the "Edit" link next to Root Directory).
+5. **Build & Output Settings**: leave defaults — Vercel uses `next build` from the app's `package.json`, and pnpm workspaces are auto-detected.
+6. **Install Command**: leave blank — Vercel honours the root `packageManager` field and runs `pnpm install` against the workspace.
+7. **Production Branch** (Project → Settings → Git): `main`.
+8. **Environment Variables**: add every variable in the column for that app from the table above. Set the scope to *Production, Preview, Development*.
+9. Deploy from the `phase-3-monorepo` branch as a preview. Confirm it builds.
+
+### Step 2 — Repoint the existing Vercel project to `apps/website`
+
+The current production project (the one serving `nkpublicschool.com`) builds from the repo root. After the merge, root is no longer a Next.js app, so **the existing project will fail to build** unless its Root Directory is updated.
+
+Two safe approaches — pick one:
+
+**Approach A (recommended): change Root Directory just before the merge.**
+1. Existing Vercel project → Settings → General → **Root Directory** → `apps/website` → Save.
+2. Settings → Git → **Production Branch** = `main` (likely already is).
+3. Settings → Environment Variables → add the website-column vars from the table above (the existing project already has Supabase/Anthropic/GA vars; just add the missing cross-app URL vars: `NEXT_PUBLIC_WEBSITE_URL`, `NEXT_PUBLIC_CMS_URL`, `NEXT_PUBLIC_ERP_URL`, plus `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `FROM_EMAIL`, `REPLY_TO_EMAIL` if not already present).
+4. Don't trigger a deploy yet — the merge in Step 5 will trigger it.
+
+**Approach B (zero-risk, slightly more work):** create a brand-new `nkps-website` project the same way as Step 1 (root = `apps/website`), assign it the apex domain after Step 5, and delete the old project once verified.
+
+### Step 3 — Set up DNS for the new subdomains
+
+In whatever DNS provider hosts `nkpublicschool.com`, add:
+
+| Type | Name | Value |
+|---|---|---|
+| CNAME | `cms` | `cname.vercel-dns.com` |
+| CNAME | `erp` | `cname.vercel-dns.com` |
+
+Then in each Vercel project → Settings → Domains, add `cms.nkpublicschool.com` (to `nkps-cms`) and `erp.nkpublicschool.com` (to `nkps-erp`). Vercel will issue SSL certs automatically once DNS propagates (a few minutes to an hour).
+
+### Step 4 — Configure Supabase for cross-subdomain auth
+
+In Supabase Studio → **Authentication → URL Configuration**:
+
+1. **Site URL**: `https://nkpublicschool.com`
+2. **Additional Redirect URLs** (one per line):
+   ```
+   https://nkpublicschool.com/**
+   https://cms.nkpublicschool.com/**
+   https://erp.nkpublicschool.com/**
+   http://localhost:3001/**
+   http://localhost:3002/**
+   http://localhost:3003/**
+   ```
+3. **Cookie domain**: `.nkpublicschool.com` (leading dot — required so the auth cookie set on one subdomain is readable from the others).
+
+In Supabase Studio → **Authentication → Email Templates**, update the link in each template (Confirm signup, Reset password, Magic link, Invite user) to use:
+```
+https://erp.nkpublicschool.com/auth/callback?...
+```
+The ERP app owns the `/auth/callback` route. If you currently use the default `{{ .SiteURL }}/auth/callback`, change `SiteURL` references to the literal ERP URL, or update the Site URL above to the ERP subdomain (only if your password-reset/signup flows live exclusively in ERP, which they do today).
+
+### Step 5 — Merge `phase-3-monorepo` → `main`
+
+```bash
+git checkout main
+git pull
+git merge --no-ff phase-3-monorepo
+git push origin main
+```
+
+This single push triggers all three Vercel projects to build and deploy in parallel.
+
+### Step 6 — Smoke test
+
+In order, with a fresh browser session:
+
+- [ ] `https://nkpublicschool.com` loads, navigation works, gallery + about pages render
+- [ ] Public contact form submits successfully and an email lands in the configured inbox
+- [ ] `https://cms.nkpublicschool.com/login` loads → log in as admin → CMS dashboard renders, gallery/articles/contact lists work
+- [ ] `https://erp.nkpublicschool.com/login` loads → log in as admin → ERP dashboard renders, students/exams pages work
+- [ ] Log into ERP, then open `https://cms.nkpublicschool.com` in the same tab — you should already be authenticated (cross-subdomain cookie working). If not, recheck the cookie domain in Step 4.
+- [ ] Trigger a portal forgot-password — the email link points to `https://erp.nkpublicschool.com/auth/callback…` and successfully signs the user in.
+- [ ] Editor login: an editor account with only CMS permissions can access cms.* but is bounced from erp.*, and vice versa.
+
+### Step 7 — Optional: legacy URL redirects
+
+External bookmarks and old crawler URLs may still hit the apex domain at `/admin/...`, `/cms/...`, `/erp/...`, or `/portal/...`. Add `apps/website/vercel.json` to send them to the right subdomain:
+
+```json
+{
+  "redirects": [
+    { "source": "/admin/login", "destination": "https://erp.nkpublicschool.com/login", "permanent": true },
+    { "source": "/admin/articles", "destination": "https://cms.nkpublicschool.com/articles", "permanent": true },
+    { "source": "/admin/gallery", "destination": "https://cms.nkpublicschool.com/gallery", "permanent": true },
+    { "source": "/admin/(.*)", "destination": "https://erp.nkpublicschool.com/$1", "permanent": true },
+    { "source": "/cms", "destination": "https://cms.nkpublicschool.com", "permanent": true },
+    { "source": "/cms/(.*)", "destination": "https://cms.nkpublicschool.com/$1", "permanent": true },
+    { "source": "/erp", "destination": "https://erp.nkpublicschool.com", "permanent": true },
+    { "source": "/erp/(.*)", "destination": "https://erp.nkpublicschool.com/$1", "permanent": true },
+    { "source": "/portal/(.*)", "destination": "https://erp.nkpublicschool.com/portal/$1", "permanent": true }
+  ]
+}
+```
+
+Commit + push — the website project picks it up on the next deploy. Not on the critical path for go-live.
+
+### Rollback
+
+If something goes wrong post-merge:
+
+- **Build broke on one project**: in Vercel → Deployments → previous green deploy → "Promote to Production". Each project rolls back independently.
+- **Auth broken across subdomains**: revert the Supabase cookie-domain change first (it's the most common breaker). Cookie domain mismatches manifest as users being signed out on every navigation between subdomains.
+- **Need to fully revert the merge**: `git revert -m 1 <merge-sha>` on `main`. The three projects will redeploy the pre-merge website code; cms/erp projects will fail their next build (no `apps/cms` / `apps/erp` exists on pre-merge `main`) — pause those projects in Vercel until the next forward fix.
+
+### Day-2 operations
+
+After the initial cutover, deploys are normal: push to `main`, all three projects rebuild. Per-app preview deploys run on PRs automatically. Use feature branches; CI will run lint + typecheck + build for all three apps on every PR.
 
 ## Adding a new feature
 
-When adding a feature, decide which module it belongs to:
+When adding a feature, decide which app it belongs to:
 
-- **Public-facing display only?** → `website/`
-- **Content management (admin can create/edit)?** → `cms/`
-- **School operations (students, staff, exams, fees, etc.)?** → `erp/`
-- **Used by ≥ 2 modules?** → `shared/`
+- **Public-facing display only?** → `apps/website`
+- **Content management (admin can create/edit articles, gallery, etc.)?** → `apps/cms`
+- **School operations (students, staff, exams, fees, portal)?** → `apps/erp`
+- **Used by ≥ 2 apps?** → `packages/shared`
 
-If the feature spans modules (e.g. a CMS-managed banner that the website displays), put the read function in `shared/lib/` and the management UI in `cms/`.
+If a feature spans apps (e.g., a CMS-managed banner that the website displays), put the read function in `packages/shared/src/lib/` and the management UI in `apps/cms`.

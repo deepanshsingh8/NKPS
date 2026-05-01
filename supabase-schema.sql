@@ -280,7 +280,7 @@ CREATE TABLE parents (
 CREATE TABLE profiles (
   id uuid REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   role text NOT NULL DEFAULT 'student'
-    CHECK (role IN ('admin', 'editor', 'teacher', 'student', 'parent')),
+    CHECK (role IN ('admin', 'staff', 'teacher', 'student', 'parent')),
   full_name text NOT NULL,
   email text NOT NULL,
   phone text,
@@ -722,6 +722,15 @@ RETURNS SETOF UUID AS $$
   SELECT id FROM classes WHERE class_teacher_id = public.get_my_teacher_id()
   UNION
   SELECT class_id FROM class_subjects WHERE teacher_id = public.get_my_teacher_id();
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- Per-feature editor capability check (used by RLS policies that need feature-scoped gating).
+CREATE OR REPLACE FUNCTION public.has_editor_feature(p_feature text)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.editor_permissions
+    WHERE editor_id = auth.uid() AND feature_key = p_feature
+  );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- Auto-create profile on user signup
@@ -1166,7 +1175,7 @@ CREATE POLICY "Users can read own profile"
 
 CREATE POLICY "Admins can read all profiles"
   ON profiles FOR SELECT
-  USING (public.get_user_role() IN ('admin', 'editor'));
+  USING (public.get_user_role() IN ('admin', 'staff'));
 
 CREATE POLICY "Teachers can read student profiles in their classes"
   ON profiles FOR SELECT
@@ -1913,7 +1922,7 @@ CREATE POLICY "Teachers read all remarks"
   ON student_remarks FOR SELECT
   TO authenticated
   USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('teacher', 'admin', 'editor'))
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('teacher', 'admin', 'staff'))
   );
 
 DROP POLICY IF EXISTS "Teachers upsert remarks" ON student_remarks;
@@ -3994,3 +4003,17 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 048 — backfill fee_payments.academic_year_id from fee_structures
+-- (mirrored from scripts/migration-048-fee-payments-backfill-academic-year.sql)
+-- The dues compute filters fee_payments.academic_year_id directly; the POST
+-- handlers now also populate it on insert. This statement repairs rows that
+-- were inserted before the fix.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+UPDATE fee_payments fp
+SET academic_year_id = fs.academic_year_id
+FROM fee_structures fs
+WHERE fp.fee_structure_id = fs.id
+  AND fp.academic_year_id IS NULL;
