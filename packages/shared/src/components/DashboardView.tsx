@@ -123,11 +123,35 @@ function getGreeting(now = new Date()) {
   return "Good night";
 }
 
-function firstName(fullName: string | null): string {
-  if (!fullName) return "";
-  const trimmed = fullName.trim();
-  if (trimmed.includes("@")) return "";
-  return trimmed.split(/\s+/)[0] ?? "";
+// Capitalize the first character; leave the rest as the user typed it so
+// names like "deepansh" don't get mangled into "Deepansh" + lowercased middle
+// (we only want the leading letter uppercased).
+function capitalize(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// Derive a display name from the auth profile. Returns the full name (first
+// + last, space-separated) when set. The Supabase signup trigger falls back
+// full_name → email when no name was provided on signup, so a lot of
+// accounts have an email-shaped full_name. In that case, derive a name from
+// the email's local part — splitting on `.`/`_`/`-` so "john.doe" becomes
+// "John Doe" instead of one mashed token.
+function displayName(fullName: string | null, email: string | null): string {
+  const trimmedName = fullName?.trim();
+  if (trimmedName && !trimmedName.includes("@")) {
+    return trimmedName.split(/\s+/).filter(Boolean).join(" ");
+  }
+  const source = trimmedName?.includes("@") ? trimmedName : email?.trim();
+  if (!source) return "";
+  const local = source.split("@")[0] ?? "";
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.replace(/\d+$/, ""))
+    .filter(Boolean)
+    .map(capitalize)
+    .join(" ");
 }
 
 function prefersReducedMotion() {
@@ -198,6 +222,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
   const [canSeeEvents, setCanSeeEvents] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -223,6 +248,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
+        if (user.email) setUserEmail(user.email);
         const { data } = await supabase
           .from("profiles")
           .select("full_name")
@@ -252,7 +278,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
     day: "numeric",
     month: "long",
   });
-  const name = firstName(userName);
+  const name = displayName(userName, userEmail);
 
   const cardConfig = scope === "cms" ? cmsStatCards : erpStatCards;
   const visibleCards = cardConfig.filter(
@@ -289,7 +315,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
                 )}
               </h1>
               <p className="text-sm text-white/60 mt-1.5">
-                {moduleLabel} dashboard — here&apos;s the overview.
+                {`${moduleLabel} dashboard — here's the overview.`}
               </p>
             </div>
             <div className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2 backdrop-blur-sm">

@@ -22,6 +22,11 @@ export default function ErpLoginPage() {
         student: "/student",
         parent: "/parent",
       }}
+      // Teachers (and staff) with at least one ERP feature grant enter the
+      // admin dashboard at "/" instead of /teacher — they used the admin
+      // login page, so they intend to access admin tooling. Teachers with no
+      // ERP grants still fall through to /teacher via redirectByRole.
+      editorAccess={{ group: "erp", href: "/" }}
       registerHref="/portal/register"
     />
   );

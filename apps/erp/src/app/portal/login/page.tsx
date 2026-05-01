@@ -8,7 +8,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Button } from "@nkps/shared/components/ui/button";
@@ -39,7 +38,6 @@ function getDashboardPath(role: string): string {
 }
 
 export default function PortalLoginPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -83,14 +81,20 @@ export default function PortalLoginPage() {
       // Force password change for first-time users
       if (profile?.must_change_password) {
         toast.success("Please set a new password to continue");
-        router.push("/portal/change-password");
+        // Hard navigation so the middleware sees the fresh auth cookies and
+        // server components re-render with the new session.
+        window.location.assign("/portal/change-password");
         return;
       }
 
       const dashboard = getDashboardPath(role);
 
       toast.success("Logged in successfully");
-      router.push(dashboard);
+      // Hard navigation so the middleware sees the fresh auth cookies and
+      // server components re-render with the new session. router.push keeps
+      // the client-side cache from before login, leaving the destination
+      // looking signed-out until a manual reload.
+      window.location.assign(dashboard);
     } catch {
       toast.error("An unexpected error occurred");
     } finally {

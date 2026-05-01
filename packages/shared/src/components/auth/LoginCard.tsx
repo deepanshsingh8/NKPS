@@ -8,12 +8,20 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { getWebsiteUrl } from "@nkps/shared/lib/cross-app";
+import {
+  FEATURE_CATALOG,
+  type FeatureGroup,
+  type FeatureKey,
+} from "@nkps/shared/lib/permissions";
+
+const FEATURE_GROUP_BY_KEY: Record<FeatureKey, FeatureGroup> = Object.fromEntries(
+  FEATURE_CATALOG.map((f) => [f.key, f.group])
+) as Record<FeatureKey, FeatureGroup>;
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -31,8 +39,16 @@ type LoginCardProps = {
   brandHeadline: string;        // big headline on the left panel
   brandTagline: string;         // tagline under headline
   roleBadges: RoleBadge[];      // role chips on the left panel
-  // Where each role lands post-login. Roles not in this map are rejected.
+  // Where each role lands post-login. Roles not in this map are rejected
+  // unless `editorAccess` matches.
   redirectByRole: Record<string, string>;
+  // Editor capability gate. When set, a teacher (or staff) signing in is
+  // checked against editor_permissions filtered to this FeatureGroup; if they
+  // hold any matching grant, they're redirected to `href` instead of the
+  // role-default. This lets the CMS login admit teachers with CMS grants and
+  // lets the ERP /admin login send teacher-editors to the admin dashboard
+  // rather than dropping them on /teacher.
+  editorAccess?: { group: FeatureGroup; href: string };
   // Optional: link to a registration page (only used by /portal/login).
   registerHref?: string;
   // Optional override for the forgot-password link (defaults to portal flow).
@@ -46,10 +62,10 @@ export function LoginCard({
   brandTagline,
   roleBadges,
   redirectByRole,
+  editorAccess,
   registerHref,
   forgotPasswordHref = "/portal/forgot-password",
 }: LoginCardProps) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -89,9 +105,27 @@ export function LoginCard({
 
       const role = profile?.role || "student";
 
-      // Module-restricted login pages reject roles not in their map. CMS only
-      // accepts admin/editor; ERP accepts everyone; portal accepts everyone.
-      const dashboard = redirectByRole[role];
+      // Decide where to redirect:
+      //   1. If `editorAccess` is set and the user holds at least one grant in
+      //      that FeatureGroup, send them to the editor landing href. This is
+      //      what lets a teacher with CMS grants enter the CMS, and lets a
+      //      teacher with ERP grants land on the ERP admin dashboard instead
+      //      of /teacher when they sign in via the admin login page.
+      //   2. Otherwise, fall back to the role-default in `redirectByRole`.
+      //   3. If neither matches, the account has no access to this module.
+      let dashboard: string | undefined;
+      if (editorAccess && (role === "teacher" || role === "staff")) {
+        const { data: grants } = await supabase
+          .from("editor_permissions")
+          .select("feature_key")
+          .eq("editor_id", authData.user.id);
+        const hasGroupGrant = (grants ?? []).some((g) => {
+          const key = g.feature_key as FeatureKey | undefined;
+          return key ? FEATURE_GROUP_BY_KEY[key] === editorAccess.group : false;
+        });
+        if (hasGroupGrant) dashboard = editorAccess.href;
+      }
+      if (!dashboard) dashboard = redirectByRole[role];
       if (!dashboard) {
         await supabase.auth.signOut();
         toast.error("Your account does not have access to this module.");
@@ -100,12 +134,18 @@ export function LoginCard({
 
       if (profile?.must_change_password) {
         toast.success("Please set a new password to continue");
-        router.push("/portal/change-password");
+        // Hard navigation so the middleware sees the fresh auth cookies and
+        // server components re-render with the new session.
+        window.location.assign("/portal/change-password");
         return;
       }
 
       toast.success("Logged in successfully");
-      router.push(dashboard);
+      // Hard navigation so the middleware sees the fresh auth cookies and
+      // server components re-render with the new session. router.push keeps
+      // the client-side cache from before login, leaving the destination
+      // looking signed-out until a manual reload.
+      window.location.assign(dashboard);
     } catch {
       toast.error("An unexpected error occurred");
     } finally {
