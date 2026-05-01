@@ -352,17 +352,12 @@ CREATE TABLE IF NOT EXISTS student_subjects (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   student_id uuid REFERENCES students(id) ON DELETE CASCADE NOT NULL,
   class_subject_id uuid REFERENCES class_subjects(id) ON DELETE CASCADE NOT NULL,
-  elective_slot smallint CHECK (elective_slot IS NULL OR elective_slot BETWEEN 1 AND 9),
   created_at timestamptz DEFAULT now(),
   UNIQUE(student_id, class_subject_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_student_subjects_student ON student_subjects(student_id);
 CREATE INDEX IF NOT EXISTS idx_student_subjects_class_subject ON student_subjects(class_subject_id);
-CREATE INDEX IF NOT EXISTS idx_student_subjects_elective_slot
-  ON student_subjects(student_id, elective_slot) WHERE elective_slot IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_student_elective_slot
-  ON student_subjects(student_id, elective_slot) WHERE elective_slot IS NOT NULL;
 
 ALTER TABLE student_subjects ENABLE ROW LEVEL SECURITY;
 
@@ -4035,7 +4030,7 @@ WHERE fp.fee_structure_id = fs.id
 -- (mirrored from scripts/migration-049-school-features.sql)
 -- Adds:
 --   §4 stream_subjects.requirement_type   (compulsory | elective)
---   §5 student_subjects.elective_slot     (smallint)
+--   §5 student_elective_picks            (per-student E5/E6 picks)
 --      elective_slot_options              (admin-editable per-slot subject lists)
 --   §6 Mathematics — Standard / Advanced  (seeded as new subjects)
 --   §7 Backfill any 'Arts' stream rows to 'Humanities'
@@ -4065,6 +4060,33 @@ CREATE POLICY "Public can read elective_slot_options"
 
 CREATE POLICY "Admins manage elective_slot_options"
   ON elective_slot_options FOR ALL
+  USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');
+
+-- §5 Per-student elective picks. Dedicated table — the legacy student_subjects
+-- table was removed by the ERP redesign because subjects are inferred from
+-- class enrollment + class_subjects. Electives are per-student overrides, so
+-- they get their own narrow table.
+CREATE TABLE IF NOT EXISTS student_elective_picks (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  student_id uuid REFERENCES students(id) ON DELETE CASCADE NOT NULL,
+  slot smallint NOT NULL CHECK (slot BETWEEN 1 AND 9),
+  subject_id uuid REFERENCES subjects(id) ON DELETE CASCADE NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(student_id, slot)
+);
+
+CREATE INDEX IF NOT EXISTS idx_student_elective_picks_student ON student_elective_picks(student_id);
+CREATE INDEX IF NOT EXISTS idx_student_elective_picks_subject ON student_elective_picks(subject_id);
+
+ALTER TABLE student_elective_picks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public can read student_elective_picks"
+  ON student_elective_picks FOR SELECT USING (true);
+
+CREATE POLICY "Admins manage student_elective_picks"
+  ON student_elective_picks FOR ALL
   USING (public.get_user_role() = 'admin')
   WITH CHECK (public.get_user_role() = 'admin');
 

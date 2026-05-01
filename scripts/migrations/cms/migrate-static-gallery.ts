@@ -2,7 +2,7 @@
  * One-time migration: upload the 12 static gallery images to Supabase storage
  * and insert them into the gallery_images table so they appear in the admin panel.
  *
- * Usage: npx tsx scripts/migrate-static-gallery.ts
+ * Usage: npx tsx scripts/migrations/cms/migrate-static-gallery.ts
  *
  * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local
  */
@@ -12,7 +12,7 @@ import { config } from "dotenv";
 import { resolve, join } from "path";
 import { readFileSync } from "fs";
 
-config({ path: resolve(__dirname, "../.env.local") });
+config({ path: resolve(__dirname, "../../../.env.local") });
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;

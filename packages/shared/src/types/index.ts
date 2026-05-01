@@ -637,14 +637,17 @@ export interface TimetableTemplatePeriod {
   end_time: string;
 }
 
-// ── Student-subject link with optional elective slot (§5) ──
-export interface StudentSubject {
+// ── §5 Per-student elective picks ──
+// Dedicated table; the legacy student_subjects join was removed by the ERP
+// redesign because subjects are inferred from class enrollment + class_subjects.
+export interface StudentElectivePick {
   id: string;
   student_id: string;
-  class_subject_id: string;
-  /** 5 = "Elective 5", 6 = "Elective 6". NULL = compulsory subject. */
-  elective_slot: number | null;
+  /** 5 = "Elective 5", 6 = "Elective 6" (extensible 1..9). */
+  slot: number;
+  subject_id: string;
   created_at: string;
+  updated_at: string;
 }
 
 export interface ElectiveSlotOption {

@@ -59,8 +59,12 @@ Implementation log for the 10-section spec from on-ground school feedback.
 
 ## §5 Elective 5 / Elective 6 slots ✅
 
-- `student_subjects.elective_slot` (smallint) + per-student unique partial
-  index `(student_id, elective_slot)`.
+- New dedicated `student_elective_picks` table `(id, student_id, slot,
+  subject_id, …)` with `unique(student_id, slot)`. Architectural note: the
+  earlier `student_subjects` join table was dropped by `migration-erp-redesign`
+  (subjects are inferred from class enrollment + class_subjects). Electives
+  are inherently per-student, so they get a narrow dedicated table rather
+  than reviving the deprecated one.
 - New `elective_slot_options` table — admin-editable list of allowed subjects
   per slot. Seeded with:
   - Slot 5: Informatics Practices, Physical Education
@@ -68,8 +72,8 @@ Implementation log for the 10-section spec from on-ground school feedback.
 - New page `/admin/academics/electives` — slot-options manager + per-student
   picker for active XI/XII enrollments.
 - API: `GET /api/electives`, `POST/DELETE /api/electives/options`,
-  `POST/DELETE /api/electives/students`. Setting a pick auto-creates the
-  necessary `class_subjects` row when missing.
+  `POST/DELETE /api/electives/students`. Pick endpoint validates the chosen
+  subject is a registered option for that slot.
 
 ## §6 Mathematics — Standard / Advanced ✅
 
@@ -112,7 +116,7 @@ Implementation log for the 10-section spec from on-ground school feedback.
 
 ## Migrations
 
-- `scripts/migration-049-school-features.sql` — single migration covering all
+- `scripts/migrations/erp/migration-049-school-features.sql` — single migration covering all
   schema changes plus seeds (per the project's "schema mirrors migrations"
   rule, every change is also reflected in `supabase-schema.sql`).
 

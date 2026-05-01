@@ -48,7 +48,7 @@ NK Public School (NKPS) — a modern school website with admin panel. Built with
 ### Editor permissions (per-feature admin access)
 - Admins have full access. Editors only see/modify features explicitly granted.
 - Feature catalog: `src/lib/permissions.ts` (single source of truth for keys, labels, URL prefixes, admin-only paths).
-- Storage: `editor_permissions` table, `(editor_id, feature_key)`. Migration: `scripts/migration-009-editor-permissions.sql`.
+- Storage: `editor_permissions` table, `(editor_id, feature_key)`. Migration: `scripts/migrations/base/migration-009-editor-permissions.sql`.
 - Enforcement: middleware (page gate, `src/lib/supabase/middleware.ts`), `verifyAdminOrEditor(featureKey)` (API gate, `src/lib/verify-admin.ts`), dynamic sidebar filter (`AdminSidebar.tsx`).
 - Admin manages per-editor grants on `/admin/users` via the "Permissions" button (`EditorPermissionsDialog.tsx` → `/api/admin/editor-permissions`).
 - `/admin/users` is admin-only forever (see `ADMIN_ONLY_PREFIXES`).

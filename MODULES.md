@@ -64,6 +64,9 @@ Run `pnpm run lint` to verify. Zero violations is the goal.
 ## Database modules
 
 Run the corresponding sections from `supabase-schema.sql` for the tier you want.
+Historical, applied-in-order migrations live under `scripts/migrations/{base,cms,erp,cross}/`
+— see [`scripts/migrations/README.md`](scripts/migrations/README.md) for the
+per-tier apply order.
 
 ### Base (every deployment)
 Required for auth, profiles, and calendar:

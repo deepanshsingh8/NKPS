@@ -16,7 +16,7 @@ if (!url || !key) {
 }
 
 const sql = readFileSync(
-  new URL("./migration-031-teacher-substitutions.sql", import.meta.url),
+  new URL("./migrations/erp/migration-031-teacher-substitutions.sql", import.meta.url),
   "utf8"
 );
 
@@ -37,7 +37,7 @@ console.log("=".repeat(70));
 console.log("\nThe Supabase JS client cannot run arbitrary DDL. Apply this");
 console.log("migration via one of:");
 console.log("  1. Supabase Studio → SQL editor → paste contents of");
-console.log("     scripts/migration-031-teacher-substitutions.sql");
+console.log("     scripts/migrations/erp/migration-031-teacher-substitutions.sql");
 console.log("  2. psql against the project's Postgres connection string.");
 console.log("\nVerifying current state of the two tables…\n");
 

@@ -35,7 +35,7 @@ export async function GET() {
 
   const yearId = yearRow?.id ?? null;
 
-  const { data: students } = await admin
+  const { data: studentsRaw } = await admin
     .from("student_enrollments")
     .select(`
       id,
@@ -48,42 +48,52 @@ export async function GET() {
     `)
     .eq("academic_year_id", yearId ?? "00000000-0000-0000-0000-000000000000")
     .eq("status", "active")
-    .in("classes.name", ["XI", "XII"])
-    .order("classes(name)")
-    .order("classes(section)")
-    .order("students(full_name)");
+    .in("classes.name", ["XI", "XII"]);
 
-  // 3) Existing elective_slot picks per student
-  const studentIds = (students ?? []).map((s) => (s as { student_id: string }).student_id);
-  let picks: Array<{ student_id: string; elective_slot: number; class_subject_id: string; subject_id: string; subject_name: string }> = [];
+  // Sort client-side: class name (XI before XII), then section, then student name.
+  // Supabase JS doesn't support .order() across foreign tables in a single chain.
+  // Embedded resources can come back as object OR single-element array depending on the
+  // FK relationship — handle both.
+  type EmbedShape<T> = T | T[] | null;
+  const pickOne = <T,>(x: EmbedShape<T>): T | null =>
+    !x ? null : Array.isArray(x) ? x[0] ?? null : x;
+
+  const students = ([...(studentsRaw ?? [])] as unknown as Array<{
+    student_id: string;
+    classes: EmbedShape<{ name: string; section: string }>;
+    students: EmbedShape<{ full_name: string }>;
+  }>).sort((a, b) => {
+    const ca = pickOne(a.classes); const cb = pickOne(b.classes);
+    if ((ca?.name ?? "") !== (cb?.name ?? "")) return (ca?.name ?? "").localeCompare(cb?.name ?? "");
+    if ((ca?.section ?? "") !== (cb?.section ?? "")) return (ca?.section ?? "").localeCompare(cb?.section ?? "");
+    const sa = pickOne(a.students); const sb = pickOne(b.students);
+    return (sa?.full_name ?? "").localeCompare(sb?.full_name ?? "");
+  });
+
+  // 3) Existing elective picks per student
+  const studentIds = students.map((s) => s.student_id);
+  let picks: Array<{ student_id: string; elective_slot: number; subject_id: string; subject_name: string }> = [];
   if (studentIds.length) {
-    const { data: ssRows } = await admin
-      .from("student_subjects")
-      .select("student_id, elective_slot, class_subject_id, class_subjects!inner(subject_id, subjects(id, name))")
-      .in("student_id", studentIds)
-      .not("elective_slot", "is", null);
-    picks = (ssRows ?? []).map((r) => {
+    const { data: pickRows } = await admin
+      .from("student_elective_picks")
+      .select("student_id, slot, subject_id, subjects(id, name)")
+      .in("student_id", studentIds);
+    picks = (pickRows ?? []).map((r) => {
       const row = r as unknown as {
         student_id: string;
-        elective_slot: number;
-        class_subject_id: string;
-        class_subjects:
-          | { subject_id: string; subjects: { id: string; name: string } | { id: string; name: string }[] | null }
-          | { subject_id: string; subjects: { id: string; name: string } | { id: string; name: string }[] | null }[]
-          | null;
+        slot: number;
+        subject_id: string;
+        subjects: { id: string; name: string } | { id: string; name: string }[] | null;
       };
-      const csRaw = Array.isArray(row.class_subjects) ? row.class_subjects[0] : row.class_subjects;
-      const subjRaw: { id: string; name: string } | null = (() => {
-        if (!csRaw) return null;
-        const s = csRaw.subjects;
-        if (!s) return null;
-        return Array.isArray(s) ? s[0] ?? null : s;
-      })();
+      const subjRaw: { id: string; name: string } | null = !row.subjects
+        ? null
+        : Array.isArray(row.subjects)
+          ? row.subjects[0] ?? null
+          : row.subjects;
       return {
         student_id: row.student_id,
-        elective_slot: row.elective_slot,
-        class_subject_id: row.class_subject_id,
-        subject_id: csRaw?.subject_id ?? "",
+        elective_slot: row.slot,
+        subject_id: row.subject_id,
         subject_name: subjRaw?.name ?? "Unknown",
       };
     });

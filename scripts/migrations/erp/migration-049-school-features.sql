@@ -1,4 +1,10 @@
 -- Migration 049: School-specific feature requirements
+--
+-- Designed to run safely on any DB state — whether prior migrations 006/008b
+-- have been applied or not. Each section first ensures its prerequisite
+-- tables exist (creating them with their original schema if missing) and then
+-- ALTERs to add the new columns idempotently.
+--
 -- Adds:
 --   §4 stream_subjects.requirement_type ('compulsory' | 'elective')
 --   §5 student_subjects.elective_slot (smallint, NULL for non-electives)
@@ -11,6 +17,18 @@
 --      (presets for 8/6/5/4-period days with configurable lunch position)
 
 begin;
+
+-- ─────────────────────────────────────────────────────────────────
+-- Prerequisite: ensure subjects + classes exist (they should — the ERP
+-- depends on them — but we don't want this script to crash on a half-set-up DB).
+-- ─────────────────────────────────────────────────────────────────
+do $$
+begin
+  if not exists (select 1 from information_schema.tables
+                 where table_schema = 'public' and table_name = 'subjects') then
+    raise exception 'Cannot run migration 049: required table "subjects" is missing. Apply earlier migrations first.';
+  end if;
+end $$;
 
 -- ─────────────────────────────────────────────────────────────────
 -- §8 §9 Subject category + nickname
@@ -26,9 +44,37 @@ create index if not exists idx_subjects_category on subjects(category);
 
 -- ─────────────────────────────────────────────────────────────────
 -- §4 stream_subjects requirement type (compulsory vs elective per stream)
--- Old `is_mandatory` boolean is preserved for backward compatibility;
--- requirement_type is the new authoritative field.
+--
+-- If stream_subjects is missing, recreate it with its original schema
+-- from migration 006 so this script can extend it.
 -- ─────────────────────────────────────────────────────────────────
+do $$
+begin
+  if not exists (select 1 from information_schema.tables
+                 where table_schema = 'public' and table_name = 'streams') then
+    create table streams (
+      id uuid default gen_random_uuid() primary key,
+      name text not null,
+      code text,
+      is_active boolean default true,
+      sort_order integer default 0,
+      created_at timestamptz default now()
+    );
+  end if;
+
+  if not exists (select 1 from information_schema.tables
+                 where table_schema = 'public' and table_name = 'stream_subjects') then
+    create table stream_subjects (
+      id uuid default gen_random_uuid() primary key,
+      stream_id uuid references streams(id) on delete cascade not null,
+      subject_id uuid references subjects(id) on delete cascade not null,
+      is_mandatory boolean default true,
+      sort_order integer default 0,
+      unique(stream_id, subject_id)
+    );
+  end if;
+end $$;
+
 alter table stream_subjects
   add column if not exists requirement_type text
     check (requirement_type in ('compulsory', 'elective'));
@@ -39,21 +85,67 @@ update stream_subjects
  where requirement_type is null;
 
 -- ─────────────────────────────────────────────────────────────────
--- §5 Elective slots on student_subjects (Class 11/12)
--- Slot 5 = "Elective 5", Slot 6 = "Elective 6". NULL = compulsory subject.
+-- §5 Per-student elective picks (Class 11/12)
+--
+-- Note on architecture: the ERP redesign deliberately removed
+-- student_subjects (subjects are now inferred from class enrollment +
+-- class_subjects). Electives, however, are per-student picks that
+-- override the class-level uniform subject set. So we introduce a
+-- dedicated student_elective_picks table — clean, narrow purpose,
+-- no conflict with the redesign.
 -- ─────────────────────────────────────────────────────────────────
-alter table student_subjects
-  add column if not exists elective_slot smallint
-    check (elective_slot is null or elective_slot between 1 and 9);
+do $$
+begin
+  if not exists (select 1 from information_schema.tables
+                 where table_schema = 'public' and table_name = 'students') then
+    raise exception 'Cannot create student_elective_picks: required table "students" is missing.';
+  end if;
+end $$;
 
-create index if not exists idx_student_subjects_elective_slot
-  on student_subjects(student_id, elective_slot)
-  where elective_slot is not null;
+create table if not exists student_elective_picks (
+  id uuid default gen_random_uuid() primary key,
+  student_id uuid references students(id) on delete cascade not null,
+  slot smallint not null check (slot between 1 and 9),
+  subject_id uuid references subjects(id) on delete cascade not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique(student_id, slot)
+);
 
--- A student may only fill each elective slot once.
-create unique index if not exists uniq_student_elective_slot
-  on student_subjects(student_id, elective_slot)
-  where elective_slot is not null;
+create index if not exists idx_student_elective_picks_student on student_elective_picks(student_id);
+create index if not exists idx_student_elective_picks_subject on student_elective_picks(subject_id);
+
+alter table student_elective_picks enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies
+                 where schemaname='public' and tablename='student_elective_picks'
+                   and policyname='Public can read student_elective_picks') then
+    create policy "Public can read student_elective_picks"
+      on student_elective_picks for select using (true);
+  end if;
+  if exists (select 1 from pg_proc where proname = 'get_user_role')
+     and not exists (select 1 from pg_policies
+                     where schemaname='public' and tablename='student_elective_picks'
+                       and policyname='Admins manage student_elective_picks') then
+    execute $p$create policy "Admins manage student_elective_picks"
+      on student_elective_picks for all
+      using (public.get_user_role() = 'admin')
+      with check (public.get_user_role() = 'admin')$p$;
+  end if;
+end $$;
+
+-- updated_at trigger if helper exists
+do $$
+begin
+  if exists (select 1 from pg_proc where proname = 'set_updated_at') then
+    drop trigger if exists trg_student_elective_picks_updated_at on student_elective_picks;
+    create trigger trg_student_elective_picks_updated_at
+      before update on student_elective_picks
+      for each row execute function public.set_updated_at();
+  end if;
+end $$;
 
 -- Per-slot allowed subject list (admin-editable so new options can be added later).
 create table if not exists elective_slot_options (
@@ -72,20 +164,39 @@ create index if not exists idx_elective_slot_options_slot on elective_slot_optio
 
 alter table elective_slot_options enable row level security;
 
-create policy "Public can read elective_slot_options"
-  on elective_slot_options for select using (true);
-
-create policy "Admins manage elective_slot_options"
-  on elective_slot_options for all
-  using (public.get_user_role() = 'admin')
-  with check (public.get_user_role() = 'admin');
+do $$
+begin
+  if not exists (select 1 from pg_policies
+                 where schemaname = 'public'
+                   and tablename = 'elective_slot_options'
+                   and policyname = 'Public can read elective_slot_options') then
+    create policy "Public can read elective_slot_options"
+      on elective_slot_options for select using (true);
+  end if;
+  if exists (select 1 from pg_proc where proname = 'get_user_role')
+     and not exists (select 1 from pg_policies
+                     where schemaname = 'public'
+                       and tablename = 'elective_slot_options'
+                       and policyname = 'Admins manage elective_slot_options') then
+    execute $p$create policy "Admins manage elective_slot_options"
+      on elective_slot_options for all
+      using (public.get_user_role() = 'admin')
+      with check (public.get_user_role() = 'admin')$p$;
+  end if;
+end $$;
 
 -- ─────────────────────────────────────────────────────────────────
--- §7 Arts → Humanities backfill (in case any historical row slipped through)
+-- §7 Arts → Humanities backfill (defensive — seed already uses Humanities)
 -- ─────────────────────────────────────────────────────────────────
-update streams
-   set name = 'Humanities', code = coalesce(code, 'HUM')
- where lower(name) = 'arts';
+do $$
+begin
+  if exists (select 1 from information_schema.tables
+             where table_schema = 'public' and table_name = 'streams') then
+    update streams
+       set name = 'Humanities', code = coalesce(code, 'HUM')
+     where lower(name) = 'arts';
+  end if;
+end $$;
 
 -- ─────────────────────────────────────────────────────────────────
 -- §6 Seed Mathematics — Standard / Advanced
@@ -133,19 +244,40 @@ create index if not exists idx_template_periods_template
 alter table timetable_templates enable row level security;
 alter table timetable_template_periods enable row level security;
 
-create policy "Public can read timetable_templates"
-  on timetable_templates for select using (true);
-create policy "Admins manage timetable_templates"
-  on timetable_templates for all
-  using (public.get_user_role() = 'admin')
-  with check (public.get_user_role() = 'admin');
+do $$
+begin
+  if not exists (select 1 from pg_policies
+                 where schemaname='public' and tablename='timetable_templates'
+                   and policyname='Public can read timetable_templates') then
+    create policy "Public can read timetable_templates"
+      on timetable_templates for select using (true);
+  end if;
+  if exists (select 1 from pg_proc where proname = 'get_user_role')
+     and not exists (select 1 from pg_policies
+                     where schemaname='public' and tablename='timetable_templates'
+                       and policyname='Admins manage timetable_templates') then
+    execute $p$create policy "Admins manage timetable_templates"
+      on timetable_templates for all
+      using (public.get_user_role() = 'admin')
+      with check (public.get_user_role() = 'admin')$p$;
+  end if;
 
-create policy "Public can read timetable_template_periods"
-  on timetable_template_periods for select using (true);
-create policy "Admins manage timetable_template_periods"
-  on timetable_template_periods for all
-  using (public.get_user_role() = 'admin')
-  with check (public.get_user_role() = 'admin');
+  if not exists (select 1 from pg_policies
+                 where schemaname='public' and tablename='timetable_template_periods'
+                   and policyname='Public can read timetable_template_periods') then
+    create policy "Public can read timetable_template_periods"
+      on timetable_template_periods for select using (true);
+  end if;
+  if exists (select 1 from pg_proc where proname = 'get_user_role')
+     and not exists (select 1 from pg_policies
+                     where schemaname='public' and tablename='timetable_template_periods'
+                       and policyname='Admins manage timetable_template_periods') then
+    execute $p$create policy "Admins manage timetable_template_periods"
+      on timetable_template_periods for all
+      using (public.get_user_role() = 'admin')
+      with check (public.get_user_role() = 'admin')$p$;
+  end if;
+end $$;
 
 -- updated_at trigger (uses helper from migration 045)
 do $$

@@ -47,14 +47,23 @@ interface SlotOption {
   } | null;
 }
 
+// Supabase returns embedded resources as either an object or a single-element
+// array depending on the relationship; the StudentRow uses a union to match.
+type Embedded<T> = T | T[] | null;
+
 interface StudentRow {
   id: string;
   student_id: string;
   class_id: string;
   stream_id: string | null;
-  classes: { id: string; name: string; section: string } | null;
-  streams: { id: string; name: string } | null;
-  students: { id: string; admission_no: string; full_name: string } | null;
+  classes: Embedded<{ id: string; name: string; section: string }>;
+  streams: Embedded<{ id: string; name: string }>;
+  students: Embedded<{ id: string; admission_no: string; full_name: string }>;
+}
+
+function pickOne<T>(x: Embedded<T>): T | null {
+  if (!x) return null;
+  return Array.isArray(x) ? x[0] ?? null : x;
 }
 
 interface Pick {
@@ -295,21 +304,25 @@ export default function ElectivesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {students.map((s) => (
+              {students.map((s) => {
+                const cls = pickOne(s.classes);
+                const stu = pickOne(s.students);
+                const str = pickOne(s.streams);
+                return (
                 <TableRow key={s.id}>
                   <TableCell className="font-mono text-xs">
-                    {s.students?.admission_no ?? "—"}
+                    {stu?.admission_no ?? "—"}
                   </TableCell>
                   <TableCell className="font-medium">
-                    {s.students?.full_name ?? "—"}
+                    {stu?.full_name ?? "—"}
                   </TableCell>
                   <TableCell>
-                    {s.classes?.name}-{s.classes?.section}
+                    {cls?.name}-{cls?.section}
                   </TableCell>
                   <TableCell>
-                    {s.streams?.name ? (
+                    {str?.name ? (
                       <Badge variant="secondary" className="bg-gray-100">
-                        {s.streams.name}
+                        {str.name}
                       </Badge>
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
@@ -353,7 +366,8 @@ export default function ElectivesPage() {
                     );
                   })}
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         )}
