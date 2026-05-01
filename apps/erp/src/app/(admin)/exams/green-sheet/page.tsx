@@ -175,7 +175,14 @@ export default function AdminGreenSheetPage() {
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
                 Academic Year
               </label>
-              <Select value={yearId} onValueChange={(v) => setYearId(v ?? "")}>
+              <Select
+                value={yearId}
+                onValueChange={(v) => setYearId(v ?? "")}
+                items={years.map((y) => ({
+                  value: y.id,
+                  label: `${y.name}${y.is_current ? " (current)" : ""}`,
+                }))}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select year" />
                 </SelectTrigger>
@@ -202,6 +209,10 @@ export default function AdminGreenSheetPage() {
                 value={classId}
                 onValueChange={(v) => setClassId(v ?? "")}
                 disabled={!yearId || classes.length === 0}
+                items={classes.map((c) => ({
+                  value: c.id,
+                  label: formatClassName(c),
+                }))}
               >
                 <SelectTrigger>
                   <SelectValue

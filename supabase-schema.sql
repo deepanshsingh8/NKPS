@@ -299,10 +299,14 @@ CREATE TABLE subjects (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   name text NOT NULL,
   code text,
+  nickname text,
+  category text CHECK (category IN ('languages', 'academic', 'co_curricular')),
   is_active boolean DEFAULT true,
   is_elective boolean DEFAULT false,
   created_at timestamptz DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_subjects_category ON subjects(category);
 
 -- 2h. Classes (references academic_years, teachers, streams)
 CREATE TABLE classes (
@@ -321,11 +325,14 @@ CREATE UNIQUE INDEX classes_name_section_stream_year_unique
   ON classes (name, section, academic_year_id, COALESCE(stream_id, '00000000-0000-0000-0000-000000000000'));
 
 -- 2i. Stream Subjects
+-- requirement_type is the authoritative compulsory/elective tag per stream;
+-- is_mandatory is preserved as legacy mirror (true ↔ 'compulsory').
 CREATE TABLE stream_subjects (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   stream_id uuid REFERENCES streams(id) ON DELETE CASCADE NOT NULL,
   subject_id uuid REFERENCES subjects(id) ON DELETE CASCADE NOT NULL,
   is_mandatory boolean DEFAULT true,
+  requirement_type text CHECK (requirement_type IN ('compulsory', 'elective')),
   sort_order integer DEFAULT 0,
   UNIQUE(stream_id, subject_id)
 );
@@ -345,12 +352,17 @@ CREATE TABLE IF NOT EXISTS student_subjects (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   student_id uuid REFERENCES students(id) ON DELETE CASCADE NOT NULL,
   class_subject_id uuid REFERENCES class_subjects(id) ON DELETE CASCADE NOT NULL,
+  elective_slot smallint CHECK (elective_slot IS NULL OR elective_slot BETWEEN 1 AND 9),
   created_at timestamptz DEFAULT now(),
   UNIQUE(student_id, class_subject_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_student_subjects_student ON student_subjects(student_id);
 CREATE INDEX IF NOT EXISTS idx_student_subjects_class_subject ON student_subjects(class_subject_id);
+CREATE INDEX IF NOT EXISTS idx_student_subjects_elective_slot
+  ON student_subjects(student_id, elective_slot) WHERE elective_slot IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_student_elective_slot
+  ON student_subjects(student_id, elective_slot) WHERE elective_slot IS NOT NULL;
 
 ALTER TABLE student_subjects ENABLE ROW LEVEL SECURITY;
 
@@ -4017,3 +4029,208 @@ SET academic_year_id = fs.academic_year_id
 FROM fee_structures fs
 WHERE fp.fee_structure_id = fs.id
   AND fp.academic_year_id IS NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 049 — School-specific feature requirements
+-- (mirrored from scripts/migration-049-school-features.sql)
+-- Adds:
+--   §4 stream_subjects.requirement_type   (compulsory | elective)
+--   §5 student_subjects.elective_slot     (smallint)
+--      elective_slot_options              (admin-editable per-slot subject lists)
+--   §6 Mathematics — Standard / Advanced  (seeded as new subjects)
+--   §7 Backfill any 'Arts' stream rows to 'Humanities'
+--   §8 subjects.category                  (languages | academic | co_curricular)
+--   §9 subjects.nickname
+--   §2 §3 timetable_templates + timetable_template_periods
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS elective_slot_options (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  slot smallint NOT NULL CHECK (slot BETWEEN 1 AND 9),
+  subject_id uuid REFERENCES subjects(id) ON DELETE CASCADE NOT NULL,
+  label text,
+  applies_to_classes text[] DEFAULT ARRAY['XI','XII']::text[],
+  sort_order integer DEFAULT 0,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(slot, subject_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_elective_slot_options_slot ON elective_slot_options(slot);
+
+ALTER TABLE elective_slot_options ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public can read elective_slot_options"
+  ON elective_slot_options FOR SELECT USING (true);
+
+CREATE POLICY "Admins manage elective_slot_options"
+  ON elective_slot_options FOR ALL
+  USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');
+
+CREATE TABLE IF NOT EXISTS timetable_templates (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name text NOT NULL UNIQUE,
+  code text UNIQUE,
+  description text,
+  teaching_period_count integer NOT NULL CHECK (teaching_period_count > 0),
+  is_active boolean DEFAULT true,
+  is_system boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS timetable_template_periods (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  template_id uuid REFERENCES timetable_templates(id) ON DELETE CASCADE NOT NULL,
+  position integer NOT NULL,
+  kind text NOT NULL CHECK (kind IN ('teaching', 'lunch', 'break')),
+  label text,
+  start_time time NOT NULL,
+  end_time time NOT NULL,
+  UNIQUE(template_id, position),
+  CHECK (end_time > start_time)
+);
+
+CREATE INDEX IF NOT EXISTS idx_template_periods_template
+  ON timetable_template_periods(template_id, position);
+
+ALTER TABLE timetable_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE timetable_template_periods ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public can read timetable_templates"
+  ON timetable_templates FOR SELECT USING (true);
+CREATE POLICY "Admins manage timetable_templates"
+  ON timetable_templates FOR ALL
+  USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');
+
+CREATE POLICY "Public can read timetable_template_periods"
+  ON timetable_template_periods FOR SELECT USING (true);
+CREATE POLICY "Admins manage timetable_template_periods"
+  ON timetable_template_periods FOR ALL
+  USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'set_updated_at') THEN
+    DROP TRIGGER IF EXISTS trg_timetable_templates_updated_at ON timetable_templates;
+    CREATE TRIGGER trg_timetable_templates_updated_at
+      BEFORE UPDATE ON timetable_templates
+      FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+  END IF;
+END $$;
+
+-- Backfill stream_subjects.requirement_type from is_mandatory
+UPDATE stream_subjects
+   SET requirement_type = CASE WHEN is_mandatory THEN 'compulsory' ELSE 'elective' END
+ WHERE requirement_type IS NULL;
+
+-- Backfill 'Arts' → 'Humanities' (defensive; seed already uses Humanities)
+UPDATE streams
+   SET name = 'Humanities', code = COALESCE(code, 'HUM')
+ WHERE LOWER(name) = 'arts';
+
+-- Seed Math — Standard / Advanced
+INSERT INTO subjects (name, code, nickname, category, is_elective, is_active) VALUES
+  ('Mathematics — Standard', '241', 'Math (Std)', 'academic', false, true),
+  ('Mathematics — Advanced', '041', 'Math (Adv)', 'academic', false, true)
+ON CONFLICT DO NOTHING;
+
+-- Seed the four built-in timetable templates with 20-minute lunch
+DO $$
+DECLARE v_template_id uuid;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM timetable_templates WHERE code = 'A1') THEN
+    INSERT INTO timetable_templates (name, code, description, teaching_period_count, is_system)
+    VALUES ('A.1 Regular', 'A1', 'Standard school day — 8 teaching periods with a 20-minute lunch break.', 8, true)
+    RETURNING id INTO v_template_id;
+    INSERT INTO timetable_template_periods (template_id, position, kind, label, start_time, end_time) VALUES
+      (v_template_id, 1, 'teaching', 'Period 1', '08:00', '08:40'),
+      (v_template_id, 2, 'teaching', 'Period 2', '08:40', '09:20'),
+      (v_template_id, 3, 'teaching', 'Period 3', '09:20', '10:00'),
+      (v_template_id, 4, 'teaching', 'Period 4', '10:00', '10:40'),
+      (v_template_id, 5, 'lunch',    'Lunch',    '10:40', '11:00'),
+      (v_template_id, 6, 'teaching', 'Period 5', '11:00', '11:40'),
+      (v_template_id, 7, 'teaching', 'Period 6', '11:40', '12:20'),
+      (v_template_id, 8, 'teaching', 'Period 7', '12:20', '13:00'),
+      (v_template_id, 9, 'teaching', 'Period 8', '13:00', '13:40');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM timetable_templates WHERE code = 'A2') THEN
+    INSERT INTO timetable_templates (name, code, description, teaching_period_count, is_system)
+    VALUES ('A.2 Special day', 'A2', 'Half/event day — 6 teaching periods with a 20-minute lunch break.', 6, true)
+    RETURNING id INTO v_template_id;
+    INSERT INTO timetable_template_periods (template_id, position, kind, label, start_time, end_time) VALUES
+      (v_template_id, 1, 'teaching', 'Period 1', '08:00', '08:40'),
+      (v_template_id, 2, 'teaching', 'Period 2', '08:40', '09:20'),
+      (v_template_id, 3, 'teaching', 'Period 3', '09:20', '10:00'),
+      (v_template_id, 4, 'lunch',    'Lunch',    '10:00', '10:20'),
+      (v_template_id, 5, 'teaching', 'Period 4', '10:20', '11:00'),
+      (v_template_id, 6, 'teaching', 'Period 5', '11:00', '11:40'),
+      (v_template_id, 7, 'teaching', 'Period 6', '11:40', '12:20');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM timetable_templates WHERE code = 'A3') THEN
+    INSERT INTO timetable_templates (name, code, description, teaching_period_count, is_system)
+    VALUES ('A.3 Online — main school', 'A3', 'Online classes I–XII: 5 teaching periods with a 20-minute lunch break.', 5, true)
+    RETURNING id INTO v_template_id;
+    INSERT INTO timetable_template_periods (template_id, position, kind, label, start_time, end_time) VALUES
+      (v_template_id, 1, 'teaching', 'Period 1', '09:00', '09:40'),
+      (v_template_id, 2, 'teaching', 'Period 2', '09:40', '10:20'),
+      (v_template_id, 3, 'teaching', 'Period 3', '10:20', '11:00'),
+      (v_template_id, 4, 'lunch',    'Lunch',    '11:00', '11:20'),
+      (v_template_id, 5, 'teaching', 'Period 4', '11:20', '12:00'),
+      (v_template_id, 6, 'teaching', 'Period 5', '12:00', '12:40');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM timetable_templates WHERE code = 'A4') THEN
+    INSERT INTO timetable_templates (name, code, description, teaching_period_count, is_system)
+    VALUES ('A.4 Online — pre-primary', 'A4', 'Online pre-primary: 4 teaching periods with a 20-minute lunch break.', 4, true)
+    RETURNING id INTO v_template_id;
+    INSERT INTO timetable_template_periods (template_id, position, kind, label, start_time, end_time) VALUES
+      (v_template_id, 1, 'teaching', 'Period 1', '09:30', '10:00'),
+      (v_template_id, 2, 'teaching', 'Period 2', '10:00', '10:30'),
+      (v_template_id, 3, 'lunch',    'Lunch',    '10:30', '10:50'),
+      (v_template_id, 4, 'teaching', 'Period 3', '10:50', '11:20'),
+      (v_template_id, 5, 'teaching', 'Period 4', '11:20', '11:50');
+  END IF;
+END $$;
+
+-- Seed default elective slot options (5 = IP/PE, 6 = Hindustani Music/Painting)
+DO $$
+DECLARE
+  v_subject_id uuid;
+  rec record;
+BEGIN
+  FOR rec IN
+    SELECT * FROM (VALUES
+      ('Informatics Practices',     '065', 'IP',          'academic',     5, 1),
+      ('Physical Education',        '048', 'PE',          'co_curricular',5, 2),
+      ('Hindustani Music (Vocal)',  '034', 'Hind. Music', 'co_curricular',6, 1),
+      ('Painting',                  '049', 'Painting',    'co_curricular',6, 2)
+    ) AS t(subj_name, subj_code, subj_nick, subj_cat, slot, sort)
+  LOOP
+    SELECT id INTO v_subject_id FROM subjects WHERE LOWER(name) = LOWER(rec.subj_name) LIMIT 1;
+    IF v_subject_id IS NULL THEN
+      INSERT INTO subjects (name, code, nickname, category, is_elective, is_active)
+      VALUES (rec.subj_name, rec.subj_code, rec.subj_nick, rec.subj_cat, true, true)
+      RETURNING id INTO v_subject_id;
+    END IF;
+    INSERT INTO elective_slot_options (slot, subject_id, label, sort_order)
+    VALUES (rec.slot, v_subject_id, 'Elective ' || rec.slot, rec.sort)
+    ON CONFLICT (slot, subject_id) DO NOTHING;
+  END LOOP;
+END $$;
+
+-- Best-effort subject category backfill (admin can edit)
+UPDATE subjects SET category = 'languages'
+ WHERE category IS NULL
+   AND LOWER(name) ~ '(english|hindi|sanskrit|french|german|spanish|urdu|punjabi)';
+
+UPDATE subjects SET category = 'co_curricular'
+ WHERE category IS NULL
+   AND LOWER(name) ~ '(physical education|art|painting|music|dance|drama|sports|gk|general knowledge|moral|library|computer activity)';
+
+UPDATE subjects SET category = 'academic' WHERE category IS NULL;

@@ -14,7 +14,7 @@ interface PortalSidebarProps {
   role: string;
   navLinks: { href: string; label: string; icon: React.ReactNode }[];
   // Optional sidebar slot rendered just above the profile menu — used by the
-  // teacher sidebar to show the SwitchAppMenu when the user holds editor
+  // teacher sidebar to show the AppSwitcher when the user holds editor
   // capability. Students/parents don't pass this.
   footerExtra?: React.ReactNode;
 }

@@ -278,6 +278,10 @@ export default function AdminSupplementaryPage() {
               <Select
                 value={classId}
                 onValueChange={(v) => setClassId(v ?? "")}
+                items={classes.map((c) => ({
+                  value: c.id,
+                  label: formatClassName(c),
+                }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select class" />
@@ -298,6 +302,7 @@ export default function AdminSupplementaryPage() {
               <Select
                 value={examTypeId}
                 onValueChange={(v) => setExamTypeId(v ?? "")}
+                items={examTypes.map((e) => ({ value: e.id, label: e.name }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select exam" />

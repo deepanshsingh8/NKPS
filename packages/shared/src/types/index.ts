@@ -274,20 +274,36 @@ export interface Class {
   created_at: string;
 }
 
+export type SubjectCategory = 'languages' | 'academic' | 'co_curricular';
+
+export const SUBJECT_CATEGORY_LABELS: Record<SubjectCategory, string> = {
+  languages: 'Languages',
+  academic: 'Academic Subjects',
+  co_curricular: 'Co-curricular Subjects',
+};
+
 export interface Subject {
   id: string;
   name: string;
+  /** CBSE numeric code (e.g. "301" for English Core). Mandatory for classes 9–12. */
   code: string | null;
+  /** Short label for compact UI (e.g. timetable). */
+  nickname: string | null;
+  category: SubjectCategory | null;
   is_active: boolean;
   is_elective: boolean;
   created_at: string;
 }
 
+export type StreamSubjectRequirement = 'compulsory' | 'elective';
+
 export interface StreamSubject {
   id: string;
   stream_id: string;
   subject_id: string;
+  /** Legacy mirror of requirement_type === 'compulsory'. */
   is_mandatory: boolean;
+  requirement_type: StreamSubjectRequirement | null;
   sort_order: number;
 }
 
@@ -594,6 +610,52 @@ export interface TimetablePeriod {
   end_time: string;
   room: string | null;
   is_break: boolean;
+}
+
+// ── Timetable templates (§2/§3) ──
+export type TimetableTemplatePeriodKind = 'teaching' | 'lunch' | 'break';
+
+export interface TimetableTemplate {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  teaching_period_count: number;
+  is_active: boolean;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TimetableTemplatePeriod {
+  id: string;
+  template_id: string;
+  position: number;
+  kind: TimetableTemplatePeriodKind;
+  label: string | null;
+  start_time: string;
+  end_time: string;
+}
+
+// ── Student-subject link with optional elective slot (§5) ──
+export interface StudentSubject {
+  id: string;
+  student_id: string;
+  class_subject_id: string;
+  /** 5 = "Elective 5", 6 = "Elective 6". NULL = compulsory subject. */
+  elective_slot: number | null;
+  created_at: string;
+}
+
+export interface ElectiveSlotOption {
+  id: string;
+  slot: number;
+  subject_id: string;
+  label: string | null;
+  applies_to_classes: string[];
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
 }
 
 // =============================================================

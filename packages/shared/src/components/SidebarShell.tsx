@@ -56,6 +56,10 @@ type SidebarShellProps = {
   // (passed in so each module can opt in to its own badges).
   unreadBadgeHrefs?: ReadonlySet<string>;
   pendingRegistrationBadgeHrefs?: ReadonlySet<string>;
+  // Optional slot rendered just above the profile menu — used to drop in an
+  // app switcher so teachers/editors can jump back to their portal or to
+  // another app they have access to.
+  footerExtra?: React.ReactNode;
 };
 
 const HREF_TO_FEATURE_KEY: Record<string, FeatureKey> = Object.fromEntries(
@@ -71,6 +75,7 @@ export function SidebarShell({
   logoutRedirect,
   unreadBadgeHrefs,
   pendingRegistrationBadgeHrefs,
+  footerExtra,
 }: SidebarShellProps) {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebar();
@@ -457,6 +462,7 @@ export function SidebarShell({
         )}
       </nav>
 
+      {footerExtra}
       <SidebarProfileMenu
         settingsHref={settingsHref}
         logoutRedirect={logoutRedirect}

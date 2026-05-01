@@ -28,6 +28,8 @@ import {
   SidebarShell,
   type SidebarItem,
 } from "@nkps/shared/components/SidebarShell";
+import { AppSwitcher } from "@nkps/shared/components/AppSwitcher";
+import { useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
 
 const erpItems: SidebarItem[] = [
   { kind: "link", icon: LayoutDashboard, label: "Dashboard", href: "/" },
@@ -50,6 +52,7 @@ const erpItems: SidebarItem[] = [
     children: [
       { kind: "link", icon: GraduationCap, label: "Classes", href: "/academics/classes" },
       { kind: "link", icon: BookOpen, label: "Subjects", href: "/academics/subjects" },
+      { kind: "link", icon: BookOpen, label: "XI–XII Electives", href: "/academics/electives" },
       { kind: "link", icon: CalendarDays, label: "Academic Years", href: "/academics/years" },
       { kind: "link", icon: Sparkles, label: "Non-Scholastic Classes", href: "/exams/non-scholastic-assessments" },
     ],
@@ -116,6 +119,7 @@ const EDITOR_ALWAYS_ALLOWED = new Set(["/"]);
 const PENDING_REGISTRATION_BADGE_HREFS = new Set(["/people/users"]);
 
 export function ErpSidebar() {
+  const { collapsed } = useSidebar();
   return (
     <SidebarShell
       sections={[{ label: "ERP", items: erpItems }]}
@@ -125,6 +129,7 @@ export function ErpSidebar() {
       pendingRegistrationBadgeHrefs={PENDING_REGISTRATION_BADGE_HREFS}
       settingsHref="/portal/settings?from=erp"
       logoutRedirect="/login"
+      footerExtra={<AppSwitcher scope="erp-admin" collapsed={collapsed} />}
     />
   );
 }

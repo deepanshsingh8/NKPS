@@ -55,6 +55,11 @@ import { adminFetch, adminPatch, adminDelete } from "@nkps/shared/lib/admin-api"
 import { uploadToStorage } from "@nkps/shared/lib/supabase/upload";
 import { FileDropZone } from "@nkps/shared/components/FileDropZone";
 import { ImageCropper } from "@nkps/shared/components/ImageCropper";
+import {
+  PHOTO_SPEC,
+  PHOTO_SPEC_HELPER_TEXT,
+  validatePhotoFile,
+} from "@nkps/shared/lib/photo-spec";
 import { StaffBulkUpload } from "@/components/StaffBulkUpload";
 import { CreatePortalUsersDialog } from "@/components/CreatePortalUsersDialog";
 import type { StaffMember, StaffCategory } from "@nkps/shared/types";
@@ -278,7 +283,12 @@ export default function AdminStaffPage() {
       setShowCropper(false);
       return;
     }
-    // Create object URL and show cropper
+    const result = validatePhotoFile(file);
+    if (!result.ok) {
+      toast.error(result.reason);
+      return;
+    }
+    // Create object URL and show cropper at 4:5 portrait
     const url = URL.createObjectURL(file);
     setRawImageSrc(url);
     setShowCropper(true);
@@ -650,18 +660,18 @@ export default function AdminStaffPage() {
                   </TableCell>
                   <TableCell>
                     {member.photo_url ? (
-                      <div className="w-10 h-10 rounded-full overflow-hidden relative">
+                      <div className="w-10 aspect-[4/5] rounded-md overflow-hidden relative bg-gray-50">
                         <Image
                           src={member.photo_url}
                           alt={member.name}
                           fill
-                          className="object-cover"
+                          className="object-contain"
                           sizes="40px"
                         />
                       </div>
                     ) : (
                       <div
-                        className={`w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center ${getAvatarColor(member.name)}`}
+                        className={`w-10 aspect-[4/5] rounded-md bg-gradient-to-br flex items-center justify-center ${getAvatarColor(member.name)}`}
                       >
                         <span className="text-xs font-bold text-white">
                           {getInitials(member.name)}
@@ -833,20 +843,20 @@ export default function AdminStaffPage() {
                   onCropComplete={handleCropComplete}
                   onCancel={handleCropCancel}
                   fileName={`staff-${Date.now()}.jpg`}
-                  cropShape="round"
-                  aspect={1}
+                  cropShape="rect"
+                  aspect={PHOTO_SPEC.aspectRatio}
                 />
               ) : (
                 <>
-                  {/* Show cropped preview or existing photo */}
+                  {/* Show cropped preview or existing photo at 4:5 portrait */}
                   {photoFile && croppedPreviewUrl ? (
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-14 h-14 rounded-full overflow-hidden relative border-2 border-green-400">
+                      <div className="w-16 aspect-[4/5] overflow-hidden relative border-2 border-green-400 rounded-md bg-gray-50">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={croppedPreviewUrl}
                           alt="Cropped preview"
-                          className="absolute inset-0 w-full h-full object-cover"
+                          className="absolute inset-0 w-full h-full object-contain"
                         />
                       </div>
                       <div>
@@ -867,26 +877,30 @@ export default function AdminStaffPage() {
                     </div>
                   ) : editingId && existingPhotoUrl ? (
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-12 h-12 rounded-full overflow-hidden relative">
+                      <div className="w-14 aspect-[4/5] overflow-hidden relative rounded-md bg-gray-50">
                         <Image
                           src={existingPhotoUrl}
                           alt="Current photo"
                           fill
-                          className="object-cover"
-                          sizes="48px"
+                          className="object-contain"
+                          sizes="56px"
                         />
                       </div>
                       <span className="text-xs text-gray-500">Current photo. Upload a new one to replace.</span>
                     </div>
                   ) : null}
 
+                  <p className="text-xs text-gray-500 mb-1">{PHOTO_SPEC_HELPER_TEXT}</p>
                   <FileDropZone
-                    accept="image/*"
-                    maxSizeMB={5}
+                    accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    maxSizeMB={PHOTO_SPEC.maxSizeMB}
+                    acceptedMimeTypes={PHOTO_SPEC.acceptedFormats}
+                    acceptedExtensions={PHOTO_SPEC.acceptedExtensions}
                     onChange={handleFileSelected}
+                    onReject={(reason) => toast.error(reason)}
                     value={null}
                     label="Drop photo here or click to browse"
-                    hint="JPG, PNG up to 5MB"
+                    hint={PHOTO_SPEC_HELPER_TEXT}
                     icon="image"
                   />
                 </>

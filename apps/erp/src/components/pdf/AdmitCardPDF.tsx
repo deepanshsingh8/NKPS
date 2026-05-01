@@ -182,7 +182,10 @@ const styles = StyleSheet.create({
   photoImage: {
     width: 82,
     height: 102,
-    objectFit: "cover",
+    // §1: contain (not cover) so A4-shaped portraits aren't clipped top/bottom.
+    // The frame is 4:5; cropper enforces 4:5 on upload, so square/letterboxing
+    // only appears for legacy uploads that didn't go through the cropper.
+    objectFit: "contain",
   },
   photoPlaceholder: {
     fontSize: 8,

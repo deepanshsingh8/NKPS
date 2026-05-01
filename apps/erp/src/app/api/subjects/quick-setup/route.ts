@@ -6,6 +6,8 @@ interface SubjectInput {
   name: string;
   code: string;
   is_elective: boolean;
+  nickname?: string | null;
+  category?: "languages" | "academic" | "co_curricular" | null;
 }
 
 interface AssignmentInput {
@@ -88,6 +90,10 @@ export async function POST(request: Request) {
         .insert({
           name: s.name.trim(),
           code: s.code.trim() || null,
+          nickname: s.nickname?.trim() || null,
+          // Default to 'academic' so the §8 NOT-NULL filter in list views still
+          // shows wizard-created subjects. Admin can re-categorize later.
+          category: s.category ?? "academic",
           is_active: true,
           is_elective: s.is_elective,
         })

@@ -31,7 +31,7 @@ import {
 } from "@nkps/shared/components/ui/tabs";
 import { Card, CardContent } from "@nkps/shared/components/ui/card";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, Bus, FileSpreadsheet } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, Bus, FileSpreadsheet, ArrowLeft } from "lucide-react";
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import { downloadCSV } from "@/lib/csv-export";
 import { formatClassName } from "@nkps/shared/lib/utils";
@@ -138,6 +138,21 @@ function AdminFeesContent() {
     (FeePayment & { fee_structure?: FeeStructure })[]
   >([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
+
+  // Payments tab: class-driven roster picker. Pick a class → see students →
+  // click one → land on the existing per-student detail view. Falls back to
+  // the global name search when no class is selected.
+  const [paymentsClassId, setPaymentsClassId] = useUrlState("payments_class_id");
+  const [classStudents, setClassStudents] = useState<
+    {
+      id: string;
+      full_name: string;
+      admission_no: string;
+      father_name: string | null;
+    }[]
+  >([]);
+  const [classStudentsLoading, setClassStudentsLoading] = useState(false);
+  const [classStudentSearch, setClassStudentSearch] = useState("");
 
   // Dues tab state
   const [classesList, setClassesList] = useState<ClassEntry[]>([]);
@@ -311,6 +326,32 @@ function AdminFeesContent() {
     setPaymentsLoading(false);
   }, [supabase]);
 
+  // Re-fetch the full Student row by id (the roster select only carries a few
+  // columns) and hand off to the existing detail loader.
+  const selectStudentById = useCallback(
+    async (id: string) => {
+      const { data } = await supabase
+        .from("students")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      if (data) await selectStudent(data as Student);
+    },
+    [supabase, selectStudent]
+  );
+
+  const clearSelectedStudent = useCallback(() => {
+    setSelectedStudent(null);
+    setSelectedStudentStreamId(null);
+    setSelectedEnrollmentId(null);
+    setSelectedClassLabel("");
+    setStudentHasTransport(false);
+    setStudentFeeStructures([]);
+    setStudentPayments([]);
+    setStudentSearch("");
+    setStudentResults([]);
+  }, []);
+
   // Deep-link: if ?student_id=... is in URL, auto-select that student once.
   useEffect(() => {
     if (!initialStudentId) return;
@@ -342,6 +383,61 @@ function AdminFeesContent() {
       setClassesList((data as ClassEntry[]) ?? []);
     })();
   }, [supabase, academicYearId]);
+
+  // Roster for the class picked in the Payments tab.
+  useEffect(() => {
+    if (!paymentsClassId || !academicYearId) {
+      setClassStudents([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setClassStudentsLoading(true);
+      const { data } = await supabase
+        .from("student_enrollments")
+        .select(
+          "students(id, full_name, admission_no, father_name, is_active)"
+        )
+        .eq("class_id", paymentsClassId)
+        .eq("academic_year_id", academicYearId)
+        .eq("status", "active");
+      if (cancelled) return;
+      type Row = {
+        students: {
+          id: string;
+          full_name: string;
+          admission_no: string;
+          father_name: string | null;
+          is_active: boolean;
+        } | null;
+      };
+      const rows = ((data as unknown as Row[]) ?? [])
+        .map((r) => r.students)
+        .filter((s): s is NonNullable<Row["students"]> => Boolean(s && s.is_active))
+        .map(({ id, full_name, admission_no, father_name }) => ({
+          id,
+          full_name,
+          admission_no,
+          father_name,
+        }))
+        .sort((a, b) => a.full_name.localeCompare(b.full_name));
+      setClassStudents(rows);
+      setClassStudentsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [paymentsClassId, academicYearId, supabase]);
+
+  const filteredClassStudents = useMemo(() => {
+    const q = classStudentSearch.trim().toLowerCase();
+    if (!q) return classStudents;
+    return classStudents.filter(
+      (s) =>
+        s.full_name.toLowerCase().includes(q) ||
+        s.admission_no.toLowerCase().includes(q)
+    );
+  }, [classStudents, classStudentSearch]);
 
   const handleToggleTransport = async (val: boolean) => {
     if (!selectedEnrollmentId) {
@@ -1015,38 +1111,84 @@ function AdminFeesContent() {
         <TabsContent value="payments">
           <Card className="bg-white dark:bg-card rounded-2xl shadow-sm mt-4">
             <CardContent>
-              {/* Student search */}
-              <div className="relative mb-6">
-                <Label className="mb-2 block text-sm font-medium text-navy-900 dark:text-white">
-                  Search Student
-                </Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
-                  <Input
-                    placeholder="Search by student name..."
-                    value={studentSearch}
-                    onChange={(e) => searchStudents(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                {studentResults.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full bg-white dark:bg-card border border-gray-200 dark:border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {studentResults.map((s) => (
-                      <button
-                        key={s.id}
-                        onClick={() => selectStudent(s)}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-muted text-sm"
-                      >
-                        <span className="font-medium">{s.full_name}</span>
-                        <span className="text-gray-400 dark:text-gray-500 ml-2">{s.admission_no}</span>
-                      </button>
+              {/* Class picker + name filter */}
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-6">
+                <div>
+                  <Label className="mb-2 block text-xs font-medium">
+                    Class
+                  </Label>
+                  <select
+                    value={paymentsClassId}
+                    onChange={(e) => {
+                      setPaymentsClassId(e.target.value);
+                      clearSelectedStudent();
+                      setClassStudentSearch("");
+                    }}
+                    className="block rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted min-w-[220px]"
+                  >
+                    <option value="">Select a class…</option>
+                    {classesList.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {formatClassName(c)}
+                      </option>
                     ))}
+                  </select>
+                </div>
+                <div className="flex-1 relative">
+                  <Label className="mb-2 block text-xs font-medium">
+                    {paymentsClassId ? "Filter Students" : "Search Student"}
+                  </Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
+                    <Input
+                      placeholder={
+                        paymentsClassId
+                          ? "Filter by name or admission no…"
+                          : "Search by student name…"
+                      }
+                      value={
+                        paymentsClassId ? classStudentSearch : studentSearch
+                      }
+                      onChange={(e) =>
+                        paymentsClassId
+                          ? setClassStudentSearch(e.target.value)
+                          : searchStudents(e.target.value)
+                      }
+                      className="pl-10"
+                    />
                   </div>
-                )}
+                  {!paymentsClassId && studentResults.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full bg-white dark:bg-card border border-gray-200 dark:border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {studentResults.map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => selectStudent(s)}
+                          className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-muted text-sm"
+                        >
+                          <span className="font-medium">{s.full_name}</span>
+                          <span className="text-gray-400 dark:text-gray-500 ml-2">
+                            {s.admission_no}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {selectedStudent && (
                 <>
+                  {paymentsClassId && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearSelectedStudent}
+                      className="mb-4 -ml-2 text-gray-600 dark:text-gray-300"
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-1" />
+                      Back to class list
+                    </Button>
+                  )}
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h3 className="font-heading text-lg font-semibold text-navy-900 dark:text-white">
@@ -1231,9 +1373,63 @@ function AdminFeesContent() {
                 </>
               )}
 
-              {!selectedStudent && (
+              {!selectedStudent && paymentsClassId && (
+                classStudentsLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="h-5 w-5 animate-spin text-navy-900 dark:text-white" />
+                  </div>
+                ) : filteredClassStudents.length === 0 ? (
+                  <p className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
+                    {classStudents.length === 0
+                      ? "No active students in this class."
+                      : "No students match your filter."}
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Adm No</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Father</TableHead>
+                        <TableHead className="w-32 text-right">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredClassStudents.map((s) => (
+                        <TableRow
+                          key={s.id}
+                          onClick={() => selectStudentById(s.id)}
+                          className="cursor-pointer"
+                        >
+                          <TableCell className="font-medium">
+                            {s.admission_no}
+                          </TableCell>
+                          <TableCell>{s.full_name}</TableCell>
+                          <TableCell className="text-gray-600 dark:text-gray-300">
+                            {s.father_name || "—"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                selectStudentById(s.id);
+                              }}
+                            >
+                              View Fees
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )
+              )}
+
+              {!selectedStudent && !paymentsClassId && (
                 <p className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
-                  Search and select a student to view fee details.
+                  Pick a class to see its students, or search by name above.
                 </p>
               )}
             </CardContent>

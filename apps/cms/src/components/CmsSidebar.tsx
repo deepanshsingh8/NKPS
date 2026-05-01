@@ -14,6 +14,8 @@ import {
   SidebarShell,
   type SidebarItem,
 } from "@nkps/shared/components/SidebarShell";
+import { AppSwitcher } from "@nkps/shared/components/AppSwitcher";
+import { useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
 
 const cmsItems: SidebarItem[] = [
   { kind: "link", icon: LayoutDashboard, label: "Dashboard", href: "/" },
@@ -38,6 +40,7 @@ const EDITOR_ALWAYS_ALLOWED = new Set(["/"]);
 const UNREAD_BADGE_HREFS = new Set(["/contact"]);
 
 export function CmsSidebar() {
+  const { collapsed } = useSidebar();
   return (
     <SidebarShell
       sections={[{ label: "CMS", items: cmsItems }]}
@@ -47,6 +50,7 @@ export function CmsSidebar() {
       unreadBadgeHrefs={UNREAD_BADGE_HREFS}
       settingsHref="/portal/settings?from=cms"
       logoutRedirect="/login"
+      footerExtra={<AppSwitcher scope="cms" collapsed={collapsed} />}
     />
   );
 }

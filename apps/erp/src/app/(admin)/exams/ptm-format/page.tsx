@@ -524,6 +524,10 @@ export default function AdminPtmFormatPage() {
               <Select
                 value={genClassId}
                 onValueChange={(v) => setGenClassId(v ?? "")}
+                items={classes.map((c) => ({
+                  value: c.id,
+                  label: formatClassName(c),
+                }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select class" />
@@ -544,12 +548,16 @@ export default function AdminPtmFormatPage() {
               <Select
                 value={genExamId}
                 onValueChange={(v) => setGenExamId(v ?? "__none__")}
+                items={[
+                  { value: "__none__", label: "(Skip performance snapshot)" },
+                  ...examTypes.map((e) => ({ value: e.id, label: e.name })),
+                ]}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">
+                  <SelectItem value="__none__" label="(Skip performance snapshot)">
                     (Skip performance snapshot)
                   </SelectItem>
                   {examTypes.map((e) => (
@@ -567,12 +575,23 @@ export default function AdminPtmFormatPage() {
               <Select
                 value={genTemplateId}
                 onValueChange={(v) => setGenTemplateId(v ?? "__default__")}
+                items={[
+                  { value: "__default__", label: "(Use default)" },
+                  ...templates
+                    .filter((t) => t.is_active)
+                    .map((t) => ({
+                      value: t.id,
+                      label: `${t.name}${t.is_default ? " · default" : ""}`,
+                    })),
+                ]}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__default__">(Use default)</SelectItem>
+                  <SelectItem value="__default__" label="(Use default)">
+                    (Use default)
+                  </SelectItem>
                   {templates
                     .filter((t) => t.is_active)
                     .map((t) => (

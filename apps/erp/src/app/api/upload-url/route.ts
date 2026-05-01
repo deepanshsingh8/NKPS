@@ -5,8 +5,8 @@ import { createUploadUrlHandler } from "@nkps/shared/lib/upload-url-handler";
 // (server-side direct upload, no signed URL needed).
 const BUCKET_RULES = {
   "staff-photos": {
-    exts: ["jpg", "jpeg", "png", "webp"],
-    description: "staff profile photos",
+    exts: ["jpg", "jpeg", "png"],
+    description: "staff profile photos (JPG/PNG, ≤2 MB, 4:5 portrait)",
   },
 };
 

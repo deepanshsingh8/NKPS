@@ -91,11 +91,17 @@ export default function AdminSubjectsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [category, setCategory] = useState<"languages" | "academic" | "co_curricular" | "">("");
   const [isElective, setIsElective] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   const [editName, setEditName] = useState("");
   const [editCode, setEditCode] = useState("");
+  const [editNickname, setEditNickname] = useState("");
+  const [editCategory, setEditCategory] = useState<"languages" | "academic" | "co_curricular" | "">("");
   const [editIsElective, setEditIsElective] = useState(false);
+  // §8 list filter
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "languages" | "academic" | "co_curricular" | "uncategorized">("all");
 
   // ── Assignments state ──
   const [classes, setClasses] = useState<Class[]>([]);
@@ -141,6 +147,9 @@ export default function AdminSubjectsPage() {
   const [quickSetupOpen, setQuickSetupOpen] = useState(false);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
 
+  // §6 Math Standard/Advanced review banner
+  const [mathReviewCount, setMathReviewCount] = useState(0);
+
   // ══════════════════════════════════════════════
   // Data Fetching
   // ══════════════════════════════════════════════
@@ -158,6 +167,31 @@ export default function AdminSubjectsPage() {
 
     setSubjects((data as Subject[]) ?? []);
     setSubjectsLoading(false);
+  }, [supabase]);
+
+  // §6: Look for any plain "Mathematics" subject still linked to classes IX–XII.
+  // We never auto-reassign; admin must split into Standard/Advanced manually.
+  const fetchMathReviewState = useCallback(async () => {
+    const { data: plainMath } = await supabase
+      .from("subjects")
+      .select("id")
+      .ilike("name", "Mathematics")
+      .limit(1)
+      .maybeSingle();
+    if (!plainMath?.id) {
+      setMathReviewCount(0);
+      return;
+    }
+    const { data: linked } = await supabase
+      .from("class_subjects")
+      .select("id, classes!inner(name)")
+      .eq("subject_id", plainMath.id);
+    const seniorLinked = (linked ?? []).filter((row) => {
+      const classes = (row as unknown as { classes: { name: string } | { name: string }[] | null }).classes;
+      const className = Array.isArray(classes) ? classes[0]?.name ?? "" : classes?.name ?? "";
+      return ["IX", "X", "XI", "XII"].includes(className);
+    });
+    setMathReviewCount(seniorLinked.length);
   }, [supabase]);
 
   const fetchAssignmentsData = useCallback(async () => {
@@ -292,7 +326,8 @@ export default function AdminSubjectsPage() {
     fetchSubjects();
     fetchAssignmentsData();
     fetchStreams();
-  }, [fetchSubjects, fetchAssignmentsData, fetchStreams]);
+    fetchMathReviewState();
+  }, [fetchSubjects, fetchAssignmentsData, fetchStreams, fetchMathReviewState]);
 
   // ══════════════════════════════════════════════
   // Subject CRUD
@@ -301,6 +336,8 @@ export default function AdminSubjectsPage() {
   const resetSubjectForm = () => {
     setName("");
     setCode("");
+    setNickname("");
+    setCategory("");
     setIsElective(false);
   };
 
@@ -308,6 +345,10 @@ export default function AdminSubjectsPage() {
     e.preventDefault();
     if (!name.trim()) {
       toast.error("Subject name is required");
+      return;
+    }
+    if (!category) {
+      toast.error("Category is required");
       return;
     }
     setSubmitting(true);
@@ -318,6 +359,8 @@ export default function AdminSubjectsPage() {
       data: {
         name: name.trim(),
         code: code.trim() || null,
+        nickname: nickname.trim() || null,
+        category,
         is_active: true,
         is_elective: isElective,
       },
@@ -340,6 +383,8 @@ export default function AdminSubjectsPage() {
     setEditingSubject(subject);
     setEditName(subject.name);
     setEditCode(subject.code || "");
+    setEditNickname(subject.nickname || "");
+    setEditCategory(subject.category ?? "");
     setEditIsElective(subject.is_elective);
     setEditDialogOpen(true);
   };
@@ -351,6 +396,10 @@ export default function AdminSubjectsPage() {
       toast.error("Subject name is required");
       return;
     }
+    if (!editCategory) {
+      toast.error("Category is required");
+      return;
+    }
     setSubmitting(true);
 
     const result = await adminApi({
@@ -359,6 +408,8 @@ export default function AdminSubjectsPage() {
       data: {
         name: editName.trim(),
         code: editCode.trim() || null,
+        nickname: editNickname.trim() || null,
+        category: editCategory,
         is_elective: editIsElective,
       },
       match: { column: "id", value: editingSubject.id },
@@ -735,16 +786,18 @@ export default function AdminSubjectsPage() {
 
     let hasError = false;
 
-    // Add new stream-subject links
+    // Add new stream-subject links (write both is_mandatory and §4 requirement_type)
     for (const subjectId of toAdd) {
       const entry = selectedStreamSubjects.get(subjectId);
+      const isMandatory = entry?.is_mandatory ?? true;
       const result = await adminApi({
         action: "insert",
         table: "stream_subjects",
         data: {
           stream_id: managingStream.id,
           subject_id: subjectId,
-          is_mandatory: entry?.is_mandatory ?? true,
+          is_mandatory: isMandatory,
+          requirement_type: isMandatory ? "compulsory" : "elective",
         },
       });
       if (!result.success) {
@@ -771,7 +824,7 @@ export default function AdminSubjectsPage() {
       }
     }
 
-    // Update mandatory flag
+    // Update requirement type (mirrored to is_mandatory for back-compat)
     for (const subjectId of toUpdate) {
       const streamSubject = managingStream.subjects.find(
         (s) => s.id === subjectId
@@ -781,7 +834,10 @@ export default function AdminSubjectsPage() {
         const result = await adminApi({
           action: "update",
           table: "stream_subjects",
-          data: { is_mandatory: updated.is_mandatory },
+          data: {
+            is_mandatory: updated.is_mandatory,
+            requirement_type: updated.is_mandatory ? "compulsory" : "elective",
+          },
           match: { column: "id", value: streamSubject.stream_subject_id },
         });
         if (!result.success) {
@@ -936,6 +992,39 @@ export default function AdminSubjectsPage() {
       {/* ════════════════════════════════════════════════ */}
       {tab === "subjects" && (
         <div className="erp-table-container p-6">
+          {/* §6 Math review banner */}
+          {mathReviewCount > 0 && (
+            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              <strong>Action needed:</strong> {mathReviewCount} class–subject link
+              {mathReviewCount === 1 ? " is" : "s are"} still using the legacy{" "}
+              <span className="font-mono">Mathematics</span> subject for class IX–XII.
+              The CBSE structure now requires <em>Mathematics — Standard</em> or{" "}
+              <em>Mathematics — Advanced</em>. Please review and reassign in the
+              Assignments tab — these are not migrated automatically.
+            </div>
+          )}
+
+          {/* §8 category filter */}
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <span className="text-xs text-gray-500">Filter by category:</span>
+            {(["all","languages","academic","co_curricular","uncategorized"] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setCategoryFilter(c)}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                  categoryFilter === c
+                    ? "bg-navy-900 text-white"
+                    : "bg-gray-100 dark:bg-muted text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-muted/70"
+                }`}
+              >
+                {c === "all" ? "All" :
+                 c === "languages" ? "Languages" :
+                 c === "academic" ? "Academic" :
+                 c === "co_curricular" ? "Co-curricular" :
+                 "Uncategorized"}
+              </button>
+            ))}
+          </div>
           {subjectsLoading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
@@ -950,20 +1039,43 @@ export default function AdminSubjectsPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Code</TableHead>
+                  <TableHead>Nickname</TableHead>
+                  <TableHead>Category</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {subjects.map((subject) => (
+                {subjects
+                  .filter((s) => {
+                    if (categoryFilter === "all") return true;
+                    if (categoryFilter === "uncategorized") return !s.category;
+                    return s.category === categoryFilter;
+                  })
+                  .map((subject) => (
                   <TableRow key={subject.id}>
                     <TableCell className="font-medium">
                       {subject.name}
                     </TableCell>
                     <TableCell className="text-gray-600 dark:text-gray-300">
                       {subject.code || "—"}
+                    </TableCell>
+                    <TableCell className="text-gray-600 dark:text-gray-300">
+                      {subject.nickname || "—"}
+                    </TableCell>
+                    <TableCell>
+                      {subject.category ? (
+                        <Badge variant="secondary" className="bg-gray-100 dark:bg-muted text-gray-700 dark:text-gray-300">
+                          {subject.category === "languages" ? "Languages" :
+                           subject.category === "academic" ? "Academic" :
+                           "Co-curricular"}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="bg-amber-100 text-amber-700">
+                          Uncategorized
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -988,9 +1100,6 @@ export default function AdminSubjectsPage() {
                       >
                         {subject.is_active ? "Active" : "Inactive"}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-gray-500 dark:text-gray-400">
-                      {new Date(subject.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -1433,21 +1542,54 @@ export default function AdminSubjectsPage() {
                   className="h-9"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Mathematics"
+                  placeholder="e.g. English Core"
                   required
                 />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="subjectCode" className="text-xs font-medium">
-                  Code (optional)
+                  Subject Code
                 </Label>
                 <Input
                   id="subjectCode"
                   className="h-9"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  placeholder="e.g. MATH"
+                  placeholder="CBSE numeric (e.g. 301)"
                 />
+                <p className="text-[10px] text-gray-500">Mandatory for classes 9–12. Used in marksheets and reports.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="subjectNickname" className="text-xs font-medium">
+                  Nickname (optional)
+                </Label>
+                <Input
+                  id="subjectNickname"
+                  className="h-9"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="e.g. Eng Core"
+                  maxLength={20}
+                />
+                <p className="text-[10px] text-gray-500">Short label for compact views like the timetable.</p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="subjectCategory" className="text-xs font-medium">
+                  Category <span className="text-red-500">*</span>
+                </Label>
+                <Select value={category} onValueChange={(v) => setCategory(v as typeof category)}>
+                  <SelectTrigger id="subjectCategory" className="h-9">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="languages">Languages</SelectItem>
+                    <SelectItem value="academic">Academic Subjects</SelectItem>
+                    <SelectItem value="co_curricular">Co-curricular Subjects</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -1517,7 +1659,7 @@ export default function AdminSubjectsPage() {
                   className="h-9"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  placeholder="e.g. Mathematics"
+                  placeholder="e.g. English Core"
                   required
                 />
               </div>
@@ -1526,15 +1668,47 @@ export default function AdminSubjectsPage() {
                   htmlFor="editSubjectCode"
                   className="text-xs font-medium"
                 >
-                  Code (optional)
+                  Subject Code
                 </Label>
                 <Input
                   id="editSubjectCode"
                   className="h-9"
                   value={editCode}
                   onChange={(e) => setEditCode(e.target.value)}
-                  placeholder="e.g. MATH"
+                  placeholder="CBSE numeric (e.g. 301)"
                 />
+                <p className="text-[10px] text-gray-500">Mandatory for classes 9–12.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="editSubjectNickname" className="text-xs font-medium">
+                  Nickname (optional)
+                </Label>
+                <Input
+                  id="editSubjectNickname"
+                  className="h-9"
+                  value={editNickname}
+                  onChange={(e) => setEditNickname(e.target.value)}
+                  placeholder="e.g. Eng Core"
+                  maxLength={20}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="editSubjectCategory" className="text-xs font-medium">
+                  Category <span className="text-red-500">*</span>
+                </Label>
+                <Select value={editCategory} onValueChange={(v) => setEditCategory(v as typeof editCategory)}>
+                  <SelectTrigger id="editSubjectCategory" className="h-9">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="languages">Languages</SelectItem>
+                    <SelectItem value="academic">Academic Subjects</SelectItem>
+                    <SelectItem value="co_curricular">Co-curricular Subjects</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -1979,6 +2153,7 @@ export default function AdminSubjectsPage() {
                         onClick={() =>
                           toggleStreamSubjectMandatory(subject.id)
                         }
+                        title="Click to toggle Compulsory / Elective for this stream"
                         className={cn(
                           "text-xs px-2 py-0.5 rounded-full border transition-colors",
                           entry?.is_mandatory
@@ -1986,7 +2161,7 @@ export default function AdminSubjectsPage() {
                             : "border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-950/30"
                         )}
                       >
-                        {entry?.is_mandatory ? "Mandatory" : "Elective"}
+                        {entry?.is_mandatory ? "Compulsory" : "Elective"}
                       </button>
                     )}
                   </div>

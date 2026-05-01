@@ -161,6 +161,10 @@ export default function AdminBlankMarksListPage() {
               <Select
                 value={classId}
                 onValueChange={(v) => setClassId(v ?? "")}
+                items={classes.map((c) => ({
+                  value: c.id,
+                  label: formatClassName(c),
+                }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select class" />
@@ -182,6 +186,7 @@ export default function AdminBlankMarksListPage() {
               <Select
                 value={examTypeId}
                 onValueChange={(v) => setExamTypeId(v ?? "")}
+                items={examTypes.map((e) => ({ value: e.id, label: e.name }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select exam" />
@@ -204,6 +209,10 @@ export default function AdminBlankMarksListPage() {
                 value={subjectId}
                 onValueChange={(v) => setSubjectId(v ?? "")}
                 disabled={!classId || loadingSubjects}
+                items={subjects.map((s) => ({
+                  value: s.id,
+                  label: `${s.name}${s.code ? ` (${s.code})` : ""}`,
+                }))}
               >
                 <SelectTrigger>
                   <SelectValue

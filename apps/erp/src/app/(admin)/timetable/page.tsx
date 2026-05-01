@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { Button } from "@nkps/shared/components/ui/button";
@@ -275,10 +276,30 @@ export default function AdminTimetablePage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
         <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Timetable
         </h1>
+        <div className="flex gap-2 flex-wrap">
+          <Link
+            href="/timetable/templates"
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 dark:border-border px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-muted"
+          >
+            Templates
+          </Link>
+          <Link
+            href="/timetable/generate"
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 dark:border-border px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-muted"
+          >
+            Auto Generate
+          </Link>
+          <Link
+            href="/timetable/import"
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 dark:border-border px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-muted"
+          >
+            Import (Excel)
+          </Link>
+        </div>
       </div>
 
       {/* Class selector */}
@@ -370,17 +391,24 @@ export default function AdminTimetablePage() {
                   </td>
                   {DAYS.map((d) => {
                     const cell = getCellData(d.value, dp.num);
+                    const isLunch = cell?.is_break === true;
                     return (
                       <td key={d.value} className="px-1 py-1">
                         <button
                           onClick={() => openDialog(d.value, dp.num)}
                           className={`w-full rounded-lg px-2 py-2 text-xs text-left transition-colors min-h-[56px] ${
-                            cell
-                              ? "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30"
-                              : "bg-gray-50 dark:bg-muted border border-dashed border-gray-200 dark:border-border hover:bg-gray-100 dark:hover:bg-muted hover:border-gray-300 dark:hover:border-gray-600"
+                            isLunch
+                              ? "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 hover:bg-amber-100"
+                              : cell
+                                ? "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                                : "bg-gray-50 dark:bg-muted border border-dashed border-gray-200 dark:border-border hover:bg-gray-100 dark:hover:bg-muted hover:border-gray-300 dark:hover:border-gray-600"
                           }`}
                         >
-                          {cell ? (
+                          {isLunch ? (
+                            <div className="font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                              ☕ Lunch
+                            </div>
+                          ) : cell ? (
                             <>
                               <div className="font-medium text-navy-900 dark:text-white truncate">
                                 {cell.subject_name}

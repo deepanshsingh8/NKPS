@@ -13,6 +13,14 @@ interface FileDropZoneProps {
   label?: string;
   hint?: string;
   icon?: "pdf" | "image";
+  /**
+   * If provided, only files whose MIME type or extension matches one of these
+   * is accepted. Anything else is rejected with onReject (or a default alert).
+   * Example: ["image/jpeg", "image/png"]
+   */
+  acceptedMimeTypes?: readonly string[];
+  acceptedExtensions?: readonly string[];
+  onReject?: (reason: string) => void;
 }
 
 export function FileDropZone({
@@ -24,6 +32,9 @@ export function FileDropZone({
   label = "Drop files here or click to browse",
   hint,
   icon = "image",
+  acceptedMimeTypes,
+  acceptedExtensions,
+  onReject,
 }: FileDropZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,22 +49,67 @@ export function FileDropZone({
     setIsDragging(false);
   }, []);
 
+  const reject = useCallback(
+    (reason: string) => {
+      if (onReject) onReject(reason);
+      else if (typeof window !== "undefined") window.alert(reason);
+    },
+    [onReject]
+  );
+
+  const validate = useCallback(
+    (files: FileList): FileList | null => {
+      const maxBytes = maxSizeMB * 1024 * 1024;
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        if (f.size > maxBytes) {
+          reject(`"${f.name}" is ${(f.size / (1024 * 1024)).toFixed(1)} MB. Max allowed is ${maxSizeMB} MB.`);
+          return null;
+        }
+        const lowerName = f.name.toLowerCase();
+        const mimeOk = !acceptedMimeTypes || acceptedMimeTypes.includes(f.type);
+        const extOk =
+          !acceptedExtensions ||
+          acceptedExtensions.some((ext) => lowerName.endsWith(ext.toLowerCase()));
+        if (!mimeOk && !extOk) {
+          const allowed =
+            acceptedExtensions?.join(", ") ||
+            acceptedMimeTypes?.join(", ") ||
+            accept;
+          reject(`"${f.name}" is not an accepted format. Allowed: ${allowed}.`);
+          return null;
+        }
+      }
+      return files;
+    },
+    [acceptedExtensions, acceptedMimeTypes, accept, maxSizeMB, reject]
+  );
+
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
       const dt = e.dataTransfer;
       if (dt.files.length > 0) {
-        onChange(dt.files);
+        const ok = validate(dt.files);
+        if (ok) onChange(ok);
       }
     },
-    [onChange]
+    [onChange, validate]
   );
 
   const handleClick = () => inputRef.current?.click();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange(e.target.files);
+    const files = e.target.files;
+    if (!files || files.length === 0) {
+      onChange(files);
+      return;
+    }
+    const ok = validate(files);
+    onChange(ok);
+    // Reset so re-selecting the same file fires onChange again
+    if (!ok && inputRef.current) inputRef.current.value = "";
   };
 
   const clearFiles = (e: React.MouseEvent) => {

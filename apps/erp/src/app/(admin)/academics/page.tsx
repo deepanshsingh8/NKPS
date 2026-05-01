@@ -44,6 +44,15 @@ const tiles: AcademicsTile[] = [
     featureKey: "subjects",
   },
   {
+    label: "Class XI–XII Electives",
+    description:
+      "Manage Elective 5 / Elective 6 slot options and per-student picks for senior classes.",
+    href: "/academics/electives",
+    icon: BookOpen,
+    accentColor: "text-amber-600 bg-amber-100 dark:bg-amber-900/30",
+    featureKey: "students",
+  },
+  {
     label: "Academic Years",
     description:
       "Set up and switch the active academic year. Everything exam, fee, and enrollment-related scopes to this.",

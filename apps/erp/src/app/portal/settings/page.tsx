@@ -25,6 +25,7 @@ import {
 } from "@nkps/shared/components/ui/dialog";
 import { ImageCropper } from "@nkps/shared/components/ImageCropper";
 import { getCmsUrl } from "@nkps/shared/lib/cross-app";
+import { validatePhotoFile } from "@nkps/shared/lib/photo-spec";
 
 interface ProfileData {
   id: string;
@@ -116,8 +117,9 @@ export default function SettingsPage() {
     e.target.value = "";
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be under 5MB");
+    const result = validatePhotoFile(file);
+    if (!result.ok) {
+      toast.error(result.reason);
       return;
     }
 
@@ -227,7 +229,7 @@ export default function SettingsPage() {
     }
     // Teachers — including those with editor capability — return to the
     // teacher portal. The ?from hint still applies for users who arrived
-    // here via the SwitchAppMenu link from CMS/ERP admin.
+    // here via the AppSwitcher link from CMS/ERP admin.
     if (profile?.role === "teacher") {
       const from = searchParams.get("from");
       if (from === "cms") return { url: getCmsUrl("/"), external: true };
@@ -321,7 +323,7 @@ export default function SettingsPage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                   className="hidden"
                   onChange={handleAvatarFileSelect}
                 />

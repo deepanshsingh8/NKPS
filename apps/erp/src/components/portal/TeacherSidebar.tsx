@@ -12,7 +12,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { PortalSidebar } from "./PortalSidebar";
-import { SwitchAppMenu } from "./SwitchAppMenu";
+import { AppSwitcher } from "@nkps/shared/components/AppSwitcher";
 import { useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
 
 const navLinks = [
@@ -70,7 +70,7 @@ export function TeacherSidebar() {
       title="Teacher Portal"
       role="Teacher"
       navLinks={navLinks}
-      footerExtra={<SwitchAppMenu collapsed={collapsed} />}
+      footerExtra={<AppSwitcher scope="erp-portal" collapsed={collapsed} />}
     />
   );
 }

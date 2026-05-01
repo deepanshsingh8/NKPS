@@ -597,7 +597,7 @@ export function StudentBulkUpload({
               <ul className="text-xs text-blue-600 space-y-0.5 list-disc pl-4">
                 <li><strong>Class</strong> column is required (e.g., X, XI, XII, Nursery, LKG)</li>
                 <li><strong>Section</strong> column is optional (defaults to A if not provided)</li>
-                <li><strong>Stream</strong> column for senior classes (e.g., Science, Commerce, Arts) — combined with class to match &quot;XI Science&quot;</li>
+                <li><strong>Stream</strong> column for senior classes (e.g., Science, Commerce, Humanities) — combined with class to match &quot;XI Science&quot;</li>
                 <li>Missing classes are <strong>auto-created</strong> during import for the current academic year.</li>
                 <li>You can edit any field in the preview screen before importing.</li>
               </ul>

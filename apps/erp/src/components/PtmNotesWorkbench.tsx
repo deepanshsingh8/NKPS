@@ -425,6 +425,10 @@ export function PtmNotesWorkbench({
               <Select
                 value={classId}
                 onValueChange={(v) => setClassId(v ?? "")}
+                items={classes.map((c) => ({
+                  value: c.id,
+                  label: formatClassName(c),
+                }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select class" />
@@ -443,12 +447,16 @@ export function PtmNotesWorkbench({
               <Select
                 value={examTypeId}
                 onValueChange={(v) => setExamTypeId(v ?? "__none__")}
+                items={[
+                  { value: "__none__", label: "(Not tied to an exam)" },
+                  ...examTypes.map((e) => ({ value: e.id, label: e.name })),
+                ]}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="(Not tied to an exam)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">
+                  <SelectItem value="__none__" label="(Not tied to an exam)">
                     (Not tied to an exam)
                   </SelectItem>
                   {examTypes.map((e) => (

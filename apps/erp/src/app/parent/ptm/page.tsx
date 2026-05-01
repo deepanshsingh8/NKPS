@@ -222,6 +222,14 @@ export default function ParentPtmPage() {
               <Select
                 value={selectedChild}
                 onValueChange={(v) => setSelectedChild(v ?? "")}
+                items={children.map((c) => ({
+                  value: c.student_id,
+                  label:
+                    c.full_name +
+                    (c.class_name
+                      ? ` · ${c.class_name}${c.section ? ` - ${c.section}` : ""}`
+                      : ""),
+                }))}
               >
                 <SelectTrigger>
                   <SelectValue />
