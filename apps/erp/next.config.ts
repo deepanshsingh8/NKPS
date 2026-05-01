@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   transpilePackages: ["@nkps/shared"],
   images: {
+    unoptimized: true,
     localPatterns: [
       {
         pathname: "/images/**",
