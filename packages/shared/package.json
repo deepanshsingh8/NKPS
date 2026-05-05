@@ -5,5 +5,8 @@
   "type": "module",
   "exports": {
     "./*": "./src/*"
+  },
+  "dependencies": {
+    "resend": "^6.12.2"
   }
 }

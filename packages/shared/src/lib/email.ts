@@ -1,57 +1,44 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { SCHOOL } from "@nkps/shared/lib/constants";
 
-const GMAIL_USER = process.env.GMAIL_USER;
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-
-// Display name + Gmail address. Gmail rewrites the envelope sender to the
-// authenticated account, so the address part must match GMAIL_USER.
-const FROM_EMAIL = process.env.FROM_EMAIL || `${SCHOOL.name} <${GMAIL_USER}>`;
-// Where replies should be routed. Defaults to the school's primary inbox so
-// that parents/students/staff replying to any transactional email reach us.
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const FROM_EMAIL =
+  process.env.FROM_EMAIL || `${SCHOOL.name} <noreply@nkpublicschool.com>`;
 const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || SCHOOL.email[0];
 
-let cachedTransporter: nodemailer.Transporter | null = null;
+let cachedClient: Resend | null = null;
 
-function getTransporter(): nodemailer.Transporter {
-  if (cachedTransporter) return cachedTransporter;
+function getClient(): Resend {
+  if (cachedClient) return cachedClient;
 
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
+  if (!RESEND_API_KEY) {
     throw new Error(
-      "Email is not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD in the environment."
+      "Email is not configured. Set RESEND_API_KEY in the environment."
     );
   }
 
-  cachedTransporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD,
-    },
-  });
-
-  return cachedTransporter;
+  cachedClient = new Resend(RESEND_API_KEY);
+  return cachedClient;
 }
 
 export async function sendEmail(to: string, subject: string, html: string) {
-  try {
-    const info = await getTransporter().sendMail({
-      from: FROM_EMAIL,
-      to,
-      subject,
-      html,
-      replyTo: REPLY_TO_EMAIL,
-    });
+  const result = await getClient().emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject,
+    html,
+    replyTo: REPLY_TO_EMAIL,
+  });
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log("Email sent successfully:", info.messageId);
-    }
-    return { data: { id: info.messageId }, error: null };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("Gmail SMTP error:", message);
-    throw new Error(`Email send failed: ${message}`);
+  if (result.error) {
+    console.error("Resend error:", result.error);
+    throw new Error(`Email send failed: ${result.error.message}`);
   }
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log("Email sent successfully:", result.data?.id);
+  }
+  return { data: { id: result.data?.id ?? "" }, error: null };
 }
 
 // ---------------------------------------------------------------------------
