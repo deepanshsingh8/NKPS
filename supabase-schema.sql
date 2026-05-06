@@ -4704,3 +4704,165 @@ SELECT 'campus_facilities', 'Transport',
 WHERE NOT EXISTS (SELECT 1 FROM section_cards WHERE section='campus_facilities' AND title='Transport' AND is_default=true);
 
 DELETE FROM site_media WHERE slot IN ('facilities_sports','facilities_auditorium','facilities_indoor_games','facilities_transport');
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Migration 050: Distance-based transport fare slabs
+-- Replaces the flat `Transport` row in `fee_structures` with a per-academic-
+-- year master of distance slabs. Each enrollment opting in points at a slab;
+-- fee_payments gains a slab FK so transport receipts no longer need a fake
+-- fee_structure row.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS transport_fare_slabs (
+  id                uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  academic_year_id  uuid NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+  name              text NOT NULL,
+  distance_km_min   numeric(5,2),
+  distance_km_max   numeric(5,2),
+  amount            numeric(10,2) NOT NULL CHECK (amount > 0),
+  frequency         text NOT NULL DEFAULT 'monthly'
+                    CHECK (frequency IN ('monthly','quarterly','annual','one_time')),
+  is_active         boolean NOT NULL DEFAULT true,
+  sort_order        integer NOT NULL DEFAULT 0,
+  created_at        timestamptz DEFAULT now(),
+  updated_at        timestamptz DEFAULT now(),
+  UNIQUE (academic_year_id, name),
+  CHECK (
+    distance_km_min IS NULL
+    OR distance_km_max IS NULL
+    OR distance_km_max >= distance_km_min
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_transport_slabs_year
+  ON transport_fare_slabs(academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_transport_slabs_active
+  ON transport_fare_slabs(academic_year_id) WHERE is_active;
+
+DROP TRIGGER IF EXISTS set_updated_at_transport_fare_slabs ON transport_fare_slabs;
+CREATE TRIGGER set_updated_at_transport_fare_slabs
+  BEFORE UPDATE ON transport_fare_slabs
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE transport_fare_slabs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public can read transport slabs" ON transport_fare_slabs;
+CREATE POLICY "Public can read transport slabs"
+  ON transport_fare_slabs FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Admins can insert transport slabs" ON transport_fare_slabs;
+CREATE POLICY "Admins can insert transport slabs"
+  ON transport_fare_slabs FOR INSERT
+  WITH CHECK (public.get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Admins can update transport slabs" ON transport_fare_slabs;
+CREATE POLICY "Admins can update transport slabs"
+  ON transport_fare_slabs FOR UPDATE
+  USING (public.get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Admins can delete transport slabs" ON transport_fare_slabs;
+CREATE POLICY "Admins can delete transport slabs"
+  ON transport_fare_slabs FOR DELETE
+  USING (public.get_user_role() = 'admin');
+
+ALTER TABLE student_enrollments
+  ADD COLUMN IF NOT EXISTS transport_slab_id uuid
+    REFERENCES transport_fare_slabs(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_enrollments_transport_slab_id
+  ON student_enrollments(transport_slab_id) WHERE transport_slab_id IS NOT NULL;
+
+-- The student_enrollments CHECK is added LAST, after the backfill below
+-- has assigned slabs and normalized orphans.
+ALTER TABLE student_enrollments
+  DROP CONSTRAINT IF EXISTS student_enrollments_transport_slab_required;
+
+ALTER TABLE fee_payments
+  ADD COLUMN IF NOT EXISTS transport_slab_id uuid
+    REFERENCES transport_fare_slabs(id);
+
+CREATE INDEX IF NOT EXISTS idx_fee_payments_transport_slab_id
+  ON fee_payments(transport_slab_id) WHERE transport_slab_id IS NOT NULL;
+
+ALTER TABLE fee_payments
+  ALTER COLUMN fee_structure_id DROP NOT NULL;
+
+ALTER TABLE fee_payments
+  DROP CONSTRAINT IF EXISTS fee_payments_target_xor;
+ALTER TABLE fee_payments
+  ADD CONSTRAINT fee_payments_target_xor
+  CHECK (
+    (fee_structure_id IS NOT NULL AND transport_slab_id IS NULL)
+    OR (fee_structure_id IS NULL AND transport_slab_id IS NOT NULL)
+  );
+
+DO $$
+DECLARE
+  rec record;
+  new_slab_id uuid;
+  orphan_count int;
+BEGIN
+  IF EXISTS (SELECT 1 FROM fee_structures WHERE fee_type = 'Transport') THEN
+    FOR rec IN
+      SELECT
+        academic_year_id,
+        amount,
+        frequency,
+        string_agg(DISTINCT class_name, ', ') AS class_list,
+        array_agg(DISTINCT id) AS source_structure_ids
+      FROM fee_structures
+      WHERE fee_type = 'Transport'
+      GROUP BY academic_year_id, amount, frequency
+    LOOP
+      INSERT INTO transport_fare_slabs
+        (academic_year_id, name, amount, frequency, sort_order)
+      VALUES (
+        rec.academic_year_id,
+        'Default — ' || rec.class_list,
+        rec.amount,
+        rec.frequency,
+        0
+      )
+      ON CONFLICT (academic_year_id, name) DO UPDATE
+        SET amount = EXCLUDED.amount
+      RETURNING id INTO new_slab_id;
+
+      UPDATE fee_payments
+        SET transport_slab_id = new_slab_id,
+            fee_structure_id  = NULL
+        WHERE fee_structure_id = ANY(rec.source_structure_ids);
+
+      UPDATE student_enrollments se
+        SET transport_slab_id = new_slab_id
+        FROM classes c, fee_structures fs
+        WHERE se.class_id = c.id
+          AND se.has_transport = true
+          AND se.transport_slab_id IS NULL
+          AND se.academic_year_id = rec.academic_year_id
+          AND fs.id = ANY(rec.source_structure_ids)
+          AND fs.class_name = c.name;
+    END LOOP;
+
+    DELETE FROM fee_structures WHERE fee_type = 'Transport';
+  END IF;
+
+  -- Normalize orphans: enrollments still flagged has_transport=true with no
+  -- slab mean the class had no Transport fee_structure to migrate from.
+  -- Flip them off so the school can re-opt them in after creating a slab.
+  SELECT COUNT(*) INTO orphan_count
+    FROM student_enrollments
+    WHERE has_transport = true AND transport_slab_id IS NULL;
+
+  IF orphan_count > 0 THEN
+    UPDATE student_enrollments
+      SET has_transport = false
+      WHERE has_transport = true AND transport_slab_id IS NULL;
+    RAISE NOTICE
+      'migration 050: cleared has_transport on % enrollment(s) with no matching Transport fee.',
+      orphan_count;
+  END IF;
+END $$;
+
+ALTER TABLE student_enrollments
+  ADD CONSTRAINT student_enrollments_transport_slab_required
+  CHECK (has_transport = false OR transport_slab_id IS NOT NULL);

@@ -21,8 +21,13 @@ import {
 } from "@nkps/shared/components/ui/table";
 import { CreditCard, CheckCircle, AlertCircle, Loader2, Users, Wallet, Download } from "lucide-react";
 import { toast } from "sonner";
-import { resolveEffectiveFeeStructures, sumAnnualized } from "@/lib/fees";
-import type { FeeStructure, FeePayment } from "@nkps/shared/types";
+import { resolveEffectiveFeeLines, sumAnnualized } from "@/lib/fees";
+import type {
+  FeeStructure,
+  FeePayment,
+  TransportFareSlab,
+  EffectiveFeeLine,
+} from "@nkps/shared/types";
 
 interface ChildOption {
   student_id: string;
@@ -46,9 +51,12 @@ export default function ParentFeesPage() {
   const [selectedChild, setSelectedChild] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [loadingFees, setLoadingFees] = useState(false);
-  const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
+  const [feeLines, setFeeLines] = useState<EffectiveFeeLine[]>([]);
   const [payments, setPayments] = useState<
-    (FeePayment & { fee_structure?: FeeStructure })[]
+    (FeePayment & {
+      fee_structure?: FeeStructure;
+      transport_slab?: Pick<TransportFareSlab, "name"> | null;
+    })[]
   >([]);
 
   // Fetch children on mount
@@ -130,10 +138,12 @@ export default function ParentFeesPage() {
       setLoadingFees(true);
       const supabase = createClient();
 
-      // Fetch enrollment to determine class + stream + transport flag
+      // Fetch enrollment to determine class + stream + transport opt-in.
       const { data: enrollment } = await supabase
         .from("student_enrollments")
-        .select("class_id, stream_id, has_transport, classes(name)")
+        .select(
+          "class_id, stream_id, academic_year_id, has_transport, transport_slab_id, classes(name)"
+        )
         .eq("student_id", selectedChild)
         .order("enrollment_date", { ascending: false })
         .limit(1)
@@ -143,31 +153,49 @@ export default function ParentFeesPage() {
         (enrollment?.classes as unknown as { name: string } | null)?.name ?? "";
       const streamId = (enrollment?.stream_id as string | null) ?? null;
       const hasTransport = Boolean(enrollment?.has_transport);
+      const transportSlabId =
+        (enrollment?.transport_slab_id as string | null) ?? null;
+      const academicYearId =
+        (enrollment?.academic_year_id as string | null) ?? null;
 
-      // Fetch fee structures for child's class, then resolve the effective
-      // set (stream-specific fees override class-wide ones per fee_type).
-      let structures: FeeStructure[] = [];
+      // Fetch fee structures for the class + transport slabs for the year,
+      // then resolve unified fee lines (academic + the picked transport slab).
+      let lines: EffectiveFeeLine[] = [];
       if (className) {
-        const { data } = await supabase
-          .from("fee_structures")
-          .select("*")
-          .eq("class_name", className);
-        structures = resolveEffectiveFeeStructures(
-          (data as FeeStructure[]) ?? [],
-          { studentStreamId: streamId, hasTransport }
-        );
+        const [{ data: structuresData }, { data: slabsData }] = await Promise.all([
+          supabase.from("fee_structures").select("*").eq("class_name", className),
+          academicYearId
+            ? supabase
+                .from("transport_fare_slabs")
+                .select("id, name, amount, frequency, is_active")
+                .eq("academic_year_id", academicYearId)
+            : Promise.resolve({ data: [] }),
+        ]);
+        lines = resolveEffectiveFeeLines({
+          structures: (structuresData as FeeStructure[]) ?? [],
+          studentStreamId: streamId,
+          hasTransport,
+          transportSlabId,
+          slabs: (slabsData as TransportFareSlab[]) ?? [],
+        });
       }
-      setFeeStructures(structures);
+      setFeeLines(lines);
 
-      // Fetch payments
+      // Fetch payments — also pull the slab name for transport receipts so
+      // the history table doesn't fall back to "--" for slab-driven rows.
       const { data: paymentData } = await supabase
         .from("fee_payments")
-        .select("*, fee_structure:fee_structures(*)")
+        .select(
+          "*, fee_structure:fee_structures(*), transport_slab:transport_fare_slabs(name)"
+        )
         .eq("student_id", selectedChild)
         .order("payment_date", { ascending: false });
 
       setPayments(
-        (paymentData as (FeePayment & { fee_structure?: FeeStructure })[]) ?? []
+        (paymentData as (FeePayment & {
+          fee_structure?: FeeStructure;
+          transport_slab?: Pick<TransportFareSlab, "name"> | null;
+        })[]) ?? []
       );
       setLoadingFees(false);
     }
@@ -183,19 +211,22 @@ export default function ParentFeesPage() {
     );
   }
 
-  // Compute summary — annualize each structure so quarterly/monthly fees
-  // are counted correctly for the whole academic year.
-  const totalFees = sumAnnualized(feeStructures);
+  // Compute summary — annualize each line so quarterly/monthly fees are
+  // counted correctly for the whole academic year.
+  const totalFees = sumAnnualized(feeLines);
   const totalPaid = payments
     .filter((p) => p.status === "paid" || p.status === "partial")
     .reduce((sum, p) => sum + p.amount_paid, 0);
   const pending = totalFees - totalPaid;
 
-  // Determine paid fee structure IDs
-  const paidStructureIds = new Set(
+  // Lines marked paid: match by fee_structure_id (academic) or
+  // transport_slab_id (transport). Both keys live in the EffectiveFeeLine.id
+  // by construction, so a single Set covers both flavours.
+  const paidLineIds = new Set(
     payments
       .filter((p) => p.status === "paid")
-      .map((p) => p.fee_structure_id)
+      .map((p) => p.fee_structure_id ?? p.transport_slab_id)
+      .filter((id): id is string => Boolean(id))
   );
 
   const selectedChildInfo = children.find((c) => c.student_id === selectedChild);
@@ -324,7 +355,7 @@ export default function ParentFeesPage() {
               <CardTitle className="text-navy-900 dark:text-white">Fee Breakdown</CardTitle>
             </CardHeader>
             <CardContent>
-              {feeStructures.length === 0 ? (
+              {feeLines.length === 0 ? (
                 <p className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
                   No fee structures found for this class.
                 </p>
@@ -339,17 +370,19 @@ export default function ParentFeesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {feeStructures.map((fs) => (
-                      <TableRow key={fs.id}>
+                    {feeLines.map((line) => (
+                      <TableRow key={line.id}>
                         <TableCell className="font-medium">
-                          {fs.fee_type}
+                          {line.kind === "transport_slab"
+                            ? `Transport — ${line.slab_name}`
+                            : line.fee_type}
                         </TableCell>
-                        <TableCell>{formatCurrency(fs.amount)}</TableCell>
+                        <TableCell>{formatCurrency(line.amount)}</TableCell>
                         <TableCell className="capitalize">
-                          {fs.frequency.replace("_", " ")}
+                          {line.frequency.replace("_", " ")}
                         </TableCell>
                         <TableCell>
-                          {paidStructureIds.has(fs.id) ? (
+                          {paidLineIds.has(line.id) ? (
                             <Badge className="bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800">
                               Paid
                             </Badge>
@@ -391,7 +424,9 @@ export default function ParentFeesPage() {
                       <TableRow key={p.id}>
                         <TableCell>{p.payment_date}</TableCell>
                         <TableCell>
-                          {p.fee_structure?.fee_type ?? "--"}
+                          {p.transport_slab?.name
+                            ? `Transport — ${p.transport_slab.name}`
+                            : p.fee_structure?.fee_type ?? "--"}
                         </TableCell>
                         <TableCell>{formatCurrency(p.amount_paid)}</TableCell>
                         <TableCell className="font-mono text-xs">

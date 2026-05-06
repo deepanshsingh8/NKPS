@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     const {
       student_id,
       fee_structure_id,
+      transport_slab_id,
       amount_paid,
       payment_method,
       month,
@@ -36,30 +37,50 @@ export async function POST(request: Request) {
       payment_provider,
     } = result.data;
 
-    // Status resolution. Look up the structure once and use it to:
-    //   1. Reject over-payment outright (M7) — a duplicate ₹10k tuition
-    //      payment used to inflate the dues compute and phantom-clear
-    //      transport dues, since dues compute sums across structures with
-    //      no per-structure attribution.
+    // Status resolution. Look up the target row (fee structure or transport
+    // slab) once and use it to:
+    //   1. Reject over-payment outright (M7).
     //   2. Downgrade an over-eager 'paid' request to 'partial' when the
-    //      caller paid less than the structure amount.
+    //      caller paid less than the target amount.
     let status: "paid" | "partial" = requestedStatus ?? "paid";
-    const { data: structure } = await admin
-      .from("fee_structures")
-      .select("amount, academic_year_id")
-      .eq("id", fee_structure_id)
-      .maybeSingle();
-    if (!structure) {
-      return NextResponse.json(
-        { error: "Fee structure not found" },
-        { status: 400 }
-      );
+    let expected: number;
+    let academicYearId: string;
+    const targetLabel = transport_slab_id ? "transport slab" : "fee structure";
+
+    if (transport_slab_id) {
+      const { data: slab } = await admin
+        .from("transport_fare_slabs")
+        .select("amount, academic_year_id")
+        .eq("id", transport_slab_id)
+        .maybeSingle();
+      if (!slab) {
+        return NextResponse.json(
+          { error: "Transport slab not found" },
+          { status: 400 }
+        );
+      }
+      expected = Number(slab.amount);
+      academicYearId = slab.academic_year_id as string;
+    } else {
+      const { data: structure } = await admin
+        .from("fee_structures")
+        .select("amount, academic_year_id")
+        .eq("id", fee_structure_id!)
+        .maybeSingle();
+      if (!structure) {
+        return NextResponse.json(
+          { error: "Fee structure not found" },
+          { status: 400 }
+        );
+      }
+      expected = Number(structure.amount);
+      academicYearId = structure.academic_year_id as string;
     }
-    const expected = Number(structure.amount);
+
     if (Number.isFinite(expected) && amount_paid > expected) {
       return NextResponse.json(
         {
-          error: `Amount paid (${amount_paid}) exceeds the fee structure amount (${expected}). Reduce the amount, or split the surplus into a separate fee.`,
+          error: `Amount paid (${amount_paid}) exceeds the ${targetLabel} amount (${expected}). Reduce the amount, or split the surplus into a separate fee.`,
         },
         { status: 400 }
       );
@@ -75,8 +96,9 @@ export async function POST(request: Request) {
       .from("fee_payments")
       .insert({
         student_id,
-        fee_structure_id,
-        academic_year_id: structure.academic_year_id,
+        fee_structure_id: fee_structure_id ?? null,
+        transport_slab_id: transport_slab_id ?? null,
+        academic_year_id: academicYearId,
         amount_paid,
         payment_method,
         month: month || null,

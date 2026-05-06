@@ -331,7 +331,11 @@ const optionalTrimmedString = z
 export const feePaymentSchema = z
   .object({
     student_id: z.string().uuid("Invalid student"),
-    fee_structure_id: z.string().uuid("Invalid fee structure"),
+    // Exactly one of fee_structure_id / transport_slab_id must be present.
+    // Enforced in the superRefine below. Transport payments are routed
+    // against a transport_fare_slabs row directly (migration 050).
+    fee_structure_id: z.string().uuid("Invalid fee structure").optional(),
+    transport_slab_id: z.string().uuid("Invalid transport slab").optional(),
     amount_paid: z
       .number()
       .finite("Amount must be a valid number")
@@ -353,6 +357,16 @@ export const feePaymentSchema = z
     payment_provider: optionalTrimmedString,
   })
   .superRefine((val, ctx) => {
+    const hasFs = Boolean(val.fee_structure_id);
+    const hasSlab = Boolean(val.transport_slab_id);
+    if (hasFs === hasSlab) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Either fee_structure_id or transport_slab_id is required (not both)",
+        path: ["fee_structure_id"],
+      });
+    }
     const m = val.payment_method;
     if (m === "cheque") {
       if (!val.cheque_number) {
@@ -405,6 +419,43 @@ export const feePaymentSchema = z
   });
 
 export type FeePaymentData = z.infer<typeof feePaymentSchema>;
+
+// Migration 050 — transport fare slabs. Distance bands min/max are optional
+// metadata; the slab name is the canonical label shown to the user.
+export const transportFareSlabSchema = z
+  .object({
+    academic_year_id: z.string().uuid("Invalid academic year"),
+    name: z.string().trim().min(1, "Slab name is required").max(100),
+    distance_km_min: z
+      .number()
+      .min(0, "Distance must be ≥ 0")
+      .max(999, "Distance too large")
+      .nullable()
+      .optional(),
+    distance_km_max: z
+      .number()
+      .min(0, "Distance must be ≥ 0")
+      .max(999, "Distance too large")
+      .nullable()
+      .optional(),
+    amount: z.number().positive("Amount must be > 0"),
+    frequency: z.enum(["monthly", "quarterly", "annual", "one_time"]),
+    is_active: z.boolean().optional(),
+    sort_order: z.number().int().optional(),
+  })
+  .superRefine((val, ctx) => {
+    const lo = val.distance_km_min ?? null;
+    const hi = val.distance_km_max ?? null;
+    if (lo !== null && hi !== null && hi < lo) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Max km must be ≥ min km",
+        path: ["distance_km_max"],
+      });
+    }
+  });
+
+export type TransportFareSlabData = z.infer<typeof transportFareSlabSchema>;
 
 // Refund a previously-recorded payment. The endpoint validates that
 // `refund_amount` ≤ original `amount_paid`.

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCallerAccess } from "@nkps/shared/lib/verify-admin";
-import { resolveEffectiveFeeStructures, sumAnnualized } from "@/lib/fees";
-import type { FeeStructure } from "@nkps/shared/types";
+import {
+  resolveEffectiveFeeStructures,
+  sumAnnualized,
+  annualizedAmount,
+} from "@/lib/fees";
+import type { FeeStructure, TransportFareSlab } from "@nkps/shared/types";
 import type { FeatureKey } from "@nkps/shared/lib/permissions";
 
 // Each analytics block maps to the permission that gates privileged access to
@@ -39,8 +43,14 @@ export async function GET() {
   const wantFees = can("fees");
   const wantStudents = can("students");
 
-  const [attendanceRes, feePaymentsRes, feeStructuresRes, enrollmentRes, admissionsRes] =
-    await Promise.all([
+  const [
+    attendanceRes,
+    feePaymentsRes,
+    feeStructuresRes,
+    transportSlabsRes,
+    enrollmentRes,
+    admissionsRes,
+  ] = await Promise.all([
       wantAttendance
         ? admin
             .from("attendance")
@@ -49,13 +59,16 @@ export async function GET() {
             .lte("date", monthEndStr)
         : Promise.resolve({ data: null }),
 
+      // Filter on fee_payments.academic_year_id directly — the previous
+      // !inner join through fee_structures dropped transport-slab payments
+      // (whose fee_structure_id is null) and waiver/historical payments
+      // whose linked structure was deleted.
       wantFees && currentYearId
         ? admin
             .from("fee_payments")
-            .select(
-              "amount_paid, fee_structure_id, fee_structures!inner(academic_year_id)"
-            )
-            .eq("fee_structures.academic_year_id", currentYearId)
+            .select("amount_paid, status")
+            .eq("academic_year_id", currentYearId)
+            .in("status", ["paid", "partial"])
         : Promise.resolve({ data: null }),
 
       wantFees && currentYearId
@@ -68,13 +81,21 @@ export async function GET() {
             .eq("is_active", true)
         : Promise.resolve({ data: null }),
 
+      wantFees && currentYearId
+        ? admin
+            .from("transport_fare_slabs")
+            .select("id, amount, frequency, is_active")
+            .eq("academic_year_id", currentYearId)
+            .eq("is_active", true)
+        : Promise.resolve({ data: null }),
+
       // Enrollments are shared by fees (expected-total calc) and
       // enrollment-by-class — pull them when either block is visible.
       (wantFees || wantStudents) && currentYearId
         ? admin
             .from("student_enrollments")
             .select(
-              "class_id, stream_id, has_transport, status, classes!inner(name, section, academic_year_id)"
+              "class_id, stream_id, has_transport, transport_slab_id, status, classes!inner(name, section, academic_year_id)"
             )
             .eq("classes.academic_year_id", currentYearId)
             .eq("status", "active")
@@ -151,6 +172,7 @@ export async function GET() {
     class_id: string;
     stream_id: string | null;
     has_transport: boolean | null;
+    transport_slab_id: string | null;
     classes:
       | { name: string; section: string }
       | { name: string; section: string }[]
@@ -169,18 +191,33 @@ export async function GET() {
       structuresByClass.set(fs.class_name, list);
     }
 
+    const slabsById = new Map<
+      string,
+      Pick<TransportFareSlab, "id" | "amount" | "frequency" | "is_active">
+    >();
+    for (const s of (transportSlabsRes.data ?? []) as Pick<
+      TransportFareSlab,
+      "id" | "amount" | "frequency" | "is_active"
+    >[]) {
+      slabsById.set(s.id, s);
+    }
+
     let totalExpected = 0;
     for (const e of enrollments) {
       const raw = e.classes;
       const cls = Array.isArray(raw) ? raw[0] : raw;
       if (!cls) continue;
       const classStructures = structuresByClass.get(cls.name);
-      if (!classStructures || classStructures.length === 0) continue;
-      const effective = resolveEffectiveFeeStructures(classStructures, {
-        studentStreamId: e.stream_id ?? null,
-        hasTransport: Boolean(e.has_transport),
-      });
-      totalExpected += sumAnnualized(effective);
+      if (classStructures && classStructures.length > 0) {
+        const effective = resolveEffectiveFeeStructures(classStructures, {
+          studentStreamId: e.stream_id ?? null,
+        });
+        totalExpected += sumAnnualized(effective);
+      }
+      if (e.has_transport && e.transport_slab_id) {
+        const slab = slabsById.get(e.transport_slab_id);
+        if (slab) totalExpected += annualizedAmount(slab);
+      }
     }
 
     response.feeCollection = {

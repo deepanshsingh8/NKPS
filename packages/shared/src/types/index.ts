@@ -333,6 +333,7 @@ export interface StudentEnrollment {
   enrollment_date: string;
   status: EnrollmentStatus;
   has_transport: boolean;
+  transport_slab_id: string | null;
   updated_at: string;
 }
 
@@ -534,13 +535,49 @@ export interface FeeStructure {
   updated_at: string;
 }
 
+export interface TransportFareSlab {
+  id: string;
+  academic_year_id: string;
+  name: string;
+  distance_km_min: number | null;
+  distance_km_max: number | null;
+  amount: number;
+  frequency: FeeFrequency;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Synthetic fee line for the student's transport slab. Shaped like
+// FeeStructure so existing UI/dues code can iterate over a unified array of
+// `EffectiveFeeLine` entries. `kind` distinguishes the two so consumers that
+// need to record payments know which FK to send.
+export interface TransportFeeLine {
+  kind: 'transport_slab';
+  id: string;                 // slab id (used as React key + payment FK)
+  fee_type: 'Transport';
+  amount: number;
+  frequency: FeeFrequency;
+  due_date: null;
+  late_fee_percent: 0;
+  late_fee_fixed_amount: 0;
+  stream_id: null;
+  slab_name: string;          // for UI label, e.g. "0–5 km"
+}
+
+export type EffectiveFeeLine =
+  | (FeeStructure & { kind: 'fee_structure' })
+  | TransportFeeLine;
+
 export type PaymentMethod = 'cash' | 'online' | 'cheque' | 'bank_transfer' | 'upi' | 'gateway' | 'waiver';
 export type PaymentStatus = 'pending' | 'processing' | 'paid' | 'partial' | 'failed' | 'refunded';
 
 export interface FeePayment {
   id: string;
   student_id: string;
-  fee_structure_id: string;
+  fee_structure_id: string | null;
+  transport_slab_id: string | null;
   amount_paid: number;
   payment_date: string;
   payment_method: PaymentMethod;

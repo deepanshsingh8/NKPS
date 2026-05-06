@@ -35,8 +35,20 @@ import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, 
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import { downloadCSV } from "@/lib/csv-export";
 import { formatClassName } from "@nkps/shared/lib/utils";
-import { resolveEffectiveFeeStructures, FEE_FREQ_MULTIPLIER } from "@/lib/fees";
-import type { FeeStructure, FeePayment, Student, Stream } from "@nkps/shared/types";
+import {
+  resolveEffectiveFeeStructures,
+  resolveEffectiveFeeLines,
+  FEE_FREQ_MULTIPLIER,
+  annualizedAmount,
+} from "@/lib/fees";
+import type {
+  FeeStructure,
+  FeePayment,
+  Student,
+  Stream,
+  TransportFareSlab,
+  EffectiveFeeLine,
+} from "@nkps/shared/types";
 
 const CLASS_NAMES = [
   "Nursery",
@@ -58,8 +70,15 @@ const CLASS_NAMES = [
 
 const STREAM_CLASSES = ["XI", "XII"];
 
-const FEE_TYPES = ["Tuition", "Transport", "Lab", "Annual", "Other"];
+const FEE_TYPES = ["Tuition", "Lab", "Annual", "Other"];
 const FREQUENCIES = ["monthly", "quarterly", "annual", "one_time"] as const;
+const EMPTY_SLAB = {
+  name: "",
+  distance_km_min: "",
+  distance_km_max: "",
+  amount: "",
+  frequency: "monthly" as (typeof FREQUENCIES)[number],
+};
 const PAYMENT_METHODS = [
   "cash",
   "online",
@@ -130,7 +149,20 @@ function AdminFeesContent() {
   const [selectedEnrollmentId, setSelectedEnrollmentId] = useState<string | null>(null);
   const [selectedClassLabel, setSelectedClassLabel] = useState<string>("");
   const [studentHasTransport, setStudentHasTransport] = useState(false);
+  const [studentTransportSlabId, setStudentTransportSlabId] = useState<
+    string | null
+  >(null);
   const [togglingTransport, setTogglingTransport] = useState(false);
+
+  // Transport fare slab catalog (current academic year). Powers both the
+  // Transport sub-tab CRUD list and the per-student slab dropdown in Payments.
+  const [transportSlabs, setTransportSlabs] = useState<TransportFareSlab[]>([]);
+  const [slabsLoading, setSlabsLoading] = useState(true);
+  const [slabDialogOpen, setSlabDialogOpen] = useState(false);
+  const [slabDialogMode, setSlabDialogMode] = useState<"add" | "edit">("add");
+  const [editingSlabId, setEditingSlabId] = useState<string | null>(null);
+  const [slabSubmitting, setSlabSubmitting] = useState(false);
+  const [slabForm, setSlabForm] = useState(EMPTY_SLAB);
   const [studentFeeStructures, setStudentFeeStructures] = useState<
     FeeStructure[]
   >([]);
@@ -162,7 +194,10 @@ function AdminFeesContent() {
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [newPayment, setNewPayment] = useState({
-    fee_structure_id: "",
+    // The dropdown encodes its choice as either "fs:<uuid>" or "slab:<uuid>";
+    // we decode at submit time. Keeps the state model simple and the UI
+    // single-select even though the underlying FK lives on two columns.
+    fee_target: "",
     amount_paid: "",
     payment_method: "cash" as (typeof PAYMENT_METHODS)[number],
     month: "",
@@ -231,6 +266,24 @@ function AdminFeesContent() {
     setStructuresLoading(false);
   }, [supabase, classFilter]);
 
+  const fetchTransportSlabs = useCallback(async () => {
+    if (!academicYearId) return;
+    setSlabsLoading(true);
+    const { data, error } = await supabase
+      .from("transport_fare_slabs")
+      .select("*")
+      .eq("academic_year_id", academicYearId)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+    if (error) {
+      toast.error("Failed to fetch transport slabs");
+      setSlabsLoading(false);
+      return;
+    }
+    setTransportSlabs((data as TransportFareSlab[]) ?? []);
+    setSlabsLoading(false);
+  }, [supabase, academicYearId]);
+
   useEffect(() => {
     fetchAcademicYear();
     fetchStreams();
@@ -239,6 +292,10 @@ function AdminFeesContent() {
   useEffect(() => {
     fetchFeeStructures();
   }, [fetchFeeStructures]);
+
+  useEffect(() => {
+    fetchTransportSlabs();
+  }, [fetchTransportSlabs]);
 
   const streamById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -276,7 +333,9 @@ function AdminFeesContent() {
     // Get active enrollment to determine class + stream + transport opt-in
     const { data: enrollment } = await supabase
       .from("student_enrollments")
-      .select("id, class_id, stream_id, has_transport, classes(name, section)")
+      .select(
+        "id, class_id, stream_id, has_transport, transport_slab_id, classes(name, section)"
+      )
       .eq("student_id", student.id)
       .order("enrollment_date", { ascending: false })
       .limit(1)
@@ -288,6 +347,9 @@ function AdminFeesContent() {
     setSelectedStudentStreamId(streamId);
     setSelectedEnrollmentId(enrollment?.id ?? null);
     setStudentHasTransport(Boolean(enrollment?.has_transport));
+    setStudentTransportSlabId(
+      (enrollment?.transport_slab_id as string | null) ?? null
+    );
     setSelectedClassLabel(
       classRaw ? `${classRaw.name}${classRaw.section ? " - " + classRaw.section : ""}` : ""
     );
@@ -346,6 +408,7 @@ function AdminFeesContent() {
     setSelectedEnrollmentId(null);
     setSelectedClassLabel("");
     setStudentHasTransport(false);
+    setStudentTransportSlabId(null);
     setStudentFeeStructures([]);
     setStudentPayments([]);
     setStudentSearch("");
@@ -439,27 +502,80 @@ function AdminFeesContent() {
     );
   }, [classStudents, classStudentSearch]);
 
-  const handleToggleTransport = async (val: boolean) => {
+  // Persist a transport opt-in change. Always sends both fields together:
+  // when opting in we need a slab id (DB CHECK rejects has_transport=true
+  // with NULL slab_id); when opting out we keep the previously chosen slab
+  // assigned so toggling back on can default to it again.
+  const persistTransport = async (
+    nextHasTransport: boolean,
+    nextSlabId: string | null
+  ) => {
     if (!selectedEnrollmentId) {
       toast.error("No active enrollment to update");
       return;
     }
+    if (nextHasTransport && !nextSlabId) {
+      toast.error("Pick a distance slab before enabling transport");
+      return;
+    }
     setTogglingTransport(true);
-    const prev = studentHasTransport;
-    setStudentHasTransport(val);
+    const prevHas = studentHasTransport;
+    const prevSlab = studentTransportSlabId;
+    setStudentHasTransport(nextHasTransport);
+    setStudentTransportSlabId(nextSlabId);
     const res = await adminApi({
       action: "update",
       table: "student_enrollments",
-      data: { has_transport: val },
+      data: {
+        has_transport: nextHasTransport,
+        transport_slab_id: nextSlabId,
+      },
       match: { column: "id", value: selectedEnrollmentId },
     });
     if (!res.success) {
-      setStudentHasTransport(prev);
-      toast.error(res.error || "Failed to update transport opt-in");
+      setStudentHasTransport(prevHas);
+      setStudentTransportSlabId(prevSlab);
+      toast.error(res.error || "Failed to update transport");
     } else {
-      toast.success(val ? "Transport added for this student" : "Transport removed for this student");
+      toast.success(
+        nextHasTransport
+          ? "Transport saved for this student"
+          : "Transport removed for this student"
+      );
     }
     setTogglingTransport(false);
+  };
+
+  const handleToggleTransportCheckbox = (checked: boolean) => {
+    if (!checked) {
+      // Opt out — keep slab id assigned so re-toggle can restore it.
+      persistTransport(false, studentTransportSlabId);
+      return;
+    }
+    // Opting in: use the currently selected slab, or auto-pick the first
+    // active one. If no active slabs exist at all, surface the empty state.
+    const fallback =
+      studentTransportSlabId ??
+      transportSlabs.find((s) => s.is_active)?.id ??
+      null;
+    if (!fallback) {
+      toast.error(
+        "No active transport slabs defined. Add one under Fee Structures → Transport."
+      );
+      return;
+    }
+    persistTransport(true, fallback);
+  };
+
+  const handleSelectTransportSlab = (slabId: string) => {
+    if (!slabId) return;
+    // When admin changes the slab while opted in, persist the new slab; if
+    // not yet opted in, just remember the choice for when they tick the box.
+    if (studentHasTransport) {
+      persistTransport(true, slabId);
+    } else {
+      setStudentTransportSlabId(slabId);
+    }
   };
 
   const downloadReceipt = async (paymentId: string) => {
@@ -496,7 +612,7 @@ function AdminFeesContent() {
       const { data: enrollments } = await supabase
         .from("student_enrollments")
         .select(
-          "id, student_id, stream_id, has_transport, status, students(id, full_name, admission_no, father_name, is_active)"
+          "id, student_id, stream_id, has_transport, transport_slab_id, status, students(id, full_name, admission_no, father_name, is_active)"
         )
         .eq("class_id", duesClassId)
         .eq("academic_year_id", academicYearId)
@@ -507,6 +623,11 @@ function AdminFeesContent() {
         .eq("class_name", classMeta.name)
         .eq("academic_year_id", academicYearId)
         .eq("is_active", true);
+      // Slabs read off the catalog state (already loaded for current year).
+      // We don't refetch on every dues compute since the catalog rarely
+      // changes mid-session and `transportSlabs` is a top-level dependency
+      // anyway — see useEffect below.
+      const slabsById = new Map(transportSlabs.map((s) => [s.id, s]));
 
       const studentIds = (enrollments ?? []).map((e) => e.student_id as string);
       type PayRow = {
@@ -548,13 +669,17 @@ function AdminFeesContent() {
         } | null;
         const applicable = resolveEffectiveFeeStructures(allStructures, {
           studentStreamId: (e.stream_id as string | null) ?? null,
-          hasTransport: Boolean(e.has_transport),
         });
-        const expected = applicable.reduce(
-          (sum, fs) =>
-            sum + Number(fs.amount) * (FEE_FREQ_MULTIPLIER[fs.frequency] ?? 1),
-          0
-        );
+        const slab =
+          e.has_transport && e.transport_slab_id
+            ? slabsById.get(e.transport_slab_id as string)
+            : undefined;
+        const expected =
+          applicable.reduce(
+            (sum, fs) =>
+              sum + Number(fs.amount) * (FEE_FREQ_MULTIPLIER[fs.frequency] ?? 1),
+            0
+          ) + (slab && slab.is_active ? annualizedAmount(slab) : 0);
         // Late fee per overdue structure: pick the larger of the percent and
         // the fixed-amount surcharge. Structures with no due_date or a
         // future due_date contribute nothing. Ignored entirely if the
@@ -603,7 +728,7 @@ function AdminFeesContent() {
     } finally {
       setDuesLoading(false);
     }
-  }, [supabase, duesClassId, academicYearId, classesList]);
+  }, [supabase, duesClassId, academicYearId, classesList, transportSlabs]);
 
   useEffect(() => {
     if (duesClassId) computeDues();
@@ -644,15 +769,168 @@ function AdminFeesContent() {
     );
   };
 
-  // Effective fee structures for the selected student. Applies the
+  // Effective academic fee structures for the selected student. Applies the
   // section/stream override rule (a stream-specific structure hides the
-  // class-wide one for the same fee_type) plus the transport opt-in filter.
+  // class-wide one for the same fee_type). Transport is no longer part of
+  // fee_structures (migration 050) — it's resolved separately below.
   const applicableFeeStructures = useMemo(() => {
     return resolveEffectiveFeeStructures(studentFeeStructures, {
       studentStreamId: selectedStudentStreamId,
-      hasTransport: studentHasTransport,
     });
-  }, [studentFeeStructures, selectedStudentStreamId, studentHasTransport]);
+  }, [studentFeeStructures, selectedStudentStreamId]);
+
+  // Unified fee lines (academic + the student's selected transport slab).
+  // The record-payment dropdown maps over this so transport sits alongside
+  // tuition / lab / annual without a separate UI affordance.
+  const applicableFeeLines = useMemo<EffectiveFeeLine[]>(() => {
+    return resolveEffectiveFeeLines({
+      structures: studentFeeStructures,
+      studentStreamId: selectedStudentStreamId,
+      hasTransport: studentHasTransport,
+      transportSlabId: studentTransportSlabId,
+      slabs: transportSlabs,
+    });
+  }, [
+    studentFeeStructures,
+    selectedStudentStreamId,
+    studentHasTransport,
+    studentTransportSlabId,
+    transportSlabs,
+  ]);
+
+  const openAddSlab = () => {
+    setSlabDialogMode("add");
+    setEditingSlabId(null);
+    setSlabForm(EMPTY_SLAB);
+    setSlabDialogOpen(true);
+  };
+
+  const openEditSlab = (s: TransportFareSlab) => {
+    setSlabDialogMode("edit");
+    setEditingSlabId(s.id);
+    setSlabForm({
+      name: s.name,
+      distance_km_min: s.distance_km_min == null ? "" : String(s.distance_km_min),
+      distance_km_max: s.distance_km_max == null ? "" : String(s.distance_km_max),
+      amount: String(s.amount),
+      frequency: s.frequency,
+    });
+    setSlabDialogOpen(true);
+  };
+
+  const handleSaveSlab = async () => {
+    if (!academicYearId) {
+      toast.error("No current academic year found");
+      return;
+    }
+    const name = slabForm.name.trim();
+    if (!name) {
+      toast.error("Slab name is required");
+      return;
+    }
+    const amount = parseFloat(slabForm.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    const lo = slabForm.distance_km_min === ""
+      ? null
+      : Number(slabForm.distance_km_min);
+    const hi = slabForm.distance_km_max === ""
+      ? null
+      : Number(slabForm.distance_km_max);
+    if (lo !== null && (!Number.isFinite(lo) || lo < 0)) {
+      toast.error("Min km must be ≥ 0");
+      return;
+    }
+    if (hi !== null && (!Number.isFinite(hi) || hi < 0)) {
+      toast.error("Max km must be ≥ 0");
+      return;
+    }
+    if (lo !== null && hi !== null && hi < lo) {
+      toast.error("Max km must be ≥ min km");
+      return;
+    }
+
+    setSlabSubmitting(true);
+    const data: Record<string, unknown> = {
+      academic_year_id: academicYearId,
+      name,
+      distance_km_min: lo,
+      distance_km_max: hi,
+      amount,
+      frequency: slabForm.frequency,
+    };
+
+    const result = editingSlabId
+      ? await adminApi({
+          action: "update",
+          table: "transport_fare_slabs",
+          data,
+          match: { column: "id", value: editingSlabId },
+        })
+      : await adminApi({
+          action: "insert",
+          table: "transport_fare_slabs",
+          data,
+        });
+
+    if (!result.success) {
+      toast.error(
+        `Failed to ${editingSlabId ? "update" : "add"} slab: ${result.error}`
+      );
+    } else {
+      toast.success(editingSlabId ? "Slab updated" : "Slab added");
+      setSlabDialogOpen(false);
+      setSlabForm(EMPTY_SLAB);
+      setEditingSlabId(null);
+      fetchTransportSlabs();
+    }
+    setSlabSubmitting(false);
+  };
+
+  const handleDeleteSlab = async (id: string) => {
+    if (!confirm("Delete this transport slab? This cannot be undone.")) return;
+
+    const result = await adminApi({
+      action: "delete",
+      table: "transport_fare_slabs",
+      match: { column: "id", value: id },
+    });
+
+    if (result.success) {
+      toast.success("Slab deleted");
+      fetchTransportSlabs();
+      return;
+    }
+
+    // FK violation = something still references this slab. Mirrors the
+    // fee_structure flow: offer to deactivate so it's hidden from pickers
+    // but historical receipts continue to resolve.
+    const blockedByFK = (result.error ?? "").toLowerCase().includes("cannot delete");
+    if (
+      blockedByFK &&
+      confirm(
+        "This slab is referenced by recorded payments or active enrollments and can't be deleted. Deactivate instead? It stays linked to old receipts but will hide from new pickers."
+      )
+    ) {
+      const deact = await adminApi({
+        action: "update",
+        table: "transport_fare_slabs",
+        data: { is_active: false },
+        match: { column: "id", value: id },
+      });
+      if (!deact.success) {
+        toast.error(`Failed to deactivate: ${deact.error}`);
+        return;
+      }
+      toast.success("Slab deactivated");
+      fetchTransportSlabs();
+      return;
+    }
+
+    toast.error(`Failed to delete: ${result.error}`);
+  };
 
   const openAddStructure = () => {
     setStructureDialogMode("add");
@@ -905,10 +1183,17 @@ function AdminFeesContent() {
       toast.error("Please enter a valid amount");
       return;
     }
-    if (!newPayment.fee_structure_id) {
-      toast.error("Please select a fee structure");
+    if (!newPayment.fee_target) {
+      toast.error("Please select a fee");
       return;
     }
+    // Decode the dropdown value: "fs:<uuid>" → fee_structure_id,
+    // "slab:<uuid>" → transport_slab_id. Server enforces the XOR.
+    const [kind, id] = newPayment.fee_target.split(":");
+    const fkPayload =
+      kind === "slab"
+        ? { transport_slab_id: id }
+        : { fee_structure_id: id };
 
     setPaymentSubmitting(true);
     const m = newPayment.payment_method;
@@ -917,7 +1202,7 @@ function AdminFeesContent() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         student_id: selectedStudent.id,
-        fee_structure_id: newPayment.fee_structure_id,
+        ...fkPayload,
         amount_paid: amount,
         payment_method: m,
         month: newPayment.month || "",
@@ -949,7 +1234,7 @@ function AdminFeesContent() {
       toast.success(`Payment recorded. Receipt: ${data.payment.receipt_number}`);
       setRecordPaymentOpen(false);
       setNewPayment({
-        fee_structure_id: "",
+        fee_target: "",
         amount_paid: "",
         payment_method: "cash",
         month: "",
@@ -1010,101 +1295,220 @@ function AdminFeesContent() {
           <TabsTrigger value="dues">Dues / No-Dues</TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: Fee Structures */}
+        {/* Tab 1: Fee Structures (Academic + Transport sub-tabs) */}
         <TabsContent value="structures">
-          <Card className="bg-white dark:bg-card rounded-2xl shadow-sm mt-4">
-            <CardContent>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <select
-                    value={classFilter}
-                    onChange={(e) => setClassFilter(e.target.value)}
-                    className="rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
-                  >
-                    <option value="">All Classes</option>
-                    {CLASS_NAMES.map((cn) => (
-                      <option key={cn} value={cn}>
-                        {cn}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <Button
-                  className="bg-navy-900 hover:bg-navy-800 text-white"
-                  onClick={openAddStructure}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Fee Structure
-                </Button>
-              </div>
+          <Tabs defaultValue="academic" className="mt-4">
+            <TabsList>
+              <TabsTrigger value="academic">Academic</TabsTrigger>
+              <TabsTrigger value="transport">Transport</TabsTrigger>
+            </TabsList>
 
-              {structuresLoading ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-navy-900 dark:text-white" />
-                </div>
-              ) : feeStructures.length === 0 ? (
-                <p className="text-center py-12 text-gray-500 dark:text-gray-400">
-                  No fee structures found.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Class</TableHead>
-                      <TableHead>Stream</TableHead>
-                      <TableHead>Fee Type</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Frequency</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead className="w-24 text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {feeStructures.map((fs) => (
-                      <TableRow key={fs.id}>
-                        <TableCell className="font-medium">
-                          {fs.class_name}
-                        </TableCell>
-                        <TableCell className="text-gray-600 dark:text-gray-300">
-                          {fs.stream_id ? streamById[fs.stream_id] ?? "—" : "All streams"}
-                        </TableCell>
-                        <TableCell>{fs.fee_type}</TableCell>
-                        <TableCell>
-                          {new Intl.NumberFormat("en-IN", {
-                            style: "currency",
-                            currency: "INR",
-                            maximumFractionDigits: 0,
-                          }).format(fs.amount)}
-                        </TableCell>
-                        <TableCell className="capitalize">
-                          {fs.frequency.replace("_", " ")}
-                        </TableCell>
-                        <TableCell>{fs.due_date ?? "--"}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => openEditStructure(fs)}
-                              className="text-blue-500 hover:text-blue-700 p-1"
-                              aria-label="Edit fee structure"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteStructure(fs.id)}
-                              className="text-red-500 hover:text-red-700 p-1"
-                              aria-label="Delete fee structure"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+            {/* Academic sub-tab — tuition / lab / annual / other */}
+            <TabsContent value="academic">
+              <Card className="bg-white dark:bg-card rounded-2xl shadow-sm mt-3">
+                <CardContent>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <select
+                        value={classFilter}
+                        onChange={(e) => setClassFilter(e.target.value)}
+                        className="rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
+                      >
+                        <option value="">All Classes</option>
+                        {CLASS_NAMES.map((cn) => (
+                          <option key={cn} value={cn}>
+                            {cn}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Button
+                      className="bg-navy-900 hover:bg-navy-800 text-white"
+                      onClick={openAddStructure}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Fee Structure
+                    </Button>
+                  </div>
+
+                  {structuresLoading ? (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="h-6 w-6 animate-spin text-navy-900 dark:text-white" />
+                    </div>
+                  ) : feeStructures.length === 0 ? (
+                    <p className="text-center py-12 text-gray-500 dark:text-gray-400">
+                      No fee structures found.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Class</TableHead>
+                          <TableHead>Stream</TableHead>
+                          <TableHead>Fee Type</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Frequency</TableHead>
+                          <TableHead>Due Date</TableHead>
+                          <TableHead className="w-24 text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {feeStructures.map((fs) => (
+                          <TableRow key={fs.id}>
+                            <TableCell className="font-medium">
+                              {fs.class_name}
+                            </TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-300">
+                              {fs.stream_id ? streamById[fs.stream_id] ?? "—" : "All streams"}
+                            </TableCell>
+                            <TableCell>{fs.fee_type}</TableCell>
+                            <TableCell>
+                              {new Intl.NumberFormat("en-IN", {
+                                style: "currency",
+                                currency: "INR",
+                                maximumFractionDigits: 0,
+                              }).format(fs.amount)}
+                            </TableCell>
+                            <TableCell className="capitalize">
+                              {fs.frequency.replace("_", " ")}
+                            </TableCell>
+                            <TableCell>{fs.due_date ?? "--"}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  onClick={() => openEditStructure(fs)}
+                                  className="text-blue-500 hover:text-blue-700 p-1"
+                                  aria-label="Edit fee structure"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteStructure(fs.id)}
+                                  className="text-red-500 hover:text-red-700 p-1"
+                                  aria-label="Delete fee structure"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Transport sub-tab — distance-based fare slabs */}
+            <TabsContent value="transport">
+              <Card className="bg-white dark:bg-card rounded-2xl shadow-sm mt-3">
+                <CardContent>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-sm font-medium text-navy-900 dark:text-white">
+                        Distance Slabs
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Define fare bands once; assign each transport-using student to a slab.
+                      </p>
+                    </div>
+                    <Button
+                      className="bg-navy-900 hover:bg-navy-800 text-white"
+                      onClick={openAddSlab}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Slab
+                    </Button>
+                  </div>
+
+                  {slabsLoading ? (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="h-6 w-6 animate-spin text-navy-900 dark:text-white" />
+                    </div>
+                  ) : transportSlabs.length === 0 ? (
+                    <p className="text-center py-12 text-gray-500 dark:text-gray-400">
+                      No transport slabs defined yet.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Slab Name</TableHead>
+                          <TableHead>Distance (km)</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Frequency</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="w-24 text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {transportSlabs.map((s) => {
+                          const lo = s.distance_km_min;
+                          const hi = s.distance_km_max;
+                          const dist =
+                            lo == null && hi == null
+                              ? "—"
+                              : lo != null && hi != null
+                              ? `${lo}–${hi}`
+                              : lo != null
+                              ? `≥ ${lo}`
+                              : `≤ ${hi}`;
+                          return (
+                            <TableRow key={s.id}>
+                              <TableCell className="font-medium">
+                                {s.name}
+                              </TableCell>
+                              <TableCell className="text-gray-600 dark:text-gray-300">
+                                {dist}
+                              </TableCell>
+                              <TableCell>
+                                {new Intl.NumberFormat("en-IN", {
+                                  style: "currency",
+                                  currency: "INR",
+                                  maximumFractionDigits: 0,
+                                }).format(s.amount)}
+                              </TableCell>
+                              <TableCell className="capitalize">
+                                {s.frequency.replace("_", " ")}
+                              </TableCell>
+                              <TableCell>
+                                {s.is_active ? (
+                                  <Badge className="bg-green-100 text-green-700 border-green-200">
+                                    Active
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary">Inactive</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    onClick={() => openEditSlab(s)}
+                                    className="text-blue-500 hover:text-blue-700 p-1"
+                                    aria-label="Edit transport slab"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteSlab(s.id)}
+                                    className="text-red-500 hover:text-red-700 p-1"
+                                    aria-label="Delete transport slab"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         {/* Tab 2: Payments */}
@@ -1220,9 +1624,9 @@ function AdminFeesContent() {
                     </div>
                   </div>
 
-                  {/* Transport opt-in */}
+                  {/* Transport opt-in + distance slab */}
                   {selectedEnrollmentId && (
-                    <div className="flex items-center justify-between mb-4 p-3 rounded-lg border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted/40">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 p-3 rounded-lg border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted/40">
                       <div className="flex items-center gap-2">
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-950/30">
                           <Bus className="h-4 w-4 text-blue-600" />
@@ -1232,55 +1636,88 @@ function AdminFeesContent() {
                             School Transport
                           </p>
                           <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                            When enabled, Transport fees will be included in dues &amp; payments.
+                            Pick a distance slab; the fare flows through to dues &amp; payments.
                           </p>
                         </div>
                       </div>
-                      <label className="inline-flex items-center cursor-pointer select-none gap-2">
-                        <input
-                          type="checkbox"
-                          checked={studentHasTransport}
-                          onChange={(e) => handleToggleTransport(e.target.checked)}
-                          disabled={togglingTransport}
-                          className="h-4 w-4 accent-navy-900"
-                        />
-                        <span className="text-xs font-medium">
-                          {studentHasTransport ? "Using Transport" : "No Transport"}
-                        </span>
-                      </label>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <select
+                          value={studentTransportSlabId ?? ""}
+                          onChange={(e) =>
+                            handleSelectTransportSlab(e.target.value)
+                          }
+                          disabled={togglingTransport || transportSlabs.length === 0}
+                          className="rounded-md border border-gray-300 dark:border-border px-3 py-1.5 text-sm dark:bg-muted min-w-[200px]"
+                        >
+                          <option value="">
+                            {transportSlabs.length === 0
+                              ? "No slabs defined"
+                              : "Select a distance slab…"}
+                          </option>
+                          {transportSlabs
+                            .filter((s) => s.is_active)
+                            .map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name} — ₹{s.amount}
+                                {s.frequency !== "one_time" ? ` / ${s.frequency.replace("_", " ")}` : ""}
+                              </option>
+                            ))}
+                        </select>
+                        <label className="inline-flex items-center cursor-pointer select-none gap-2">
+                          <input
+                            type="checkbox"
+                            checked={studentHasTransport}
+                            onChange={(e) =>
+                              handleToggleTransportCheckbox(e.target.checked)
+                            }
+                            disabled={togglingTransport}
+                            className="h-4 w-4 accent-navy-900"
+                          />
+                          <span className="text-xs font-medium">
+                            {studentHasTransport ? "Using Transport" : "No Transport"}
+                          </span>
+                        </label>
+                      </div>
                     </div>
                   )}
 
-                  {/* Fee structures for student's class */}
-                  {applicableFeeStructures.length > 0 && (
+                  {/* Fee structures for student's class (academic + transport) */}
+                  {applicableFeeLines.length > 0 && (
                     <div className="mb-6">
                       <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                        Applicable Fee Structures
+                        Applicable Fees
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {applicableFeeStructures.map((fs) => (
-                          <div
-                            key={fs.id}
-                            className="border border-gray-200 dark:border-border rounded-lg p-3"
-                          >
-                            <p className="font-medium text-sm">
-                              {fs.fee_type}
-                            </p>
-                            <p className="text-lg font-bold text-navy-900 dark:text-white">
-                              {new Intl.NumberFormat("en-IN", {
-                                style: "currency",
-                                currency: "INR",
-                                maximumFractionDigits: 0,
-                              }).format(fs.amount)}
-                            </p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">
-                              {fs.frequency.replace("_", " ")}
-                              {fs.stream_id && streamById[fs.stream_id]
-                                ? ` • ${streamById[fs.stream_id]}`
-                                : ""}
-                            </p>
-                          </div>
-                        ))}
+                        {applicableFeeLines.map((line) => {
+                          const isSlab = line.kind === "transport_slab";
+                          const subtitle = isSlab
+                            ? `${line.frequency.replace("_", " ")} • ${line.slab_name}`
+                            : `${line.frequency.replace("_", " ")}${
+                                line.stream_id && streamById[line.stream_id]
+                                  ? ` • ${streamById[line.stream_id]}`
+                                  : ""
+                              }`;
+                          return (
+                            <div
+                              key={line.id}
+                              className="border border-gray-200 dark:border-border rounded-lg p-3"
+                            >
+                              <p className="font-medium text-sm">
+                                {line.fee_type}
+                              </p>
+                              <p className="text-lg font-bold text-navy-900 dark:text-white">
+                                {new Intl.NumberFormat("en-IN", {
+                                  style: "currency",
+                                  currency: "INR",
+                                  maximumFractionDigits: 0,
+                                }).format(line.amount)}
+                              </p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">
+                                {subtitle}
+                              </p>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -1817,6 +2254,128 @@ function AdminFeesContent() {
         </DialogContent>
       </Dialog>
 
+      {/* Add/Edit Transport Slab Dialog */}
+      <Dialog open={slabDialogOpen} onOpenChange={setSlabDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
+                <Bus className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <DialogTitle>
+                  {slabDialogMode === "edit"
+                    ? "Edit Transport Slab"
+                    : "Add Transport Slab"}
+                </DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Distance bands are optional metadata; the slab name is the label parents see.
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Slab Name</Label>
+              <Input
+                className="h-9"
+                placeholder="e.g. 0–5 km"
+                value={slabForm.name}
+                onChange={(e) =>
+                  setSlabForm({ ...slabForm, name: e.target.value })
+                }
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Min km (optional)</Label>
+                <Input
+                  className="h-9"
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  placeholder="0"
+                  value={slabForm.distance_km_min}
+                  onChange={(e) =>
+                    setSlabForm({
+                      ...slabForm,
+                      distance_km_min: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Max km (optional)</Label>
+                <Input
+                  className="h-9"
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  placeholder="5"
+                  value={slabForm.distance_km_max}
+                  onChange={(e) =>
+                    setSlabForm({
+                      ...slabForm,
+                      distance_km_max: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Amount</Label>
+                <Input
+                  className="h-9"
+                  type="number"
+                  min={0}
+                  placeholder="Enter amount"
+                  value={slabForm.amount}
+                  onChange={(e) =>
+                    setSlabForm({ ...slabForm, amount: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Frequency</Label>
+                <select
+                  value={slabForm.frequency}
+                  onChange={(e) =>
+                    setSlabForm({
+                      ...slabForm,
+                      frequency: e.target.value as (typeof FREQUENCIES)[number],
+                    })
+                  }
+                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                >
+                  {FREQUENCIES.map((f) => (
+                    <option key={f} value={f}>
+                      {f.charAt(0).toUpperCase() + f.slice(1).replace("_", " ")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <Button
+              onClick={handleSaveSlab}
+              disabled={slabSubmitting}
+              className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white"
+            >
+              {slabSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : slabDialogMode === "edit" ? (
+                "Save Changes"
+              ) : (
+                "Add Slab"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Record Payment Dialog */}
       <Dialog open={recordPaymentOpen} onOpenChange={setRecordPaymentOpen}>
         <DialogContent>
@@ -1833,31 +2392,37 @@ function AdminFeesContent() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label className="text-xs font-medium">Fee Structure</Label>
+              <Label className="text-xs font-medium">Fee</Label>
               <select
-                value={newPayment.fee_structure_id}
+                value={newPayment.fee_target}
                 onChange={(e) =>
                   setNewPayment({
                     ...newPayment,
-                    fee_structure_id: e.target.value,
+                    fee_target: e.target.value,
                   })
                 }
                 className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
               >
-                <option value="">Select fee type</option>
-                {applicableFeeStructures.map((fs) => (
-                  <option key={fs.id} value={fs.id}>
-                    {fs.fee_type} -{" "}
-                    {new Intl.NumberFormat("en-IN", {
-                      style: "currency",
-                      currency: "INR",
-                      maximumFractionDigits: 0,
-                    }).format(fs.amount)}
-                    {fs.stream_id && streamById[fs.stream_id]
-                      ? ` (${streamById[fs.stream_id]})`
-                      : ""}
-                  </option>
-                ))}
+                <option value="">Select fee</option>
+                {applicableFeeLines.map((line) => {
+                  const isSlab = line.kind === "transport_slab";
+                  const value = `${isSlab ? "slab" : "fs"}:${line.id}`;
+                  const label = isSlab
+                    ? `${line.fee_type} (${line.slab_name})`
+                    : line.stream_id && streamById[line.stream_id]
+                    ? `${line.fee_type} (${streamById[line.stream_id]})`
+                    : line.fee_type;
+                  return (
+                    <option key={value} value={value}>
+                      {label} -{" "}
+                      {new Intl.NumberFormat("en-IN", {
+                        style: "currency",
+                        currency: "INR",
+                        maximumFractionDigits: 0,
+                      }).format(line.amount)}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">

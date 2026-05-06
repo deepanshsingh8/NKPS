@@ -1,183 +1,134 @@
-# Per-Editor Feature Permissions
+# Distance-based Transport Fees
 
-Goal: Let an admin pick exactly which admin features each individual editor can see and use. Some editors get only Site Media, some only Fees + Calendar, some only Exams + Timetable, etc.
+Goal: Replace the single flat `Transport` fee with admin-defined distance slabs. Per-student transport opt-in carries which slab applies, so the dynamic price flows through to dues, receipts, and the student/parent views. Split the admin Fees screen into **Academic** vs **Transport** sub-sections so each lives in its own surface.
 
-**Hard constraint: must not break anything that works today.**
-- Admins keep full access (no change in behavior).
-- Existing single editor (if any) keeps the routes they have now until permissions are explicitly assigned — covered by a backfill in the migration.
-- All non-editor roles (teacher/student/parent) untouched.
+**Hard constraint:** must not break anything that works today.
+- Existing recorded fee payments stay valid — historical Transport receipts continue to resolve.
+- Admins keep full access.
+- Dues/no-dues math reconciles before/after to the rupee for any student already opted-in.
 
 ---
 
 ## Design summary
 
-**One new table** `editor_permissions` keyed by `(editor_id, feature_key)`. Presence of a row = granted. Absence = denied.
+### 1. New table `transport_fare_slabs`
+Distance-band master, scoped per academic year. Fully flexible — admin can name slabs whatever they want; distance min/max are advisory metadata only.
 
-**Two enforcement points** (both required):
-1. **Sidebar** hides links the editor can't access (UX).
-2. **Server** rejects requests for features the editor lacks (security — sidebar is bypassable by typing the URL).
+```
+id                uuid PK
+academic_year_id  uuid FK academic_years
+name              text NOT NULL          -- "0–5 km", "Cluster A", etc.
+distance_km_min   numeric(5,2) NULL      -- optional, display-only
+distance_km_max   numeric(5,2) NULL      -- optional, display-only
+amount            numeric(10,2) NOT NULL CHECK (amount > 0)
+frequency         text NOT NULL DEFAULT 'monthly' (monthly|quarterly|annual|one_time)
+is_active         boolean DEFAULT true
+sort_order        int DEFAULT 0
+created_at, updated_at
+UNIQUE(academic_year_id, name)
+```
 
-**Server enforcement happens in two places:**
-- **Middleware** (`src/lib/supabase/middleware.ts`) — page-level guard. Maps URL prefix → feature_key, checks `editor_permissions`, redirects denied editors to `/admin`.
-- **API routes** — extend `verifyAdminOrEditor()` to accept an optional `featureKey` param. Routes that editors can hit pass their feature_key; admins always pass.
+### 2. `student_enrollments` — add slab pointer
+- `transport_slab_id uuid REFERENCES transport_fare_slabs(id) ON DELETE SET NULL`.
+- Soft constraint: `has_transport = true` requires `transport_slab_id IS NOT NULL` (enforced in UI + payments API; CHECK constraint on the table for hard guarantee).
 
-**Granularity (v1):** view + edit per feature, no separate read-only mode. Can be added later if anyone asks.
+### 3. `fee_payments` — allow recording slab payments
+- `fee_structure_id` becomes nullable.
+- Add `transport_slab_id uuid REFERENCES transport_fare_slabs(id)`.
+- CHECK: exactly one of `fee_structure_id` / `transport_slab_id` is set.
+- All existing rows are unaffected (they keep their `fee_structure_id`).
 
-**Feature catalog** (single source of truth in `src/lib/permissions.ts`):
+### 4. Resolver (`apps/erp/src/lib/fees.ts`)
+Drop Transport entirely from the `fee_structures` flow. Add a sibling helper that, given a student's enrollment + slab catalog, returns a synthesized `FeeStructure`-shaped line for the slab so existing UI/dues code stays mostly untouched.
 
-| feature_key | URL prefix | Label |
-|---|---|---|
-| `gallery` | `/admin/gallery` | Gallery |
-| `transfer_certificates` | `/admin/transfer-certificates` | Transfer Certificates |
-| `contact` | `/admin/contact` | Contact Messages |
-| `site_media` | `/admin/site-media` | Site Media |
-| `disclosure` | `/admin/disclosure` | Disclosure |
-| `staff` | `/admin/staff` | Staff |
-| `students` | `/admin/students` | Students |
-| `classes` | `/admin/classes` | Classes |
-| `subjects` | `/admin/subjects` | Subjects |
-| `academic_years` | `/admin/academic-years` | Academic Years |
-| `exam_types` | `/admin/exam-types` | Exam Types |
-| `fees` | `/admin/fees` | Fees |
-| `timetable` | `/admin/timetable` | Timetable |
-| `calendar` | `/admin/calendar` | Calendar |
-| `attendance` | `/admin/attendance` | Attendance |
-| `results` | `/admin/results` | Results |
-| `registrations` | `/admin/registrations` | Registrations |
+```ts
+resolveTransportLine({ enrollment, slabs }): SyntheticFeeLine | null
+```
 
-**Always-allowed for editors (not in catalog, no permission needed):**
-- `/admin` (dashboard landing)
-- `/admin/login` (login)
+The Admin/Student/Parent fee pages call both helpers and concatenate the result. Type-side, introduce `EffectiveFeeLine = FeeStructure | TransportFeeLine` to keep the union explicit.
 
-**Admin-only forever (never grantable to editors):**
-- `/admin/users` — managing users could let an editor grant themselves anything. Stays admin-only.
+### 5. Admin Fees page (`apps/erp/src/app/(admin)/fees/page.tsx`)
+Restructure the **Fee Structures** tab into two sub-tabs:
 
----
+- **Academic** — current table & dialog, but the Fee Type dropdown drops `Transport`.
+- **Transport** — CRUD for `transport_fare_slabs` (Name, Min km, Max km, Amount, Frequency).
 
-## Tasks
+In the **Payments** tab, replace the bare Transport checkbox with:
 
-### Phase 1 — Schema & catalog
-- [ ] Write `scripts/migration-009-editor-permissions.sql`:
-  - `CREATE TABLE editor_permissions (editor_id uuid REFERENCES profiles(id) ON DELETE CASCADE, feature_key text NOT NULL, granted_at timestamptz DEFAULT now(), granted_by uuid REFERENCES profiles(id), PRIMARY KEY (editor_id, feature_key))`
-  - Index on `editor_id`
-  - RLS: enable; admin-only read/write policy (service role bypasses anyway, so this is belt-and-braces)
-  - **Backfill**: for every existing `profiles.role = 'editor'`, insert rows for the current hardcoded allowlist (`gallery`, `transfer_certificates`, `site_media`, `disclosure`, `staff`, `calendar`) so no editor loses access on deploy
-- [ ] Append the same `CREATE TABLE` to `supabase-schema.sql` so fresh installs get it
-- [ ] Create `src/lib/permissions.ts` exporting:
-  - `FEATURE_KEYS` array (the 17 keys above)
-  - `FEATURE_CATALOG` array of `{ key, label, href }` for UI
-  - `featureKeyForPath(pathname: string): string | null` — maps `/admin/gallery/anything` → `"gallery"`, returns null for `/admin` (always-allowed) and `/admin/users` (admin-only)
-  - `ADMIN_ONLY_PREFIXES = ["/admin/users"]`
+```
+[x] Using Transport   →   [Distance: 0–5 km ▾]   ₹1,200/month
+```
 
-### Phase 2 — Server enforcement (auth)
-- [ ] Extend `src/lib/verify-admin.ts`:
-  - `verifyAdminOrEditor(featureKey?: string)` — if caller passes a key AND user is an editor, query `editor_permissions` for that `(editor_id, featureKey)`. If missing, return null. Admins skip the check.
-  - Keep the no-arg call working (back-compat for any route I miss)
-- [ ] Update `src/lib/supabase/middleware.ts`:
-  - After the existing role check (line 116), if `role === 'editor'`:
-    - If pathname is in `ADMIN_ONLY_PREFIXES` → redirect to `/admin`
-    - Else compute `featureKeyForPath(pathname)`. If non-null, query `editor_permissions`. If no row → redirect to `/admin`.
-  - Cache check is per-request only; no global cache (correctness > a few ms)
-- [ ] Audit the 19 API routes from grep results. For each that an editor could plausibly hit, pass the matching feature_key:
-  - `api/admin/site-media` → `"site_media"`
-  - `api/admin/disclosure-documents` → `"disclosure"`
-  - `api/admin/section-cards` → check what feature it serves
-  - `api/admin/contact*` → `"contact"`
-  - `api/gallery` → `"gallery"`
-  - `api/transfer-certificates` → `"transfer_certificates"`
-  - `api/staff*` → `"staff"`
-  - `api/erp/students*` → `"students"`
-  - `api/erp/registrations*` → `"registrations"`
-  - `api/admin/dashboard*` → leave un-keyed (dashboard is always-allowed)
-  - `api/admin/upload-url` → leave un-keyed (used by multiple features; access is gated by which page can call it)
-  - `api/portal/bulk-create` → check who calls it; likely admin-only
+When the checkbox is enabled, a slab dropdown appears; saving "Using Transport" without a slab selection is rejected. The "Applicable Fee Structures" grid below now includes the synthesized transport line.
 
-### Phase 3 — Sidebar (UX)
-- [ ] Refactor `src/components/admin/AdminSidebar.tsx`:
-  - Replace hardcoded `EDITOR_ALLOWED_HREFS` with a fetch of the editor's permissions on mount (alongside existing role fetch — single round-trip)
-  - Map permissions → set of allowed hrefs using `FEATURE_CATALOG`
-  - Always include `/admin` for editors. Never include `/admin/users` for editors.
-  - Loading state: show role-but-no-links until perms load (or skeleton — pick whichever is least jarring; current code already shows everything for admin until role loads, mirror that)
+The **Dues / No-Dues** tab updates to include the slab-driven transport amount per row (instead of a hard-coded fixed Transport row from `fee_structures`). The existing CSV columns stay the same — `Transport` stays a yes/no column, but the expected/dues now reflect the slab's amount.
 
-### Phase 4 — Permissions UI for admins
-- [ ] On `/admin/users` editor row, add an "Edit Permissions" action (button or link to a drawer/modal). Existing user management page is the right host — don't create a separate top-level page.
-- [ ] Build a permissions editor component:
-  - Lists all 17 features as checkboxes, grouped Content / ERP to mirror sidebar
-  - Pre-checks current permissions
-  - "Save" calls a new API route
-- [ ] New API route `src/app/api/admin/editor-permissions/route.ts`:
-  - `GET ?editor_id=xxx` → returns array of feature_keys (admin-only via `verifyAdmin()`)
-  - `PUT` body `{ editor_id, feature_keys: string[] }` → replaces the editor's permissions atomically (delete all + insert new, in one transaction). Validates feature_keys against `FEATURE_KEYS`. Admin-only.
-- [ ] Hide the "Edit Permissions" button for non-editor users (admins/teachers/students don't need it)
+### 6. Student & Parent fee views
+Read-only consumers of the same resolver. The transport line shows up identically with the slab name (e.g. "Transport — 0–5 km") + amount. No new dialogs.
 
-### Phase 5 — Verification (don't skip)
-- [ ] Migration applied locally; check backfill row count matches existing editor count × 6 features
-- [ ] Type check + lint clean
-- [ ] Manual flow as admin: log in, edit an editor, uncheck `staff`, save. Confirm row disappears from `editor_permissions`.
-- [ ] Manual flow as that editor: log in, confirm Staff link is hidden in sidebar, confirm typing `/admin/staff` redirects to `/admin`, confirm relevant API call returns 401/403.
-- [ ] Re-grant `staff`, confirm access restored without re-login (next page nav picks it up).
-- [ ] Confirm admin user still sees and can access everything.
-- [ ] Confirm a teacher/student/parent login is unaffected (they still go to their own portals).
+### 7. Payments API (`/api/fees/payments`)
+- Schema accepts `fee_structure_id?` OR `transport_slab_id?` (XOR; validated by Zod refine).
+- For slab payments, look up `transport_fare_slabs` for `amount` and `academic_year_id`; existing over-payment guard works the same.
+- `fee_payments.transport_slab_id` written; `fee_structure_id` stays null.
 
-### Phase 6 — Document
-- [ ] Add a short note in `CLAUDE.md` under "Backend: Supabase" mentioning the `editor_permissions` table and `src/lib/permissions.ts` as the feature catalog.
-- [ ] Append a Review section to this file after merge: what changed, files touched, any surprises.
+### 8. Receipt PDF (`/api/fees/receipt`)
+- When payment row has `transport_slab_id`, render the slab name as the line description (instead of `fee_structure.fee_type`).
+
+### 9. Migration & schema mirror
+- New `migration-050-transport-fare-slabs.sql` under `scripts/migrations/erp/`.
+- Append the same DDL to `supabase-schema.sql` (per memory rule).
+- Backfill (idempotent, in same migration):
+  1. For each distinct `(academic_year_id, class_name, amount, frequency)` row in `fee_structures` where `fee_type = 'Transport' AND is_active`, create a slab named e.g. `"Default — {class_name}"`. Distance min/max NULL.
+  2. For each `student_enrollments` row where `has_transport = true`, set `transport_slab_id` to the slab matching the enrollment's class (preferring the slab created from that class's Transport structure).
+  3. Set `fee_structures.is_active = false` for all Transport rows so they no longer surface in admin pickers, while old `fee_payments` keep resolving.
 
 ---
 
-## Risks / things to watch
+## Decisions (confirmed)
 
-1. **Backfill correctness** — if I miss it, every existing editor immediately loses everything. Mitigation: SQL `INSERT ... SELECT` from `profiles WHERE role = 'editor'` cross-joined with the current 6 hardcoded features.
-2. **Middleware DB query on every page nav** — adds one query per `/admin/*` request for editors. Acceptable; admin traffic is low. If it becomes a problem later, cache in a JWT claim.
-3. **Section-cards & upload-url APIs** — shared utilities. Don't gate them by a single feature_key; let the page-level middleware do the work, and keep API auth at the looser `verifyAdminOrEditor()` level.
-4. **`api/admin/section-cards`** — need to read it to understand which feature it belongs to before deciding its key (or leave un-keyed).
-5. **Race during permission update** — admin saves new perms while editor is mid-session. Editor's next request reflects new state (no caching), so worst case they see a 401 on a stale link. Acceptable.
-6. **Don't lock yourself out** — never let an admin demote themselves to editor through this UI. Add a guard on the user-edit page if it doesn't already exist.
+1. **Slab scope** — school-wide per academic year. ✓
+2. **Existing Transport `fee_structures`** — repoint dependent `fee_payments` to slabs, then hard-delete. ✓
+3. **`distance_km_min/max`** — optional metadata; slab name is the label. ✓
+4. **Slab edits** — mutate in place. `fee_payments.amount_paid` is already stamped at write time, so receipts stay correct; we lose only the historical price browsing, which isn't needed. ✓
 
 ---
 
-## Out of scope (v1)
+## Implementation checklist
 
-- Read-only vs edit permissions (just view-or-not for now)
-- Per-record permissions (e.g. "can edit gallery but only their own uploads")
-- Audit log of who granted what (we capture `granted_by` and `granted_at` in the table for future use)
-- Bulk permission templates ("apply this template of features")
-
----
+- [x] Migration 050 + supabase-schema.sql append (table, FKs, CHECK, backfill)
+- [x] `packages/shared/src/types/index.ts`: `TransportFareSlab` + `EffectiveFeeLine` union
+- [x] `apps/erp/src/lib/fees.ts`: drop Transport from `fee_structures` resolver; add `resolveTransportLine` + `resolveEffectiveFeeLines`
+- [x] Validation schemas (`packages/shared/src/lib/validations.ts`): slab CRUD + payment XOR
+- [x] Admin Fees page: Academic/Transport sub-tabs in Structures, slab dropdown in Payments tab, dues compute reads slabs
+- [x] `/api/fees/payments`: accept slab_id; write nullable fee_structure_id
+- [x] `/api/fees/receipt`: render slab name when applicable
+- [x] Student fees page: show slab line
+- [x] Parent fees page: show slab line
+- [x] Analytics route updated for slab-driven expected total
+- [x] Typecheck + lint + build clean (4 packages)
+- [ ] Manual smoke: apply migration → create slab → opt student in → record payment → download receipt → check dues report (deferred to user)
 
 ## Review
 
-### Files added
-- `scripts/migration-009-editor-permissions.sql` — table, RLS, backfill
-- `src/lib/permissions.ts` — feature catalog, path→key mapping, admin-only paths
-- `src/app/api/admin/editor-permissions/route.ts` — GET / PUT for admins
-- `src/components/admin/EditorPermissionsDialog.tsx` — checkbox UI
-- Added `editor_permissions` table block to `supabase-schema.sql`
+**What changed**
 
-### Files modified
-- `src/lib/verify-admin.ts` — `verifyAdminOrEditor(featureKey?)` now checks grants when key provided
-- `src/lib/supabase/middleware.ts` — editor feature gate + admin-only path block
-- `src/components/admin/AdminSidebar.tsx` — dynamic permission fetch replaces hardcoded `EDITOR_ALLOWED_HREFS`
-- `src/app/admin/users/page.tsx` — "Permissions" button on editor rows, dialog wired in
-- `src/app/api/admin/route.ts` — per-table feature gating via `TABLE_FEATURE_KEY`
-- Feature-keyed: `admin/contact/unread-count`, `admin/disclosure-documents`, `admin/site-media`, `admin/section-cards`, `gallery`, `transfer-certificates`, `staff`, `staff/bulk`
-- `CLAUDE.md` — added "Editor permissions" section under Backend
+Distance-based transport fees are live. The flat `Transport` row in `fee_structures` is gone — fares now live in a per-academic-year `transport_fare_slabs` master with optional km bands. Each `student_enrollments` row points at a slab via `transport_slab_id`; `fee_payments` accepts either `fee_structure_id` (academic) or `transport_slab_id` (transport), enforced by a XOR CHECK. Migration 050 backfills slabs from any existing Transport rows, repoints old transport receipts onto the new slab, then hard-deletes the originals. Receipts now render `Transport — 0–5 km` instead of a generic "Transport".
 
-### Behavior guarantees
-- **Admins**: zero behavior change. `verifyAdminOrEditor(key)` short-circuits to true for admins; middleware skips the feature check for admins.
-- **Existing editors**: backfill inserts the 6 previously-hardcoded features so no one loses access on deploy.
-- **Other roles**: untouched; still route to their own portals.
-- Build + typecheck pass clean; pre-existing lint warnings in unrelated files.
+**Files touched**
 
-### Known v1 limitations (intentional, not blockers)
-- Routes still using `verifyAdmin()` (admin-only) or inline cookie-auth remain admin-only: `api/erp/students/*`, `api/erp/registrations/*` (except proxy calls), `api/admin/contact`, `api/portal/bulk-create`, `api/erp/users`. An editor granted `students` or `registrations` will see the page but mutations via those specific endpoints will 403.
-- However, editors granted ERP features **can** perform table CRUD through the `/api/admin` proxy, which most admin pages use. So `classes`, `subjects`, `fees`, `exam_types`, `calendar`, `timetable`, `attendance`, `results`, `academic_years` permissions fully work.
-- Follow-up (not urgent): migrate the remaining `verifyAdmin()` routes to `verifyAdminOrEditor("students" | "registrations")` if editors need full access to those pages' specialized endpoints.
+- `scripts/migrations/erp/migration-050-transport-fare-slabs.sql` — new
+- `supabase-schema.sql` — appended migration 050 DDL (per memory rule)
+- `packages/shared/src/types/index.ts` — `TransportFareSlab`, `TransportFeeLine`, `EffectiveFeeLine`; `transport_slab_id` on `StudentEnrollment` + `FeePayment`
+- `packages/shared/src/lib/validations.ts` — `transportFareSlabSchema`; `feePaymentSchema` accepts XOR fee_structure_id / transport_slab_id
+- `apps/erp/src/lib/fees.ts` — dropped Transport handling from `resolveEffectiveFeeStructures`; added `resolveTransportLine`, `resolveEffectiveFeeLines`
+- `apps/erp/src/app/(admin)/fees/page.tsx` — Academic/Transport sub-tabs, slab CRUD dialog, slab dropdown in payments tab, dues includes slab amount, payments dropdown handles XOR
+- `apps/erp/src/app/api/fees/payments/route.ts` — branches on slab vs structure for amount/year lookup, over-payment guard, FK insert
+- `apps/erp/src/app/api/fees/receipt/route.tsx` — joins `transport_fare_slabs` and renders slab name
+- `apps/erp/src/app/student/fees/page.tsx` — uses `resolveEffectiveFeeLines`, joins slab in payment history
+- `apps/erp/src/app/parent/fees/page.tsx` — same treatment as student page
+- `apps/erp/src/app/api/dashboard/analytics/route.ts` — fetches slabs, adds slab annualized to expected; payment query no longer inner-joins through `fee_structures`
 
-### Manual test plan
-1. Run migration 009 in Supabase SQL editor.
-2. As admin: go to `/admin/users`, click Permissions on an editor row. Uncheck `Staff` → Save.
-3. Log in as that editor: Staff link disappears from sidebar. Visiting `/admin/staff` directly redirects to `/admin`. API call to `/api/staff` returns 401.
-4. Back as admin: re-grant `Staff`. Editor's next nav shows the link again.
-5. Verify admin still sees/does everything. Verify a teacher/student/parent login still lands in their correct portal.
-6. Verify `/admin/users` redirects an editor to `/admin` regardless of any granted feature.
+**Open follow-ups (not blocking)**
+- Waiver flow still locked to `fee_structure_id` only. If the school wants to waive transport fees too, extend `feeWaiverSchema` and the route to accept `transport_slab_id` (XOR) — would mirror the payments change exactly.
+- Dues CSV column header is still "Transport" (yes/no). Could become "Transport Slab" once school confirms they want the slab name in exports.
+- The user needs to apply migration 050 to the live DB and run a manual smoke test (covered in the checklist above).

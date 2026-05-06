@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     const { data: payment, error: payErr } = await admin
       .from("fee_payments")
       .select(
-        "id, student_id, amount_paid, payment_date, payment_method, receipt_number, month, status, remarks, cheque_number, cheque_date, bank_name, payer_name, transaction_ref, payment_provider, fee_structure:fee_structures(fee_type, academic_year_id, academic_years(name))"
+        "id, student_id, amount_paid, payment_date, payment_method, receipt_number, month, status, remarks, cheque_number, cheque_date, bank_name, payer_name, transaction_ref, payment_provider, fee_structure:fee_structures(fee_type, academic_year_id, academic_years(name)), transport_slab:transport_fare_slabs(name, academic_year_id, academic_years(name))"
       )
       .eq("id", paymentId)
       .single();
@@ -130,7 +130,19 @@ export async function GET(request: Request) {
       academic_years: { name: string } | null;
     } | null;
 
+    const transportSlab = payment.transport_slab as unknown as {
+      name: string;
+      academic_years: { name: string } | null;
+    } | null;
+
+    // Transport receipts use the slab name as the line description so
+    // parents see "0–5 km" rather than a generic "Transport".
+    const feeTypeLabel = transportSlab
+      ? `Transport — ${transportSlab.name}`
+      : feeStructure?.fee_type ?? "Fee";
+
     const academicYearName =
+      transportSlab?.academic_years?.name ??
       feeStructure?.academic_years?.name ??
       (enrollment?.academic_years as unknown as { name: string } | null)?.name ??
       "";
@@ -151,7 +163,7 @@ export async function GET(request: Request) {
         data={{
           receipt_number: payment.receipt_number ?? payment.id.slice(0, 8).toUpperCase(),
           payment_date: payment.payment_date,
-          fee_type: feeStructure?.fee_type ?? "Fee",
+          fee_type: feeTypeLabel,
           amount: Number(payment.amount_paid),
           payment_method: payment.payment_method,
           month: payment.month,
