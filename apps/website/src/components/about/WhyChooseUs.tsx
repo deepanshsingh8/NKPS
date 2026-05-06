@@ -7,29 +7,6 @@ import { GlassCard } from "@nkps/shared/components/GlassCard";
 import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import type { SectionCard } from "@nkps/shared/types";
 
-const features = [
-  {
-    icon: Award,
-    title: "Experienced Faculty",
-    desc: "Our faculty brings years of experience in delivering quality education across all subjects.",
-  },
-  {
-    icon: BookOpen,
-    title: "Holistic Curriculum",
-    desc: "Balanced approach combining academics with sports, arts, and character development.",
-  },
-  {
-    icon: Monitor,
-    title: "Smart Classrooms",
-    desc: "Equipped with modern teaching technologies for interactive and engaging learning.",
-  },
-  {
-    icon: Trophy,
-    title: "100% Board Results",
-    desc: "We are proud of our consistent academic performance in CBSE board examinations.",
-  },
-];
-
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Award,
   BookOpen,
@@ -42,18 +19,16 @@ interface WhyChooseUsProps {
 }
 
 export function WhyChooseUs({ cards }: WhyChooseUsProps = {}) {
-  // Default features + DB cards appended
-  const baseFeatures = features.map((f) => ({
-    icon: f.icon,
-    title: f.title,
-    desc: f.desc,
-  }));
-  const dbFeatures = (cards ?? []).map((c) => ({
+  // Single source of truth: section_cards. Defaults are seeded as is_default
+  // rows (migration 055).
+  const allFeatures = (cards ?? []).map((c) => ({
+    id: c.id,
     icon: iconMap[c.icon || ""] || Award,
     title: c.title || "",
     desc: c.description || "",
   }));
-  const allFeatures = [...baseFeatures, ...dbFeatures];
+
+  if (allFeatures.length === 0) return null;
   return (
     <section className="section-padding bg-cream-50">
       <div className="page-container">
@@ -70,7 +45,7 @@ export function WhyChooseUs({ cards }: WhyChooseUsProps = {}) {
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-12"
         >
           {allFeatures.map((feature) => (
-            <motion.div key={feature.title} variants={fadeUp}>
+            <motion.div key={feature.id} variants={fadeUp}>
               <GlassCard className="p-8 text-center" hover>
                 <div className="bg-blue-600/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto">
                   <feature.icon className="w-8 h-8 text-blue-600" />

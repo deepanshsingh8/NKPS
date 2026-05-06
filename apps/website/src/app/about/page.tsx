@@ -31,11 +31,6 @@ export default async function AboutPage() {
 
   const aboutHeroImage = mediaUrl(media, "about_hero", "/images/gallery/g10.jpg");
   const founderPhoto = mediaUrl(media, "founder_photo", "/images/about/rk-choudhary.png");
-  const leaderPhotos: Record<string, string> = {
-    "Dr. N.C. Lunayach": mediaUrl(media, "leadership_managing_director", "/images/staff/managing-director.jpg"),
-    "Mr. Kuldeep Singh": mediaUrl(media, "leadership_director", "/images/staff/director.jpg"),
-    "Mrs. Prema Kavia": mediaUrl(media, "leadership_principal", "/images/staff/principal.jpg"),
-  };
 
   return (
     <PageTransition>
@@ -78,7 +73,7 @@ export default async function AboutPage() {
 
       <SectionDivider color="fill-cream-50" />
 
-      <LeadershipGrid photos={leaderPhotos} cards={leadershipCards} />
+      <LeadershipGrid cards={leadershipCards} />
       <WhyChooseUs cards={whyChooseCards} />
 
       <SectionDivider flip color="fill-navy-900" />

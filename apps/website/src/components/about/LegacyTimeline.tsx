@@ -4,51 +4,21 @@ import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import type { SectionCard } from "@nkps/shared/types";
 
-const milestones = [
-  {
-    year: "1985",
-    title: "Foundation",
-    description:
-      "NK Public School established by Late Shri R.K. Choudhary with just 10 students.",
-  },
-  {
-    year: "1990",
-    title: "CBSE Affiliation",
-    description:
-      "Received affiliation from CBSE, marking a new chapter in academic excellence.",
-  },
-  {
-    year: "2000",
-    title: "Campus Expansion",
-    description:
-      "New buildings, laboratories, and sports facilities added to serve growing student body.",
-  },
-  {
-    year: "2010",
-    title: "Digital Era",
-    description:
-      "Smart classrooms and computer labs introduced for technology-integrated learning.",
-  },
-  {
-    year: "2024",
-    title: "20000+ Students",
-    description:
-      "Grown into one of Jaipur's leading institutions with 6 educational institutes.",
-  },
-];
-
 interface LegacyTimelineProps {
   cards?: SectionCard[];
 }
 
 export function LegacyTimeline({ cards }: LegacyTimelineProps = {}) {
-  // Default milestones + DB cards appended
-  const dbMilestones = (cards ?? []).map((c) => ({
+  // Single source of truth: section_cards. Defaults are seeded as is_default
+  // rows (migration 056).
+  const allMilestones = (cards ?? []).map((c) => ({
+    id: c.id,
     year: c.year || "",
     title: c.title || "",
     description: c.description || "",
   }));
-  const allMilestones = [...milestones, ...dbMilestones];
+
+  if (allMilestones.length === 0) return null;
   return (
     <section className="section-padding bg-cream-50">
       <div className="page-container">
@@ -59,7 +29,7 @@ export function LegacyTimeline({ cards }: LegacyTimelineProps = {}) {
           <div className="absolute left-4 md:left-6 top-0 bottom-0 w-0.5 bg-gold-500/30" />
 
           {allMilestones.map((milestone, index) => (
-            <AnimatedSection key={milestone.year}>
+            <AnimatedSection key={milestone.id}>
               <div
                 className="relative pl-14 md:pl-20 pb-12 last:pb-0"
                 style={{ transitionDelay: `${index * 100}ms` }}

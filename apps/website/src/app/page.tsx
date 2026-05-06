@@ -33,30 +33,11 @@ export default async function HomePage() {
     getLatestArticles(3),
   ]);
 
-  const heroImages = [
-    mediaUrl(media, "hero_slide_1", "/images/hero/campus-1.jpg"),
-    mediaUrl(media, "hero_slide_2", "/images/hero/campus-2.avif"),
-    mediaUrl(media, "hero_slide_3", "/images/news/n5.jpg"),
-  ];
-
-  const facilityImages = [
-    mediaUrl(media, "facilities_preview_1", "/images/news/n1.jpg"),
-    mediaUrl(media, "facilities_preview_2", "/images/news/n2.jpg"),
-    mediaUrl(media, "facilities_preview_3", "/images/news/n4.jpg"),
-    mediaUrl(media, "facilities_preview_4", "/images/news/n6.jpg"),
-  ];
-
   const statsBackground = mediaUrl(media, "stats_background", "/images/gallery/g10.jpg");
-
-  const updateImages = [
-    mediaUrl(media, "latest_update_1", "/images/news/n2.jpg"),
-    mediaUrl(media, "latest_update_2", "/images/news/n4.jpg"),
-    mediaUrl(media, "latest_update_3", "/images/news/n6.jpg"),
-  ];
 
   return (
     <PageTransition>
-      <HeroSlider images={heroImages} cards={heroCards} />
+      <HeroSlider cards={heroCards} />
 
       <MarqueeStrip
         className="bg-navy-900 text-white/70 py-3"
@@ -97,11 +78,11 @@ export default async function HomePage() {
 
       <QuickLinks />
 
-      <FacilitiesPreview images={facilityImages} cards={facilityCards} />
+      <FacilitiesPreview cards={facilityCards} />
 
       <StatsCounter backgroundImage={statsBackground} />
 
-      <LatestUpdates images={updateImages} cards={updateCards} articles={latestArticles} />
+      <LatestUpdates cards={updateCards} articles={latestArticles} />
 
       <SchoolEvents />
 

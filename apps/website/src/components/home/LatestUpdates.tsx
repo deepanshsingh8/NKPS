@@ -8,32 +8,7 @@ import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import type { SectionCard, Article } from "@nkps/shared/types";
 
-const defaultUpdates = [
-  {
-    date: "March 2026",
-    title: "Admissions Open 2026-27",
-    description:
-      "Applications are now being accepted for all classes. Secure your child's future with quality education at NKPS.",
-    image: "/images/news/n2.jpg",
-  },
-  {
-    date: "February 2026",
-    title: "Annual Sports Meet",
-    description:
-      "Chakravyuh 2025-26 — celebrating athletic excellence and sportsmanship across all age groups.",
-    image: "/images/news/n4.jpg",
-  },
-  {
-    date: "January 2026",
-    title: "Board Exam Preparation",
-    description:
-      "Special coaching sessions for Class X and XII students with expert guidance and practice tests.",
-    image: "/images/news/n6.jpg",
-  },
-];
-
 interface LatestUpdatesProps {
-  images?: string[];
   cards?: SectionCard[];
   articles?: Article[];
 }
@@ -46,38 +21,32 @@ function formatMonthYear(iso: string | null): string {
   });
 }
 
-export function LatestUpdates({ images, cards, articles }: LatestUpdatesProps = {}) {
+export function LatestUpdates({ cards, articles }: LatestUpdatesProps = {}) {
   const hasArticles = (articles?.length ?? 0) > 0;
 
-  // Prefer articles when available. Fall back to hard-coded defaults + optional DB-seeded section cards.
-  const articleUpdates = (articles ?? []).map((a, i) => ({
-    key: a.id,
-    date: formatMonthYear(a.published_at),
-    title: a.title,
-    description: a.excerpt || "",
-    image: a.cover_image_url || images?.[i] || defaultUpdates[i % defaultUpdates.length].image,
-    link: `/articles/${a.slug}` as string,
-  }));
-
-  const baseUpdates = defaultUpdates.map((u, i) => ({
-    key: `default-${i}`,
-    ...u,
-    image: images?.[i] || u.image,
-    link: "/articles" as string,
-  }));
-
+  // Cards always come from section_cards. When published articles exist they
+  // take precedence over the section_cards (live news beats evergreen
+  // defaults); otherwise the cards render directly.
   const dbUpdates = (cards ?? []).map((c, i) => ({
     key: c.id ?? `card-${i}`,
     date: c.date || "",
     title: c.title || "",
     description: c.description || "",
-    image: c.image_url || "",
+    image: c.image_url || "/images/news/n2.jpg",
     link: (c.link || "/articles") as string,
   }));
 
-  const updates = hasArticles
-    ? [...articleUpdates, ...dbUpdates]
-    : [...baseUpdates, ...dbUpdates];
+  const articleUpdates = (articles ?? []).map((a, i) => ({
+    key: a.id,
+    date: formatMonthYear(a.published_at),
+    title: a.title,
+    description: a.excerpt || "",
+    image: a.cover_image_url || dbUpdates[i % Math.max(dbUpdates.length, 1)]?.image || "/images/news/n2.jpg",
+    link: `/articles/${a.slug}` as string,
+  }));
+
+  const updates = hasArticles ? articleUpdates : dbUpdates;
+  if (updates.length === 0) return null;
 
   return (
     <section className="section-padding relative overflow-hidden">

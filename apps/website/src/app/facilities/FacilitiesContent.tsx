@@ -17,12 +17,11 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
-import { FACILITIES } from "@nkps/shared/lib/constants";
 import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import { cn } from "@nkps/shared/lib/utils";
 import type { SectionCard } from "@nkps/shared/types";
 
-const iconComponents = [
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Monitor,
   FlaskConical,
   Laptop,
@@ -31,7 +30,7 @@ const iconComponents = [
   Theater,
   Gamepad2,
   Bus,
-];
+};
 
 const highlights = [
   {
@@ -61,26 +60,20 @@ const highlights = [
 ];
 
 interface FacilitiesContentProps {
-  facilityImages: string[];
   heroImage: string;
   cards?: SectionCard[];
 }
 
-export function FacilitiesContent({ facilityImages, heroImage, cards }: FacilitiesContentProps) {
-  // Default 8 facilities + DB cards appended
-  const baseFacilities = FACILITIES.map((f, i) => ({
-    title: f.title,
-    description: f.description,
-    icon: f.icon,
-    image: facilityImages[i] || "",
-  }));
-  const dbFacilities = (cards ?? []).map((c) => ({
+export function FacilitiesContent({ heroImage, cards }: FacilitiesContentProps) {
+  // Single source of truth: section_cards. Defaults are seeded as is_default
+  // rows (migration 058).
+  const facilities = (cards ?? []).map((c) => ({
+    id: c.id,
     title: c.title || "",
     description: c.description || "",
     icon: c.icon || "Monitor",
-    image: c.image_url || "",
+    image: c.image_url || "/images/news/n1.jpg",
   }));
-  const facilities = [...baseFacilities, ...dbFacilities];
   return (
     <PageTransition>
       <PageHeader
@@ -109,6 +102,7 @@ export function FacilitiesContent({ facilityImages, heroImage, cards }: Faciliti
       </section>
 
       {/* Facilities Grid — Alternating Image Cards */}
+      {facilities.length > 0 && (
       <section className="py-20 px-6">
         <div className="mx-auto max-w-6xl">
           <AnimatedSection>
@@ -126,11 +120,11 @@ export function FacilitiesContent({ facilityImages, heroImage, cards }: Faciliti
             className="mt-14 grid grid-cols-1 gap-8 lg:grid-cols-2"
           >
             {facilities.map((facility, index) => {
-              const Icon = iconComponents[index] || Monitor;
+              const Icon = iconMap[facility.icon] || Monitor;
               const image = facility.image;
               return (
                 <motion.div
-                  key={facility.title}
+                  key={facility.id}
                   variants={fadeUp}
                   className="group"
                 >
@@ -173,6 +167,7 @@ export function FacilitiesContent({ facilityImages, heroImage, cards }: Faciliti
           </motion.div>
         </div>
       </section>
+      )}
 
       {/* Infrastructure Highlights */}
       <section className="bg-navy-900 py-20 px-6">

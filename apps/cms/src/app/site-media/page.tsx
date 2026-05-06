@@ -12,6 +12,7 @@ import {
   Trash2,
   Pencil,
   ImageIcon,
+  Lock,
 } from "lucide-react";
 import { adminFetch, adminDelete, adminPatch } from "@nkps/shared/lib/admin-api";
 import { uploadToStorage } from "@nkps/shared/lib/supabase/upload";
@@ -465,11 +466,13 @@ function SectionCardItem({
   onEdit,
   onDelete,
   onToggle,
+  onResetText,
 }: {
   card: SectionCard;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: () => void;
+  onResetText: () => void;
 }) {
   return (
     <div
@@ -501,6 +504,11 @@ function SectionCardItem({
           <p className="font-medium text-navy-900 dark:text-white text-xs truncate">
             {getCardPrimaryText(card)}
           </p>
+          {card.is_default && (
+            <Badge variant="outline" className="text-[9px] px-1 py-0 text-blue-600 border-blue-200 bg-blue-50">
+              Default
+            </Badge>
+          )}
           {!card.is_active && (
             <Badge variant="outline" className="text-[9px] px-1 py-0 text-gray-400 border-gray-300">
               Off
@@ -515,12 +523,28 @@ function SectionCardItem({
         <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-navy-900" onClick={onToggle} title={card.is_active ? "Deactivate" : "Activate"}>
           <Check className={cn("h-3.5 w-3.5", card.is_active ? "text-green-500" : "text-gray-300")} />
         </Button>
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600" onClick={onEdit}>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600" onClick={onEdit} title="Edit">
           <Pencil className="h-3.5 w-3.5" />
         </Button>
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-red-600" onClick={onDelete}>
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        {card.is_default ? (
+          <>
+            {card.default_snapshot && (
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-amber-600" onClick={onResetText} title="Reset text to default">
+                <RotateCcw className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <span
+              className="h-7 w-7 inline-flex items-center justify-center text-gray-300 cursor-not-allowed"
+              title="Default card — deactivate to hide it"
+            >
+              <Lock className="h-3.5 w-3.5" />
+            </span>
+          </>
+        ) : (
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-red-600" onClick={onDelete} title="Delete">
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -724,13 +748,17 @@ export default function AdminSiteMediaPage() {
   };
 
   const handleDeleteCard = async (card: SectionCard) => {
+    if (card.is_default) {
+      toast.error("Default cards can't be deleted. Deactivate to hide it instead.");
+      return;
+    }
     if (!confirm(`Delete this card? This cannot be undone.`)) return;
 
     try {
       const res = await adminDelete("/api/section-cards", { id: card.id });
       if (!res.ok) {
-        const data = await res.json();
-        toast.error(data.error || "Delete failed");
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || "Delete failed");
         return;
       }
       toast.success("Card deleted");
@@ -741,16 +769,59 @@ export default function AdminSiteMediaPage() {
   };
 
   const handleToggleCard = async (card: SectionCard) => {
-    try {
-      const res = await adminPatch("/api/section-cards", {
+    const sendToggle = async (confirmEmpty: boolean) =>
+      adminPatch("/api/section-cards", {
         id: card.id,
         data: { is_active: !card.is_active },
+        ...(confirmEmpty ? { confirm_empty: true } : {}),
       });
+
+    try {
+      let res = await sendToggle(false);
+
+      // The API blocks deactivating the last active card unless we opt in.
+      // Surface that to the editor as an explicit confirm so a section
+      // doesn't quietly disappear from the public site.
+      if (res.status === 409) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.code === "section_would_be_empty") {
+          const sectionLabel = SECTION_LABELS[card.section] || card.section;
+          const ok = confirm(
+            `This is the last active card in "${sectionLabel}". Deactivating it will leave that section empty on the website. Continue?`
+          );
+          if (!ok) return;
+          res = await sendToggle(true);
+        } else {
+          toast.error(data?.error || "Failed to update");
+          return;
+        }
+      }
+
       if (res.ok) {
         toast.success(card.is_active ? "Card deactivated" : "Card activated");
         await fetchMedia();
       } else {
-        toast.error("Failed to update");
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || "Failed to update");
+      }
+    } catch {
+      toast.error("An error occurred");
+    }
+  };
+
+  const handleResetCardText = async (card: SectionCard) => {
+    if (!confirm("Reset this card's text to the original default? Image and ordering won't change.")) return;
+    try {
+      const res = await adminPatch("/api/section-cards", {
+        id: card.id,
+        action: "reset_to_default",
+      });
+      if (res.ok) {
+        toast.success("Card text reset to default");
+        await fetchMedia();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || "Failed to reset");
       }
     } catch {
       toast.error("An error occurred");
@@ -929,11 +1000,12 @@ export default function AdminSiteMediaPage() {
                                     onEdit={() => openEditCard(card)}
                                     onDelete={() => handleDeleteCard(card)}
                                     onToggle={() => handleToggleCard(card)}
+                                    onResetText={() => handleResetCardText(card)}
                                   />
                                 ))}
                               </div>
                               <p className="text-[10px] text-green-600 dark:text-green-400 mt-1">
-                                Cards added here appear alongside the default content on the website.
+                                Cards in this section render in <code>sort_order</code>. Default cards can be edited or deactivated; user-added cards can also be deleted.
                               </p>
                             </div>
                           )}

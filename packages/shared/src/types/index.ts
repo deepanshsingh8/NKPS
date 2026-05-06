@@ -98,6 +98,8 @@ export interface SectionCard {
   season: string | null;
   sort_order: number;
   is_active: boolean;
+  is_default: boolean;
+  default_snapshot: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }

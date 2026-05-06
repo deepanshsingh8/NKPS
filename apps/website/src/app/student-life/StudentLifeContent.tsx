@@ -25,54 +25,10 @@ import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import { cn } from "@nkps/shared/lib/utils";
 import type { SectionCard } from "@nkps/shared/types";
 
-const defaultActivities = [
-  {
-    icon: Music,
-    title: "Music & Dance",
-    description:
-      "Express creativity through classical and contemporary performances",
-    image: "/images/gallery/st1.jpg",
-    span: false,
-  },
-  {
-    icon: Palette,
-    title: "Art & Craft",
-    description:
-      "Develop artistic skills through painting, sculpture and design",
-    image: "/images/gallery/st2.jpg",
-    span: true,
-  },
-  {
-    icon: MessageSquare,
-    title: "Debate & Elocution",
-    description:
-      "Build confidence and critical thinking through public speaking",
-    image: "/images/gallery/st3.jpg",
-    span: true,
-  },
-  {
-    icon: Brain,
-    title: "Quiz Competitions",
-    description:
-      "Sharpen knowledge and analytical skills in academic quizzes",
-    image: "/images/gallery/st4.jpg",
-    span: false,
-  },
-  {
-    icon: BookOpen,
-    title: "Literary Club",
-    description: "Nurture love for reading and creative writing",
-    image: "/images/gallery/st5.jpg",
-    span: false,
-  },
-  {
-    icon: Cpu,
-    title: "Science Club",
-    description: "Hands-on experiments and innovation projects",
-    image: "/images/gallery/st6.jpg",
-    span: false,
-  },
-];
+// Span layout pattern from the original masonry grid: index 1 and 2 spanned
+// two rows on md+. Preserved as a positional rule so the visual rhythm of the
+// section doesn't collapse when admins re-order or add cards.
+const ACTIVITY_SPAN_INDEXES = new Set([1, 2]);
 
 const activityIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Music,
@@ -84,7 +40,6 @@ const activityIconMap: Record<string, React.ComponentType<{ className?: string }
 };
 
 interface StudentLifePageProps {
-  activityImages?: string[];
   activityCards?: SectionCard[];
   eventCards?: SectionCard[];
 }
@@ -98,65 +53,34 @@ const sports = [
   { name: "Chess", icon: Crown },
 ];
 
-const events = [
-  {
-    season: "Winter",
-    title: "Annual Day",
-    description:
-      "A grand celebration of talent, culture and achievement featuring performances by students from all grades",
-  },
-  {
-    season: "Monsoon",
-    title: "Sports Day (Chakravyuh)",
-    description:
-      "Inter-house athletic competitions and team sports fostering sportsmanship and physical fitness",
-  },
-  {
-    season: "Spring",
-    title: "Republic & Independence Day",
-    description:
-      "Patriotic celebrations with cultural programmes, flag hoisting and community participation",
-  },
-  {
-    season: "Autumn",
-    title: "Science Exhibition",
-    description:
-      "Student-led innovations and project displays showcasing creativity and scientific temper",
-  },
-];
-
 export function StudentLifeContent({
-  activityImages,
   activityCards,
   eventCards,
 }: StudentLifePageProps = {}) {
-  // Default activities with optional image overrides + DB cards appended
-  const baseActivities = defaultActivities.map((a, i) => ({
-    ...a,
-    image: activityImages?.[i] || a.image,
-  }));
-  const dbActivities = (activityCards ?? []).map((c) => ({
+  // Single source of truth: section_cards. Defaults are seeded as is_default
+  // rows (migration 057) for both `activities` and `annual_events`.
+  const activities = (activityCards ?? []).map((c, i) => ({
+    id: c.id,
     icon: activityIconMap[c.icon || ""] || Cpu,
     title: c.title || "",
     description: c.description || "",
     image: c.image_url || "/images/gallery/st1.jpg",
-    span: false,
+    span: ACTIVITY_SPAN_INDEXES.has(i),
   }));
-  const activities = [...baseActivities, ...dbActivities];
 
-  // Default events + DB cards appended
-  const dbEvents = (eventCards ?? []).map((c) => ({
+  const allEvents = (eventCards ?? []).map((c) => ({
+    id: c.id,
     season: c.season || "",
     title: c.title || "",
     description: c.description || "",
   }));
-  const allEvents = [...events, ...dbEvents];
 
   return (
     <PageTransition>
       <PageHeader title="Student Life" subtitle="Beyond the Classroom" />
 
       {/* Activities — Masonry-like Grid */}
+      {activities.length > 0 && (
       <section className="py-20 px-6">
         <div className="mx-auto max-w-6xl">
           <AnimatedSection>
@@ -175,7 +99,7 @@ export function StudentLifeContent({
           >
             {activities.map((activity) => (
               <motion.div
-                key={activity.title}
+                key={activity.id}
                 variants={fadeUp}
                 className={cn(
                   "group relative overflow-hidden rounded-3xl",
@@ -209,6 +133,7 @@ export function StudentLifeContent({
           </motion.div>
         </div>
       </section>
+      )}
 
       {/* Sports & Athletics */}
       <section className="bg-cream-50 py-20 px-6">
@@ -253,6 +178,7 @@ export function StudentLifeContent({
       </section>
 
       {/* Annual Events — Timeline Style */}
+      {allEvents.length > 0 && (
       <section className="py-20 px-6">
         <div className="mx-auto max-w-4xl">
           <AnimatedSection>
@@ -264,7 +190,7 @@ export function StudentLifeContent({
 
           <div className="mt-14 space-y-6">
             {allEvents.map((event, index) => (
-              <AnimatedSection key={event.title} delay={index * 0.12}>
+              <AnimatedSection key={event.id} delay={index * 0.12}>
                 <div className="group flex flex-col gap-5 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-all duration-300 hover:border-gold-300 hover:shadow-lg sm:flex-row sm:items-start">
                   {/* Season Badge */}
                   <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-gold-400 to-gold-600 shadow-md transition-transform duration-300 group-hover:scale-105">
@@ -289,6 +215,7 @@ export function StudentLifeContent({
           </div>
         </div>
       </section>
+      )}
     </PageTransition>
   );
 }

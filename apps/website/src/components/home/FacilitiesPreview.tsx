@@ -4,20 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Monitor, FlaskConical, Laptop, BookOpen, ArrowRight } from "lucide-react";
-import { FACILITIES } from "@nkps/shared/lib/constants";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { fadeUp, staggerContainer } from "@nkps/shared/lib/animations";
 import type { SectionCard } from "@nkps/shared/types";
 
-const defaultFacilityImages = [
-  "/images/news/n1.jpg",
-  "/images/news/n2.jpg",
-  "/images/news/n4.jpg",
-  "/images/news/n6.jpg",
-];
-
 interface FacilitiesPreviewProps {
-  images?: string[];
   cards?: SectionCard[];
 }
 
@@ -28,23 +19,18 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   BookOpen,
 };
 
-export function FacilitiesPreview({ images, cards }: FacilitiesPreviewProps = {}) {
-  const facilityImages = images?.length
-    ? images
-    : defaultFacilityImages;
-
-  // Default 4 facilities + DB cards appended
-  const baseFacilities = FACILITIES.slice(0, 4).map((f, i) => ({
-    ...f,
-    image: facilityImages[i],
-  }));
-  const dbFacilities = (cards ?? []).map((c) => ({
+export function FacilitiesPreview({ cards }: FacilitiesPreviewProps = {}) {
+  // Single source of truth: section_cards. Defaults are seeded as is_default
+  // rows (migration 054).
+  const preview = (cards ?? []).map((c) => ({
+    id: c.id,
     title: c.title || "",
     description: c.description || "",
     icon: c.icon || "Monitor",
-    image: c.image_url || "",
+    image: c.image_url || "/images/news/n1.jpg",
   }));
-  const preview = [...baseFacilities, ...dbFacilities];
+
+  if (preview.length === 0) return null;
 
   return (
     <section className="section-padding overflow-hidden">
@@ -66,7 +52,7 @@ export function FacilitiesPreview({ images, cards }: FacilitiesPreviewProps = {}
             const Icon = iconMap[facility.icon] || Monitor;
             return (
               <motion.div
-                key={facility.title}
+                key={facility.id}
                 variants={fadeUp}
               >
                 <Link

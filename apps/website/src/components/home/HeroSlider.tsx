@@ -9,36 +9,6 @@ import { cn } from "@nkps/shared/lib/utils";
 import { useMouseMotion } from "@nkps/shared/hooks/useMousePosition";
 import type { SectionCard } from "@nkps/shared/types";
 
-/* ─── Slide data ─── */
-const defaultSlides = [
-  {
-    title: "Best CBSE School\nin Jaipur",
-    subtitle: "Empowering young minds with holistic education since 1985",
-    cta: "Explore Admissions",
-    href: "/admissions",
-    image: "/images/hero/campus-1.jpg",
-    alt: "NK Public School Jaipur campus — Grand Sikar Road, Rajawas",
-  },
-  {
-    title: "Excellence in\nCBSE Education",
-    subtitle:
-      "CBSE affiliated institution nurturing 20,000+ students across Jaipur",
-    cta: "Learn More",
-    href: "/about",
-    image: "/images/hero/campus-2.avif",
-    alt: "NKPS Jaipur — CBSE affiliated co-educational school",
-  },
-  {
-    title: "Leaders Are\nMade Here",
-    subtitle:
-      "Building character through discipline, education and human values",
-    cta: "Discover More",
-    href: "/academics",
-    image: "/images/news/n5.jpg",
-    alt: "Students at NK Public School Rajawas Jaipur",
-  },
-];
-
 const stats = [
   { number: "20,000+", label: "Students", icon: Users },
   { number: "40+", label: "Years", icon: CalendarDays },
@@ -145,30 +115,23 @@ function AnimatedHeading({
 
 /* ─── Main Hero Component ─── */
 interface HeroSliderProps {
-  images?: string[];
   cards?: SectionCard[];
 }
 
-export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
-  // Default slides with optional image overrides
-  const baseSlides = defaultSlides.map((slide, i) => ({
-    ...slide,
-    image: images?.[i] || slide.image,
-  }));
-
-  // DB cards are appended to defaults
-  const dbSlides = (cards ?? []).map((c) => ({
+export function HeroSlider({ cards }: HeroSliderProps = {}) {
+  // Single source of truth: section_cards. Defaults are seeded as is_default
+  // rows (migration 053). Title may contain a literal newline that the
+  // animated heading splits on for the line break.
+  const slides = (cards ?? []).map((c) => ({
     title: c.title || "",
     subtitle: c.subtitle || "",
     cta: c.cta_text || "Learn More",
     href: c.cta_link || "/",
-    image: c.image_url || "",
+    image: c.image_url || "/images/hero/campus-1.jpg",
     alt: c.title
-      ? `${c.title} — NK Public School Jaipur`
+      ? `${c.title.replace(/\n/g, " ")} — NK Public School Jaipur`
       : "NK Public School Jaipur campus",
   }));
-
-  const slides = [...baseSlides, ...dbSlides];
 
   const [current, setCurrent] = useState(0);
   const [progress, setProgress] = useState(0);
@@ -203,6 +166,7 @@ export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
 
   /* Auto-advance */
   useEffect(() => {
+    if (slides.length === 0) return;
     const start = performance.now();
     let raf: number;
     function tick(now: number) {
@@ -220,8 +184,15 @@ export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
     return () => cancelAnimationFrame(raf);
   }, [current, slides.length]);
 
+  if (slides.length === 0) return null;
+
+  // Cards can shrink (deactivated/deleted) between renders; clamp the index
+  // so we never dereference past the end of the array.
+  const safeCurrent = Math.min(current, slides.length - 1);
+  const activeSlide = slides[safeCurrent];
+
   /* Animation delays */
-  const titleCharCount = slides[current].title.replace(/\n/g, "").length;
+  const titleCharCount = activeSlide.title.replace(/\n/g, "").length;
   const subtitleDelay = 200 + titleCharCount * CHAR_DELAY + 200;
   const ctaDelay = subtitleDelay + 400;
   const tagDelay = ctaDelay + 200;
@@ -232,7 +203,7 @@ export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
       {/* ═══ LAYER 1: Background image — parallax tracked ═══ */}
       <AnimatePresence mode="wait">
         <motion.div
-          key={current}
+          key={safeCurrent}
           className="absolute -inset-5"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -243,11 +214,11 @@ export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
           style={{ x: bgX, y: bgY }}
         >
           <Image
-            src={slides[current].image}
-            alt={slides[current].alt}
+            src={activeSlide.image}
+            alt={activeSlide.alt}
             fill
             className="object-cover"
-            priority={current === 0}
+            priority={safeCurrent === 0}
             sizes="100vw"
           />
         </motion.div>
@@ -356,33 +327,33 @@ export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
             {/* Left — Main content */}
             <div>
               <AnimatedHeading
-                text={slides[current].title}
-                slideKey={current}
+                text={activeSlide.title}
+                slideKey={safeCurrent}
               />
 
               <FadeIn
-                key={`sub-${current}`}
+                key={`sub-${safeCurrent}`}
                 delay={subtitleDelay}
                 duration={800}
                 className="block"
               >
                 <p className="mt-5 text-base md:text-lg text-gray-300/90 max-w-xl leading-relaxed">
-                  {slides[current].subtitle}
+                  {activeSlide.subtitle}
                 </p>
               </FadeIn>
 
               <FadeIn
-                key={`cta-${current}`}
+                key={`cta-${safeCurrent}`}
                 delay={ctaDelay}
                 duration={800}
                 className="block"
               >
                 <div className="mt-7 flex flex-wrap items-center gap-4">
                   <Link
-                    href={slides[current].href}
+                    href={activeSlide.href}
                     className="group liquid-glass border border-white/20 text-white px-8 py-3.5 rounded-xl font-medium transition-all duration-300 hover:bg-white hover:text-navy-900 inline-flex items-center gap-2.5 hover:shadow-lg hover:shadow-white/10"
                   >
-                    {slides[current].cta}
+                    {activeSlide.cta}
                     <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </Link>
                   <Link
@@ -398,7 +369,7 @@ export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
             {/* Right — Tag card */}
             <div className="hidden lg:flex items-end justify-end mt-8 lg:mt-0">
               <FadeIn
-                key={`tag-${current}`}
+                key={`tag-${safeCurrent}`}
                 delay={tagDelay}
                 duration={800}
               >
@@ -459,7 +430,7 @@ export function HeroSlider({ images, cards }: HeroSliderProps = {}) {
             <span
               className={cn(
                 "block w-1 rounded-full transition-all duration-500",
-                index === current
+                index === safeCurrent
                   ? "h-8 bg-gold-400 gold-glow-sm"
                   : "h-3 bg-white/25 group-hover:bg-white/50"
               )}

@@ -45,6 +45,7 @@ export function Navbar() {
   const isTransparent = isHome && !scrolled;
 
   return (
+    <>
     <nav
       className={cn(
         "fixed left-0 right-0 top-0 z-50 transition-all duration-500",
@@ -147,8 +148,11 @@ export function Navbar() {
           </div>
         </div>
       </div>
+    </nav>
 
-      {/* Mobile Full-Screen Overlay */}
+      {/* Mobile Full-Screen Overlay — rendered as sibling of <nav> so the
+          nav's backdrop-filter doesn't trap this fixed element in a smaller
+          containing block (would otherwise clip the overlay to navbar height). */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
@@ -156,7 +160,7 @@ export function Navbar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-40 bg-navy-900/95 backdrop-blur-2xl lg:hidden"
+            className="fixed inset-0 z-[60] bg-navy-900/95 backdrop-blur-2xl lg:hidden"
           >
             {/* Close button top-right */}
             <button
@@ -167,9 +171,9 @@ export function Navbar() {
               <X className="h-7 w-7" />
             </button>
 
-            <div className="flex h-full flex-col items-center justify-center px-8">
-              {/* Nav Links - stagger in from right */}
-              <nav className="flex flex-col items-center gap-4 sm:gap-6">
+            <div className="flex h-full flex-col px-6 pt-16 pb-6 overflow-y-auto">
+              {/* Nav Links - stagger in from right, centered with flex grow */}
+              <nav className="flex flex-1 flex-col items-center justify-center gap-2.5 sm:gap-4 py-4">
                 {NAV_LINKS.map((link, i) => {
                   const isActive = pathname === link.href;
                   return (
@@ -180,7 +184,7 @@ export function Navbar() {
                       exit={{ opacity: 0, x: 60 }}
                       transition={{
                         duration: 0.35,
-                        delay: i * 0.05,
+                        delay: i * 0.04,
                         ease: "easeOut",
                       }}
                     >
@@ -188,7 +192,7 @@ export function Navbar() {
                         href={link.href}
                         onClick={() => setMobileOpen(false)}
                         className={cn(
-                          "text-xl sm:text-2xl font-heading font-semibold transition-colors duration-200",
+                          "text-lg sm:text-xl font-heading font-semibold transition-colors duration-200",
                           isActive
                             ? "text-gold-400"
                             : "text-white/70 hover:text-white"
@@ -207,29 +211,29 @@ export function Navbar() {
                   exit={{ opacity: 0, x: 60 }}
                   transition={{
                     duration: 0.35,
-                    delay: NAV_LINKS.length * 0.05,
+                    delay: NAV_LINKS.length * 0.04,
                     ease: "easeOut",
                   }}
-                  className="mt-4"
+                  className="mt-3"
                 >
                   <Link
                     href={getErpUrl("/portal/login")}
                     onClick={() => setMobileOpen(false)}
-                    className="inline-flex items-center rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-8 py-3 text-sm font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25"
+                    className="inline-flex items-center rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-7 py-2.5 text-sm font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25"
                   >
                     ERP Login
                   </Link>
                 </motion.div>
               </nav>
 
-              {/* Bottom: Contact Info + Social */}
+              {/* Bottom: Contact Info + Social + thumb-friendly Close */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.5 }}
-                className="absolute bottom-8 sm:bottom-12 left-0 right-0 flex flex-col items-center gap-3 sm:gap-4"
+                transition={{ duration: 0.4, delay: 0.4 }}
+                className="flex flex-shrink-0 flex-col items-center gap-3 pt-4"
               >
-                <div className="flex flex-col items-center gap-2 text-sm text-white/50">
+                <div className="flex flex-col items-center gap-1.5 text-xs sm:text-sm text-white/50">
                   <a
                     href={`tel:${SCHOOL.phone[0]}`}
                     className="flex items-center gap-2 hover:text-gold-400 transition-colors"
@@ -245,7 +249,7 @@ export function Navbar() {
                     <span>{SCHOOL.email[0]}</span>
                   </a>
                 </div>
-                <div className="flex items-center gap-4 text-white/40">
+                <div className="flex items-center gap-5 text-white/40">
                   <Link
                     href={SCHOOL.social.facebook}
                     target="_blank"
@@ -274,11 +278,20 @@ export function Navbar() {
                     <YoutubeIcon className="h-4 w-4" />
                   </Link>
                 </div>
+                {/* Thumb-friendly bottom close — top-right X is hard to reach one-handed */}
+                <button
+                  onClick={() => setMobileOpen(false)}
+                  className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-5 py-2 text-xs font-medium text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+                  aria-label="Close menu"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Close
+                </button>
               </motion.div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </nav>
+    </>
   );
 }

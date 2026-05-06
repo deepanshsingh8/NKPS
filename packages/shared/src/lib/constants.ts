@@ -133,57 +133,6 @@ export const STAFF = {
   admin: [] as { name: string; subject: string }[],
 } as const;
 
-export const FACILITIES = [
-  {
-    title: "Smart Classrooms",
-    description:
-      "Technology-enabled classrooms with projectors and digital learning aids for an interactive educational experience.",
-    icon: "Monitor" as const,
-  },
-  {
-    title: "Science Laboratories",
-    description:
-      "Well-equipped Physics, Chemistry and Biology labs providing hands-on learning opportunities for students.",
-    icon: "FlaskConical" as const,
-  },
-  {
-    title: "Computer Lab",
-    description:
-      "Modern computer lab with high-speed internet and latest software for digital literacy and programming skills.",
-    icon: "Laptop" as const,
-  },
-  {
-    title: "Library",
-    description:
-      "A vast collection of over 10,000 books, periodicals and digital resources fostering a love for reading.",
-    icon: "BookOpen" as const,
-  },
-  {
-    title: "Sports Grounds",
-    description:
-      "Expansive playgrounds with facilities for cricket, football, basketball, athletics and more.",
-    icon: "Trophy" as const,
-  },
-  {
-    title: "Auditorium",
-    description:
-      "State-of-the-art auditorium for cultural events, annual functions and academic seminars.",
-    icon: "Theater" as const,
-  },
-  {
-    title: "Indoor Games",
-    description:
-      "Dedicated spaces for table tennis, chess, carrom and other indoor recreational activities.",
-    icon: "Gamepad2" as const,
-  },
-  {
-    title: "Transport",
-    description:
-      "Safe and reliable school bus transport covering major routes across Jaipur city.",
-    icon: "Bus" as const,
-  },
-] as const;
-
 // Half-day cutoff for teacher absences. Periods 1..N are "first_half", N+1..end
 // are "second_half". Centralised here so the substitution planner and any
 // future per-period attendance feature share one definition. Promote to a DB

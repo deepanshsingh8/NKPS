@@ -8,56 +8,38 @@ import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import Image from "next/image";
 import type { SectionCard } from "@nkps/shared/types";
 
-const testimonials = [
-  {
-    quote:
-      "NK Public School has provided my child with an excellent foundation in academics and extracurricular activities. The teachers are dedicated and the facilities are top-notch.",
-    name: "Mrs. Sharma",
-    role: "Parent of Class VIII student",
-    initials: "S",
-  },
-  {
-    quote:
-      "The school's focus on discipline and holistic development has truly shaped my son's character. We are grateful for the nurturing environment.",
-    name: "Mr. Patel",
-    role: "Parent of Class X student",
-    initials: "P",
-  },
-  {
-    quote:
-      "From sports to arts, the school ensures every child discovers their talent. The COVID-19 response was also commendable — classes never stopped.",
-    name: "Mrs. Gupta",
-    role: "Parent of Class V student",
-    initials: "G",
-  },
-];
-
 interface TestimonialsProps {
   cards?: SectionCard[];
 }
 
 export function Testimonials({ cards }: TestimonialsProps = {}) {
-  // Default testimonials + DB cards appended
-  const baseTestimonials = testimonials.map((t) => ({ ...t, image: null as string | null }));
-  const dbTestimonials = (cards ?? []).map((c) => ({
+  // Single source of truth: section_cards. Default testimonials are seeded
+  // there as is_default rows (migration 051) and arrive in this prop alongside
+  // any user-added ones. getSectionCards already filters is_active=true.
+  const activeTestimonials = (cards ?? []).map((c) => ({
+    id: c.id,
     quote: c.quote || "",
     name: c.name || "",
     role: c.role || "",
     initials: c.initials || (c.name?.[0] ?? ""),
     image: c.image_url || null,
   }));
-  const activeTestimonials = [...baseTestimonials, ...dbTestimonials];
 
   const [active, setActive] = useState(0);
 
   const next = useCallback(() => {
-    setActive((prev) => (prev + 1) % activeTestimonials.length);
+    setActive((prev) =>
+      activeTestimonials.length === 0 ? 0 : (prev + 1) % activeTestimonials.length
+    );
   }, [activeTestimonials.length]);
 
   useEffect(() => {
+    if (activeTestimonials.length === 0) return;
     const timer = setInterval(next, 5000);
     return () => clearInterval(timer);
-  }, [next]);
+  }, [next, activeTestimonials.length]);
+
+  if (activeTestimonials.length === 0) return null;
 
   return (
     <section className="bg-white section-padding relative overflow-hidden">
@@ -126,7 +108,7 @@ export function Testimonials({ cards }: TestimonialsProps = {}) {
           <div className="flex items-center justify-center gap-3 mt-8">
             {activeTestimonials.map((t, i) => (
               <button
-                key={t.name}
+                key={t.id}
                 onClick={() => setActive(i)}
                 className="relative focus:outline-none cursor-pointer"
                 aria-label={`View testimonial from ${t.name}`}

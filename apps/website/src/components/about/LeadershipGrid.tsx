@@ -4,18 +4,10 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { GlassCard } from "@nkps/shared/components/GlassCard";
-import { SCHOOL } from "@nkps/shared/lib/constants";
 import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import type { SectionCard } from "@nkps/shared/types";
 
-const defaultLeaderPhotos: Record<string, string> = {
-  "Dr. N.C. Lunayach": "/images/staff/managing-director.jpg",
-  "Mr. Kuldeep Singh": "/images/staff/director.jpg",
-  "Mrs. Prema Kavia": "/images/staff/principal.jpg",
-};
-
 interface LeadershipGridProps {
-  photos?: Record<string, string>;
   cards?: SectionCard[];
 }
 
@@ -30,23 +22,18 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-export function LeadershipGrid({ photos, cards }: LeadershipGridProps = {}) {
-  const leaderPhotos = { ...defaultLeaderPhotos, ...photos };
-
-  // Default leaders + DB cards appended
-  const baseLeaders = SCHOOL.leadership.map((l) => ({
-    name: l.name,
-    designation: l.designation,
-    message: l.message,
-    photo: leaderPhotos[l.name] || null,
-  }));
-  const dbLeaders = (cards ?? []).map((c) => ({
+export function LeadershipGrid({ cards }: LeadershipGridProps = {}) {
+  // Single source of truth: section_cards. Default leaders are seeded as
+  // is_default rows (migration 051) with their photos in image_url.
+  const allLeaders = (cards ?? []).map((c) => ({
+    id: c.id,
     name: c.name || "",
     designation: c.designation || "",
     message: c.message || "",
     photo: c.image_url || null,
   }));
-  const allLeaders = [...baseLeaders, ...dbLeaders];
+
+  if (allLeaders.length === 0) return null;
 
   return (
     <section className="section-padding">
@@ -63,7 +50,7 @@ export function LeadershipGrid({ photos, cards }: LeadershipGridProps = {}) {
           {allLeaders.map((leader) => {
             const photo = leader.photo;
             return (
-              <motion.div key={leader.name} variants={fadeUp}>
+              <motion.div key={leader.id} variants={fadeUp}>
                 <GlassCard className="p-8 text-center" hover>
                   {/* Avatar */}
                   <div className="w-28 h-28 rounded-full mx-auto mb-4 overflow-hidden border-3 border-gold-500/20">
