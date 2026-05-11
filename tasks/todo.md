@@ -35,7 +35,9 @@ The `/articles` index and `/articles/[slug]` detail routes already exist and wor
 - [x] A1. Add link-safety guard in `LatestUpdates.tsx` (sanitize `card.link`)
 - [ ] A2. Verify `getPublishedArticles()` returns nothing in production, falling through to cards
 - [ ] A3. (Optional) Hide the entire "Latest Updates" section when both sources are empty — already done, just confirm
-- [x] A4. Draft 3–4 real article markdowns at `tasks/article-drafts.md` (user to paste into `/admin/articles` CMS)
+- [x] A4. Draft 3–4 real articles. Two delivery formats:
+  - `tasks/article-drafts.md` (paste into CMS manually)
+  - `scripts/migrations/cms/seed-articles-launch.sql` (run once in Supabase to insert all 4 directly)
 - [ ] A5. Smoke test home page → click each card → lands on `/articles/<slug>` 200
 
 ---

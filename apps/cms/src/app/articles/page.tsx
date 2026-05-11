@@ -19,6 +19,7 @@ import {
 import { adminFetch, adminDelete, adminPatch } from "@nkps/shared/lib/admin-api";
 import { uploadToStorage } from "@nkps/shared/lib/supabase/upload";
 import { slugify } from "@nkps/shared/lib/articles";
+import { SITE_URL } from "@nkps/shared/lib/seo";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
@@ -419,14 +420,15 @@ export default function AdminArticlesPage() {
                         )}
                       </Button>
                       {article.is_published && (
-                        <Link
-                          href={`/articles/${article.slug}`}
+                        <a
+                          href={`${SITE_URL}/articles/${article.slug}`}
                           target="_blank"
+                          rel="noopener noreferrer"
                           className="inline-flex items-center justify-center h-8 w-8 rounded-md text-gray-400 hover:text-navy-900"
                           title="View live"
                         >
                           <ExternalLink className="h-4 w-4" />
-                        </Link>
+                        </a>
                       )}
                       <Button
                         variant="ghost"
