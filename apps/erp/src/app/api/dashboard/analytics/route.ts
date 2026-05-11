@@ -91,11 +91,13 @@ export async function GET() {
 
       // Enrollments are shared by fees (expected-total calc) and
       // enrollment-by-class — pull them when either block is visible.
+      // streams(name) is joined so the senior-secondary breakdown can group
+      // XI / XII by Science / Commerce / Arts rather than collapsing into one.
       (wantFees || wantStudents) && currentYearId
         ? admin
             .from("student_enrollments")
             .select(
-              "class_id, stream_id, has_transport, transport_slab_id, status, classes!inner(name, section, academic_year_id)"
+              "class_id, stream_id, has_transport, transport_slab_id, status, classes!inner(name, section, academic_year_id), streams(name, code)"
             )
             .eq("classes.academic_year_id", currentYearId)
             .eq("status", "active")
@@ -177,6 +179,10 @@ export async function GET() {
       | { name: string; section: string }
       | { name: string; section: string }[]
       | null;
+    streams:
+      | { name: string; code: string | null }
+      | { name: string; code: string | null }[]
+      | null;
   }[];
 
   if (wantFees) {
@@ -229,13 +235,23 @@ export async function GET() {
 
   // ── Enrollment by class + Recent admissions (both gated on students) ──
   if (wantStudents) {
+    // Senior-secondary sections house multiple streams (Science / Commerce /
+    // Arts) on the same class+section row, so the key must include the
+    // stream short-code for XI / XII or every stream collapses into one bar.
+    const STREAMED_CLASSES = new Set(["XI", "XII"]);
     const classCountMap: Record<string, { name: string; count: number }> = {};
     for (const e of enrollments) {
       const raw = e.classes;
       if (!raw) continue;
       const cls = Array.isArray(raw) ? raw[0] : raw;
       if (!cls) continue;
-      const key = `${cls.name}-${cls.section}`;
+      const rawStream = e.streams;
+      const streamRow = Array.isArray(rawStream) ? rawStream[0] : rawStream;
+      const baseKey = `${cls.name}-${cls.section}`;
+      const key =
+        STREAMED_CLASSES.has(cls.name) && streamRow?.name
+          ? `${baseKey} · ${streamRow.code ?? streamRow.name}`
+          : baseKey;
       if (!classCountMap[key]) classCountMap[key] = { name: key, count: 0 };
       classCountMap[key].count++;
     }
@@ -246,7 +262,10 @@ export async function GET() {
       ];
       const aIdx = order.findIndex((o) => a.name.startsWith(o));
       const bIdx = order.findIndex((o) => b.name.startsWith(o));
-      return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+      if (aIdx !== bIdx) return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+      // Within the same class, sort by full key so XII-A · Sci comes before
+      // XII-A · Com etc. — deterministic order across renders.
+      return a.name.localeCompare(b.name);
     });
     response.enrollmentByClass = enrollmentByClass;
 

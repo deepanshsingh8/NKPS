@@ -189,6 +189,7 @@ function AdminFeesContent() {
   // Dues tab state
   const [classesList, setClassesList] = useState<ClassEntry[]>([]);
   const [duesClassId, setDuesClassId] = useUrlState("dues_class_id");
+  const [duesSearch, setDuesSearch] = useState("");
   const [duesRows, setDuesRows] = useState<DuesRow[]>([]);
   const [duesLoading, setDuesLoading] = useState(false);
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
@@ -735,12 +736,30 @@ function AdminFeesContent() {
     else setDuesRows([]);
   }, [duesClassId, computeDues]);
 
+  // Reset the search whenever the class changes — sticky search text across
+  // an unrelated roster would just confuse the empty-state message.
+  useEffect(() => {
+    setDuesSearch("");
+  }, [duesClassId]);
+
+  const filteredDuesRows = useMemo(() => {
+    const q = duesSearch.trim().toLowerCase();
+    if (!q) return duesRows;
+    return duesRows.filter((r) => {
+      return (
+        r.full_name.toLowerCase().includes(q) ||
+        r.admission_no.toLowerCase().includes(q) ||
+        (r.father_name ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [duesRows, duesSearch]);
+
   const duesSummary = useMemo(() => {
-    const withDues = duesRows.filter((r) => r.dues > 0);
-    const clear = duesRows.filter((r) => r.dues === 0);
+    const withDues = filteredDuesRows.filter((r) => r.dues > 0);
+    const clear = filteredDuesRows.filter((r) => r.dues === 0);
     const totalDues = withDues.reduce((s, r) => s + r.dues, 0);
     return { withDues, clear, totalDues };
-  }, [duesRows]);
+  }, [filteredDuesRows]);
 
   const exportDues = (subset: "all" | "dues" | "clear") => {
     const src =
@@ -1894,6 +1913,20 @@ function AdminFeesContent() {
                   </select>
                 </div>
                 {duesClassId && !duesLoading && duesRows.length > 0 && (
+                  <div className="flex-1 min-w-[220px]">
+                    <Label className="text-xs font-medium">Search</Label>
+                    <div className="relative mt-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
+                      <Input
+                        placeholder="Search by name, admission no or father…"
+                        value={duesSearch}
+                        onChange={(e) => setDuesSearch(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                )}
+                {duesClassId && !duesLoading && duesRows.length > 0 && (
                   <div className="ml-auto flex items-center gap-2 flex-wrap">
                     <Badge className="bg-red-100 text-red-700 border-red-200">
                       Pending:{" "}
@@ -1961,9 +1994,11 @@ function AdminFeesContent() {
                         <div className="mt-3">
                           {rows.length === 0 ? (
                             <p className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
-                              {key === "dues-list"
-                                ? "No students have outstanding dues in this class."
-                                : "No students are fully paid in this class yet."}
+                              {duesSearch.trim()
+                                ? "No students match your search."
+                                : key === "dues-list"
+                                  ? "No students have outstanding dues in this class."
+                                  : "No students are fully paid in this class yet."}
                             </p>
                           ) : (
                             <Table>

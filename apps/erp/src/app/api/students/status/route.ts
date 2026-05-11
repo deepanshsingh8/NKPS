@@ -32,9 +32,19 @@ export async function PATCH(request: NextRequest) {
     const { updates } = result.data;
     const errors: string[] = [];
 
-    // Collect enrollment IDs that need student deactivation
+    // Statuses that put the student in an inactive lifecycle state (left or
+    // dismissed). Anything else (active / passed / failed) implies the student
+    // is still part of the school for some purpose, so the parent record must
+    // flip back to is_active=true on reactivation — otherwise the unfiltered
+    // students listing (which gates on students.is_active) silently drops them
+    // even after the enrollment row says active.
+    const INACTIVE_STATUSES = new Set(["terminated", "exited"]);
+
     const deactivateEnrollmentIds = updates
-      .filter((u) => u.status === "terminated" || u.status === "exited")
+      .filter((u) => INACTIVE_STATUSES.has(u.status))
+      .map((u) => u.enrollment_id);
+    const reactivateEnrollmentIds = updates
+      .filter((u) => !INACTIVE_STATUSES.has(u.status))
       .map((u) => u.enrollment_id);
 
     // Group updates by status so we issue one UPDATE per distinct status value
@@ -74,6 +84,26 @@ export async function PATCH(request: NextRequest) {
         await admin
           .from("students")
           .update({ is_active: false, updated_at: new Date().toISOString() })
+          .in("id", studentIds);
+      }
+    }
+
+    // For active/passed/failed coming back from a terminated/exited state:
+    // re-activate the parent student row so the unfiltered listing surfaces
+    // them again. Roll numbers are recomputed by the existing
+    // trg_enrollment_update_recompute trigger on student_enrollments, so we
+    // don't have to call the recompute RPC by hand.
+    if (reactivateEnrollmentIds.length > 0) {
+      const { data: enrollments } = await admin
+        .from("student_enrollments")
+        .select("student_id")
+        .in("id", reactivateEnrollmentIds);
+
+      if (enrollments && enrollments.length > 0) {
+        const studentIds = [...new Set(enrollments.map((e) => e.student_id))];
+        await admin
+          .from("students")
+          .update({ is_active: true, updated_at: new Date().toISOString() })
           .in("id", studentIds);
       }
     }
