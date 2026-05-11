@@ -1,134 +1,203 @@
-# Distance-based Transport Fees
+# Articles fix + Bulk import for Fees & Results
 
-Goal: Replace the single flat `Transport` fee with admin-defined distance slabs. Per-student transport opt-in carries which slab applies, so the dynamic price flows through to dues, receipts, and the student/parent views. Split the admin Fees screen into **Academic** vs **Transport** sub-sections so each lives in its own surface.
-
-**Hard constraint:** must not break anything that works today.
-- Existing recorded fee payments stay valid — historical Transport receipts continue to resolve.
-- Admins keep full access.
-- Dues/no-dues math reconciles before/after to the rupee for any student already opted-in.
+Two independent tracks. Both ship as separate PRs so they can roll out at different times.
 
 ---
 
-## Design summary
+## Track A — Latest Updates / Articles 404 fix
 
-### 1. New table `transport_fare_slabs`
-Distance-band master, scoped per academic year. Fully flexible — admin can name slabs whatever they want; distance min/max are advisory metadata only.
+### Root cause
 
-```
-id                uuid PK
-academic_year_id  uuid FK academic_years
-name              text NOT NULL          -- "0–5 km", "Cluster A", etc.
-distance_km_min   numeric(5,2) NULL      -- optional, display-only
-distance_km_max   numeric(5,2) NULL      -- optional, display-only
-amount            numeric(10,2) NOT NULL CHECK (amount > 0)
-frequency         text NOT NULL DEFAULT 'monthly' (monthly|quarterly|annual|one_time)
-is_active         boolean DEFAULT true
-sort_order        int DEFAULT 0
-created_at, updated_at
-UNIQUE(academic_year_id, name)
-```
+The website home page section `LatestUpdates` (`apps/website/src/components/home/LatestUpdates.tsx`) renders one of two sources:
 
-### 2. `student_enrollments` — add slab pointer
-- `transport_slab_id uuid REFERENCES transport_fare_slabs(id) ON DELETE SET NULL`.
-- Soft constraint: `has_transport = true` requires `transport_slab_id IS NOT NULL` (enforced in UI + payments API; CHECK constraint on the table for hard guarantee).
+1. **Published `articles`** — primary; links to `/articles/[slug]` which is a real dynamic route.
+2. **`section_cards`** (fallback) — used when no articles are published; links to whatever `card.link` is, defaulting to `/articles`.
 
-### 3. `fee_payments` — allow recording slab payments
-- `fee_structure_id` becomes nullable.
-- Add `transport_slab_id uuid REFERENCES transport_fare_slabs(id)`.
-- CHECK: exactly one of `fee_structure_id` / `transport_slab_id` is set.
-- All existing rows are unaffected (they keep their `fee_structure_id`).
+Production currently has **no published articles**, so it falls back to `section_cards`. The visible cards have placeholder `link` values like `"latest update 4"` (no leading `/`). When clicked, Next's `<Link>` treats them as relative paths and resolves to `https://www.nkpublicschool.com/latest%20update%204`, which 404s.
 
-### 4. Resolver (`apps/erp/src/lib/fees.ts`)
-Drop Transport entirely from the `fee_structures` flow. Add a sibling helper that, given a student's enrollment + slab catalog, returns a synthesized `FeeStructure`-shaped line for the slab so existing UI/dues code stays mostly untouched.
+The `/articles` index and `/articles/[slug]` detail routes already exist and work — the page just has no data and the fallback's links are unsafe.
 
-```ts
-resolveTransportLine({ enrollment, slabs }): SyntheticFeeLine | null
-```
+### Fix (two complementary changes)
 
-The Admin/Student/Parent fee pages call both helpers and concatenate the result. Type-side, introduce `EffectiveFeeLine = FeeStructure | TransportFeeLine` to keep the union explicit.
+- **A1.** Harden `LatestUpdates` so a broken `link` field can never produce a bad URL.
+  - If `card.link` is empty, not a string, or doesn't start with `/` or `http`, render the card as non-clickable OR route it to `/articles`.
+  - Same defensive guard on `apps/website/src/app/articles/page.tsx` is not needed (real DB articles always have slugs from `slugify()`).
+- **A2.** Seed 3–4 real articles via the CMS admin so the home page shows live, valid links.
+  - Use `apps/cms/src/app/articles/page.tsx` UI (already supports title → slug, markdown, cover image).
+  - Suggested seed titles (user can edit):
+    - "Admissions open for 2026–27 academic year"
+    - "Annual Sports Meet 2026 — schedule & highlights"
+    - "NKPS Science Exhibition winners"
+    - "Welcome to the new academic session"
 
-### 5. Admin Fees page (`apps/erp/src/app/(admin)/fees/page.tsx`)
-Restructure the **Fee Structures** tab into two sub-tabs:
+### Checklist
 
-- **Academic** — current table & dialog, but the Fee Type dropdown drops `Transport`.
-- **Transport** — CRUD for `transport_fare_slabs` (Name, Min km, Max km, Amount, Frequency).
-
-In the **Payments** tab, replace the bare Transport checkbox with:
-
-```
-[x] Using Transport   →   [Distance: 0–5 km ▾]   ₹1,200/month
-```
-
-When the checkbox is enabled, a slab dropdown appears; saving "Using Transport" without a slab selection is rejected. The "Applicable Fee Structures" grid below now includes the synthesized transport line.
-
-The **Dues / No-Dues** tab updates to include the slab-driven transport amount per row (instead of a hard-coded fixed Transport row from `fee_structures`). The existing CSV columns stay the same — `Transport` stays a yes/no column, but the expected/dues now reflect the slab's amount.
-
-### 6. Student & Parent fee views
-Read-only consumers of the same resolver. The transport line shows up identically with the slab name (e.g. "Transport — 0–5 km") + amount. No new dialogs.
-
-### 7. Payments API (`/api/fees/payments`)
-- Schema accepts `fee_structure_id?` OR `transport_slab_id?` (XOR; validated by Zod refine).
-- For slab payments, look up `transport_fare_slabs` for `amount` and `academic_year_id`; existing over-payment guard works the same.
-- `fee_payments.transport_slab_id` written; `fee_structure_id` stays null.
-
-### 8. Receipt PDF (`/api/fees/receipt`)
-- When payment row has `transport_slab_id`, render the slab name as the line description (instead of `fee_structure.fee_type`).
-
-### 9. Migration & schema mirror
-- New `migration-050-transport-fare-slabs.sql` under `scripts/migrations/erp/`.
-- Append the same DDL to `supabase-schema.sql` (per memory rule).
-- Backfill (idempotent, in same migration):
-  1. For each distinct `(academic_year_id, class_name, amount, frequency)` row in `fee_structures` where `fee_type = 'Transport' AND is_active`, create a slab named e.g. `"Default — {class_name}"`. Distance min/max NULL.
-  2. For each `student_enrollments` row where `has_transport = true`, set `transport_slab_id` to the slab matching the enrollment's class (preferring the slab created from that class's Transport structure).
-  3. Set `fee_structures.is_active = false` for all Transport rows so they no longer surface in admin pickers, while old `fee_payments` keep resolving.
+- [x] A1. Add link-safety guard in `LatestUpdates.tsx` (sanitize `card.link`)
+- [ ] A2. Verify `getPublishedArticles()` returns nothing in production, falling through to cards
+- [ ] A3. (Optional) Hide the entire "Latest Updates" section when both sources are empty — already done, just confirm
+- [x] A4. Draft 3–4 real article markdowns at `tasks/article-drafts.md` (user to paste into `/admin/articles` CMS)
+- [ ] A5. Smoke test home page → click each card → lands on `/articles/<slug>` 200
 
 ---
 
-## Decisions (confirmed)
+## Track B — Bulk import: Fees & Results (migration from previous software)
 
-1. **Slab scope** — school-wide per academic year. ✓
-2. **Existing Transport `fee_structures`** — repoint dependent `fee_payments` to slabs, then hard-delete. ✓
-3. **`distance_km_min/max`** — optional metadata; slab name is the label. ✓
-4. **Slab edits** — mutate in place. `fee_payments.amount_paid` is already stamped at write time, so receipts stay correct; we lose only the historical price browsing, which isn't needed. ✓
+Mirror the existing `MarksImportDialog` + `/api/results/import` pattern (already proven in this repo).
+
+### Design principles
+
+- **Dry-run first.** Every upload previews row-by-row with errors before commit. Commit only when zero errors.
+- **Idempotent commits.** Re-uploading the same file (same `receipt_number` for fees; same `(student, subject, exam)` for results) updates rather than duplicates.
+- **Sample template per importer.** "Download sample" button returns an XLSX with the correct headers, a couple of example rows, and a header comment row explaining each column.
+- **5 MB upload cap.** Matches existing `/api/results/import`.
+- **RBAC.** Reuse `verifyAdminOrEditor("fees")` and `verifyAdminOrEditor("results")`.
+- **Audit trail.** Add a `source` column on `fee_payments` and `results` to mark migrated rows (e.g., `'erp_native'` vs `'historical_import'`) so we can always tell what came from the previous software.
+
+### B1. Fees bulk import (NEW)
+
+**Use case:** import historical fee payment logs from the previous software for current and previous academic years, so dues/no-dues continuity isn't broken when we switch.
+
+**Migration:**
+- New file: `scripts/migrations/erp/migration-051-import-source-fees.sql`
+  ```sql
+  ALTER TABLE fee_payments ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'erp_native';
+  ALTER TABLE fee_payments ADD COLUMN IF NOT EXISTS import_batch_id uuid;
+  CREATE INDEX IF NOT EXISTS fee_payments_import_batch_idx ON fee_payments(import_batch_id);
+  ```
+- Also append to `supabase-schema.sql` (per saved rule "Schema mirrors migrations").
+- `source` values: `'erp_native'` (default), `'historical_import'`.
+- `import_batch_id` lets admins revert a single upload if needed.
+
+**API:** `apps/erp/src/app/api/fees/bulk-import/route.ts`
+- POST multipart: `file`, `academic_year_id`, `dry_run` ("true"|"false"), `mode` ("historical"|"current")
+- Columns expected in the file:
+  | Column | Required | Notes |
+  |---|---|---|
+  | `admission_no` | yes | Lookup key. Student must exist. |
+  | `academic_year` | yes | e.g. `2024-25`. Must match a row in `academic_years`. |
+  | `class_name` | for ambiguity | Resolves enrollment if student spans years |
+  | `fee_type` | yes | One of: Tuition / Lab / Annual / Transport / Other |
+  | `frequency` | yes | monthly / quarterly / annual / one_time |
+  | `period_label` | yes | e.g. `Apr 2024`, `Q1 2024-25`, `2024-25` (human-readable; stored in `remarks`) |
+  | `amount_due` | yes | Decimal |
+  | `amount_paid` | yes | Decimal. `0` for unpaid; partial allowed |
+  | `payment_date` | conditional | Required if `amount_paid > 0`. ISO date |
+  | `payment_method` | conditional | cash / cheque / upi / card / bank_transfer / other. Required if paid |
+  | `receipt_number` | conditional | Required if paid; used as idempotency key |
+  | `remarks` | no | Free text |
+
+- Server flow:
+  1. Auth + RBAC check (`fees` feature).
+  2. Parse XLSX via SheetJS, normalize headers (same `normalizeKey` helper).
+  3. Build lookup maps for `students` (by `admission_no`), `academic_years` (by `name`), `fee_structures` (by `academic_year_id` + `class_name` + `fee_type` + `frequency`).
+  4. Per row: validate types, resolve student, resolve-or-create `fee_structure`, resolve-or-create `payment_order` (one per student × fee_structure × period_label).
+  5. Collect row results with `ok`, `error`, `matched_student_id`, `resolved_structure_id`.
+  6. If dry run OR any row errors → return preview, commit nothing.
+  7. Else: create `import_batch_id`, upsert `fee_payments` keyed on `receipt_number` with `source='historical_import'`.
+- Returns `{ summary, rows }` shape mirroring `/api/results/import`.
+
+**Sample template API:** `apps/erp/src/app/api/fees/bulk-import/template/route.ts`
+- GET — returns an XLSX with: (a) header row, (b) 2 example rows (one paid, one unpaid), (c) a small README sheet explaining each column and allowed values.
+- Optional query param `?academic_year_id=xxx&class_id=yyy` → prefills `admission_no`, `student_name` (for reference, ignored at import), `academic_year` for that class's currently-enrolled students.
+
+**UI:** new component `apps/erp/src/components/FeesBulkImportDialog.tsx`
+- Trigger: new "Bulk import" button on `/admin/fees` (page already imports `FileSpreadsheet` icon — wire it up).
+- Dialog shows: academic year picker, mode toggle (Historical / Current), download-sample button, file picker.
+- Click "Preview" → shows table with row results and inline errors.
+- Click "Commit" → enabled only when zero errors. Shows progress + success toast.
+- After commit: emit toast "Imported N rows. Batch ID: …" and call `onImported()` so the dashboard refetches.
+
+### B2. Results bulk historical import (NEW — multi-row, multi-exam)
+
+The existing `/api/results/import` is great for **one** class+exam+subject at a time (current teachers entering marks). For migration we need a single sheet covering many students × many subjects × many exams × possibly many years.
+
+**Migration:**
+- New file: `scripts/migrations/erp/migration-052-import-source-results.sql`
+  ```sql
+  ALTER TABLE results ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'erp_native';
+  ALTER TABLE results ADD COLUMN IF NOT EXISTS import_batch_id uuid;
+  CREATE INDEX IF NOT EXISTS results_import_batch_idx ON results(import_batch_id);
+  ```
+- Mirror to `supabase-schema.sql`.
+
+**API:** `apps/erp/src/app/api/results/historical-import/route.ts`
+- POST multipart: `file`, `dry_run`, `default_academic_year_id` (optional — if file omits column)
+- Columns:
+  | Column | Required | Notes |
+  |---|---|---|
+  | `admission_no` | yes | |
+  | `academic_year` | yes | e.g. `2024-25` |
+  | `class_name` | yes | Must match a `classes` row for that year |
+  | `exam_type` | yes | e.g. `Term 1`, `Term 2`, `Half Yearly`, `Annual` |
+  | `subject` | yes | Subject name (resolved against `class_subjects` for that class) |
+  | `marks_obtained` | yes | Number |
+  | `max_marks` | yes | Number — overrides exam_type default if different |
+  | `grade` | no | If absent, computed from class's grade scale |
+  | `remarks` | no | |
+
+- Server flow mirrors existing import but with multi-key resolution per row:
+  1. Build lookup maps: students by admission_no, academic_years by name, classes by (academic_year_id, class_name), exam_types by (academic_year_id, name), subjects by (class_id, name).
+  2. Per row: validate, resolve all FKs, compute grade if missing, collect result.
+  3. Dry-run preview shows the same row-result table.
+  4. Commit: upsert into `results` with `onConflict: "student_id,subject_id,exam_type_id"` plus `source='historical_import'`, `import_batch_id=<batch>`.
+
+**Sample template API:** `apps/erp/src/app/api/results/historical-import/template/route.ts` — XLSX with example rows + README sheet.
+
+**UI:** new component `apps/erp/src/components/ResultsHistoricalImportDialog.tsx`
+- Triggered from `/admin/exams/results` page — add a "Historical bulk import" button alongside existing filters.
+- Same preview-then-commit flow.
+
+### B3. Don't touch the existing `/api/results/import`
+
+The current per-class/per-exam/per-subject importer stays exactly as it is — it's the right tool for live teacher workflow. We're **adding** a new historical importer alongside it, not replacing.
+
+### B4. Export of current state (for round-trip safety)
+
+- `/api/results/export` already exists — verify it covers all years (not just current).
+- Add `/api/fees/export` if not present — full payments table CSV with filters (academic_year, class, fee_type).
+- Reuse `downloadCSV()` in `apps/erp/src/lib/csv-export.ts`.
+
+### Checklist
+
+**Schema**
+- [x] B-S1. Write `migration-051-import-source-fees.sql`; append same DDL to `supabase-schema.sql`
+- [x] B-S2. Write `migration-052-import-source-results.sql`; append same DDL to `supabase-schema.sql`
+
+**Fees**
+- [ ] B-F1. `/api/fees/bulk-import` route — parse, validate, dry-run, commit
+- [ ] B-F2. `/api/fees/bulk-import/template` route — sample XLSX generation
+- [ ] B-F3. `FeesBulkImportDialog.tsx` component
+- [ ] B-F4. Wire dialog into `/admin/fees` page
+- [ ] B-F5. (Optional) `/api/fees/export` for round-trip
+
+**Results**
+- [ ] B-R1. `/api/results/historical-import` route
+- [ ] B-R2. `/api/results/historical-import/template` route — sample XLSX
+- [ ] B-R3. `ResultsHistoricalImportDialog.tsx` component
+- [ ] B-R4. Wire dialog into `/admin/exams/results` page
+
+**Validation**
+- [ ] B-V1. Manual e2e: download fees template → fill 5 rows (mix of paid/unpaid/errors) → preview shows correct errors → fix → commit → verify rows appear in admin Fees dashboard and student profile
+- [ ] B-V2. Same e2e for results template against a sample multi-year multi-subject sheet
+- [ ] B-V3. Idempotency check: re-upload the same file → row count unchanged
+- [ ] B-V4. RBAC: editor without `fees` capability gets 403 on bulk-import
 
 ---
 
-## Implementation checklist
+## Order of execution
 
-- [x] Migration 050 + supabase-schema.sql append (table, FKs, CHECK, backfill)
-- [x] `packages/shared/src/types/index.ts`: `TransportFareSlab` + `EffectiveFeeLine` union
-- [x] `apps/erp/src/lib/fees.ts`: drop Transport from `fee_structures` resolver; add `resolveTransportLine` + `resolveEffectiveFeeLines`
-- [x] Validation schemas (`packages/shared/src/lib/validations.ts`): slab CRUD + payment XOR
-- [x] Admin Fees page: Academic/Transport sub-tabs in Structures, slab dropdown in Payments tab, dues compute reads slabs
-- [x] `/api/fees/payments`: accept slab_id; write nullable fee_structure_id
-- [x] `/api/fees/receipt`: render slab name when applicable
-- [x] Student fees page: show slab line
-- [x] Parent fees page: show slab line
-- [x] Analytics route updated for slab-driven expected total
-- [x] Typecheck + lint + build clean (4 packages)
-- [ ] Manual smoke: apply migration → create slab → opt student in → record payment → download receipt → check dues report (deferred to user)
+1. **Track A first** (one afternoon) — small, isolated, fixes a visible production issue. Ship and forget.
+2. **Track B in stages:**
+   - Schema migrations (B-S1, B-S2) — must run on Supabase before any code that depends on them
+   - Fees importer end-to-end (B-F1 → B-F4) — verify on real previous-year data
+   - Results importer end-to-end (B-R1 → B-R4)
+   - Optional exports last
 
-## Review
+---
 
-**What changed**
+## Open questions for the user
 
-Distance-based transport fees are live. The flat `Transport` row in `fee_structures` is gone — fares now live in a per-academic-year `transport_fare_slabs` master with optional km bands. Each `student_enrollments` row points at a slab via `transport_slab_id`; `fee_payments` accepts either `fee_structure_id` (academic) or `transport_slab_id` (transport), enforced by a XOR CHECK. Migration 050 backfills slabs from any existing Transport rows, repoints old transport receipts onto the new slab, then hard-deletes the originals. Receipts now render `Transport — 0–5 km` instead of a generic "Transport".
-
-**Files touched**
-
-- `scripts/migrations/erp/migration-050-transport-fare-slabs.sql` — new
-- `supabase-schema.sql` — appended migration 050 DDL (per memory rule)
-- `packages/shared/src/types/index.ts` — `TransportFareSlab`, `TransportFeeLine`, `EffectiveFeeLine`; `transport_slab_id` on `StudentEnrollment` + `FeePayment`
-- `packages/shared/src/lib/validations.ts` — `transportFareSlabSchema`; `feePaymentSchema` accepts XOR fee_structure_id / transport_slab_id
-- `apps/erp/src/lib/fees.ts` — dropped Transport handling from `resolveEffectiveFeeStructures`; added `resolveTransportLine`, `resolveEffectiveFeeLines`
-- `apps/erp/src/app/(admin)/fees/page.tsx` — Academic/Transport sub-tabs, slab CRUD dialog, slab dropdown in payments tab, dues includes slab amount, payments dropdown handles XOR
-- `apps/erp/src/app/api/fees/payments/route.ts` — branches on slab vs structure for amount/year lookup, over-payment guard, FK insert
-- `apps/erp/src/app/api/fees/receipt/route.tsx` — joins `transport_fare_slabs` and renders slab name
-- `apps/erp/src/app/student/fees/page.tsx` — uses `resolveEffectiveFeeLines`, joins slab in payment history
-- `apps/erp/src/app/parent/fees/page.tsx` — same treatment as student page
-- `apps/erp/src/app/api/dashboard/analytics/route.ts` — fetches slabs, adds slab annualized to expected; payment query no longer inner-joins through `fee_structures`
-
-**Open follow-ups (not blocking)**
-- Waiver flow still locked to `fee_structure_id` only. If the school wants to waive transport fees too, extend `feeWaiverSchema` and the route to accept `transport_slab_id` (XOR) — would mirror the payments change exactly.
-- Dues CSV column header is still "Transport" (yes/no). Could become "Transport Slab" once school confirms they want the slab name in exports.
-- The user needs to apply migration 050 to the live DB and run a manual smoke test (covered in the checklist above).
+1. **Article seeding (A4)** — should Claude draft initial article copy from school constants/CLAUDE.md, or will the user write them in the CMS directly?
+2. **Fee template format** — does the previous software's reports already export CSV/XLSX in a particular shape? If so, share a sample row and we'll match it instead of inventing headers from scratch.
+3. **Historical results — class name format** — what string did the old software use for classes? "X-A", "Class 10 - A", "10A"? We'll need a normalizer.
+4. **Receipt number uniqueness** — were receipt numbers from the previous software unique across all years, or just within a year? Affects whether idempotency key is `receipt_number` alone or `(academic_year, receipt_number)`.

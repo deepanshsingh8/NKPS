@@ -462,11 +462,16 @@ CREATE TABLE results (
   remarks text,
   entered_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
   is_published boolean DEFAULT false,
+  source text NOT NULL DEFAULT 'erp_native'
+    CHECK (source IN ('erp_native', 'historical_import')),
+  import_batch_id uuid,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   UNIQUE(student_id, subject_id, exam_type_id),
   CONSTRAINT results_marks_in_range CHECK (marks_obtained >= 0 AND marks_obtained <= max_marks)
 );
+CREATE INDEX IF NOT EXISTS results_import_batch_idx
+  ON results(import_batch_id) WHERE import_batch_id IS NOT NULL;
 
 -- 2p. Fee Structures
 CREATE TABLE fee_structures (
@@ -530,9 +535,14 @@ CREATE TABLE fee_payments (
   gateway_receipt text,
   recorded_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
   remarks text,
+  source text NOT NULL DEFAULT 'erp_native'
+    CHECK (source IN ('erp_native', 'historical_import')),
+  import_batch_id uuid,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS fee_payments_import_batch_idx
+  ON fee_payments(import_batch_id) WHERE import_batch_id IS NOT NULL;
 
 -- 2s. Timetable Periods
 CREATE TABLE timetable_periods (

@@ -20,6 +20,10 @@ import { createClient } from "@nkps/shared/lib/supabase/client";
 import { cn } from "@nkps/shared/lib/utils";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import { DashboardAnalytics } from "@nkps/shared/components/DashboardAnalytics";
+import {
+  CmsContentInsights,
+  type CmsInsightsData,
+} from "@nkps/shared/components/CmsContentInsights";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@nkps/shared/lib/constants/calendar";
 import type { CalendarEventType } from "@nkps/shared/types";
 
@@ -220,6 +224,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
   const [canSeeEvents, setCanSeeEvents] = useState(false);
+  const [cmsInsights, setCmsInsights] = useState<CmsInsightsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -235,6 +240,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
           setStats(data.stats);
           setUpcomingEvents(data.upcomingEvents ?? []);
           setCanSeeEvents(!!data.canSeeEvents);
+          setCmsInsights(data.cmsInsights ?? null);
         }
       } catch {
         // Silently fail — dashboard will show empty state
@@ -287,6 +293,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
 
   const showAnalytics = scope === "erp";
   const showEvents = scope === "erp";
+  const showCmsInsights = scope === "cms";
   const eventsHref = "/calendar";
   const moduleLabel = scope === "cms" ? "Content" : "School operations";
 
@@ -414,6 +421,10 @@ export function DashboardView({ scope }: { scope: Scope }) {
           </div>
           <DashboardAnalytics />
         </div>
+      )}
+
+      {showCmsInsights && (
+        <CmsContentInsights data={cmsInsights} loading={loading} />
       )}
 
       {showEvents && (loading || canSeeEvents) && (

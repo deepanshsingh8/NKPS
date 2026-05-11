@@ -21,6 +21,18 @@ function formatMonthYear(iso: string | null): string {
   });
 }
 
+// section_cards.link is admin-editable and may contain placeholder text like
+// "latest update 4" left over from seed data. Anything that isn't an absolute
+// path or external URL would resolve as a relative path and 404.
+function safeLink(raw: string | null | undefined): string {
+  if (!raw || typeof raw !== "string") return "/articles";
+  const trimmed = raw.trim();
+  if (!trimmed) return "/articles";
+  if (trimmed.startsWith("/")) return trimmed;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return "/articles";
+}
+
 export function LatestUpdates({ cards, articles }: LatestUpdatesProps = {}) {
   const hasArticles = (articles?.length ?? 0) > 0;
 
@@ -33,7 +45,7 @@ export function LatestUpdates({ cards, articles }: LatestUpdatesProps = {}) {
     title: c.title || "",
     description: c.description || "",
     image: c.image_url || "/images/news/n2.jpg",
-    link: (c.link || "/articles") as string,
+    link: safeLink(c.link),
   }));
 
   const articleUpdates = (articles ?? []).map((a, i) => ({

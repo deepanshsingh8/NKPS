@@ -8,7 +8,7 @@ import {
   Layers,
   ScrollText,
   Newspaper,
-  LayoutGrid,
+  FolderOpen,
 } from "lucide-react";
 import {
   SidebarShell,
@@ -21,7 +21,7 @@ const cmsItems: SidebarItem[] = [
   { kind: "link", icon: LayoutDashboard, label: "Dashboard", href: "/" },
   {
     kind: "group",
-    icon: LayoutGrid,
+    icon: FolderOpen,
     label: "Content",
     landingHref: "/",
     hideOverview: true,
