@@ -62,9 +62,24 @@ type SidebarShellProps = {
   footerExtra?: React.ReactNode;
 };
 
+// Exact-href lookup covers most sidebar items. Sub-routes that fall under
+// a feature umbrella (e.g. /fees/academic, /fees/transport) aren't in the
+// catalog by themselves — we resolve those by longest-prefix match so the
+// whole tree is gated by a single feature key.
 const HREF_TO_FEATURE_KEY: Record<string, FeatureKey> = Object.fromEntries(
   FEATURE_CATALOG.map((f) => [f.href, f.key])
 );
+const FEATURE_HREFS_DESC = [...FEATURE_CATALOG].sort(
+  (a, b) => b.href.length - a.href.length
+);
+function resolveFeatureKey(href: string): FeatureKey | null {
+  const direct = HREF_TO_FEATURE_KEY[href];
+  if (direct) return direct;
+  for (const f of FEATURE_HREFS_DESC) {
+    if (href === f.href || href.startsWith(`${f.href}/`)) return f.key;
+  }
+  return null;
+}
 
 export function SidebarShell({
   sections,
@@ -154,7 +169,7 @@ export function SidebarShell({
 
   const isCapabilityAllowed = (href: string): boolean => {
     if (editorAlwaysAllowedHrefs.has(href)) return true;
-    const key = HREF_TO_FEATURE_KEY[href];
+    const key = resolveFeatureKey(href);
     if (!key) return false;
     return permissions?.has(key) ?? false;
   };

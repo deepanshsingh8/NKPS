@@ -23,6 +23,8 @@ import {
   Lock,
   RefreshCw,
   BarChart3,
+  Bus,
+  Banknote,
 } from "lucide-react";
 import {
   SidebarShell,
@@ -99,7 +101,18 @@ const erpItems: SidebarItem[] = [
       },
     ],
   },
-  { kind: "link", icon: CreditCard, label: "Fees", href: "/fees" },
+  {
+    kind: "group",
+    icon: CreditCard,
+    label: "Fees",
+    landingHref: "/fees/academic",
+    hideOverview: true,
+    children: [
+      { kind: "link", icon: CreditCard, label: "Academic", href: "/fees/academic" },
+      { kind: "link", icon: Bus, label: "Transport", href: "/fees/transport" },
+      { kind: "link", icon: Banknote, label: "Payment Management", href: "/fees/payments" },
+    ],
+  },
   {
     kind: "group",
     icon: Clock,

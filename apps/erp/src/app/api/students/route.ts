@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       const { data: enrollments, error: enrollError } = await admin
         .from("student_enrollments")
         .select(
-          "student_id, roll_number, roll_number_manual, id, class_id, stream_id, status, academic_year_id, updated_at, classes(name, section)"
+          "student_id, roll_number, roll_number_manual, id, class_id, stream_id, status, academic_year_id, updated_at, has_transport, transport_slab_id, transport_slab_suggested_id, transport_slab_overridden_at, pickup_verified_at, pickup_lat, pickup_lng, pickup_verified_lat, pickup_verified_lng, classes(name, section)"
         )
         .range(0, 9999);
       if (enrollError) {
@@ -90,17 +90,39 @@ export async function GET(request: NextRequest) {
           | null
           | undefined;
         const cls = Array.isArray(rawCls) ? (rawCls[0] ?? null) : (rawCls ?? null);
+        const e = enrollment as
+          | (typeof enrollment & {
+              has_transport?: boolean | null;
+              transport_slab_id?: string | null;
+              transport_slab_suggested_id?: string | null;
+              transport_slab_overridden_at?: string | null;
+              pickup_verified_at?: string | null;
+              pickup_lat?: number | null;
+              pickup_lng?: number | null;
+              pickup_verified_lat?: number | null;
+              pickup_verified_lng?: number | null;
+              roll_number_manual?: boolean;
+            })
+          | undefined;
         return {
           ...s,
           roll_number: enrollment?.roll_number ?? null,
-          roll_number_manual:
-            (enrollment as { roll_number_manual?: boolean } | undefined)?.roll_number_manual ?? false,
+          roll_number_manual: e?.roll_number_manual ?? false,
           enrollment_id: enrollment?.id ?? null,
           class_id: enrollment?.class_id ?? null,
           stream_id: enrollment?.stream_id ?? null,
           enrollment_status: enrollment?.status ?? null,
           class_name: cls?.name ?? null,
           class_section: cls?.section ?? null,
+          has_transport: e?.has_transport ?? false,
+          transport_slab_id: e?.transport_slab_id ?? null,
+          transport_slab_suggested_id: e?.transport_slab_suggested_id ?? null,
+          transport_slab_overridden_at: e?.transport_slab_overridden_at ?? null,
+          pickup_verified_at: e?.pickup_verified_at ?? null,
+          pickup_lat: e?.pickup_lat ?? null,
+          pickup_lng: e?.pickup_lng ?? null,
+          pickup_verified_lat: e?.pickup_verified_lat ?? null,
+          pickup_verified_lng: e?.pickup_verified_lng ?? null,
         };
       });
 
@@ -110,7 +132,9 @@ export async function GET(request: NextRequest) {
     // Get enrollments for the class
     const { data: enrollments, error: enrollError } = await admin
       .from("student_enrollments")
-      .select("id, student_id, roll_number, roll_number_manual, class_id, stream_id, status")
+      .select(
+        "id, student_id, roll_number, roll_number_manual, class_id, stream_id, status, has_transport, transport_slab_id, transport_slab_suggested_id, transport_slab_overridden_at, pickup_verified_at, pickup_lat, pickup_lng, pickup_verified_lat, pickup_verified_lng"
+      )
       .eq("class_id", classId);
 
     if (enrollError) {
@@ -157,15 +181,37 @@ export async function GET(request: NextRequest) {
 
     const merged = (students ?? []).map((s) => {
       const enrollment = enrollments.find((e) => e.student_id === s.id);
+      const e = enrollment as
+        | (typeof enrollment & {
+            has_transport?: boolean | null;
+            transport_slab_id?: string | null;
+            transport_slab_suggested_id?: string | null;
+            transport_slab_overridden_at?: string | null;
+            pickup_verified_at?: string | null;
+            pickup_lat?: number | null;
+            pickup_lng?: number | null;
+            pickup_verified_lat?: number | null;
+            pickup_verified_lng?: number | null;
+            roll_number_manual?: boolean;
+          })
+        | undefined;
       return {
         ...s,
         roll_number: enrollment?.roll_number ?? null,
-        roll_number_manual:
-          (enrollment as { roll_number_manual?: boolean } | undefined)?.roll_number_manual ?? false,
+        roll_number_manual: e?.roll_number_manual ?? false,
         enrollment_id: enrollment?.id ?? null,
         class_id: enrollment?.class_id ?? null,
         stream_id: enrollment?.stream_id ?? null,
         enrollment_status: enrollment?.status ?? null,
+        has_transport: e?.has_transport ?? false,
+        transport_slab_id: e?.transport_slab_id ?? null,
+        transport_slab_suggested_id: e?.transport_slab_suggested_id ?? null,
+        transport_slab_overridden_at: e?.transport_slab_overridden_at ?? null,
+        pickup_verified_at: e?.pickup_verified_at ?? null,
+        pickup_lat: e?.pickup_lat ?? null,
+        pickup_lng: e?.pickup_lng ?? null,
+        pickup_verified_lat: e?.pickup_verified_lat ?? null,
+        pickup_verified_lng: e?.pickup_verified_lng ?? null,
       };
     });
 

@@ -86,6 +86,32 @@ interface StudentRow extends Student {
   enrollment_status?: EnrollmentStatus | null;
   class_name?: string;
   class_section?: string;
+  // Transport-audit columns surfaced for the dashboard deep-link filters
+  // (?has_transport, ?verified, ?slab_overridden, ?pickup_mismatch).
+  has_transport?: boolean | null;
+  transport_slab_id?: string | null;
+  transport_slab_suggested_id?: string | null;
+  transport_slab_overridden_at?: string | null;
+  pickup_verified_at?: string | null;
+  pickup_lat?: number | null;
+  pickup_lng?: number | null;
+  pickup_verified_lat?: number | null;
+  pickup_verified_lng?: number | null;
+}
+
+const PICKUP_MISMATCH_THRESHOLD_KM = 1;
+
+function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number) {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const lat1 = toRad(aLat);
+  const lat2 = toRad(bLat);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  return 2 * R * Math.asin(Math.sqrt(a));
 }
 
 const GENDER_OPTIONS: Gender[] = ["male", "female", "other"];
@@ -141,6 +167,13 @@ export default function AdminStudentsPage() {
   // Filter state lives in the URL so back-navigation restores it (UX-1).
   const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
   const [search, setSearch] = useUrlState("q");
+  // Audit filters set by the dashboard's Transport Audit tile. They stack
+  // multiplicatively with the existing class + name search so admins can
+  // narrow further from the deep-linked starting point.
+  const [auditHasTransport, setAuditHasTransport] = useUrlState("has_transport");
+  const [auditVerified, setAuditVerified] = useUrlState("verified");
+  const [auditSlabOverridden, setAuditSlabOverridden] = useUrlState("slab_overridden");
+  const [auditPickupMismatch, setAuditPickupMismatch] = useUrlState("pickup_mismatch");
 
   // Dialogs
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -379,15 +412,60 @@ export default function AdminStudentsPage() {
     }
   }, [revertDialog, revertForm, fetchAlumni, fetchStudents]);
 
+  const auditFilterActive =
+    auditHasTransport === "1" ||
+    auditVerified === "0" ||
+    auditSlabOverridden === "1" ||
+    auditPickupMismatch === "1";
+
   const filteredStudents = students.filter((s) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      s.full_name.toLowerCase().includes(q) ||
-      s.admission_no.toLowerCase().includes(q) ||
-      (s.father_name && s.father_name.toLowerCase().includes(q))
-    );
+    if (search) {
+      const q = search.toLowerCase();
+      const matches =
+        s.full_name.toLowerCase().includes(q) ||
+        s.admission_no.toLowerCase().includes(q) ||
+        (s.father_name && s.father_name.toLowerCase().includes(q));
+      if (!matches) return false;
+    }
+    if (auditHasTransport === "1" && !s.has_transport) return false;
+    // verified=0 means "show only unverified transport users". We don't
+    // implement verified=1 because the dashboard never deep-links to that
+    // (verified pickups aren't a watch list).
+    if (auditVerified === "0") {
+      if (!s.has_transport) return false;
+      if (s.pickup_verified_at) return false;
+    }
+    if (auditSlabOverridden === "1" && !s.transport_slab_overridden_at) {
+      return false;
+    }
+    if (auditPickupMismatch === "1") {
+      // Mismatch requires both claimed coords and verified coords. Anything
+      // without either pair can't have drifted, so it's excluded.
+      if (
+        s.pickup_lat == null ||
+        s.pickup_lng == null ||
+        s.pickup_verified_lat == null ||
+        s.pickup_verified_lng == null
+      ) {
+        return false;
+      }
+      const drift = haversineKm(
+        Number(s.pickup_lat),
+        Number(s.pickup_lng),
+        Number(s.pickup_verified_lat),
+        Number(s.pickup_verified_lng)
+      );
+      if (drift <= PICKUP_MISMATCH_THRESHOLD_KM) return false;
+    }
+    return true;
   });
+
+  const clearAuditFilters = () => {
+    setAuditHasTransport("");
+    setAuditVerified("");
+    setAuditSlabOverridden("");
+    setAuditPickupMismatch("");
+  };
 
   const resetForm = () => {
     setFormData({
@@ -1148,6 +1226,73 @@ export default function AdminStudentsPage() {
           </div>
         </div>
 
+        {/* Active-audit chips — set by the dashboard's Transport Audit
+            deep-links. The Clear All collapses everything back to the
+            normal class+search view. */}
+        {auditFilterActive && (
+          <div className="mb-4 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-amber-800 dark:text-amber-300 mr-1">
+              Transport audit filter:
+            </span>
+            {auditHasTransport === "1" && (
+              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                Has transport
+                <button
+                  onClick={() => setAuditHasTransport("")}
+                  className="ml-1.5 hover:opacity-70"
+                  aria-label="Clear has-transport filter"
+                >
+                  ×
+                </button>
+              </Badge>
+            )}
+            {auditVerified === "0" && (
+              <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                Unverified pickup
+                <button
+                  onClick={() => setAuditVerified("")}
+                  className="ml-1.5 hover:opacity-70"
+                  aria-label="Clear verified filter"
+                >
+                  ×
+                </button>
+              </Badge>
+            )}
+            {auditSlabOverridden === "1" && (
+              <Badge className="bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                Slab overridden
+                <button
+                  onClick={() => setAuditSlabOverridden("")}
+                  className="ml-1.5 hover:opacity-70"
+                  aria-label="Clear slab-overridden filter"
+                >
+                  ×
+                </button>
+              </Badge>
+            )}
+            {auditPickupMismatch === "1" && (
+              <Badge className="bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                Pickup mismatch &gt; 1 km
+                <button
+                  onClick={() => setAuditPickupMismatch("")}
+                  className="ml-1.5 hover:opacity-70"
+                  aria-label="Clear pickup-mismatch filter"
+                >
+                  ×
+                </button>
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearAuditFilters}
+              className="ml-auto h-7 text-xs text-amber-800 dark:text-amber-300 hover:bg-amber-100/50 dark:hover:bg-amber-900/30"
+            >
+              Clear all
+            </Button>
+          </div>
+        )}
+
         {/* Bulk action bar */}
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-3 mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -1354,7 +1499,7 @@ export default function AdminStudentsPage() {
                           variant="ghost"
                           size="icon-sm"
                           onClick={() =>
-                            router.push(`/fees?student_id=${student.id}`)
+                            router.push(`/fees/payments?student_id=${student.id}`)
                           }
                           aria-label="View fees / record payment"
                           className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"

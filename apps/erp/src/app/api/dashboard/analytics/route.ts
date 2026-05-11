@@ -43,6 +43,27 @@ export async function GET() {
   const wantFees = can("fees");
   const wantStudents = can("students");
 
+  // Haversine helper — used by the transport-audit block below to flag
+  // verified pickups whose actual GPS reading drifts too far from the
+  // address parents claimed.
+  function haversineKm(
+    aLat: number,
+    aLng: number,
+    bLat: number,
+    bLng: number
+  ) {
+    const R = 6371;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(bLat - aLat);
+    const dLng = toRad(bLng - aLng);
+    const lat1 = toRad(aLat);
+    const lat2 = toRad(bLat);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
   const [
     attendanceRes,
     feePaymentsRes,
@@ -238,8 +259,15 @@ export async function GET() {
     // Senior-secondary sections house multiple streams (Science / Commerce /
     // Arts) on the same class+section row, so the key must include the
     // stream short-code for XI / XII or every stream collapses into one bar.
+    // Schema enforces UNIQUE(name, section, academic_year_id, stream_id), so
+    // every bucket (name + section [+ stream]) maps to a single class_id —
+    // captured here so the dashboard can deep-link each bar to the students
+    // page filtered to that class.
     const STREAMED_CLASSES = new Set(["XI", "XII"]);
-    const classCountMap: Record<string, { name: string; count: number }> = {};
+    const classCountMap: Record<
+      string,
+      { name: string; count: number; class_id: string }
+    > = {};
     for (const e of enrollments) {
       const raw = e.classes;
       if (!raw) continue;
@@ -252,7 +280,8 @@ export async function GET() {
         STREAMED_CLASSES.has(cls.name) && streamRow?.name
           ? `${baseKey} · ${streamRow.code ?? streamRow.name}`
           : baseKey;
-      if (!classCountMap[key]) classCountMap[key] = { name: key, count: 0 };
+      if (!classCountMap[key])
+        classCountMap[key] = { name: key, count: 0, class_id: e.class_id };
       classCountMap[key].count++;
     }
     const enrollmentByClass = Object.values(classCountMap).sort((a, b) => {
@@ -282,6 +311,66 @@ export async function GET() {
       admissionTrend.push({ month: monthNames[d.getMonth()], count });
     }
     response.admissionTrend = admissionTrend;
+  }
+
+  // ── Transport audit (gated on fees) ──
+  // Numbers the admin wants at a glance: how many transport students are
+  // unverified, how many slabs got overridden, and a coarse mismatch count
+  // where the verified GPS coords drifted far from the claimed address.
+  if (wantFees && currentYearId) {
+    const { data: rows } = await admin
+      .from("student_enrollments")
+      .select(
+        "id, has_transport, pickup_verified_at, transport_slab_overridden_at, pickup_lat, pickup_lng, pickup_verified_lat, pickup_verified_lng, classes!inner(academic_year_id)"
+      )
+      .eq("classes.academic_year_id", currentYearId)
+      .eq("status", "active")
+      .eq("has_transport", true);
+
+    type AuditRow = {
+      id: string;
+      pickup_verified_at: string | null;
+      transport_slab_overridden_at: string | null;
+      pickup_lat: number | null;
+      pickup_lng: number | null;
+      pickup_verified_lat: number | null;
+      pickup_verified_lng: number | null;
+    };
+
+    const auditRows = (rows ?? []) as unknown as AuditRow[];
+    const total = auditRows.length;
+    const unverified = auditRows.filter((r) => r.pickup_verified_at == null).length;
+    const overridden = auditRows.filter(
+      (r) => r.transport_slab_overridden_at != null
+    ).length;
+
+    // "Mismatch" = verified at coords more than 1km from the claimed address.
+    // Cheap proxy for cheating until we wire in a richer audit trail.
+    const MISMATCH_THRESHOLD_KM = 1;
+    let mismatch = 0;
+    for (const r of auditRows) {
+      if (
+        r.pickup_lat != null &&
+        r.pickup_lng != null &&
+        r.pickup_verified_lat != null &&
+        r.pickup_verified_lng != null
+      ) {
+        const d = haversineKm(
+          Number(r.pickup_lat),
+          Number(r.pickup_lng),
+          Number(r.pickup_verified_lat),
+          Number(r.pickup_verified_lng)
+        );
+        if (d > MISMATCH_THRESHOLD_KM) mismatch++;
+      }
+    }
+
+    response.transportAudit = {
+      total,
+      unverified,
+      overridden,
+      mismatch,
+    };
   }
 
   return NextResponse.json(response);

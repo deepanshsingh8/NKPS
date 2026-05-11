@@ -4876,3 +4876,55 @@ END $$;
 ALTER TABLE student_enrollments
   ADD CONSTRAINT student_enrollments_transport_slab_required
   CHECK (has_transport = false OR transport_slab_id IS NOT NULL);
+
+-- ─── Migration 053: transport pickup geocoding + override audit ──────────────
+-- Mirrors scripts/migrations/erp/migration-053-transport-pickup-audit.sql.
+
+ALTER TABLE student_enrollments
+  ADD COLUMN IF NOT EXISTS pickup_address text,
+  ADD COLUMN IF NOT EXISTS pickup_lat numeric(10, 7),
+  ADD COLUMN IF NOT EXISTS pickup_lng numeric(10, 7),
+  ADD COLUMN IF NOT EXISTS pickup_verified_at timestamptz,
+  ADD COLUMN IF NOT EXISTS pickup_verified_by uuid
+    REFERENCES profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS pickup_verified_lat numeric(10, 7),
+  ADD COLUMN IF NOT EXISTS pickup_verified_lng numeric(10, 7),
+  ADD COLUMN IF NOT EXISTS transport_slab_suggested_id uuid
+    REFERENCES transport_fare_slabs(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS transport_slab_overridden_at timestamptz,
+  ADD COLUMN IF NOT EXISTS transport_slab_overridden_by uuid
+    REFERENCES profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS transport_slab_override_reason text;
+
+ALTER TABLE student_enrollments
+  DROP CONSTRAINT IF EXISTS chk_pickup_coords_paired;
+ALTER TABLE student_enrollments
+  ADD CONSTRAINT chk_pickup_coords_paired CHECK (
+    (pickup_lat IS NULL AND pickup_lng IS NULL)
+    OR (pickup_lat IS NOT NULL AND pickup_lng IS NOT NULL)
+  );
+
+ALTER TABLE student_enrollments
+  DROP CONSTRAINT IF EXISTS chk_pickup_verified_coords_paired;
+ALTER TABLE student_enrollments
+  ADD CONSTRAINT chk_pickup_verified_coords_paired CHECK (
+    (pickup_verified_lat IS NULL AND pickup_verified_lng IS NULL)
+    OR (pickup_verified_lat IS NOT NULL AND pickup_verified_lng IS NOT NULL)
+  );
+
+ALTER TABLE student_enrollments
+  DROP CONSTRAINT IF EXISTS chk_override_reason_required;
+ALTER TABLE student_enrollments
+  ADD CONSTRAINT chk_override_reason_required CHECK (
+    transport_slab_overridden_at IS NULL
+    OR (transport_slab_override_reason IS NOT NULL
+        AND length(btrim(transport_slab_override_reason)) >= 3)
+  );
+
+CREATE INDEX IF NOT EXISTS idx_enrollments_pickup_unverified
+  ON student_enrollments(has_transport, pickup_verified_at)
+  WHERE has_transport = true AND pickup_verified_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_enrollments_slab_overridden
+  ON student_enrollments(transport_slab_overridden_at)
+  WHERE transport_slab_overridden_at IS NOT NULL;

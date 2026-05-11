@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   CheckSquare,
   CreditCard,
   GraduationCap,
   UserPlus,
+  Bus,
+  ShieldAlert,
 } from "lucide-react";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
 import { cn } from "@nkps/shared/lib/utils";
@@ -39,11 +42,22 @@ interface FeeCollection {
 interface EnrollmentItem {
   name: string;
   count: number;
+  // Optional — only present when the server can resolve the bucket to a
+  // single class row (current schema guarantees this for every bucket, but
+  // the field is optional so older payloads don't break the type).
+  class_id?: string;
 }
 
 interface AdmissionTrend {
   month: string;
   count: number;
+}
+
+interface TransportAudit {
+  total: number;
+  unverified: number;
+  overridden: number;
+  mismatch: number;
 }
 
 // Every block is optional — the server omits blocks the caller can't see.
@@ -52,6 +66,7 @@ interface AnalyticsData {
   feeCollection?: FeeCollection;
   enrollmentByClass?: EnrollmentItem[];
   admissionTrend?: AdmissionTrend[];
+  transportAudit?: TransportAudit;
   hasAcademicYear: boolean;
 }
 
@@ -501,12 +516,8 @@ export function DashboardAnalytics() {
                   totalEnrollment > 0
                     ? Math.round((item.count / totalEnrollment) * 100)
                     : 0;
-                return (
-                  <div
-                    key={item.name}
-                    className="flex items-center gap-2 group"
-                    title={`${item.name} — ${item.count} students (${sharePct}% of total)`}
-                  >
+                const rowContent = (
+                  <>
                     <span className="text-xs text-gray-600 dark:text-gray-400 w-20 shrink-0 truncate group-hover:text-navy-900 dark:group-hover:text-white transition-colors">
                       {item.name}
                     </span>
@@ -526,6 +537,26 @@ export function DashboardAnalytics() {
                     <span className="text-[10px] text-gray-400 tabular-nums w-8 text-right opacity-0 group-hover:opacity-100 transition-opacity">
                       {sharePct}%
                     </span>
+                  </>
+                );
+                const tooltip = `${item.name} — ${item.count} students (${sharePct}% of total)${item.class_id ? " · click to view students" : ""}`;
+
+                return item.class_id ? (
+                  <Link
+                    key={item.name}
+                    href={`/people/students?class_id=${item.class_id}`}
+                    className="flex items-center gap-2 group rounded-md -mx-1 px-1 py-0.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
+                    title={tooltip}
+                  >
+                    {rowContent}
+                  </Link>
+                ) : (
+                  <div
+                    key={item.name}
+                    className="flex items-center gap-2 group"
+                    title={tooltip}
+                  >
+                    {rowContent}
                   </div>
                 );
               })}
@@ -580,6 +611,133 @@ export function DashboardAnalytics() {
                   </span>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Transport audit — surfaces unverified + overridden + mismatch
+          counts so admin can spot cheating without digging through rows. */}
+      {data.transportAudit && (
+        <div className="erp-stat-card md:col-span-2">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <Bus className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-navy-900 dark:text-white">
+                Transport Audit
+              </h3>
+              <p className="text-[11px] text-gray-400">
+                Pickup verifications + slab overrides for the current year
+              </p>
+            </div>
+            {(data.transportAudit.mismatch > 0 ||
+              data.transportAudit.overridden > 0) && (
+              <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-2 py-1 rounded">
+                <ShieldAlert className="h-3 w-3" />
+                Review
+              </span>
+            )}
+          </div>
+          {data.transportAudit.total === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-4">
+              No students opted in to transport yet
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Link
+                href="/fees/transport"
+                className="rounded-lg border border-gray-200 dark:border-border p-3 hover:bg-gray-50 dark:hover:bg-muted/40 transition-colors"
+              >
+                <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">
+                  Total
+                </p>
+                <p className="text-2xl font-bold tabular-nums text-navy-900 dark:text-white">
+                  {data.transportAudit.total}
+                </p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                  using transport
+                </p>
+              </Link>
+              <Link
+                href="/people/students?has_transport=1&verified=0"
+                className={cn(
+                  "rounded-lg border p-3 transition-colors",
+                  data.transportAudit.unverified > 0
+                    ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50 dark:border-amber-900/40 dark:bg-amber-900/20"
+                    : "border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted/40"
+                )}
+              >
+                <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">
+                  Unverified
+                </p>
+                <p
+                  className={cn(
+                    "text-2xl font-bold tabular-nums",
+                    data.transportAudit.unverified > 0
+                      ? "text-amber-700 dark:text-amber-400"
+                      : "text-navy-900 dark:text-white"
+                  )}
+                >
+                  {data.transportAudit.unverified}
+                </p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                  awaiting pickup confirm
+                </p>
+              </Link>
+              <Link
+                href="/people/students?slab_overridden=1"
+                className={cn(
+                  "rounded-lg border p-3 transition-colors",
+                  data.transportAudit.overridden > 0
+                    ? "border-violet-200 bg-violet-50/50 hover:bg-violet-50 dark:border-violet-900/40 dark:bg-violet-900/20"
+                    : "border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted/40"
+                )}
+              >
+                <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">
+                  Slab overridden
+                </p>
+                <p
+                  className={cn(
+                    "text-2xl font-bold tabular-nums",
+                    data.transportAudit.overridden > 0
+                      ? "text-violet-700 dark:text-violet-400"
+                      : "text-navy-900 dark:text-white"
+                  )}
+                >
+                  {data.transportAudit.overridden}
+                </p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                  manual reassignment
+                </p>
+              </Link>
+              <Link
+                href="/people/students?pickup_mismatch=1"
+                className={cn(
+                  "rounded-lg border p-3 transition-colors",
+                  data.transportAudit.mismatch > 0
+                    ? "border-rose-200 bg-rose-50/50 hover:bg-rose-50 dark:border-rose-900/40 dark:bg-rose-900/20"
+                    : "border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted/40"
+                )}
+              >
+                <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">
+                  Pickup mismatch
+                </p>
+                <p
+                  className={cn(
+                    "text-2xl font-bold tabular-nums",
+                    data.transportAudit.mismatch > 0
+                      ? "text-rose-700 dark:text-rose-400"
+                      : "text-navy-900 dark:text-white"
+                  )}
+                >
+                  {data.transportAudit.mismatch}
+                </p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                  &gt; 1 km drift from address
+                </p>
+              </Link>
             </div>
           )}
         </div>
