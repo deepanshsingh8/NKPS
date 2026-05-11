@@ -245,26 +245,34 @@ export function TransportSlabsMap({ slabs, pickupMarker, onMapClick }: Props) {
       const rings = toRings(slabs);
       if (rings.length === 0) return;
 
-      rings.forEach((ring, idx) => {
-        const palette = RING_PALETTE[idx % RING_PALETTE.length];
+      // Iterate largest → smallest when adding to the map. Leaflet stacks
+      // later-added layers on top, so reversing the add order puts the
+      // SMALLEST circle on top — which is what we want for hit-testing
+      // (hovering between two rings hits the smaller of the two enclosing
+      // circles, so the right slab tooltip fires). The bullseye palette &
+      // opacity are still keyed off the natural inner→outer index so
+      // inner rings stay visually denser than outer ones.
+      for (let i = rings.length - 1; i >= 0; i--) {
+        const ring = rings[i];
+        const palette = RING_PALETTE[i % RING_PALETTE.length];
         const circle = L.circle([SCHOOL.lat, SCHOOL.lng], {
           radius: ring.outerKm * 1000,
           color: palette.stroke,
           weight: 1.5,
           fillColor: palette.fill,
-          // Each successive ring is drawn slightly transparent so inner
-          // rings show through. Outer rings fade more aggressively so the
-          // overall map doesn't go opaque past 4-5 slabs.
-          fillOpacity: Math.max(0.32 - idx * 0.04, 0.12),
+          // Inner rings denser, outer rings progressively translucent.
+          fillOpacity: Math.max(0.32 - i * 0.04, 0.12),
         });
         const innerLabel =
-          ring.innerKm != null ? `${ring.innerKm}–${ring.outerKm} km` : `≤ ${ring.outerKm} km`;
+          ring.innerKm != null
+            ? `${ring.innerKm}–${ring.outerKm} km`
+            : `≤ ${ring.outerKm} km`;
         circle.bindTooltip(
           `<strong>${ring.name}</strong><br/>${innerLabel} · ${formatAmount(ring.amount, ring.frequency)}`,
           { sticky: true }
         );
         circle.addTo(ringsLayerRef.current!);
-      });
+      }
 
       // Fit bounds to the outermost ring so the admin sees the whole reach
       // without manual zooming. Add a small padding so the ring isn't flush
