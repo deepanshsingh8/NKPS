@@ -4928,3 +4928,89 @@ CREATE INDEX IF NOT EXISTS idx_enrollments_pickup_unverified
 CREATE INDEX IF NOT EXISTS idx_enrollments_slab_overridden
   ON student_enrollments(transport_slab_overridden_at)
   WHERE transport_slab_overridden_at IS NOT NULL;
+
+-- ─── Migration 054: payment_method 'historical_unknown' for bulk imports ─────
+-- Adds a new enum value so rows ingested from the previous ERP software
+-- (where the payment channel was never recorded) can be tagged accurately
+-- instead of being defaulted to 'cash' and skewing channel-mix reports.
+
+ALTER TABLE fee_payments DROP CONSTRAINT IF EXISTS fee_payments_payment_method_check;
+ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_payment_method_check
+  CHECK (
+    payment_method IN (
+      'cash',
+      'online',
+      'cheque',
+      'bank_transfer',
+      'upi',
+      'gateway',
+      'waiver',
+      'historical_unknown'
+    )
+  );
+
+-- ─── Migration 055: transport slab cascade cleanup ──────────────────────────
+-- Mirrors scripts/migrations/erp/migration-055-transport-slab-cascade-cleanup.sql.
+-- Opts students out of transport automatically when a slab is deleted or
+-- deactivated, plus an RPC the admin UI can call to count affected students
+-- before showing the delete confirm.
+
+CREATE OR REPLACE FUNCTION trg_clear_transport_on_slab_change()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    UPDATE student_enrollments
+      SET has_transport = false,
+          transport_slab_id = NULL,
+          transport_slab_suggested_id = NULL,
+          transport_slab_overridden_at = NULL,
+          transport_slab_overridden_by = NULL,
+          transport_slab_override_reason = NULL,
+          updated_at = now()
+    WHERE transport_slab_id = OLD.id;
+    RETURN OLD;
+  END IF;
+
+  IF TG_OP = 'UPDATE'
+     AND OLD.is_active = true
+     AND NEW.is_active = false THEN
+    UPDATE student_enrollments
+      SET has_transport = false,
+          transport_slab_id = NULL,
+          transport_slab_suggested_id = NULL,
+          transport_slab_overridden_at = NULL,
+          transport_slab_overridden_by = NULL,
+          transport_slab_override_reason = NULL,
+          updated_at = now()
+    WHERE transport_slab_id = NEW.id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS slab_before_delete_clear_enrollments ON transport_fare_slabs;
+CREATE TRIGGER slab_before_delete_clear_enrollments
+  BEFORE DELETE ON transport_fare_slabs
+  FOR EACH ROW
+  EXECUTE FUNCTION trg_clear_transport_on_slab_change();
+
+DROP TRIGGER IF EXISTS slab_after_deactivate_clear_enrollments ON transport_fare_slabs;
+CREATE TRIGGER slab_after_deactivate_clear_enrollments
+  AFTER UPDATE OF is_active ON transport_fare_slabs
+  FOR EACH ROW
+  WHEN (OLD.is_active IS DISTINCT FROM NEW.is_active)
+  EXECUTE FUNCTION trg_clear_transport_on_slab_change();
+
+CREATE OR REPLACE FUNCTION count_transport_slab_dependents(p_slab_id uuid)
+RETURNS integer
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT COUNT(*)::integer
+    FROM student_enrollments
+   WHERE transport_slab_id = p_slab_id
+     AND has_transport = true;
+$$;

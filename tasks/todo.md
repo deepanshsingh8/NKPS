@@ -1,205 +1,84 @@
 # Articles fix + Bulk import for Fees & Results
 
-Two independent tracks. Both ship as separate PRs so they can roll out at different times.
+Two independent tracks. Track A is shipped; Track B is mid-build.
 
 ---
 
-## Track A — Latest Updates / Articles 404 fix
-
-### Root cause
-
-The website home page section `LatestUpdates` (`apps/website/src/components/home/LatestUpdates.tsx`) renders one of two sources:
-
-1. **Published `articles`** — primary; links to `/articles/[slug]` which is a real dynamic route.
-2. **`section_cards`** (fallback) — used when no articles are published; links to whatever `card.link` is, defaulting to `/articles`.
-
-Production currently has **no published articles**, so it falls back to `section_cards`. The visible cards have placeholder `link` values like `"latest update 4"` (no leading `/`). When clicked, Next's `<Link>` treats them as relative paths and resolves to `https://www.nkpublicschool.com/latest%20update%204`, which 404s.
-
-The `/articles` index and `/articles/[slug]` detail routes already exist and work — the page just has no data and the fallback's links are unsafe.
-
-### Fix (two complementary changes)
-
-- **A1.** Harden `LatestUpdates` so a broken `link` field can never produce a bad URL.
-  - If `card.link` is empty, not a string, or doesn't start with `/` or `http`, render the card as non-clickable OR route it to `/articles`.
-  - Same defensive guard on `apps/website/src/app/articles/page.tsx` is not needed (real DB articles always have slugs from `slugify()`).
-- **A2.** Seed 3–4 real articles via the CMS admin so the home page shows live, valid links.
-  - Use `apps/cms/src/app/articles/page.tsx` UI (already supports title → slug, markdown, cover image).
-  - Suggested seed titles (user can edit):
-    - "Admissions open for 2026–27 academic year"
-    - "Annual Sports Meet 2026 — schedule & highlights"
-    - "NKPS Science Exhibition winners"
-    - "Welcome to the new academic session"
-
-### Checklist
+## Track A — Latest Updates / Articles 404 fix — ✅ DONE
 
 - [x] A1. Add link-safety guard in `LatestUpdates.tsx` (sanitize `card.link`)
-- [ ] A2. Verify `getPublishedArticles()` returns nothing in production, falling through to cards
-- [ ] A3. (Optional) Hide the entire "Latest Updates" section when both sources are empty — already done, just confirm
-- [x] A4. Draft 3–4 real articles. Two delivery formats:
-  - `tasks/article-drafts.md` (paste into CMS manually)
-  - `scripts/migrations/cms/seed-articles-launch.sql` (run once in Supabase to insert all 4 directly)
-- [ ] A5. Smoke test home page → click each card → lands on `/articles/<slug>` 200
+- [x] A4. Draft 4 articles. SQL seed at `scripts/migrations/cms/seed-articles-launch.sql`
+- [x] A6. CMS "View live" link cross-origin fix in `apps/cms/src/app/articles/page.tsx`
+- [ ] A7. User runs the seed script in Supabase SQL editor → verify cards appear on home page
 
 ---
 
-## Track B — Bulk import: Fees & Results (migration from previous software)
+## Track B — Historical bulk import (fees + results)
 
-Mirror the existing `MarksImportDialog` + `/api/results/import` pattern (already proven in this repo).
+### Source format (confirmed from real samples, 2026-05-11)
 
-### Design principles
+**Fees:** "Day Book (Account Wise) Report" XLSX.
+- Header at row 6: `S.No., Class, Section, "SR | Student Name | Father Name", APR, MAY, JUN, JUL, AUG, SEP, OCT, NOV, DEC, JAN, FEB, MAR, Total`
+- Each month cell can contain zero or more payments in format: `{amount} | {dd/mm/yyyy} | {receipt#}:` separated by whitespace
+- The "SR | Student | Father" column has pipes; SR (= ERP `admission_no`) may be blank for new admits
 
-- **Dry-run first.** Every upload previews row-by-row with errors before commit. Commit only when zero errors.
-- **Idempotent commits.** Re-uploading the same file (same `receipt_number` for fees; same `(student, subject, exam)` for results) updates rather than duplicates.
-- **Sample template per importer.** "Download sample" button returns an XLSX with the correct headers, a couple of example rows, and a header comment row explaining each column.
-- **5 MB upload cap.** Matches existing `/api/results/import`.
-- **RBAC.** Reuse `verifyAdminOrEditor("fees")` and `verifyAdminOrEditor("results")`.
-- **Audit trail.** Add a `source` column on `fee_payments` and `results` to mark migrated rows (e.g., `'erp_native'` vs `'historical_import'`) so we can always tell what came from the previous software.
+**Results:** "ResultGreensheet" XLSX, one per class.
+- Header at row 5 or 6: `Sr, SR No, Student Name, Father Name, Mother Name, Category, Dob, Gender, Class, Section, Roll No, Total Metting, Present Metting,` then **6 columns per subject** ({SUBJECT} UPTO HALF YEARLY MAX, OBT, ANNUAL EXAM MAX, OBT, GRAND TOTAL MAX, OBT), then `Total Max Marks, Total Obt Marks, Division, Percentage, Rank, Result`
+- Marks may carry a trailing " D" (distinction marker — strip before parsing)
+- Subject set differs per class (Class I has 8 subjects, Class VI has 10)
 
-### B1. Fees bulk import (NEW)
+### Auto-creation (added after user feedback 2026-05-11)
 
-**Use case:** import historical fee payment logs from the previous software for current and previous academic years, so dues/no-dues continuity isn't broken when we switch.
+Both importers auto-create any missing `classes`, `sections`, and `streams` during commit. Dry-run preview lists what will be added. This removes the friction of pre-creating year-by-year class rosters for historical imports — classes are deterministic from the source data anyway.
 
-**Migration:**
-- New file: `scripts/migrations/erp/migration-051-import-source-fees.sql`
-  ```sql
-  ALTER TABLE fee_payments ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'erp_native';
-  ALTER TABLE fee_payments ADD COLUMN IF NOT EXISTS import_batch_id uuid;
-  CREATE INDEX IF NOT EXISTS fee_payments_import_batch_idx ON fee_payments(import_batch_id);
-  ```
-- Also append to `supabase-schema.sql` (per saved rule "Schema mirrors migrations").
-- `source` values: `'erp_native'` (default), `'historical_import'`.
-- `import_batch_id` lets admins revert a single upload if needed.
+### Locked product decisions
 
-**API:** `apps/erp/src/app/api/fees/bulk-import/route.ts`
-- POST multipart: `file`, `academic_year_id`, `dry_run` ("true"|"false"), `mode` ("historical"|"current")
-- Columns expected in the file:
-  | Column | Required | Notes |
-  |---|---|---|
-  | `admission_no` | yes | Lookup key. Student must exist. |
-  | `academic_year` | yes | e.g. `2024-25`. Must match a row in `academic_years`. |
-  | `class_name` | for ambiguity | Resolves enrollment if student spans years |
-  | `fee_type` | yes | One of: Tuition / Lab / Annual / Transport / Other |
-  | `frequency` | yes | monthly / quarterly / annual / one_time |
-  | `period_label` | yes | e.g. `Apr 2024`, `Q1 2024-25`, `2024-25` (human-readable; stored in `remarks`) |
-  | `amount_due` | yes | Decimal |
-  | `amount_paid` | yes | Decimal. `0` for unpaid; partial allowed |
-  | `payment_date` | conditional | Required if `amount_paid > 0`. ISO date |
-  | `payment_method` | conditional | cash / cheque / upi / card / bank_transfer / other. Required if paid |
-  | `receipt_number` | conditional | Required if paid; used as idempotency key |
-  | `remarks` | no | Free text |
+1. **Class names:** Built-in word→Roman map (FIRST→I, …, TWELFTH→XII, NURSERY/PLAY GROUP/LKG/UKG → unchanged, `(SCI.)`→Science stream, `(COMM.)`→Commerce stream). Dry-run lists distinct unmapped names; dialog renders dropdowns so user can pick the ERP equivalent before commit.
+2. **Receipt numbers:** Rewrite to `HIST-{YYYY}-{original#}` to guarantee uniqueness and preserve audit trail.
+3. **Fee structure:** Auto-create one `fee_structures` row per `(academic_year, class)` with `fee_type='Historical'`, `amount=0`. All imported payments for that bucket link there.
+4. **Payment method:** Add new enum value `'historical_unknown'` (migration 054). Default for all imported rows.
+5. **Editability:** Imported rows are fully editable in `/admin/fees` — they accept follow-up payments, edits, and receipts like native rows.
+6. **Exam types:** Importer auto-creates `Half Yearly (Imported {YYYY}-{YY})` and `Annual (Imported {YYYY}-{YY})` per academic year encountered.
+7. **Subjects:** Auto-create any subject name not already in the `subjects` table.
+8. **Revert:** Admin-only button; deletes only rows with matching `import_batch_id` and `source='historical_import'`. Confirmation requires typing the batch ID. Blocked if any row has a downstream artifact (receipt PDF, follow-up payment, report card).
 
-- Server flow:
-  1. Auth + RBAC check (`fees` feature).
-  2. Parse XLSX via SheetJS, normalize headers (same `normalizeKey` helper).
-  3. Build lookup maps for `students` (by `admission_no`), `academic_years` (by `name`), `fee_structures` (by `academic_year_id` + `class_name` + `fee_type` + `frequency`).
-  4. Per row: validate types, resolve student, resolve-or-create `fee_structure`, resolve-or-create `payment_order` (one per student × fee_structure × period_label).
-  5. Collect row results with `ok`, `error`, `matched_student_id`, `resolved_structure_id`.
-  6. If dry run OR any row errors → return preview, commit nothing.
-  7. Else: create `import_batch_id`, upsert `fee_payments` keyed on `receipt_number` with `source='historical_import'`.
-- Returns `{ summary, rows }` shape mirroring `/api/results/import`.
+### Schema migrations
 
-**Sample template API:** `apps/erp/src/app/api/fees/bulk-import/template/route.ts`
-- GET — returns an XLSX with: (a) header row, (b) 2 example rows (one paid, one unpaid), (c) a small README sheet explaining each column and allowed values.
-- Optional query param `?academic_year_id=xxx&class_id=yyy` → prefills `admission_no`, `student_name` (for reference, ignored at import), `academic_year` for that class's currently-enrolled students.
+- [x] B-S1. `migration-051-import-source-fees.sql` — adds `source`+`import_batch_id` to `fee_payments`
+- [x] B-S2. `migration-052-import-source-results.sql` — adds `source`+`import_batch_id` to `results`
+- [x] B-S3. `migration-054-payment-method-historical-unknown.sql` — adds `'historical_unknown'` enum value (053 is taken by transport-pickup-audit)
+- [x] B-S4. Schema mirrored into `supabase-schema.sql`
+- [x] B-S5. `feePaymentSchema` accepts new payment_method value
+- [ ] B-S6. User applies migrations 051, 052, 054 in Supabase Studio
 
-**UI:** new component `apps/erp/src/components/FeesBulkImportDialog.tsx`
-- Trigger: new "Bulk import" button on `/admin/fees` (page already imports `FileSpreadsheet` icon — wire it up).
-- Dialog shows: academic year picker, mode toggle (Historical / Current), download-sample button, file picker.
-- Click "Preview" → shows table with row results and inline errors.
-- Click "Commit" → enabled only when zero errors. Shows progress + success toast.
-- After commit: emit toast "Imported N rows. Batch ID: …" and call `onImported()` so the dashboard refetches.
+### Shared helpers (`packages/shared/src/lib/historical-import/`)
 
-### B2. Results bulk historical import (NEW — multi-row, multi-exam)
+- [x] B-H1. `class-name-map.ts` — wordform→Roman + stream parser (smoke-tested against real samples, all 17 distinct class names mapped)
+- [x] B-H2. `parse-account-wise-fees.ts` — parses Day Book XLSX into `{ student_ref, payments[] }` rows (957 rows / 3534 payments parsed cleanly from real export)
+- [x] B-H3. `parse-greensheet-results.ts` — parses Result Greensheet into `{ admission_no, class, section, marks: [{subject, exam, max, obtained}] }` rows (Class I and Class VI samples parse cleanly)
+- [x] B-H4. `types.ts` — shared `RowResult`, `BatchSummary` shapes
+- [x] B-H5. `index.ts` re-exports for ergonomic imports
 
-The existing `/api/results/import` is great for **one** class+exam+subject at a time (current teachers entering marks). For migration we need a single sheet covering many students × many subjects × many exams × possibly many years.
+### Fees historical importer
 
-**Migration:**
-- New file: `scripts/migrations/erp/migration-052-import-source-results.sql`
-  ```sql
-  ALTER TABLE results ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'erp_native';
-  ALTER TABLE results ADD COLUMN IF NOT EXISTS import_batch_id uuid;
-  CREATE INDEX IF NOT EXISTS results_import_batch_idx ON results(import_batch_id);
-  ```
-- Mirror to `supabase-schema.sql`.
+- [x] B-F1. `/api/fees/historical-import` POST — two-phase dry-run/commit, name-fallback matching, auto-creates Historical fee_structure buckets, ON CONFLICT receipt# DO NOTHING
+- [x] B-F3. `/api/fees/historical-revert` POST — admin-only, type-to-confirm, blocks if any row refunded or follow-up native payment exists
+- [x] B-F4. `HistoricalFeesImportDialog.tsx` — upload, preview, in-dialog class mapping, commit
+- [x] B-F5. Wired into `/admin/fees` payments section header
+- [ ] B-F6. "Historical Imports" sub-panel: list past batches with revert button per batch (deferred — revert callable via direct POST with batch_id for now)
 
-**API:** `apps/erp/src/app/api/results/historical-import/route.ts`
-- POST multipart: `file`, `dry_run`, `default_academic_year_id` (optional — if file omits column)
-- Columns:
-  | Column | Required | Notes |
-  |---|---|---|
-  | `admission_no` | yes | |
-  | `academic_year` | yes | e.g. `2024-25` |
-  | `class_name` | yes | Must match a `classes` row for that year |
-  | `exam_type` | yes | e.g. `Term 1`, `Term 2`, `Half Yearly`, `Annual` |
-  | `subject` | yes | Subject name (resolved against `class_subjects` for that class) |
-  | `marks_obtained` | yes | Number |
-  | `max_marks` | yes | Number — overrides exam_type default if different |
-  | `grade` | no | If absent, computed from class's grade scale |
-  | `remarks` | no | |
+### Results historical importer
 
-- Server flow mirrors existing import but with multi-key resolution per row:
-  1. Build lookup maps: students by admission_no, academic_years by name, classes by (academic_year_id, class_name), exam_types by (academic_year_id, name), subjects by (class_id, name).
-  2. Per row: validate, resolve all FKs, compute grade if missing, collect result.
-  3. Dry-run preview shows the same row-result table.
-  4. Commit: upsert into `results` with `onConflict: "student_id,subject_id,exam_type_id"` plus `source='historical_import'`, `import_batch_id=<batch>`.
+- [x] B-R1. `/api/results/historical-import` POST — auto-creates `Half Yearly (Imported …)` + `Annual (Imported …)` exam_types, auto-creates missing subjects, upserts on `(student_id, subject_id, exam_type_id)`
+- [x] B-R2. `/api/results/historical-revert` POST — admin-only, blocks if any row referenced by a marksheet publication
+- [x] B-R3. `HistoricalResultsImportDialog.tsx`
+- [x] B-R4. Wired into `/admin/exams/results` page header
+- [ ] B-R5. "Historical Imports" sub-panel with revert per batch (deferred — see B-F6)
 
-**Sample template API:** `apps/erp/src/app/api/results/historical-import/template/route.ts` — XLSX with example rows + README sheet.
+### Validation
 
-**UI:** new component `apps/erp/src/components/ResultsHistoricalImportDialog.tsx`
-- Triggered from `/admin/exams/results` page — add a "Historical bulk import" button alongside existing filters.
-- Same preview-then-commit flow.
-
-### B3. Don't touch the existing `/api/results/import`
-
-The current per-class/per-exam/per-subject importer stays exactly as it is — it's the right tool for live teacher workflow. We're **adding** a new historical importer alongside it, not replacing.
-
-### B4. Export of current state (for round-trip safety)
-
-- `/api/results/export` already exists — verify it covers all years (not just current).
-- Add `/api/fees/export` if not present — full payments table CSV with filters (academic_year, class, fee_type).
-- Reuse `downloadCSV()` in `apps/erp/src/lib/csv-export.ts`.
-
-### Checklist
-
-**Schema**
-- [x] B-S1. Write `migration-051-import-source-fees.sql`; append same DDL to `supabase-schema.sql`
-- [x] B-S2. Write `migration-052-import-source-results.sql`; append same DDL to `supabase-schema.sql`
-
-**Fees**
-- [ ] B-F1. `/api/fees/bulk-import` route — parse, validate, dry-run, commit
-- [ ] B-F2. `/api/fees/bulk-import/template` route — sample XLSX generation
-- [ ] B-F3. `FeesBulkImportDialog.tsx` component
-- [ ] B-F4. Wire dialog into `/admin/fees` page
-- [ ] B-F5. (Optional) `/api/fees/export` for round-trip
-
-**Results**
-- [ ] B-R1. `/api/results/historical-import` route
-- [ ] B-R2. `/api/results/historical-import/template` route — sample XLSX
-- [ ] B-R3. `ResultsHistoricalImportDialog.tsx` component
-- [ ] B-R4. Wire dialog into `/admin/exams/results` page
-
-**Validation**
-- [ ] B-V1. Manual e2e: download fees template → fill 5 rows (mix of paid/unpaid/errors) → preview shows correct errors → fix → commit → verify rows appear in admin Fees dashboard and student profile
-- [ ] B-V2. Same e2e for results template against a sample multi-year multi-subject sheet
-- [ ] B-V3. Idempotency check: re-upload the same file → row count unchanged
-- [ ] B-V4. RBAC: editor without `fees` capability gets 403 on bulk-import
-
----
-
-## Order of execution
-
-1. **Track A first** (one afternoon) — small, isolated, fixes a visible production issue. Ship and forget.
-2. **Track B in stages:**
-   - Schema migrations (B-S1, B-S2) — must run on Supabase before any code that depends on them
-   - Fees importer end-to-end (B-F1 → B-F4) — verify on real previous-year data
-   - Results importer end-to-end (B-R1 → B-R4)
-   - Optional exports last
-
----
-
-## Open questions for the user
-
-1. **Article seeding (A4)** — should Claude draft initial article copy from school constants/CLAUDE.md, or will the user write them in the CMS directly?
-2. **Fee template format** — does the previous software's reports already export CSV/XLSX in a particular shape? If so, share a sample row and we'll match it instead of inventing headers from scratch.
-3. **Historical results — class name format** — what string did the old software use for classes? "X-A", "Class 10 - A", "10A"? We'll need a normalizer.
-4. **Receipt number uniqueness** — were receipt numbers from the previous software unique across all years, or just within a year? Affects whether idempotency key is `receipt_number` alone or `(academic_year, receipt_number)`.
+- [ ] B-V1. E2E fees: upload `Day Book (Account Wise) Report 2025-26.xlsx` → preview → fix unmapped classes → commit → verify rows appear in `/admin/fees` and on a student's payment history
+- [ ] B-V2. E2E results: upload `SIX CLASS.xlsx` + `FIRST CLASS.xlsx` → commit → verify auto-created exam_types and rows appear on student marksheets
+- [ ] B-V3. Idempotency: re-upload same file → row count unchanged (ON CONFLICT skip)
+- [ ] B-V4. Revert: import → revert → confirm rows gone, native rows untouched
+- [ ] B-V5. RBAC: editor without admin role gets 403 on revert

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, Suspense } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
@@ -50,7 +50,15 @@ import type {
   EffectiveFeeLine,
 } from "@nkps/shared/types";
 import { TransportSlabsMap } from "./TransportSlabsMap";
-import { AddressFareLookup } from "./AddressFareLookup";
+import {
+  AddressFareLookup,
+  type AddressFareLookupHandle,
+} from "./AddressFareLookup";
+import {
+  PlacesAutocompleteInput,
+  isGooglePlacesConfigured,
+} from "@nkps/shared/components/PlacesAutocompleteInput";
+import { HistoricalFeesImportDialog } from "@/components/HistoricalFeesImportDialog";
 
 const CLASS_NAMES = [
   "Nursery",
@@ -188,6 +196,9 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
     label: string;
     distanceKm: number;
   } | null>(null);
+  // Ref into the AddressFareLookup so map clicks can drop a pin without
+  // typing — the panel re-uses the same distance+slab pipeline.
+  const lookupRef = useRef<AddressFareLookupHandle | null>(null);
   const [slabDialogOpen, setSlabDialogOpen] = useState(false);
   const [slabDialogMode, setSlabDialogMode] = useState<"add" | "edit">("add");
   const [editingSlabId, setEditingSlabId] = useState<string | null>(null);
@@ -1103,7 +1114,31 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
   };
 
   const handleDeleteSlab = async (id: string) => {
-    if (!confirm("Delete this transport slab? This cannot be undone.")) return;
+    // Count students currently on this slab so the confirm dialog says
+    // exactly how many will be opted out. The trigger on transport_fare_slabs
+    // does the cascade automatically — we just want the user to know.
+    let dependentCount = 0;
+    try {
+      const { data } = await supabase.rpc("count_transport_slab_dependents", {
+        p_slab_id: id,
+      });
+      if (typeof data === "number") dependentCount = data;
+    } catch {
+      // RPC may not exist on legacy environments — fall back silently and
+      // let the trigger do its job. The user just won't see the count.
+    }
+
+    const studentClause =
+      dependentCount > 0
+        ? `\n\nThis will opt ${dependentCount} student${dependentCount === 1 ? "" : "s"} out of transport (their slab assignment will be cleared).`
+        : "";
+
+    if (
+      !confirm(
+        `Delete this transport slab? This cannot be undone.${studentClause}`
+      )
+    )
+      return;
 
     const result = await adminApi({
       action: "delete",
@@ -1112,19 +1147,29 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
     });
 
     if (result.success) {
-      toast.success("Slab deleted");
+      toast.success(
+        dependentCount > 0
+          ? `Slab deleted. ${dependentCount} student${dependentCount === 1 ? "" : "s"} opted out of transport.`
+          : "Slab deleted"
+      );
       fetchTransportSlabs();
       return;
     }
 
-    // FK violation = something still references this slab. Mirrors the
-    // fee_structure flow: offer to deactivate so it's hidden from pickers
-    // but historical receipts continue to resolve.
+    // FK violation = recorded payments still reference this slab (the
+    // student-enrollment cascade is handled by the trigger; only fee_payments
+    // can block the delete now). Offer to deactivate instead — that path
+    // ALSO runs the cascade, opting students out without losing the slab row
+    // that historical receipts link to.
     const blockedByFK = (result.error ?? "").toLowerCase().includes("cannot delete");
     if (
       blockedByFK &&
       confirm(
-        "This slab is referenced by recorded payments or active enrollments and can't be deleted. Deactivate instead? It stays linked to old receipts but will hide from new pickers."
+        `Recorded payments still reference this slab, so it can't be deleted.\n\nDeactivate instead? It stays linked to old receipts but is hidden from new pickers${
+          dependentCount > 0
+            ? ` and ${dependentCount} student${dependentCount === 1 ? "" : "s"} will be opted out of transport`
+            : ""
+        }.`
       )
     ) {
       const deact = await adminApi({
@@ -1137,7 +1182,11 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
         toast.error(`Failed to deactivate: ${deact.error}`);
         return;
       }
-      toast.success("Slab deactivated");
+      toast.success(
+        dependentCount > 0
+          ? `Slab deactivated. ${dependentCount} student${dependentCount === 1 ? "" : "s"} opted out of transport.`
+          : "Slab deactivated"
+      );
       fetchTransportSlabs();
       return;
     }
@@ -1627,10 +1676,21 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
               as a list view of what's already on the map. */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <div className="lg:col-span-2">
-              <TransportSlabsMap slabs={transportSlabs} pickupMarker={pickupPin} />
+              <TransportSlabsMap
+                slabs={transportSlabs}
+                pickupMarker={pickupPin}
+                onMapClick={(lat, lng) => {
+                  // Map click drops a pin via the lookup component, which
+                  // owns the distance/slab math + result panel. Keeps the
+                  // two entry points (typed address vs. pin drop) producing
+                  // identical UI feedback.
+                  lookupRef.current?.setResultFromCoords(lat, lng);
+                }}
+              />
             </div>
             <div>
               <AddressFareLookup
+                ref={lookupRef}
                 slabs={transportSlabs}
                 onResult={setPickupPin}
               />
@@ -1750,10 +1810,13 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
 
       {section === "payments" && (
         <Tabs defaultValue={initialStudentId ? "record" : "record"}>
-          <TabsList>
-            <TabsTrigger value="record">Record &amp; History</TabsTrigger>
-            <TabsTrigger value="dues">Dues / No-Dues</TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <TabsList>
+              <TabsTrigger value="record">Record &amp; History</TabsTrigger>
+              <TabsTrigger value="dues">Dues / No-Dues</TabsTrigger>
+            </TabsList>
+            <HistoricalFeesImportDialog />
+          </div>
 
           {/* Sub-tab 1: Record payments + per-student history */}
           <TabsContent value="record">
@@ -1925,29 +1988,61 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
                             Pickup address
                           </Label>
                           <div className="flex gap-2">
-                            <Input
-                              value={studentPickupAddress}
-                              onChange={(e) =>
-                                setStudentPickupAddress(e.target.value)
-                              }
-                              placeholder="e.g. House 12, Tonk Road, Jaipur"
-                              className="flex-1"
-                              disabled={savingTransport}
-                            />
-                            <Button
-                              variant="outline"
-                              onClick={handleGeocodePickup}
-                              disabled={
-                                geocoding ||
-                                studentPickupAddress.trim().length < 4
-                              }
-                            >
-                              {geocoding ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                "Locate"
-                              )}
-                            </Button>
+                            {isGooglePlacesConfigured() ? (
+                              <PlacesAutocompleteInput
+                                value={studentPickupAddress}
+                                onValueChange={setStudentPickupAddress}
+                                onSelect={(place) => {
+                                  // Google's place_changed already has
+                                  // coords + a tidied formatted_address —
+                                  // skip the second geocode round-trip.
+                                  setStudentPickupAddress(place.address);
+                                  setStudentPickupLat(place.lat);
+                                  setStudentPickupLng(place.lng);
+                                  const suggested = computeSuggestedSlabId(
+                                    place.lat,
+                                    place.lng
+                                  );
+                                  if (!studentOverrideReason && suggested) {
+                                    setStudentTransportSlabId(suggested);
+                                  }
+                                }}
+                                bias={{
+                                  lat: 27.0688458,
+                                  lng: 75.7495752,
+                                  radiusMeters: 25_000,
+                                }}
+                                placeholder="Start typing the address…"
+                                className="flex-1"
+                                disabled={savingTransport}
+                              />
+                            ) : (
+                              <Input
+                                value={studentPickupAddress}
+                                onChange={(e) =>
+                                  setStudentPickupAddress(e.target.value)
+                                }
+                                placeholder="e.g. House 12, Tonk Road, Jaipur"
+                                className="flex-1"
+                                disabled={savingTransport}
+                              />
+                            )}
+                            {!isGooglePlacesConfigured() && (
+                              <Button
+                                variant="outline"
+                                onClick={handleGeocodePickup}
+                                disabled={
+                                  geocoding ||
+                                  studentPickupAddress.trim().length < 4
+                                }
+                              >
+                                {geocoding ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  "Locate"
+                                )}
+                              </Button>
+                            )}
                           </div>
                           {studentPickupLat != null && studentPickupLng != null && (
                             <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">

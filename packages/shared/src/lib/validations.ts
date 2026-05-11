@@ -341,7 +341,15 @@ export const feePaymentSchema = z
       .finite("Amount must be a valid number")
       .min(0, "Amount cannot be negative"),
     payment_method: z.enum(
-      ["cash", "online", "cheque", "bank_transfer", "upi", "gateway"],
+      [
+        "cash",
+        "online",
+        "cheque",
+        "bank_transfer",
+        "upi",
+        "gateway",
+        "historical_unknown",
+      ],
       { message: "Please select a payment method" }
     ),
     month: z.string().min(1, "Month is required").optional().or(z.literal("")),

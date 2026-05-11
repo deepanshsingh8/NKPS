@@ -107,7 +107,11 @@ export function createAdminProxyHandler(config: AdminProxyConfig) {
           `[admin-proxy] error actor=${user.id} table=${table} action=${action}:`,
           result.error
         );
-        if (result.error.code === "23505") {
+        const errMsg = result.error.message ?? "";
+        if (
+          result.error.code === "23505" ||
+          /duplicate key|unique constraint/i.test(errMsg)
+        ) {
           return NextResponse.json(
             { error: "This record already exists. Duplicate entries are not allowed." },
             { status: 409 }
@@ -116,13 +120,33 @@ export function createAdminProxyHandler(config: AdminProxyConfig) {
         // FK violation: the row is referenced by other tables. Surface a
         // user-actionable message instead of the generic 500 — for fees the
         // typical cause is recorded payments, and the right move is to
-        // deactivate rather than delete.
-        if (result.error.code === "23503") {
+        // deactivate rather than delete. We also pattern-match the message
+        // because Supabase sometimes ships the error without `code` set
+        // (REST layer occasionally strips it).
+        if (
+          result.error.code === "23503" ||
+          /foreign key|violates foreign key constraint/i.test(errMsg)
+        ) {
           const msg =
             action === "delete"
               ? "Cannot delete: other records reference this row. Deactivate it instead, or remove the dependent records first."
               : "This change references a record that doesn't exist or is invalid.";
           return NextResponse.json({ error: msg }, { status: 409 });
+        }
+        // Check constraint violation — surface a hint pointing at the input
+        // since most constraints we have (amount > 0, distance min ≤ max,
+        // override-reason length) are about user data.
+        if (
+          result.error.code === "23514" ||
+          /check constraint/i.test(errMsg)
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                "One or more values don't meet the table's rules (e.g. amount must be > 0, distance min ≤ max). Adjust and retry.",
+            },
+            { status: 400 }
+          );
         }
         // Don't echo Supabase's error.message — it can leak column/table names
         // and constraint hints. The detailed log above is enough for debugging.

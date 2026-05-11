@@ -30,6 +30,7 @@ import Link from "next/link";
 import { formatClassName } from "@nkps/shared/lib/utils";
 import { computeGrade, type GradeBand } from "@/lib/grading";
 import type { Class, ExamType } from "@nkps/shared/types";
+import { HistoricalResultsImportDialog } from "@/components/HistoricalResultsImportDialog";
 
 interface SubjectBreakdown {
   subject_id: string;
@@ -327,17 +328,20 @@ export default function AdminResultsPage() {
             View class-wise performance summary and subject breakdown.
           </p>
         </div>
-        <Link
-          href={
-            selectedClassId && selectedExamTypeId
-              ? `/exams/results/edit?class_id=${encodeURIComponent(selectedClassId)}&exam_type_id=${encodeURIComponent(selectedExamTypeId)}`
-              : "/exams/results/edit"
-          }
-          className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-white dark:bg-card px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-900/40 transition-colors"
-        >
-          <Pencil className="h-4 w-4" />
-          Edit student results
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <HistoricalResultsImportDialog />
+          <Link
+            href={
+              selectedClassId && selectedExamTypeId
+                ? `/exams/results/edit?class_id=${encodeURIComponent(selectedClassId)}&exam_type_id=${encodeURIComponent(selectedExamTypeId)}`
+                : "/exams/results/edit"
+            }
+            className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-white dark:bg-card px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-900/40 transition-colors"
+          >
+            <Pencil className="h-4 w-4" />
+            Edit student results
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
