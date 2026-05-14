@@ -50,7 +50,17 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   transport_fare_slabs: ["id", "academic_year_id", "name", "distance_km_min", "distance_km_max", "amount", "frequency", "is_active", "sort_order", "created_at", "updated_at"],
 };
 
+// Editor-restricted actions. Editors with the matching feature key can
+// still INSERT (create new rows) but cannot UPDATE or DELETE these tables
+// directly — they must file a fee_change_request that an admin approves.
+// Admins are unaffected. This is the lock-in that prevents a fees-editor
+// from silently fixing a wrong-amount payment they recorded themselves.
+const EDITOR_RESTRICTED_ACTIONS = {
+  fee_payments: ["update", "delete"],
+} as const;
+
 export const POST = createAdminProxyHandler({
   tableFeatureKey: TABLE_FEATURE_KEY,
   allowedColumns: ALLOWED_COLUMNS,
+  editorRestrictedActions: EDITOR_RESTRICTED_ACTIONS,
 });

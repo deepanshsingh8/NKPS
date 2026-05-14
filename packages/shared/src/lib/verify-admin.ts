@@ -142,6 +142,11 @@ export async function getCallerAccess(): Promise<
  * caller can log actor_id / set created_by / etc. Returns null if
  * unauthorized.
  *
+ * The returned `role` discriminates admin vs editor — used by routes that
+ * need to gate further actions (e.g. fees-editors can create payments
+ * directly but must file a change request for edits/deletes; admins
+ * skip the request flow).
+ *
  * Fails closed if `must_change_password = true`.
  */
 export async function verifyAdminOrEditorWithUser(featureKey?: FeatureKey) {
@@ -152,7 +157,9 @@ export async function verifyAdminOrEditorWithUser(featureKey?: FeatureKey) {
   const { admin, user, profile } = await loadCaller(accessToken);
   if (!user || !profile) return null;
   if (profile.must_change_password) return null;
-  if (profile.role === "admin") return { admin, user };
+  if (profile.role === "admin") {
+    return { admin, user, role: "admin" as const };
+  }
 
   const query = admin
     .from("editor_permissions")
@@ -162,5 +169,5 @@ export async function verifyAdminOrEditorWithUser(featureKey?: FeatureKey) {
     ? await query.eq("feature_key", featureKey).maybeSingle()
     : await query.limit(1).maybeSingle();
   if (!perm) return null;
-  return { admin, user };
+  return { admin, user, role: "editor" as const };
 }

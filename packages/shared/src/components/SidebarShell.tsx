@@ -56,6 +56,7 @@ type SidebarShellProps = {
   // (passed in so each module can opt in to its own badges).
   unreadBadgeHrefs?: ReadonlySet<string>;
   pendingRegistrationBadgeHrefs?: ReadonlySet<string>;
+  pendingFeeChangeRequestBadgeHrefs?: ReadonlySet<string>;
   // Optional slot rendered just above the profile menu — used to drop in an
   // app switcher so teachers/editors can jump back to their portal or to
   // another app they have access to.
@@ -90,15 +91,21 @@ export function SidebarShell({
   logoutRedirect,
   unreadBadgeHrefs,
   pendingRegistrationBadgeHrefs,
+  pendingFeeChangeRequestBadgeHrefs,
   footerExtra,
 }: SidebarShellProps) {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebar();
-  const { unreadCount, pendingRegistrationCount } = useUnreadCount({
-    contact: !!unreadBadgeHrefs && unreadBadgeHrefs.size > 0,
-    registrations:
-      !!pendingRegistrationBadgeHrefs && pendingRegistrationBadgeHrefs.size > 0,
-  });
+  const { unreadCount, pendingRegistrationCount, pendingFeeChangeRequestCount } =
+    useUnreadCount({
+      contact: !!unreadBadgeHrefs && unreadBadgeHrefs.size > 0,
+      registrations:
+        !!pendingRegistrationBadgeHrefs &&
+        pendingRegistrationBadgeHrefs.size > 0,
+      feeChangeRequests:
+        !!pendingFeeChangeRequestBadgeHrefs &&
+        pendingFeeChangeRequestBadgeHrefs.size > 0,
+    });
   const [userRole, setUserRole] = useState<UserRole>("admin");
   const [permissions, setPermissions] = useState<Set<FeatureKey> | null>(null);
   const [groupOverrides, setGroupOverrides] = useState<Record<string, boolean>>(
@@ -206,6 +213,7 @@ export function SidebarShell({
     const badgeCount =
       unreadBadgeHrefs?.has(href) ? unreadCount
       : pendingRegistrationBadgeHrefs?.has(href) ? pendingRegistrationCount
+      : pendingFeeChangeRequestBadgeHrefs?.has(href) ? pendingFeeChangeRequestCount
       : 0;
     const showBadge = badgeCount > 0;
     const badgeLabel = badgeCount > 99 ? "99+" : badgeCount;
@@ -330,6 +338,13 @@ export function SidebarShell({
   const renderNestedLink = (link: SidebarLink) => {
     const isActive =
       pathname === link.href || pathname.startsWith(link.href + "/");
+    const badgeCount =
+      unreadBadgeHrefs?.has(link.href) ? unreadCount
+      : pendingRegistrationBadgeHrefs?.has(link.href) ? pendingRegistrationCount
+      : pendingFeeChangeRequestBadgeHrefs?.has(link.href) ? pendingFeeChangeRequestCount
+      : 0;
+    const showBadge = badgeCount > 0;
+    const badgeLabel = badgeCount > 99 ? "99+" : badgeCount;
     return (
       <Link
         key={link.href}
@@ -342,7 +357,12 @@ export function SidebarShell({
         )}
       >
         <link.icon className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">{link.label}</span>
+        <span className="truncate flex-1">{link.label}</span>
+        {showBadge && (
+          <span className="flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full h-4 min-w-4 px-1">
+            {badgeLabel}
+          </span>
+        )}
       </Link>
     );
   };

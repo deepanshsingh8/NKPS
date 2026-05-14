@@ -21,9 +21,25 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { admin, user } = auth;
+  const { admin, user, role } = auth;
 
   const { id } = await context.params;
+
+  // Refund mutates an existing fee_payments row, so editors must route
+  // through the change-request flow. Admins refund directly.
+  if (role === "editor") {
+    return NextResponse.json(
+      {
+        error:
+          "Editors cannot refund directly. File a change request for an admin to review.",
+        code: "EDITOR_MUST_REQUEST",
+        table: "fee_payments",
+        action: "update",
+        match: { column: "id", value: id },
+      },
+      { status: 403 }
+    );
+  }
   const body = await request.json();
   const parsed = feeRefundSchema.safeParse(body);
   if (!parsed.success) {

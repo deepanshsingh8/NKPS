@@ -608,6 +608,50 @@ CREATE TABLE notifications (
   created_at timestamptz DEFAULT now()
 );
 
+-- 2w. Fee Change Requests (approval workflow for editor-initiated changes
+-- to recorded fee_payments — see migration-056-fee-change-requests.sql)
+CREATE TABLE fee_change_requests (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  target_table text NOT NULL
+    CHECK (target_table IN ('fee_payments')),
+  target_id uuid NOT NULL,
+  action text NOT NULL
+    CHECK (action IN ('update', 'delete')),
+  current_snapshot jsonb NOT NULL,
+  proposed_changes jsonb NOT NULL DEFAULT '{}'::jsonb,
+  reason text NOT NULL
+    CHECK (char_length(reason) >= 5),
+  requested_by uuid NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
+  requested_at timestamptz NOT NULL DEFAULT now(),
+  status text NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+  reviewed_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  reviewed_at timestamptz,
+  review_notes text,
+  CONSTRAINT chk_reviewer_terminal CHECK (
+    (status = 'pending' AND reviewed_by IS NULL AND reviewed_at IS NULL)
+    OR (status IN ('approved', 'rejected', 'cancelled')
+        AND reviewed_at IS NOT NULL)
+  )
+);
+
+-- 2x. Fee Change Audit Log (records every applied change — approved
+-- request OR direct admin edit. source_request_id links the row back to
+-- the originating request; nullable for direct admin edits.)
+CREATE TABLE fee_change_audit_log (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  target_table text NOT NULL,
+  target_id uuid NOT NULL,
+  action text NOT NULL
+    CHECK (action IN ('update', 'delete')),
+  before_snapshot jsonb NOT NULL,
+  after_snapshot jsonb,
+  performed_by uuid NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
+  performed_at timestamptz NOT NULL DEFAULT now(),
+  source_request_id uuid REFERENCES fee_change_requests(id) ON DELETE SET NULL,
+  notes text
+);
+
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 3. Indexes
@@ -706,6 +750,23 @@ CREATE UNIQUE INDEX idx_registration_requests_pending_email
   ON registration_requests(email) WHERE status = 'pending';
 CREATE INDEX idx_registration_requests_status
   ON registration_requests(status, created_at DESC);
+
+-- Fee Change Requests
+CREATE UNIQUE INDEX idx_fee_change_requests_one_pending
+  ON fee_change_requests (target_table, target_id)
+  WHERE status = 'pending';
+CREATE INDEX idx_fee_change_requests_status
+  ON fee_change_requests (status, requested_at DESC);
+CREATE INDEX idx_fee_change_requests_requester
+  ON fee_change_requests (requested_by, requested_at DESC);
+CREATE INDEX idx_fee_change_requests_target
+  ON fee_change_requests (target_table, target_id);
+
+-- Fee Change Audit Log
+CREATE INDEX idx_fee_change_audit_target
+  ON fee_change_audit_log (target_table, target_id, performed_at DESC);
+CREATE INDEX idx_fee_change_audit_actor
+  ON fee_change_audit_log (performed_by, performed_at DESC);
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -1706,6 +1767,23 @@ CREATE POLICY "Admins can update registrations"
 
 CREATE POLICY "Admins can delete registrations"
   ON registration_requests FOR DELETE
+  USING (public.get_user_role() = 'admin');
+
+-- ── Fee Change Requests ─────────────────────────────────────────────────────
+-- Service-role API layer (verifyAdminOrEditorWithUser) is the real gate.
+-- RLS only matters for the unlikely case where the anon/authed key
+-- reaches these tables directly.
+ALTER TABLE fee_change_requests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins have full access to fee_change_requests"
+  ON fee_change_requests FOR ALL
+  USING (public.get_user_role() = 'admin');
+
+-- ── Fee Change Audit Log ────────────────────────────────────────────────────
+ALTER TABLE fee_change_audit_log ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins have full access to fee_change_audit_log"
+  ON fee_change_audit_log FOR ALL
   USING (public.get_user_role() = 'admin');
 
 -- ── Notifications ───────────────────────────────────────────────────────────

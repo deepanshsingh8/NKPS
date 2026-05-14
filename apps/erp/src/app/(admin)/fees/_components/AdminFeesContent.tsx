@@ -147,6 +147,32 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   const searchParams = useSearchParams();
   const initialStudentId = searchParams.get("student_id");
 
+  // Caller role — admins refund/edit directly; editors must file change
+  // requests instead. Stays null until loaded, which keeps the dialog
+  // disabled rather than guessing wrong. (See migration-056 + the
+  // EDITOR_MUST_REQUEST gate in /api/admin and /api/fees/.../refund.)
+  const [userRole, setUserRole] = useState<"admin" | "editor" | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      setUserRole(data?.role === "admin" ? "admin" : "editor");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+  const isEditor = userRole === "editor";
+
   // Fee structures state
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
   const [structuresLoading, setStructuresLoading] = useState(true);
@@ -1344,7 +1370,10 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
     toast.error(`Failed to delete: ${result.error}`);
   };
 
-  // Refund a previously-recorded payment.
+  // Refund a previously-recorded payment. Admins refund directly; editors
+  // file a change request that an admin reviews. The dialog title +
+  // submit-button label flip based on `isEditor` so the user knows which
+  // path they're on before they click. (See migration-056.)
   const handleRefund = async () => {
     if (!refundPaymentId || !selectedStudent) return;
     const amt = parseFloat(refundForm.amount);
@@ -1362,6 +1391,38 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
     }
     setRefundSubmitting(true);
     try {
+      // Editor branch: file a change request instead of refunding directly.
+      // The proposed_changes describe a refund — admin's approve endpoint
+      // stamps refunded_at/refunded_by from the approver, not the requester.
+      if (isEditor) {
+        const res = await fetch("/api/fees/change-requests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            target_table: "fee_payments",
+            target_id: refundPaymentId,
+            action: "update",
+            proposed_changes: {
+              status: "refunded",
+              refund_amount: amt,
+              refund_reason: refundForm.reason.trim(),
+            },
+            reason: refundForm.reason.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error ?? "Failed to file refund request");
+          return;
+        }
+        toast.success("Refund request filed for admin review.");
+        setRefundOpen(false);
+        setRefundForm({ amount: "", reason: "" });
+        setRefundPaymentId(null);
+        return;
+      }
+
+      // Admin branch: direct refund.
       const res = await fetch(
         `/api/fees/payments/${refundPaymentId}/refund`,
         {
@@ -3110,16 +3171,19 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
         </DialogContent>
       </Dialog>
 
-      {/* Refund Dialog (M9) */}
+      {/* Refund Dialog (M9) — also serves the editor "request refund" flow */}
       <Dialog open={refundOpen} onOpenChange={setRefundOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Refund Payment</DialogTitle>
+            <DialogTitle>
+              {isEditor ? "Request Refund" : "Refund Payment"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              One refund per payment. The amount can be partial (≤ original
-              receipt) but cannot be split across multiple refund events.
+              {isEditor
+                ? "Editors can't refund directly — your request goes to an admin for review. They'll see the original payment and your reason side by side before approving."
+                : "One refund per payment. The amount can be partial (≤ original receipt) but cannot be split across multiple refund events."}
             </p>
             <div>
               <Label className="text-sm font-medium">
@@ -3157,14 +3221,16 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
             <Button
               onClick={handleRefund}
-              disabled={refundSubmitting}
+              disabled={refundSubmitting || userRole === null}
               className="bg-purple-600 hover:bg-purple-700 text-white"
             >
               {refundSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Refunding...
+                  {isEditor ? "Filing request..." : "Refunding..."}
                 </>
+              ) : isEditor ? (
+                "Submit Refund Request"
               ) : (
                 "Confirm Refund"
               )}

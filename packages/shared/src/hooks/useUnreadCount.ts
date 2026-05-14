@@ -6,17 +6,21 @@ import { adminFetch } from "@nkps/shared/lib/admin-api";
 type UseUnreadCountOptions = {
   contact?: boolean;
   registrations?: boolean;
+  feeChangeRequests?: boolean;
 };
 
 export function useUnreadCount({
   contact = false,
   registrations = false,
+  feeChangeRequests = false,
 }: UseUnreadCountOptions = {}) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [pendingRegistrationCount, setPendingRegistrationCount] = useState(0);
+  const [pendingFeeChangeRequestCount, setPendingFeeChangeRequestCount] =
+    useState(0);
 
   useEffect(() => {
-    if (!contact && !registrations) return;
+    if (!contact && !registrations && !feeChangeRequests) return;
     let mounted = true;
 
     const fetchCounts = async () => {
@@ -45,6 +49,19 @@ export function useUnreadCount({
           );
         }
 
+        if (feeChangeRequests) {
+          tasks.push(
+            adminFetch("/api/fees/change-requests/pending-count").then(
+              async (res) => {
+                if (mounted && res.ok) {
+                  const data = await res.json();
+                  setPendingFeeChangeRequestCount(data.count ?? 0);
+                }
+              }
+            )
+          );
+        }
+
         await Promise.all(tasks);
       } catch {
         // Silently fail — badges just won't show
@@ -58,7 +75,11 @@ export function useUnreadCount({
       mounted = false;
       clearInterval(interval);
     };
-  }, [contact, registrations]);
+  }, [contact, registrations, feeChangeRequests]);
 
-  return { unreadCount, pendingRegistrationCount };
+  return {
+    unreadCount,
+    pendingRegistrationCount,
+    pendingFeeChangeRequestCount,
+  };
 }

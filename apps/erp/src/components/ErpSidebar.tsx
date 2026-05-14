@@ -25,6 +25,7 @@ import {
   BarChart3,
   Bus,
   Banknote,
+  GitPullRequestArrow,
 } from "lucide-react";
 import {
   SidebarShell,
@@ -111,6 +112,7 @@ const erpItems: SidebarItem[] = [
       { kind: "link", icon: CreditCard, label: "Academic", href: "/fees/academic" },
       { kind: "link", icon: Bus, label: "Transport", href: "/fees/transport" },
       { kind: "link", icon: Banknote, label: "Payment Management", href: "/fees/payments" },
+      { kind: "link", icon: GitPullRequestArrow, label: "Change Requests", href: "/fees/change-requests" },
     ],
   },
   {
@@ -130,6 +132,7 @@ const erpItems: SidebarItem[] = [
 
 const EDITOR_ALWAYS_ALLOWED = new Set(["/"]);
 const PENDING_REGISTRATION_BADGE_HREFS = new Set(["/people/users"]);
+const PENDING_FEE_CHANGE_REQUEST_BADGE_HREFS = new Set(["/fees/change-requests"]);
 
 export function ErpSidebar() {
   const { collapsed } = useSidebar();
@@ -140,6 +143,7 @@ export function ErpSidebar() {
       headerSubtitle="Operations"
       editorAlwaysAllowedHrefs={EDITOR_ALWAYS_ALLOWED}
       pendingRegistrationBadgeHrefs={PENDING_REGISTRATION_BADGE_HREFS}
+      pendingFeeChangeRequestBadgeHrefs={PENDING_FEE_CHANGE_REQUEST_BADGE_HREFS}
       settingsHref="/portal/settings?from=erp"
       logoutRedirect="/login"
       footerExtra={<AppSwitcher scope="erp-admin" collapsed={collapsed} />}

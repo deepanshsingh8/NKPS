@@ -498,6 +498,45 @@ export const feeWaiverSchema = z.object({
 
 export type FeeWaiverData = z.infer<typeof feeWaiverSchema>;
 
+// Editor proposes a change to an already-recorded fee_payments row. The
+// proposed_changes shape is validated again server-side against a strict
+// column allowlist + business-rule checks — Zod here just enforces a
+// non-empty object for updates and an empty one for deletes.
+export const feeChangeRequestSchema = z
+  .object({
+    target_table: z.literal("fee_payments"),
+    target_id: z.string().uuid("Invalid target id"),
+    action: z.enum(["update", "delete"]),
+    proposed_changes: z.record(z.string(), z.unknown()).default({}),
+    reason: z
+      .string()
+      .min(5, "Reason is required (min 5 chars)")
+      .max(1000, "Reason too long"),
+  })
+  .superRefine((val, ctx) => {
+    if (val.action === "update") {
+      if (!val.proposed_changes || Object.keys(val.proposed_changes).length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Update requests must include at least one proposed change",
+          path: ["proposed_changes"],
+        });
+      }
+    }
+  });
+
+export type FeeChangeRequestData = z.infer<typeof feeChangeRequestSchema>;
+
+export const feeChangeRequestReviewSchema = z.object({
+  review_notes: z
+    .string()
+    .max(1000, "Notes too long")
+    .optional()
+    .or(z.literal("")),
+});
+
+export type FeeChangeRequestReviewData = z.infer<typeof feeChangeRequestReviewSchema>;
+
 export const classSchema = z.object({
   name: z.string().min(1, "Class name is required"),
   section: z.string().min(1, "Section is required"),
