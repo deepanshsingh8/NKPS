@@ -129,16 +129,16 @@ export function LatestUpdates({ articles }: LatestUpdatesProps = {}) {
                 <motion.div
                   key={item.key}
                   variants={fadeUp}
-                  className="shrink-0 px-3.5"
+                  className="shrink-0 px-3.5 flex"
                   style={{ flexBasis: `${100 / perView}%`, maxWidth: `${100 / perView}%` }}
                 >
-                  <motion.div whileHover={{ y: -6 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}>
+                  <motion.div whileHover={{ y: -6 }} transition={{ type: "spring", stiffness: 300, damping: 25 }} className="w-full">
                     <Link
                       href={item.link}
-                      className="group block rounded-3xl overflow-hidden bg-white border border-gray-100/80 shadow-sm hover:shadow-xl hover:shadow-gold-500/8 hover:border-gold-500/20 transition-all duration-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:ring-offset-2"
+                      className="group flex flex-col h-full rounded-3xl overflow-hidden bg-white border border-gray-100/80 shadow-sm hover:shadow-xl hover:shadow-gold-500/8 hover:border-gold-500/20 transition-all duration-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:ring-offset-2"
                     >
-                      {/* Image */}
-                      <div className="relative h-52 w-full overflow-hidden">
+                      {/* Image — fixed height so every card has an identical cover */}
+                      <div className="relative h-52 w-full shrink-0 overflow-hidden">
                         <Image
                           src={item.image}
                           alt={item.title}
@@ -149,14 +149,17 @@ export function LatestUpdates({ articles }: LatestUpdatesProps = {}) {
                         <div className="absolute inset-0 bg-gradient-to-t from-navy-950/20 to-transparent group-hover:from-navy-950/30 transition-all duration-500" />
                       </div>
 
-                      {/* Content */}
-                      <div className="p-6">
+                      {/* Content — flex column so the footer pins to the bottom
+                          and every card ends up the same height */}
+                      <div className="p-6 flex flex-1 flex-col">
                         {/* Date badge */}
-                        <span className="inline-block bg-gold-500/8 text-gold-600 text-xs font-semibold px-3.5 py-1.5 rounded-full border border-gold-500/15 group-hover:bg-gold-500/15 group-hover:border-gold-500/25 transition-all duration-300">
+                        <span className="inline-block self-start bg-gold-500/8 text-gold-600 text-xs font-semibold px-3.5 py-1.5 rounded-full border border-gold-500/15 group-hover:bg-gold-500/15 group-hover:border-gold-500/25 transition-all duration-300">
                           {item.date}
                         </span>
 
-                        <h3 className="font-heading text-lg font-semibold text-navy-900 mt-3 line-clamp-2 leading-snug">
+                        {/* min-h reserves two lines so single-line titles still
+                            align the description across cards */}
+                        <h3 className="font-heading text-lg font-semibold text-navy-900 mt-3 min-h-[3.5rem] line-clamp-2 leading-snug">
                           {item.title}
                         </h3>
 
@@ -164,7 +167,7 @@ export function LatestUpdates({ articles }: LatestUpdatesProps = {}) {
                           {item.description}
                         </p>
 
-                        <div className="mt-4 flex items-center gap-1.5 text-navy-900 text-sm font-medium group-hover:text-gold-600 transition-colors duration-300">
+                        <div className="mt-auto pt-4 flex items-center gap-1.5 text-navy-900 text-sm font-medium group-hover:text-gold-600 transition-colors duration-300">
                           Read more
                           <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1.5 transition-transform duration-300" />
                         </div>
