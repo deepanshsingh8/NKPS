@@ -11,12 +11,26 @@ export async function GET(request: NextRequest) {
     const classId = request.nextUrl.searchParams.get("class_id");
 
     if (!classId) {
-      // Fetch all students with their enrollment/class info
+      // Fetch all students with their enrollment/class info.
+      //
+      // Gate on `is_alumni`, NOT `is_active`. `is_active` is flipped false when
+      // an enrollment goes terminated/exited (see api/students/status), so
+      // filtering on it silently hides those students from the listing — and
+      // therefore from name/admission-no search, which runs client-side over
+      // this list. Admins must be able to find a student regardless of status.
+      // Alumni (is_alumni=true) stay excluded; they have a dedicated dialog and
+      // number in the thousands. `IS NOT TRUE` keeps rows where is_alumni is
+      // false OR null (the column is nullable with a false default).
+      //
+      // .range(0, 9999) pushes past PostgREST's 1000-row default cap so the now
+      // larger list (active + passed/failed + terminated/exited) isn't silently
+      // truncated.
       const { data: allStudents, error } = await admin
         .from("students")
         .select("*")
-        .eq("is_active", true)
-        .order("full_name", { ascending: true });
+        .not("is_alumni", "is", true)
+        .order("full_name", { ascending: true })
+        .range(0, 9999);
 
       if (error) {
         console.error("Fetch all students error:", error);

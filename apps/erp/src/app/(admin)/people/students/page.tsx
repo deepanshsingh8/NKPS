@@ -336,7 +336,7 @@ export default function AdminStudentsPage() {
 
   // H16-C — fetch alumni when the dialog opens. Direct supabase query is
   // fine here: alumni rows are flagged via is_alumni and excluded from the
-  // regular students endpoint (which filters is_active).
+  // regular students endpoint (which filters out is_alumni rows).
   const fetchAlumni = useCallback(async () => {
     setAlumniLoading(true);
     try {

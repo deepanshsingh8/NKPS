@@ -156,6 +156,57 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// GET serves two reads for the TC page, both via the service-role client.
+// The page can't read these tables with the browser anon client because their
+// RLS requires an authenticated/admin session that the CMS browser client
+// doesn't carry — so the list and student-search must go through this route.
+//   • (default)            → list all transfer certificates
+//   • ?studentSearch=<q>   → active-student lookup for the upload dialog
+export async function GET(request: NextRequest) {
+  const admin = await verifyAdminOrEditor("transfer_certificates");
+  if (!admin) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const studentSearch = searchParams.get("studentSearch");
+
+  if (studentSearch !== null) {
+    const q = studentSearch.trim();
+    if (q.length < 2) {
+      return NextResponse.json({ students: [] });
+    }
+    // Strip characters that have meaning in a PostgREST `.or()` filter string
+    // so the user query can't inject extra filter logic.
+    const safe = q.replace(/[,().*\\%]/g, " ").trim();
+    if (safe.length < 2) {
+      return NextResponse.json({ students: [] });
+    }
+    const { data, error } = await admin
+      .from("students")
+      .select("*")
+      .or(`full_name.ilike.%${safe}%,admission_no.ilike.%${safe}%`)
+      .eq("is_active", true)
+      .order("full_name")
+      .limit(10);
+    if (error) {
+      console.error("TC student search error:", error);
+      return NextResponse.json({ error: "Failed to search students" }, { status: 500 });
+    }
+    return NextResponse.json({ students: data ?? [] });
+  }
+
+  const { data, error } = await admin
+    .from("transfer_certificates")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("TC list error:", error);
+    return NextResponse.json({ error: "Failed to fetch certificates" }, { status: 500 });
+  }
+  return NextResponse.json({ certificates: data ?? [] });
+}
+
 export async function DELETE(request: NextRequest) {
   const admin = await verifyAdminOrEditor("transfer_certificates");
   if (!admin) {
