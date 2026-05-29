@@ -3,12 +3,13 @@ import type { NextConfig } from "next";
 // Content-Security-Policy. 'unsafe-inline' on script-src is required by Next's
 // App Router (nonce-less inline hydration scripts); the other directives still
 // constrain exfiltration and clickjacking. Origins: Supabase (storage images),
-// Nominatim/OpenStreetMap (transport address geocoding fetch).
+// OpenStreetMap tiles (transport slab map base layer), Nominatim/OpenStreetMap
+// (transport address geocoding fetch).
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://*.supabase.co",
+  "img-src 'self' data: blob: https://*.supabase.co https://*.tile.openstreetmap.org https://tile.openstreetmap.org",
   "font-src 'self' data:",
   "connect-src 'self' https://*.supabase.co https://nominatim.openstreetmap.org",
   "object-src 'none'",
