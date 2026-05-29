@@ -44,7 +44,7 @@ const PAGE_LABELS: Record<string, string> = {
 };
 
 const SECTION_LABELS: Record<string, string> = {
-  hero_slider: "Hero Slider",
+  hero_slider: "Home Page Slider",
   facilities_preview: "Facilities Preview",
   stats_counter: "Stats Counter",
   activities: "Activities",
