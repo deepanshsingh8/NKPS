@@ -825,7 +825,10 @@ BEGIN
   VALUES (
     new.id, new.email,
     COALESCE(new.raw_user_meta_data->>'full_name', new.email),
-    COALESCE(new.raw_user_meta_data->>'role', 'student')
+    -- Role is NEVER taken from client metadata (would allow self-registration
+    -- as admin if public signup is enabled). Admin-creation paths set the real
+    -- role afterward via the service-role client. (migration 061)
+    'student'
   );
   RETURN new;
 END;
@@ -834,6 +837,27 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- Guard: a regular authenticated user (parent/student/teacher editing their own
+-- profile row) must not change privileged columns. Service role and admins
+-- bypass. Prevents the self-promote-to-admin escalation. (migration 061)
+CREATE OR REPLACE FUNCTION public.guard_profile_privileged_cols()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF auth.role() = 'service_role' OR public.get_user_role() = 'admin' THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.role                  IS DISTINCT FROM OLD.role
+     OR NEW.is_active             IS DISTINCT FROM OLD.is_active
+     OR NEW.must_change_password  IS DISTINCT FROM OLD.must_change_password
+     OR NEW.teacher_id            IS DISTINCT FROM OLD.teacher_id
+     OR NEW.student_id            IS DISTINCT FROM OLD.student_id
+     OR NEW.parent_id             IS DISTINCT FROM OLD.parent_id THEN
+    RAISE EXCEPTION 'Not allowed to modify privileged profile columns';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Auto-update updated_at timestamps
 CREATE OR REPLACE FUNCTION public.set_updated_at()
@@ -1087,9 +1111,18 @@ CREATE INDEX IF NOT EXISTS idx_payment_orders_expires_at ON payment_orders(expir
 -- Gallery Images: public read, authenticated write
 ALTER TABLE gallery_images ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public can view gallery images"
+-- Public SELECT limited to non-private images (migration 060): standalone
+-- images, or images whose linked gallery_event is public. Admin/editor views
+-- use the service-role client and bypass RLS.
+CREATE POLICY "Public can view public gallery images"
   ON gallery_images FOR SELECT
-  USING (true);
+  USING (
+    gallery_event_id IS NULL
+    OR EXISTS (
+      SELECT 1 FROM gallery_events e
+      WHERE e.id = gallery_images.gallery_event_id AND e.is_public = true
+    )
+  );
 
 CREATE POLICY "Authenticated users can insert gallery images"
   ON gallery_images FOR INSERT
@@ -1271,9 +1304,20 @@ CREATE POLICY "Teachers can read student profiles in their classes"
     )
   );
 
+-- Self-update is gated two ways (migration 061): column-level GRANT below
+-- limits which columns the authenticated role may write, and the
+-- guard_profile_privileged_cols trigger rejects privileged-column changes.
 CREATE POLICY "Users can update own profile"
   ON profiles FOR UPDATE
-  USING (id = auth.uid());
+  USING (id = auth.uid())
+  WITH CHECK (id = auth.uid());
+
+CREATE TRIGGER guard_profile_privileged_cols
+  BEFORE UPDATE ON profiles
+  FOR EACH ROW EXECUTE FUNCTION public.guard_profile_privileged_cols();
+
+REVOKE UPDATE ON public.profiles FROM authenticated;
+GRANT UPDATE (full_name, phone, avatar_url) ON public.profiles TO authenticated;
 
 CREATE POLICY "Admins can insert profiles"
   ON profiles FOR INSERT
@@ -1865,36 +1909,72 @@ ON CONFLICT (doc_key) DO NOTHING;
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 8. Storage Buckets (create manually in Supabase Dashboard > Storage)
 -- ─────────────────────────────────────────────────────────────────────────────
+--
+-- Bucket access model after migration 061:
+--   gallery / site-media / staff-photos / avatars / disclosure-documents — PUBLIC
+--     read; WRITES are service-role only (uploads go through admin-gated
+--     signed-URL minting or the avatar API). Users may write only their own
+--     avatars/<uid>.<ext> object.
+--   transfer-certificates — PRIVATE (no public read). Downloads are served via
+--     short-lived signed URLs from the TC lookup/download routes only.
+--
+-- The policies below are version-controlled (migration 061). When provisioning
+-- a fresh project, do NOT also add the Dashboard "Allow authenticated users"
+-- quick-policies — they would re-open writes (RLS policies are OR-combined).
 
--- Bucket: "gallery" (Public)
---   SELECT: Allow public access
---   INSERT: Allow authenticated users
---   DELETE: Allow authenticated users
+DROP POLICY IF EXISTS "Service role manages content buckets" ON storage.objects;
+CREATE POLICY "Service role manages content buckets"
+  ON storage.objects FOR ALL
+  TO service_role
+  USING (
+    bucket_id IN ('gallery','transfer-certificates','site-media',
+                  'staff-photos','disclosure-documents','avatars')
+  )
+  WITH CHECK (
+    bucket_id IN ('gallery','transfer-certificates','site-media',
+                  'staff-photos','disclosure-documents','avatars')
+  );
 
--- Bucket: "transfer-certificates" (Public)
---   SELECT: Allow public access
---   INSERT: Allow authenticated users
---   DELETE: Allow authenticated users
+DROP POLICY IF EXISTS "Users manage own avatar object" ON storage.objects;
+CREATE POLICY "Users manage own avatar object"
+  ON storage.objects FOR ALL
+  TO authenticated
+  USING (
+    bucket_id = 'avatars'
+    AND (storage.foldername(name))[1] IS NOT DISTINCT FROM auth.uid()::text
+  )
+  WITH CHECK (
+    bucket_id = 'avatars'
+    AND (storage.foldername(name))[1] IS NOT DISTINCT FROM auth.uid()::text
+  );
 
--- Bucket: "avatars" (Public)
---   SELECT: Allow public access
---   INSERT/UPDATE/DELETE: Managed via service role (API route)
+DROP POLICY IF EXISTS "Public read of public content buckets" ON storage.objects;
+CREATE POLICY "Public read of public content buckets"
+  ON storage.objects FOR SELECT
+  USING (
+    bucket_id IN ('gallery','site-media','staff-photos','avatars',
+                  'disclosure-documents')
+  );
 
--- Bucket: "site-media" (Public)
---   SELECT: Allow public access
---   INSERT: Allow authenticated users
---   DELETE: Allow authenticated users
+-- NOTE: the transfer-certificates bucket is flipped to private MANUALLY in
+-- Supabase Studio (deliberate operational choice). The signed-URL TC routes work
+-- regardless of the bucket's public flag, so this is intentionally not automated.
 
--- Bucket: "staff-photos" (Public)
---   SELECT: Allow public access
---   INSERT: Allow authenticated users
---   UPDATE: Allow authenticated users
---   DELETE: Allow authenticated users
-
--- Bucket: "disclosure-documents" (Public)
---   SELECT: Allow public access
---   INSERT: Allow authenticated users
---   DELETE: Allow authenticated users
+-- Enforce allowed MIME types + size caps at the storage layer (the signed-URL
+-- flow lets the client choose content-type, so this is the real defense against
+-- storing HTML/SVG under an image/pdf extension → stored XSS). (migration 061)
+UPDATE storage.buckets
+  SET allowed_mime_types = ARRAY['image/jpeg','image/png','image/webp'],
+      file_size_limit = 5242880
+  WHERE id IN ('gallery','site-media','avatars');
+UPDATE storage.buckets
+  SET allowed_mime_types = ARRAY['image/jpeg','image/png'],
+      file_size_limit = 2097152
+  WHERE id = 'staff-photos';
+UPDATE storage.buckets
+  SET allowed_mime_types = ARRAY['application/pdf'],
+      file_size_limit = 10485760
+  WHERE id IN ('transfer-certificates','disclosure-documents');
 
 -- ============================================
 -- EDITOR PERMISSIONS (per-feature access for editor role)
@@ -1961,17 +2041,29 @@ CREATE POLICY "Authenticated can read all articles"
   ON articles FOR SELECT TO authenticated
   USING (true);
 
-CREATE POLICY "Authenticated can insert articles"
+-- Writes are admin/staff only (migration 060). CMS writes go through the
+-- service-role client, which bypasses RLS; this policy blocks parent/student/
+-- teacher JWTs from mutating articles via the anon client.
+CREATE POLICY "Staff can insert articles"
   ON articles FOR INSERT TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'staff'))
+  );
 
-CREATE POLICY "Authenticated can update articles"
+CREATE POLICY "Staff can update articles"
   ON articles FOR UPDATE TO authenticated
-  USING (true) WITH CHECK (true);
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'staff'))
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'staff'))
+  );
 
-CREATE POLICY "Authenticated can delete articles"
+CREATE POLICY "Staff can delete articles"
   ON articles FOR DELETE TO authenticated
-  USING (true);
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'staff'))
+  );
 
 -- ============================================
 -- STUDENT REMARKS (class teacher's overall comment per student per exam,

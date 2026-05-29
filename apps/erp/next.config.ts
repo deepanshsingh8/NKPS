@@ -1,5 +1,22 @@
 import type { NextConfig } from "next";
 
+// Content-Security-Policy. 'unsafe-inline' on script-src is required by Next's
+// App Router (nonce-less inline hydration scripts); the other directives still
+// constrain exfiltration and clickjacking. Origins: Supabase (storage images),
+// Nominatim/OpenStreetMap (transport address geocoding fetch).
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://*.supabase.co",
+  "font-src 'self' data:",
+  "connect-src 'self' https://*.supabase.co https://nominatim.openstreetmap.org",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
 const nextConfig: NextConfig = {
   transpilePackages: ["@nkps/shared"],
   images: {
@@ -48,6 +65,7 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: [
+          { key: "Content-Security-Policy", value: CSP },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
+import { extractStoragePath } from "@nkps/shared/lib/storage-paths";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -162,12 +163,22 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const { id, fileUrl } = await request.json();
+    const { id } = await request.json();
 
-    const urlParts = (fileUrl as string).split("/");
-    const fileName = urlParts[urlParts.length - 1];
+    // Re-derive the object path from the DB row (not the client-supplied
+    // fileUrl) so a crafted body can't delete an arbitrary stored object.
+    const { data: row } = await admin
+      .from("transfer_certificates")
+      .select("file_url")
+      .eq("id", id)
+      .maybeSingle();
+    const fileName = row
+      ? extractStoragePath(row.file_url, "transfer-certificates")
+      : null;
 
-    await admin.storage.from("transfer-certificates").remove([fileName]);
+    if (fileName) {
+      await admin.storage.from("transfer-certificates").remove([fileName]);
+    }
 
     const { error } = await admin
       .from("transfer_certificates")

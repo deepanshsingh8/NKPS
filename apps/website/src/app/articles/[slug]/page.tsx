@@ -102,7 +102,11 @@ export default async function ArticleDetailPage({ params }: PageProps) {
     <PageTransition>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{
+          // Escape `<` so a CMS-authored field containing `</script>` can't
+          // break out of the script element.
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
       />
 
       {/* Hero */}

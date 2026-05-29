@@ -326,6 +326,23 @@ export function HeroSlider({ cards }: HeroSliderProps = {}) {
           <div className="lg:grid lg:grid-cols-2 lg:items-end lg:gap-12">
             {/* Left — Main content */}
             <div>
+              {/* Persistent admissions hook — always visible regardless of the
+                  CMS-driven slide content, so the primary conversion path is
+                  never buried. */}
+              <FadeIn delay={0} duration={600} className="block mb-5">
+                <Link
+                  href="/admissions"
+                  className="group inline-flex items-center gap-2 rounded-full border border-gold-400/40 bg-gold-400/10 px-4 py-1.5 text-sm font-medium text-gold-300 backdrop-blur-sm transition-all duration-300 hover:bg-gold-400/20 hover:text-gold-200"
+                >
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-400/70" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-gold-400" />
+                  </span>
+                  Admissions Open 2026&ndash;27
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
+                </Link>
+              </FadeIn>
+
               <AnimatedHeading
                 text={activeSlide.title}
                 slideKey={safeCurrent}

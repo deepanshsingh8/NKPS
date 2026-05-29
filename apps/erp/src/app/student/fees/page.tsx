@@ -88,8 +88,19 @@ export default function StudentFeesPage() {
       // Fetch fee structures for student's class + transport slab catalog,
       // then resolve unified fee lines (academic + the picked transport slab).
       if (className) {
+        // Scope structures to the enrollment's academic year and active rows
+        // only — avoids stacking multiple years of a reused class name and
+        // excludes the amount=0 "Historical" buckets from bulk import.
+        let structuresQuery = supabase
+          .from("fee_structures")
+          .select("*")
+          .eq("class_name", className)
+          .eq("is_active", true);
+        if (academicYearId) {
+          structuresQuery = structuresQuery.eq("academic_year_id", academicYearId);
+        }
         const [{ data: structuresData }, { data: slabsData }] = await Promise.all([
-          supabase.from("fee_structures").select("*").eq("class_name", className),
+          structuresQuery,
           academicYearId
             ? supabase
                 .from("transport_fare_slabs")
@@ -140,9 +151,10 @@ export default function StudentFeesPage() {
   // Compute summary — annualize each line so quarterly/monthly fees are
   // counted correctly for the whole academic year.
   const totalFees = sumAnnualized(feeLines);
+  // Match the admin dues view: cash paid + any waiver granted both settle a fee.
   const totalPaid = payments
     .filter((p) => p.status === "paid" || p.status === "partial")
-    .reduce((sum, p) => sum + p.amount_paid, 0);
+    .reduce((sum, p) => sum + Number(p.amount_paid) + Number(p.waiver_amount ?? 0), 0);
   const pending = totalFees - totalPaid;
 
   // Lines marked paid: match by fee_structure_id (academic) or
