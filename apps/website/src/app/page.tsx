@@ -24,13 +24,12 @@ export const metadata: Metadata = buildMetadata({
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const [media, heroCards, testimonialCards, updateCards, facilityCards, latestArticles] = await Promise.all([
+  const [media, heroCards, testimonialCards, facilityCards, latestArticles] = await Promise.all([
     getPageMedia("home"),
     getSectionCards("hero_slider"),
     getSectionCards("testimonials"),
-    getSectionCards("latest_updates"),
     getSectionCards("facilities_preview"),
-    getLatestArticles(3),
+    getLatestArticles(9),
   ]);
 
   const statsBackground = mediaUrl(media, "stats_background", "/images/gallery/g10.jpg");
@@ -82,7 +81,7 @@ export default async function HomePage() {
 
       <StatsCounter backgroundImage={statsBackground} />
 
-      <LatestUpdates cards={updateCards} articles={latestArticles} />
+      <LatestUpdates articles={latestArticles} />
 
       <SchoolEvents />
 
