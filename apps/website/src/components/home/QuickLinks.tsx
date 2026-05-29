@@ -3,35 +3,35 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
+  ClipboardList,
   GraduationCap,
-  LayoutGrid,
   Calendar,
   ArrowRight,
 } from "lucide-react";
 import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { cn } from "@nkps/shared/lib/utils";
-import { getCmsUrl, getErpUrl } from "@nkps/shared/lib/cross-app";
+import { getErpUrl } from "@nkps/shared/lib/cross-app";
 
 const links = [
   {
-    icon: GraduationCap,
-    title: "ERP Login",
-    description: "Students, parents, teachers & staff — academic records, results, fees, attendance",
-    href: getErpUrl("/portal/login"),
+    icon: ClipboardList,
+    title: "Admissions Open 2026-27",
+    description: "Apply for Nursery to Class XII. Enquire today and our team will get in touch.",
+    href: "/admissions",
     featured: true,
   },
   {
-    icon: LayoutGrid,
-    title: "CMS Login",
-    description: "Admins & editors — manage gallery, articles, transfer certificates, and site content",
-    href: getCmsUrl("/login"),
+    icon: GraduationCap,
+    title: "Student & Parent Login",
+    description: "Check results, fees, attendance and admit cards in the school portal.",
+    href: getErpUrl("/portal/login"),
     featured: false,
   },
   {
     icon: Calendar,
     title: "Academic Calendar",
-    description: "Upcoming events, holidays, exams and PTM schedule",
+    description: "Upcoming events, holidays, exams and PTM schedule.",
     href: "/academic-calendar",
     featured: false,
   },
@@ -43,8 +43,8 @@ export function QuickLinks() {
       <div className="page-container relative z-10">
         <SectionHeading
           label="Get Started"
-          title="Access Your Portal"
-          subtitle="Jump into academic resources, results, and school information"
+          title="Get Started at NKPS"
+          subtitle="Apply for admission, sign in to the portal, or browse the school calendar"
         />
 
         <motion.div

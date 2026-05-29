@@ -66,16 +66,23 @@ export const SCHOOL = {
   ],
 } as const;
 
+// Primary nav — the 6 links a prospective parent cares about most. Kept short
+// to lower cognitive load and lift click-through on the conversion path.
 export const NAV_LINKS = [
   { label: "Home", href: "/" },
   { label: "About", href: "/about" },
   { label: "Academics", href: "/academics" },
   { label: "Admissions", href: "/admissions" },
-  { label: "Student Life", href: "/student-life" },
   { label: "Facilities", href: "/facilities" },
+  { label: "Contact", href: "/contact" },
+] as const;
+
+// Secondary nav — surfaced under a "More" dropdown on desktop, inlined on
+// mobile, and kept discoverable in the footer.
+export const NAV_MORE_LINKS = [
+  { label: "Student Life", href: "/student-life" },
   { label: "Gallery", href: "/gallery" },
   { label: "Articles", href: "/articles" },
-  { label: "Contact", href: "/contact" },
 ] as const;
 
 export const STAFF = {

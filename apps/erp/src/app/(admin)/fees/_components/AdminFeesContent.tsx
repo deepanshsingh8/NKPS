@@ -636,6 +636,11 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
     currentSuggestedSlabId != null &&
     studentTransportSlabId != null &&
     currentSuggestedSlabId !== studentTransportSlabId;
+  // Without pickup coords the server can't auto-derive a suggestion, so a
+  // manual slab choice is unverifiable and must be justified (mirrors the
+  // server guard in /api/students/transport).
+  const isUnverifiable = studentPickupLat == null || studentPickupLng == null;
+  const requiresReason = isOverride || isUnverifiable;
 
   // Geocode the pickup address via Nominatim (same flow as the slab map's
   // address-lookup). Updates lat/lng + zoomed pin state.
@@ -694,8 +699,12 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
       toast.error("Pick a distance slab before opting in to transport");
       return;
     }
-    if (isOverride && studentOverrideReason.trim().length < 3) {
-      toast.error("Add a reason for overriding the suggested slab");
+    if (requiresReason && studentOverrideReason.trim().length < 3) {
+      toast.error(
+        isOverride
+          ? "Add a reason for overriding the suggested slab"
+          : "Add a pickup location, or a reason for assigning a slab without coordinates"
+      );
       return;
     }
     setSavingTransport(true);
@@ -710,7 +719,7 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
           pickup_lat: studentPickupLat,
           pickup_lng: studentPickupLng,
           slab_id: studentTransportSlabId,
-          override_reason: isOverride
+          override_reason: requiresReason
             ? studentOverrideReason.trim()
             : null,
         }),
@@ -2159,17 +2168,23 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
                         </div>
                       </div>
 
-                      {isOverride && (
+                      {requiresReason && (
                         <div>
                           <Label className="text-xs font-medium mb-1 block text-amber-700 dark:text-amber-400">
-                            Override reason (required)
+                            {isOverride
+                              ? "Override reason (required)"
+                              : "Reason for manual slab — no pickup coordinates (required)"}
                           </Label>
                           <Input
                             value={studentOverrideReason}
                             onChange={(e) =>
                               setStudentOverrideReason(e.target.value)
                             }
-                            placeholder="e.g. Parent confirmed actual pickup is at sibling's school nearby"
+                            placeholder={
+                              isOverride
+                                ? "e.g. Parent confirmed actual pickup is at sibling's school nearby"
+                                : "e.g. Address not geocodable; slab confirmed verbally with parent"
+                            }
                             disabled={savingTransport}
                           />
                         </div>
@@ -2191,7 +2206,7 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
                           disabled={
                             savingTransport ||
                             !studentTransportSlabId ||
-                            (isOverride && studentOverrideReason.trim().length < 3)
+                            (requiresReason && studentOverrideReason.trim().length < 3)
                           }
                           className="bg-navy-900 hover:bg-navy-800 text-white"
                         >

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { Menu, X, Phone, Mail } from "lucide-react";
+import { Menu, X, Phone, Mail, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@nkps/shared/lib/utils";
-import { NAV_LINKS, SCHOOL } from "@nkps/shared/lib/constants";
+import { NAV_LINKS, NAV_MORE_LINKS, SCHOOL } from "@nkps/shared/lib/constants";
 import {
   FacebookIcon,
   InstagramIcon,
@@ -18,8 +18,11 @@ import { getErpUrl } from "@nkps/shared/lib/cross-app";
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const isHome = pathname === "/";
+  const moreActive = NAV_MORE_LINKS.some((l) => l.href === pathname);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -29,11 +32,24 @@ export function Navbar() {
   }, []);
 
   useEffect(() => {
-    // Close the mobile menu when the user navigates to a new page.
+    // Close both menus when the user navigates to a new page.
     // pathname is an external system (the URL); syncing UI to it is the intent.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobileOpen(false);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMoreOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [moreOpen]);
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
@@ -110,6 +126,60 @@ export function Navbar() {
                 </Link>
               );
             })}
+
+            {/* "More" dropdown — secondary pages (Student Life, Gallery, Articles) */}
+            <div ref={moreRef} className="relative">
+              <button
+                onClick={() => setMoreOpen((o) => !o)}
+                aria-expanded={moreOpen}
+                aria-haspopup="true"
+                className={cn(
+                  "group relative flex items-center gap-1 px-4 py-2 text-sm font-medium rounded-full transition-all duration-300",
+                  moreActive || moreOpen
+                    ? "bg-white/20 text-white"
+                    : "text-white/70 hover:text-white"
+                )}
+              >
+                More
+                <ChevronDown
+                  className={cn(
+                    "w-3.5 h-3.5 transition-transform duration-300",
+                    moreOpen && "rotate-180"
+                  )}
+                />
+              </button>
+
+              <AnimatePresence>
+                {moreOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                    transition={{ duration: 0.18, ease: "easeOut" }}
+                    className="absolute right-0 mt-2 w-44 overflow-hidden rounded-2xl border border-white/10 bg-navy-900/95 backdrop-blur-xl shadow-xl shadow-black/30 p-1.5"
+                  >
+                    {NAV_MORE_LINKS.map((link) => {
+                      const isActive = pathname === link.href;
+                      return (
+                        <Link
+                          key={link.href}
+                          href={link.href}
+                          onClick={() => setMoreOpen(false)}
+                          className={cn(
+                            "block rounded-xl px-3.5 py-2 text-sm font-medium transition-colors duration-200",
+                            isActive
+                              ? "bg-white/15 text-gold-400"
+                              : "text-white/70 hover:bg-white/10 hover:text-white"
+                          )}
+                        >
+                          {link.label}
+                        </Link>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* ERP Login + Mobile Hamburger */}
@@ -121,7 +191,7 @@ export function Navbar() {
             >
               {/* Shimmer effect */}
               <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-              <span className="relative z-10">ERP Login</span>
+              <span className="relative z-10">Login</span>
             </Link>
 
             {/* Mobile Hamburger - morphs to X */}
@@ -174,7 +244,7 @@ export function Navbar() {
             <div className="flex h-full flex-col px-6 pt-16 pb-6 overflow-y-auto">
               {/* Nav Links - stagger in from right, centered with flex grow */}
               <nav className="flex flex-1 flex-col items-center justify-center gap-2.5 sm:gap-4 py-4">
-                {NAV_LINKS.map((link, i) => {
+                {[...NAV_LINKS, ...NAV_MORE_LINKS].map((link, i) => {
                   const isActive = pathname === link.href;
                   return (
                     <motion.div
@@ -211,7 +281,7 @@ export function Navbar() {
                   exit={{ opacity: 0, x: 60 }}
                   transition={{
                     duration: 0.35,
-                    delay: NAV_LINKS.length * 0.04,
+                    delay: (NAV_LINKS.length + NAV_MORE_LINKS.length) * 0.04,
                     ease: "easeOut",
                   }}
                   className="mt-3"
@@ -221,7 +291,7 @@ export function Navbar() {
                     onClick={() => setMobileOpen(false)}
                     className="inline-flex items-center rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-7 py-2.5 text-sm font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25"
                   >
-                    ERP Login
+                    Login
                   </Link>
                 </motion.div>
               </nav>

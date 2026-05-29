@@ -7,6 +7,7 @@ const BUCKET_RULES = {
   "staff-photos": {
     exts: ["jpg", "jpeg", "png"],
     description: "staff profile photos (JPG/PNG, ≤2 MB, 4:5 portrait)",
+    featureKey: "staff" as const,
   },
 };
 

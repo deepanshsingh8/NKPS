@@ -199,6 +199,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
             { status: 400 }
           );
         }
+        // A refund can never exceed the amount actually paid. Use the proposed
+        // amount_paid if this same request also edits it, otherwise the live
+        // value. Mirrors the invariant the direct refund path enforces.
+        const effectivePaid =
+          "amount_paid" in patch
+            ? Number(patch.amount_paid)
+            : Number(liveRow.amount_paid);
+        if (Number.isFinite(effectivePaid) && refundAmt > effectivePaid) {
+          await revert("refund exceeds amount paid");
+          return NextResponse.json(
+            { error: "Refund amount cannot exceed the amount paid." },
+            { status: 400 }
+          );
+        }
         const reason = String(patch.refund_reason ?? liveRow.refund_reason ?? "");
         if (reason.trim().length < 5) {
           await revert("missing refund_reason");

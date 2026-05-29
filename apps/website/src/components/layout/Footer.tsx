@@ -5,10 +5,11 @@ import { SCHOOL, NAV_LINKS } from "@nkps/shared/lib/constants";
 
 const resources = [
   { label: "Transfer Certificates", href: "/transfer-certificates" },
-  { label: "Admissions", href: "/admissions" },
+  { label: "Student Life", href: "/student-life" },
   { label: "Gallery", href: "/gallery" },
-  { label: "Contact", href: "/contact" },
+  { label: "Articles", href: "/articles" },
   { label: "For Parents", href: "/for-parents" },
+  { label: "Contact", href: "/contact" },
 ];
 
 export function Footer() {

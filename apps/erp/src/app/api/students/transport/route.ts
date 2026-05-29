@@ -182,12 +182,20 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Two cases require a justification:
+  //  1. Coords were supplied and the chosen slab differs from the auto-suggested one.
+  //  2. No coords were supplied at all — the assignment can't be auto-verified,
+  //     so an unverifiable manual slab choice must still be justified. Without
+  //     this, a caller could dodge the audit entirely by omitting coordinates
+  //     and silently assign the cheapest slab.
   const isOverride = suggestedId != null && suggestedId !== body.slab_id;
-  if (isOverride && !body.override_reason) {
+  const isUnverifiable = !hasLat || !hasLng;
+  if ((isOverride || isUnverifiable) && !body.override_reason) {
     return NextResponse.json(
       {
-        error:
-          "This slab differs from the suggested slab — a reason is required to override.",
+        error: isOverride
+          ? "This slab differs from the suggested slab — a reason is required to override."
+          : "Pickup coordinates are required to auto-verify the fare slab. Provide coordinates, or supply a reason to assign a slab manually.",
       },
       { status: 400 }
     );
@@ -202,7 +210,10 @@ export async function POST(request: NextRequest) {
     pickup_lat: body.pickup_lat ?? null,
     pickup_lng: body.pickup_lng ?? null,
   };
-  if (isOverride) {
+  // Record an audit entry whenever a justification was required — either a true
+  // override (chosen slab differs from suggestion) or an unverifiable manual
+  // assignment (no coords to auto-derive a suggestion from).
+  if (isOverride || isUnverifiable) {
     update.transport_slab_overridden_at = now;
     update.transport_slab_overridden_by = user.id;
     update.transport_slab_override_reason = body.override_reason;
