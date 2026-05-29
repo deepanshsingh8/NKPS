@@ -74,7 +74,7 @@ export interface StaffMember {
   updated_at: string;
 }
 
-export type SectionCardType = 'hero_slider' | 'testimonials' | 'latest_updates' | 'facilities_preview' | 'leadership' | 'legacy_timeline' | 'why_choose_us' | 'activities' | 'annual_events' | 'campus_facilities';
+export type SectionCardType = 'hero_slider' | 'testimonials' | 'facilities_preview' | 'leadership' | 'legacy_timeline' | 'why_choose_us' | 'activities' | 'annual_events' | 'campus_facilities';
 
 export interface SectionCard {
   id: string;

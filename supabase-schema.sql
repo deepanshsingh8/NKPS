@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS site_media (
 -- Section Cards
 CREATE TABLE IF NOT EXISTS section_cards (
   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-  section text NOT NULL CHECK (section IN ('hero_slider', 'testimonials', 'latest_updates', 'facilities_preview', 'leadership', 'legacy_timeline', 'why_choose_us', 'activities', 'annual_events', 'campus_facilities')),
+  section text NOT NULL CHECK (section IN ('hero_slider', 'testimonials', 'facilities_preview', 'leadership', 'legacy_timeline', 'why_choose_us', 'activities', 'annual_events', 'campus_facilities')),
   title text,
   subtitle text,
   description text,
@@ -4422,39 +4422,6 @@ DELETE FROM site_media WHERE slot IN ('leadership_managing_director','leadership
 -- =============================================================================
 -- Phase 2 default section_cards seed (mirrors migrations 052–058)
 -- =============================================================================
-
--- 052: latest_updates
-INSERT INTO section_cards (section, date, title, description, image_url, sort_order, is_active, is_default, default_snapshot)
-SELECT 'latest_updates', 'March 2026', 'Admissions Open 2026-27',
-  'Applications are now being accepted for all classes. Secure your child''s future with quality education at NKPS.',
-  COALESCE((SELECT current_url FROM site_media WHERE slot='latest_update_1'), '/images/news/n2.jpg'),
-  0, true, true,
-  jsonb_build_object('date','March 2026','title','Admissions Open 2026-27',
-    'description','Applications are now being accepted for all classes. Secure your child''s future with quality education at NKPS.',
-    'image_url','/images/news/n2.jpg')
-WHERE NOT EXISTS (SELECT 1 FROM section_cards WHERE section='latest_updates' AND title='Admissions Open 2026-27' AND is_default=true);
-
-INSERT INTO section_cards (section, date, title, description, image_url, sort_order, is_active, is_default, default_snapshot)
-SELECT 'latest_updates', 'February 2026', 'Annual Sports Meet',
-  'Chakravyuh 2025-26 — celebrating athletic excellence and sportsmanship across all age groups.',
-  COALESCE((SELECT current_url FROM site_media WHERE slot='latest_update_2'), '/images/news/n4.jpg'),
-  1, true, true,
-  jsonb_build_object('date','February 2026','title','Annual Sports Meet',
-    'description','Chakravyuh 2025-26 — celebrating athletic excellence and sportsmanship across all age groups.',
-    'image_url','/images/news/n4.jpg')
-WHERE NOT EXISTS (SELECT 1 FROM section_cards WHERE section='latest_updates' AND title='Annual Sports Meet' AND is_default=true);
-
-INSERT INTO section_cards (section, date, title, description, image_url, sort_order, is_active, is_default, default_snapshot)
-SELECT 'latest_updates', 'January 2026', 'Board Exam Preparation',
-  'Special coaching sessions for Class X and XII students with expert guidance and practice tests.',
-  COALESCE((SELECT current_url FROM site_media WHERE slot='latest_update_3'), '/images/news/n6.jpg'),
-  2, true, true,
-  jsonb_build_object('date','January 2026','title','Board Exam Preparation',
-    'description','Special coaching sessions for Class X and XII students with expert guidance and practice tests.',
-    'image_url','/images/news/n6.jpg')
-WHERE NOT EXISTS (SELECT 1 FROM section_cards WHERE section='latest_updates' AND title='Board Exam Preparation' AND is_default=true);
-
-DELETE FROM site_media WHERE slot IN ('latest_update_1','latest_update_2','latest_update_3');
 
 -- 053: hero_slider
 INSERT INTO section_cards (section, title, subtitle, cta_text, cta_link, image_url, sort_order, is_active, is_default, default_snapshot)

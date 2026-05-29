@@ -47,7 +47,6 @@ const SECTION_LABELS: Record<string, string> = {
   hero_slider: "Hero Slider",
   facilities_preview: "Facilities Preview",
   stats_counter: "Stats Counter",
-  latest_updates: "Latest Updates",
   activities: "Activities",
   leadership: "Leadership",
   founder_tribute: "Founder Tribute",
@@ -61,7 +60,6 @@ const SECTION_LABELS: Record<string, string> = {
 const CARD_ENABLED_SECTIONS: SectionCardType[] = [
   "hero_slider",
   "testimonials",
-  "latest_updates",
   "facilities_preview",
   "leadership",
   "legacy_timeline",
@@ -79,10 +77,6 @@ const SECTION_FIELD_MAP: Record<SectionCardType, { required: string[]; optional:
   testimonials: {
     required: ["quote", "name", "role"],
     optional: [],
-  },
-  latest_updates: {
-    required: ["title", "description", "date"],
-    optional: ["link"],
   },
   facilities_preview: {
     required: ["title", "description"],
@@ -205,7 +199,6 @@ const SECTION_ORDER: Record<string, string[]> = {
     "hero_slider",
     "facilities_preview",
     "stats_counter",
-    "latest_updates",
     "testimonials",
   ],
   about: [
@@ -279,8 +272,6 @@ function getCardSecondaryText(card: SectionCard): string {
       return card.subtitle || "";
     case "testimonials":
       return card.name ? `— ${card.name}${card.role ? `, ${card.role}` : ""}` : "";
-    case "latest_updates":
-      return card.date || "";
     case "leadership":
       return card.designation || "";
     case "legacy_timeline":
@@ -832,7 +823,6 @@ export default function AdminSiteMediaPage() {
   const SECTION_PAGE_MAP: Record<string, string> = {
     hero_slider: "home",
     testimonials: "home",
-    latest_updates: "home",
     facilities_preview: "home",
     leadership: "about",
     legacy_timeline: "about",
