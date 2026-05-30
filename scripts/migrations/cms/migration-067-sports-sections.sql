@@ -62,7 +62,7 @@ select * from (values
 ) as v(section, title, sort_order, is_active, is_default)
 where not exists (
   select 1 from section_cards sc
-  where sc.section = v.section and sc.title = v.title
+  where sc.section = v.section
 );
 
 commit;

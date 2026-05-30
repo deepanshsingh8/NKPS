@@ -9,8 +9,16 @@
 --
 -- Each phase below is wrapped in its own begin/commit — if one step fails,
 -- earlier phases stay applied and you only have to re-run from the failing
--- phase down. Every INSERT is idempotent (`WHERE NOT EXISTS`) so re-running
--- the whole file is safe.
+-- phase down.
+--
+-- IDEMPOTENCY (IMPORTANT): each INSERT is guarded by a PER-SECTION check —
+-- `WHERE NOT EXISTS (SELECT 1 FROM section_cards WHERE section='<that section>')`.
+-- A section is therefore seeded ONLY when it is completely empty. Once a section
+-- has any row (default or admin-created), re-running this file is a no-op for it.
+-- This is deliberate: an earlier per-TITLE guard would re-insert a default card
+-- whenever an admin RENAMED it in the CMS (the old title no longer matched), so
+-- re-running this file resurrected stale cards + their original images. Never
+-- weaken these guards back to per-title/per-name.
 --
 -- Order matters: 050 must run before any of the 051–058 seeds (they depend
 -- on the new is_default / default_snapshot columns).
@@ -62,7 +70,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'testimonials' and name = 'Mrs. Sharma' and is_default = true
+  where section = 'testimonials'
 );
 
 insert into section_cards (
@@ -80,7 +88,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'testimonials' and name = 'Mr. Patel' and is_default = true
+  where section = 'testimonials'
 );
 
 insert into section_cards (
@@ -98,7 +106,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'testimonials' and name = 'Mrs. Gupta' and is_default = true
+  where section = 'testimonials'
 );
 
 insert into section_cards (
@@ -121,7 +129,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'leadership' and name = 'Dr. N.C. Lunayach' and is_default = true
+  where section = 'leadership'
 );
 
 insert into section_cards (
@@ -144,7 +152,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'leadership' and name = 'Mr. Kuldeep Singh' and is_default = true
+  where section = 'leadership'
 );
 
 insert into section_cards (
@@ -167,7 +175,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'leadership' and name = 'Mrs. Prema Kavia' and is_default = true
+  where section = 'leadership'
 );
 
 delete from site_media where slot in (
@@ -209,7 +217,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'hero_slider' and title = E'Best CBSE School\nin Jaipur' and is_default = true
+  where section = 'hero_slider'
 );
 
 insert into section_cards (
@@ -230,7 +238,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'hero_slider' and title = E'Excellence in\nCBSE Education' and is_default = true
+  where section = 'hero_slider'
 );
 
 insert into section_cards (
@@ -251,7 +259,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'hero_slider' and title = E'Leaders Are\nMade Here' and is_default = true
+  where section = 'hero_slider'
 );
 
 delete from site_media where slot in ('hero_slide_1', 'hero_slide_2', 'hero_slide_3');
@@ -282,7 +290,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'facilities_preview' and title = 'Smart Classrooms' and is_default = true
+  where section = 'facilities_preview'
 );
 
 insert into section_cards (
@@ -302,7 +310,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'facilities_preview' and title = 'Science Laboratories' and is_default = true
+  where section = 'facilities_preview'
 );
 
 insert into section_cards (
@@ -322,7 +330,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'facilities_preview' and title = 'Computer Lab' and is_default = true
+  where section = 'facilities_preview'
 );
 
 insert into section_cards (
@@ -342,7 +350,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'facilities_preview' and title = 'Library' and is_default = true
+  where section = 'facilities_preview'
 );
 
 delete from site_media where slot in (
@@ -366,7 +374,7 @@ select 'why_choose_us', 'Experienced Faculty',
   jsonb_build_object('title','Experienced Faculty',
     'description','Our faculty brings years of experience in delivering quality education across all subjects.',
     'icon','Award')
-where not exists (select 1 from section_cards where section='why_choose_us' and title='Experienced Faculty' and is_default=true);
+where not exists (select 1 from section_cards where section='why_choose_us');
 
 insert into section_cards (section, title, description, icon, sort_order, is_active, is_default, default_snapshot)
 select 'why_choose_us', 'Holistic Curriculum',
@@ -375,7 +383,7 @@ select 'why_choose_us', 'Holistic Curriculum',
   jsonb_build_object('title','Holistic Curriculum',
     'description','Balanced approach combining academics with sports, arts, and character development.',
     'icon','BookOpen')
-where not exists (select 1 from section_cards where section='why_choose_us' and title='Holistic Curriculum' and is_default=true);
+where not exists (select 1 from section_cards where section='why_choose_us');
 
 insert into section_cards (section, title, description, icon, sort_order, is_active, is_default, default_snapshot)
 select 'why_choose_us', 'Smart Classrooms',
@@ -384,7 +392,7 @@ select 'why_choose_us', 'Smart Classrooms',
   jsonb_build_object('title','Smart Classrooms',
     'description','Equipped with modern teaching technologies for interactive and engaging learning.',
     'icon','Monitor')
-where not exists (select 1 from section_cards where section='why_choose_us' and title='Smart Classrooms' and is_default=true);
+where not exists (select 1 from section_cards where section='why_choose_us');
 
 insert into section_cards (section, title, description, icon, sort_order, is_active, is_default, default_snapshot)
 select 'why_choose_us', 'Exceptional Board Results',
@@ -393,7 +401,7 @@ select 'why_choose_us', 'Exceptional Board Results',
   jsonb_build_object('title','Exceptional Board Results',
     'description','We are proud of our consistent academic performance in CBSE board examinations.',
     'icon','Trophy')
-where not exists (select 1 from section_cards where section='why_choose_us' and title='Exceptional Board Results' and is_default=true);
+where not exists (select 1 from section_cards where section='why_choose_us');
 
 insert into section_cards (section, title, description, icon, sort_order, is_active, is_default, default_snapshot)
 select 'why_choose_us', 'Sports Brilliance',
@@ -402,7 +410,7 @@ select 'why_choose_us', 'Sports Brilliance',
   jsonb_build_object('title','Sports Brilliance',
     'description','Our students excel on the field, winning laurels at district, state and national level competitions.',
     'icon','Medal')
-where not exists (select 1 from section_cards where section='why_choose_us' and title='Sports Brilliance' and is_default=true);
+where not exists (select 1 from section_cards where section='why_choose_us');
 
 commit;
 
@@ -419,7 +427,7 @@ select 'legacy_timeline', '1985', 'Foundation',
   0, true, true,
   jsonb_build_object('year','1985','title','Foundation',
     'description','NK Public School established by Late Shri R.K. Choudhary with just 10 students.')
-where not exists (select 1 from section_cards where section='legacy_timeline' and year='1985' and title='Foundation' and is_default=true);
+where not exists (select 1 from section_cards where section='legacy_timeline');
 
 insert into section_cards (section, year, title, description, sort_order, is_active, is_default, default_snapshot)
 select 'legacy_timeline', '1990', 'CBSE Affiliation',
@@ -427,7 +435,7 @@ select 'legacy_timeline', '1990', 'CBSE Affiliation',
   1, true, true,
   jsonb_build_object('year','1990','title','CBSE Affiliation',
     'description','Received affiliation from CBSE, marking a new chapter in academic excellence.')
-where not exists (select 1 from section_cards where section='legacy_timeline' and year='1990' and title='CBSE Affiliation' and is_default=true);
+where not exists (select 1 from section_cards where section='legacy_timeline');
 
 insert into section_cards (section, year, title, description, sort_order, is_active, is_default, default_snapshot)
 select 'legacy_timeline', '2000', 'Campus Expansion',
@@ -435,7 +443,7 @@ select 'legacy_timeline', '2000', 'Campus Expansion',
   2, true, true,
   jsonb_build_object('year','2000','title','Campus Expansion',
     'description','New buildings, laboratories, and sports facilities added to serve growing student body.')
-where not exists (select 1 from section_cards where section='legacy_timeline' and year='2000' and title='Campus Expansion' and is_default=true);
+where not exists (select 1 from section_cards where section='legacy_timeline');
 
 insert into section_cards (section, year, title, description, sort_order, is_active, is_default, default_snapshot)
 select 'legacy_timeline', '2010', 'Digital Era',
@@ -443,7 +451,7 @@ select 'legacy_timeline', '2010', 'Digital Era',
   3, true, true,
   jsonb_build_object('year','2010','title','Digital Era',
     'description','Smart classrooms and computer labs introduced for technology-integrated learning.')
-where not exists (select 1 from section_cards where section='legacy_timeline' and year='2010' and title='Digital Era' and is_default=true);
+where not exists (select 1 from section_cards where section='legacy_timeline');
 
 insert into section_cards (section, year, title, description, sort_order, is_active, is_default, default_snapshot)
 select 'legacy_timeline', '2024', '20000+ Students',
@@ -451,7 +459,7 @@ select 'legacy_timeline', '2024', '20000+ Students',
   4, true, true,
   jsonb_build_object('year','2024','title','20000+ Students',
     'description','Grown into one of Jaipur''s leading institutions with 6 educational institutes.')
-where not exists (select 1 from section_cards where section='legacy_timeline' and year='2024' and title='20000+ Students' and is_default=true);
+where not exists (select 1 from section_cards where section='legacy_timeline');
 
 commit;
 
@@ -470,7 +478,7 @@ select 'activities', 'Music & Dance',
   jsonb_build_object('title','Music & Dance',
     'description','Express creativity through classical and contemporary performances',
     'icon','Music','image_url','/images/gallery/st1.jpg')
-where not exists (select 1 from section_cards where section='activities' and title='Music & Dance' and is_default=true);
+where not exists (select 1 from section_cards where section='activities');
 
 insert into section_cards (section, title, description, icon, image_url, sort_order, is_active, is_default, default_snapshot)
 select 'activities', 'Art & Craft',
@@ -480,7 +488,7 @@ select 'activities', 'Art & Craft',
   jsonb_build_object('title','Art & Craft',
     'description','Develop artistic skills through painting, sculpture and design',
     'icon','Palette','image_url','/images/gallery/st2.jpg')
-where not exists (select 1 from section_cards where section='activities' and title='Art & Craft' and is_default=true);
+where not exists (select 1 from section_cards where section='activities');
 
 insert into section_cards (section, title, description, icon, image_url, sort_order, is_active, is_default, default_snapshot)
 select 'activities', 'Debate & Elocution',
@@ -490,7 +498,7 @@ select 'activities', 'Debate & Elocution',
   jsonb_build_object('title','Debate & Elocution',
     'description','Build confidence and critical thinking through public speaking',
     'icon','MessageSquare','image_url','/images/gallery/st3.jpg')
-where not exists (select 1 from section_cards where section='activities' and title='Debate & Elocution' and is_default=true);
+where not exists (select 1 from section_cards where section='activities');
 
 insert into section_cards (section, title, description, icon, image_url, sort_order, is_active, is_default, default_snapshot)
 select 'activities', 'Quiz Competitions',
@@ -500,7 +508,7 @@ select 'activities', 'Quiz Competitions',
   jsonb_build_object('title','Quiz Competitions',
     'description','Sharpen knowledge and analytical skills in academic quizzes',
     'icon','Brain','image_url','/images/gallery/st4.jpg')
-where not exists (select 1 from section_cards where section='activities' and title='Quiz Competitions' and is_default=true);
+where not exists (select 1 from section_cards where section='activities');
 
 insert into section_cards (section, title, description, icon, image_url, sort_order, is_active, is_default, default_snapshot)
 select 'activities', 'Literary Club',
@@ -510,7 +518,7 @@ select 'activities', 'Literary Club',
   jsonb_build_object('title','Literary Club',
     'description','Nurture love for reading and creative writing',
     'icon','BookOpen','image_url','/images/gallery/st5.jpg')
-where not exists (select 1 from section_cards where section='activities' and title='Literary Club' and is_default=true);
+where not exists (select 1 from section_cards where section='activities');
 
 insert into section_cards (section, title, description, icon, image_url, sort_order, is_active, is_default, default_snapshot)
 select 'activities', 'Science Club',
@@ -520,7 +528,7 @@ select 'activities', 'Science Club',
   jsonb_build_object('title','Science Club',
     'description','Hands-on experiments and innovation projects',
     'icon','Cpu','image_url','/images/gallery/st6.jpg')
-where not exists (select 1 from section_cards where section='activities' and title='Science Club' and is_default=true);
+where not exists (select 1 from section_cards where section='activities');
 
 insert into section_cards (section, season, title, description, sort_order, is_active, is_default, default_snapshot)
 select 'annual_events', 'Winter', 'Annual Day',
@@ -528,7 +536,7 @@ select 'annual_events', 'Winter', 'Annual Day',
   0, true, true,
   jsonb_build_object('season','Winter','title','Annual Day',
     'description','A grand celebration of talent, culture and achievement featuring performances by students from all grades')
-where not exists (select 1 from section_cards where section='annual_events' and title='Annual Day' and is_default=true);
+where not exists (select 1 from section_cards where section='annual_events');
 
 insert into section_cards (section, season, title, description, sort_order, is_active, is_default, default_snapshot)
 select 'annual_events', 'Monsoon', 'Sports Day (Chakravyuh)',
@@ -536,7 +544,7 @@ select 'annual_events', 'Monsoon', 'Sports Day (Chakravyuh)',
   1, true, true,
   jsonb_build_object('season','Monsoon','title','Sports Day (Chakravyuh)',
     'description','Inter-house athletic competitions and team sports fostering sportsmanship and physical fitness')
-where not exists (select 1 from section_cards where section='annual_events' and title='Sports Day (Chakravyuh)' and is_default=true);
+where not exists (select 1 from section_cards where section='annual_events');
 
 insert into section_cards (section, season, title, description, sort_order, is_active, is_default, default_snapshot)
 select 'annual_events', 'Spring', 'Republic & Independence Day',
@@ -544,7 +552,7 @@ select 'annual_events', 'Spring', 'Republic & Independence Day',
   2, true, true,
   jsonb_build_object('season','Spring','title','Republic & Independence Day',
     'description','Patriotic celebrations with cultural programmes, flag hoisting and community participation')
-where not exists (select 1 from section_cards where section='annual_events' and title='Republic & Independence Day' and is_default=true);
+where not exists (select 1 from section_cards where section='annual_events');
 
 insert into section_cards (section, season, title, description, sort_order, is_active, is_default, default_snapshot)
 select 'annual_events', 'Autumn', 'Science Exhibition',
@@ -552,7 +560,7 @@ select 'annual_events', 'Autumn', 'Science Exhibition',
   3, true, true,
   jsonb_build_object('season','Autumn','title','Science Exhibition',
     'description','Student-led innovations and project displays showcasing creativity and scientific temper')
-where not exists (select 1 from section_cards where section='annual_events' and title='Science Exhibition' and is_default=true);
+where not exists (select 1 from section_cards where section='annual_events');
 
 delete from site_media where slot in (
   'student_life_music_dance', 'student_life_art_craft',
@@ -576,56 +584,56 @@ select 'campus_facilities', 'Smart Classrooms',
   'Technology-enabled classrooms with projectors and digital learning aids for an interactive educational experience.',
   'Monitor',
   coalesce(
-    (select image_url from section_cards where section='facilities_preview' and title='Smart Classrooms' and is_default=true),
+    (select image_url from section_cards where section='facilities_preview'),
     (select current_url from site_media where slot='facilities_preview_1'),
     '/images/news/n1.jpg'),
   0, true, true,
   jsonb_build_object('title','Smart Classrooms',
     'description','Technology-enabled classrooms with projectors and digital learning aids for an interactive educational experience.',
     'icon','Monitor','image_url','/images/news/n1.jpg')
-where not exists (select 1 from section_cards where section='campus_facilities' and title='Smart Classrooms' and is_default=true);
+where not exists (select 1 from section_cards where section='campus_facilities');
 
 insert into section_cards (section, title, description, icon, image_url, sort_order, is_active, is_default, default_snapshot)
 select 'campus_facilities', 'Science Laboratories',
   'Well-equipped Physics, Chemistry and Biology labs providing hands-on learning opportunities for students.',
   'FlaskConical',
   coalesce(
-    (select image_url from section_cards where section='facilities_preview' and title='Science Laboratories' and is_default=true),
+    (select image_url from section_cards where section='facilities_preview'),
     (select current_url from site_media where slot='facilities_preview_2'),
     '/images/news/n2.jpg'),
   1, true, true,
   jsonb_build_object('title','Science Laboratories',
     'description','Well-equipped Physics, Chemistry and Biology labs providing hands-on learning opportunities for students.',
     'icon','FlaskConical','image_url','/images/news/n2.jpg')
-where not exists (select 1 from section_cards where section='campus_facilities' and title='Science Laboratories' and is_default=true);
+where not exists (select 1 from section_cards where section='campus_facilities');
 
 insert into section_cards (section, title, description, icon, image_url, sort_order, is_active, is_default, default_snapshot)
 select 'campus_facilities', 'Computer Lab',
   'Modern computer lab with high-speed internet and latest software for digital literacy and programming skills.',
   'Laptop',
   coalesce(
-    (select image_url from section_cards where section='facilities_preview' and title='Computer Lab' and is_default=true),
+    (select image_url from section_cards where section='facilities_preview'),
     (select current_url from site_media where slot='facilities_preview_3'),
     '/images/news/n4.jpg'),
   2, true, true,
   jsonb_build_object('title','Computer Lab',
     'description','Modern computer lab with high-speed internet and latest software for digital literacy and programming skills.',
     'icon','Laptop','image_url','/images/news/n4.jpg')
-where not exists (select 1 from section_cards where section='campus_facilities' and title='Computer Lab' and is_default=true);
+where not exists (select 1 from section_cards where section='campus_facilities');
 
 insert into section_cards (section, title, description, icon, image_url, sort_order, is_active, is_default, default_snapshot)
 select 'campus_facilities', 'Library',
   'A vast collection of over 10,000 books, periodicals and digital resources fostering a love for reading.',
   'BookOpen',
   coalesce(
-    (select image_url from section_cards where section='facilities_preview' and title='Library' and is_default=true),
+    (select image_url from section_cards where section='facilities_preview'),
     (select current_url from site_media where slot='facilities_preview_4'),
     '/images/news/n6.jpg'),
   3, true, true,
   jsonb_build_object('title','Library',
     'description','A vast collection of over 10,000 books, periodicals and digital resources fostering a love for reading.',
     'icon','BookOpen','image_url','/images/news/n6.jpg')
-where not exists (select 1 from section_cards where section='campus_facilities' and title='Library' and is_default=true);
+where not exists (select 1 from section_cards where section='campus_facilities');
 
 insert into section_cards (section, title, description, icon, image_url, sort_order, is_active, is_default, default_snapshot)
 select 'campus_facilities', 'Sports Grounds',
@@ -635,7 +643,7 @@ select 'campus_facilities', 'Sports Grounds',
   jsonb_build_object('title','Sports Grounds',
     'description','Expansive playgrounds with facilities for cricket, football, basketball, athletics and more.',
     'icon','Trophy','image_url','/images/news/n7.jpg')
-where not exists (select 1 from section_cards where section='campus_facilities' and title='Sports Grounds' and is_default=true);
+where not exists (select 1 from section_cards where section='campus_facilities');
 
 insert into section_cards (section, title, description, icon, image_url, sort_order, is_active, is_default, default_snapshot)
 select 'campus_facilities', 'Auditorium',
@@ -645,7 +653,7 @@ select 'campus_facilities', 'Auditorium',
   jsonb_build_object('title','Auditorium',
     'description','State-of-the-art auditorium for cultural events, annual functions and academic seminars.',
     'icon','Theater','image_url','/images/news/n3.jpg')
-where not exists (select 1 from section_cards where section='campus_facilities' and title='Auditorium' and is_default=true);
+where not exists (select 1 from section_cards where section='campus_facilities');
 
 insert into section_cards (section, title, description, icon, image_url, sort_order, is_active, is_default, default_snapshot)
 select 'campus_facilities', 'Indoor Games',
@@ -655,7 +663,7 @@ select 'campus_facilities', 'Indoor Games',
   jsonb_build_object('title','Indoor Games',
     'description','Dedicated spaces for table tennis, chess, carrom and other indoor recreational activities.',
     'icon','Gamepad2','image_url','/images/news/n5.jpg')
-where not exists (select 1 from section_cards where section='campus_facilities' and title='Indoor Games' and is_default=true);
+where not exists (select 1 from section_cards where section='campus_facilities');
 
 insert into section_cards (section, title, description, icon, image_url, sort_order, is_active, is_default, default_snapshot)
 select 'campus_facilities', 'Transport',
@@ -665,7 +673,7 @@ select 'campus_facilities', 'Transport',
   jsonb_build_object('title','Transport',
     'description','Safe and reliable school bus transport covering major routes across Jaipur city.',
     'icon','Bus','image_url','/images/gallery/g10.jpg')
-where not exists (select 1 from section_cards where section='campus_facilities' and title='Transport' and is_default=true);
+where not exists (select 1 from section_cards where section='campus_facilities');
 
 delete from site_media where slot in (
   'facilities_sports', 'facilities_auditorium',

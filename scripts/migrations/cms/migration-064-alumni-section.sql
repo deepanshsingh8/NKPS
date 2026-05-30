@@ -47,7 +47,7 @@ select * from (values
   ('alumni', 'Rohan Gupta', 'Class of 2014', 'Civil Services Officer', 'Cracked the UPSC Civil Services Examination and is now serving in public administration.', '/images/gallery/st3.jpg', 2, true, true, null::jsonb)
 ) as v(section, name, year, designation, description, image_url, sort_order, is_active, is_default, default_snapshot)
 where not exists (
-  select 1 from section_cards sc where sc.section = 'alumni' and sc.name = v.name
+  select 1 from section_cards sc where sc.section = 'alumni'
 );
 
 commit;

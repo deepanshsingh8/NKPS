@@ -23,7 +23,7 @@ export default function AcademicsPage() {
       />
       <PageHeader
         title="Academics"
-        subtitle="Excellence in CBSE Education"
+        subtitle="Excellence in Education"
       />
       <CurriculumOverview />
       <StaffDirectory />

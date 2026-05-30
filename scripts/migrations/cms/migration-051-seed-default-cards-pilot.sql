@@ -49,7 +49,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'testimonials' and name = 'Mrs. Sharma' and is_default = true
+  where section = 'testimonials'
 );
 
 insert into section_cards (
@@ -71,7 +71,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'testimonials' and name = 'Mr. Patel' and is_default = true
+  where section = 'testimonials'
 );
 
 insert into section_cards (
@@ -93,7 +93,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'testimonials' and name = 'Mrs. Gupta' and is_default = true
+  where section = 'testimonials'
 );
 
 -- ─────────────────────────────────────────────────────────────────
@@ -123,7 +123,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'leadership' and name = 'Dr. N.C. Lunayach' and is_default = true
+  where section = 'leadership'
 );
 
 insert into section_cards (
@@ -148,7 +148,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'leadership' and name = 'Mr. Kuldeep Singh' and is_default = true
+  where section = 'leadership'
 );
 
 insert into section_cards (
@@ -173,7 +173,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'leadership' and name = 'Mrs. Prema Kavia' and is_default = true
+  where section = 'leadership'
 );
 
 -- ─────────────────────────────────────────────────────────────────

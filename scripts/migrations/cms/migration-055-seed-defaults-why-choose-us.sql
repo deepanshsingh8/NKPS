@@ -26,7 +26,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'why_choose_us' and title = 'Experienced Faculty' and is_default = true
+  where section = 'why_choose_us'
 );
 
 insert into section_cards (
@@ -46,7 +46,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'why_choose_us' and title = 'Holistic Curriculum' and is_default = true
+  where section = 'why_choose_us'
 );
 
 insert into section_cards (
@@ -66,7 +66,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'why_choose_us' and title = 'Smart Classrooms' and is_default = true
+  where section = 'why_choose_us'
 );
 
 insert into section_cards (
@@ -86,7 +86,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'why_choose_us' and title = '100% Board Results' and is_default = true
+  where section = 'why_choose_us'
 );
 
 commit;

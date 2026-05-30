@@ -33,7 +33,7 @@ select
   'Technology-enabled classrooms with projectors and digital learning aids for an interactive educational experience.',
   'Monitor',
   coalesce(
-    (select image_url from section_cards where section = 'facilities_preview' and title = 'Smart Classrooms' and is_default = true),
+    (select image_url from section_cards where section = 'facilities_preview'),
     (select current_url from site_media where slot = 'facilities_preview_1'),
     '/images/news/n1.jpg'
   ),
@@ -46,7 +46,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'campus_facilities' and title = 'Smart Classrooms' and is_default = true
+  where section = 'campus_facilities'
 );
 
 insert into section_cards (
@@ -59,7 +59,7 @@ select
   'Well-equipped Physics, Chemistry and Biology labs providing hands-on learning opportunities for students.',
   'FlaskConical',
   coalesce(
-    (select image_url from section_cards where section = 'facilities_preview' and title = 'Science Laboratories' and is_default = true),
+    (select image_url from section_cards where section = 'facilities_preview'),
     (select current_url from site_media where slot = 'facilities_preview_2'),
     '/images/news/n2.jpg'
   ),
@@ -72,7 +72,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'campus_facilities' and title = 'Science Laboratories' and is_default = true
+  where section = 'campus_facilities'
 );
 
 insert into section_cards (
@@ -85,7 +85,7 @@ select
   'Modern computer lab with high-speed internet and latest software for digital literacy and programming skills.',
   'Laptop',
   coalesce(
-    (select image_url from section_cards where section = 'facilities_preview' and title = 'Computer Lab' and is_default = true),
+    (select image_url from section_cards where section = 'facilities_preview'),
     (select current_url from site_media where slot = 'facilities_preview_3'),
     '/images/news/n4.jpg'
   ),
@@ -98,7 +98,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'campus_facilities' and title = 'Computer Lab' and is_default = true
+  where section = 'campus_facilities'
 );
 
 insert into section_cards (
@@ -111,7 +111,7 @@ select
   'A vast collection of over 10,000 books, periodicals and digital resources fostering a love for reading.',
   'BookOpen',
   coalesce(
-    (select image_url from section_cards where section = 'facilities_preview' and title = 'Library' and is_default = true),
+    (select image_url from section_cards where section = 'facilities_preview'),
     (select current_url from site_media where slot = 'facilities_preview_4'),
     '/images/news/n6.jpg'
   ),
@@ -124,7 +124,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'campus_facilities' and title = 'Library' and is_default = true
+  where section = 'campus_facilities'
 );
 
 -- Last 4: campus-page-only.
@@ -148,7 +148,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'campus_facilities' and title = 'Sports Grounds' and is_default = true
+  where section = 'campus_facilities'
 );
 
 insert into section_cards (
@@ -170,7 +170,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'campus_facilities' and title = 'Auditorium' and is_default = true
+  where section = 'campus_facilities'
 );
 
 insert into section_cards (
@@ -192,7 +192,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'campus_facilities' and title = 'Indoor Games' and is_default = true
+  where section = 'campus_facilities'
 );
 
 insert into section_cards (
@@ -214,7 +214,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'campus_facilities' and title = 'Transport' and is_default = true
+  where section = 'campus_facilities'
 );
 
 delete from site_media where slot in (

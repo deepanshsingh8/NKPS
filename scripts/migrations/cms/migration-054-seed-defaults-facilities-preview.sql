@@ -36,7 +36,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'facilities_preview' and title = 'Smart Classrooms' and is_default = true
+  where section = 'facilities_preview'
 );
 
 insert into section_cards (
@@ -58,7 +58,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'facilities_preview' and title = 'Science Laboratories' and is_default = true
+  where section = 'facilities_preview'
 );
 
 insert into section_cards (
@@ -80,7 +80,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'facilities_preview' and title = 'Computer Lab' and is_default = true
+  where section = 'facilities_preview'
 );
 
 insert into section_cards (
@@ -102,7 +102,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'facilities_preview' and title = 'Library' and is_default = true
+  where section = 'facilities_preview'
 );
 
 delete from site_media where slot in (

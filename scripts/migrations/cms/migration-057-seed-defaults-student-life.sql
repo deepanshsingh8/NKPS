@@ -33,7 +33,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'activities' and title = 'Music & Dance' and is_default = true
+  where section = 'activities'
 );
 
 insert into section_cards (
@@ -55,7 +55,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'activities' and title = 'Art & Craft' and is_default = true
+  where section = 'activities'
 );
 
 insert into section_cards (
@@ -77,7 +77,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'activities' and title = 'Debate & Elocution' and is_default = true
+  where section = 'activities'
 );
 
 insert into section_cards (
@@ -99,7 +99,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'activities' and title = 'Quiz Competitions' and is_default = true
+  where section = 'activities'
 );
 
 insert into section_cards (
@@ -121,7 +121,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'activities' and title = 'Literary Club' and is_default = true
+  where section = 'activities'
 );
 
 insert into section_cards (
@@ -143,7 +143,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'activities' and title = 'Science Club' and is_default = true
+  where section = 'activities'
 );
 
 -- ─── Annual events (4 cards, text only) ────────────────────────────
@@ -165,7 +165,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'annual_events' and title = 'Annual Day' and is_default = true
+  where section = 'annual_events'
 );
 
 insert into section_cards (
@@ -185,7 +185,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'annual_events' and title = 'Sports Day (Chakravyuh)' and is_default = true
+  where section = 'annual_events'
 );
 
 insert into section_cards (
@@ -205,7 +205,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'annual_events' and title = 'Republic & Independence Day' and is_default = true
+  where section = 'annual_events'
 );
 
 insert into section_cards (
@@ -225,7 +225,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'annual_events' and title = 'Science Exhibition' and is_default = true
+  where section = 'annual_events'
 );
 
 delete from site_media where slot in (

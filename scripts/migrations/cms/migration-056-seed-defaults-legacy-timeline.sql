@@ -24,7 +24,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'legacy_timeline' and year = '1985' and title = 'Foundation' and is_default = true
+  where section = 'legacy_timeline'
 );
 
 insert into section_cards (
@@ -44,7 +44,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'legacy_timeline' and year = '1990' and title = 'CBSE Affiliation' and is_default = true
+  where section = 'legacy_timeline'
 );
 
 insert into section_cards (
@@ -64,7 +64,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'legacy_timeline' and year = '2000' and title = 'Campus Expansion' and is_default = true
+  where section = 'legacy_timeline'
 );
 
 insert into section_cards (
@@ -84,7 +84,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'legacy_timeline' and year = '2010' and title = 'Digital Era' and is_default = true
+  where section = 'legacy_timeline'
 );
 
 insert into section_cards (
@@ -104,7 +104,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'legacy_timeline' and year = '2024' and title = '20000+ Students' and is_default = true
+  where section = 'legacy_timeline'
 );
 
 commit;

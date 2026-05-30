@@ -32,7 +32,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'latest_updates' and title = 'Admissions Open 2026-27' and is_default = true
+  where section = 'latest_updates'
 );
 
 insert into section_cards (
@@ -54,7 +54,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'latest_updates' and title = 'Annual Sports Meet' and is_default = true
+  where section = 'latest_updates'
 );
 
 insert into section_cards (
@@ -76,7 +76,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'latest_updates' and title = 'Board Exam Preparation' and is_default = true
+  where section = 'latest_updates'
 );
 
 delete from site_media where slot in (

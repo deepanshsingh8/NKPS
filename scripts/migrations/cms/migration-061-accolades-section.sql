@@ -48,7 +48,7 @@ select * from (values
   ('accolades', 'Sports & Cultural Honours', 'Award-winning performances by our students in district, state and national level competitions.', '/images/gallery/g3.jpg', 2, true, true, null::jsonb)
 ) as v(section, title, description, image_url, sort_order, is_active, is_default, default_snapshot)
 where not exists (
-  select 1 from section_cards sc where sc.section = 'accolades' and sc.title = v.title
+  select 1 from section_cards sc where sc.section = 'accolades'
 );
 
 commit;

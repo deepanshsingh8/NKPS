@@ -31,7 +31,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'hero_slider' and title = E'Best CBSE School\nin Jaipur' and is_default = true
+  where section = 'hero_slider'
 );
 
 insert into section_cards (
@@ -55,7 +55,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'hero_slider' and title = E'Excellence in\nCBSE Education' and is_default = true
+  where section = 'hero_slider'
 );
 
 insert into section_cards (
@@ -79,7 +79,7 @@ select
   )
 where not exists (
   select 1 from section_cards
-  where section = 'hero_slider' and title = E'Leaders Are\nMade Here' and is_default = true
+  where section = 'hero_slider'
 );
 
 delete from site_media where slot in (

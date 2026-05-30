@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     template: "%s | NK Public School",
   },
   description:
-    "NK Public School (NKPS), Rajawas — a CBSE affiliated co-educational school in Jaipur offering Nursery to Class XII. 40+ years of holistic education, 20,000+ students, 300+ faculty.",
+    "NK Public School (NKPS), Rajawas — a CBSE affiliated co-educational school in Jaipur offering Nursery to Class XII. 40+ years of holistic education, 4,000+ students, 200+ faculty.",
   keywords: [
     "NK Public School",
     "NKPS",

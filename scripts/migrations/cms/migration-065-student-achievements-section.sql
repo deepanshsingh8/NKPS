@@ -48,7 +48,7 @@ select * from (values
   ('student_achievements', 'Diya Agarwal', 'National Science Olympiad Rank', '2023', 'Secured an All-India rank in the National Science Olympiad, among the top performers nationwide.', '/images/gallery/st3.jpg', 2, true, true, null::jsonb)
 ) as v(section, name, title, year, description, image_url, sort_order, is_active, is_default, default_snapshot)
 where not exists (
-  select 1 from section_cards sc where sc.section = 'student_achievements' and sc.name = v.name
+  select 1 from section_cards sc where sc.section = 'student_achievements'
 );
 
 commit;
