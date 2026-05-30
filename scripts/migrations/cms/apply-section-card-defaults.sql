@@ -387,13 +387,22 @@ select 'why_choose_us', 'Smart Classrooms',
 where not exists (select 1 from section_cards where section='why_choose_us' and title='Smart Classrooms' and is_default=true);
 
 insert into section_cards (section, title, description, icon, sort_order, is_active, is_default, default_snapshot)
-select 'why_choose_us', '100% Board Results',
+select 'why_choose_us', 'Exceptional Board Results',
   'We are proud of our consistent academic performance in CBSE board examinations.',
   'Trophy', 3, true, true,
-  jsonb_build_object('title','100% Board Results',
+  jsonb_build_object('title','Exceptional Board Results',
     'description','We are proud of our consistent academic performance in CBSE board examinations.',
     'icon','Trophy')
-where not exists (select 1 from section_cards where section='why_choose_us' and title='100% Board Results' and is_default=true);
+where not exists (select 1 from section_cards where section='why_choose_us' and title='Exceptional Board Results' and is_default=true);
+
+insert into section_cards (section, title, description, icon, sort_order, is_active, is_default, default_snapshot)
+select 'why_choose_us', 'Sports Brilliance',
+  'Our students excel on the field, winning laurels at district, state and national level competitions.',
+  'Medal', 4, true, true,
+  jsonb_build_object('title','Sports Brilliance',
+    'description','Our students excel on the field, winning laurels at district, state and national level competitions.',
+    'icon','Medal')
+where not exists (select 1 from section_cards where section='why_choose_us' and title='Sports Brilliance' and is_default=true);
 
 commit;
 

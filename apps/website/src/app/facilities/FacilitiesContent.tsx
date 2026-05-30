@@ -1,7 +1,8 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Monitor,
   FlaskConical,
@@ -12,6 +13,8 @@ import {
   Gamepad2,
   Bus,
   CheckCircle,
+  ZoomIn,
+  X,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
@@ -74,6 +77,21 @@ export function FacilitiesContent({ heroImage, cards }: FacilitiesContentProps) 
     icon: c.icon || "Monitor",
     image: c.image_url || "/images/news/n1.jpg",
   }));
+
+  // Lightbox: click a facility image to view it full-size.
+  const [lightbox, setLightbox] = useState<{ src: string; title: string } | null>(null);
+  const closeLightbox = useCallback(() => setLightbox(null), []);
+
+  // Close on Escape while the lightbox is open.
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeLightbox();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox, closeLightbox]);
+
   return (
     <PageTransition>
       <PageHeader
@@ -135,15 +153,31 @@ export function FacilitiesContent({ heroImage, cards }: FacilitiesContentProps) 
                       index % 2 === 1 && "sm:flex-row-reverse"
                     )}
                   >
-                    {/* Image */}
-                    <div className="relative h-56 w-full shrink-0 overflow-hidden sm:h-auto sm:w-2/5">
+                    {/* Image — click to view full-size */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`View larger image of ${facility.title}`}
+                      onClick={() => setLightbox({ src: image, title: facility.title })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setLightbox({ src: image, title: facility.title });
+                        }
+                      }}
+                      className="relative h-56 w-full shrink-0 cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold-500 sm:h-auto sm:w-2/5"
+                    >
                       <Image
                         src={image}
                         alt={facility.title}
                         fill
                         className="object-cover transition-transform duration-700 group-hover:scale-110"
                       />
-                      <div className="absolute inset-0 bg-navy-950/20 transition-opacity duration-500 group-hover:opacity-0" />
+                      <div className="absolute inset-0 flex items-center justify-center bg-navy-950/20 transition-colors duration-500 group-hover:bg-navy-950/40">
+                        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-white opacity-0 backdrop-blur-sm transition-opacity duration-300 group-hover:opacity-100">
+                          <ZoomIn className="h-6 w-6" />
+                        </span>
+                      </div>
                     </div>
 
                     {/* Content */}
@@ -207,6 +241,53 @@ export function FacilitiesContent({ heroImage, cards }: FacilitiesContentProps) 
           </motion.div>
         </div>
       </section>
+
+      {/* Lightbox — full-size facility image */}
+      <AnimatePresence>
+        {lightbox && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 md:p-8"
+            onClick={closeLightbox}
+            role="dialog"
+            aria-modal="true"
+            aria-label={lightbox.title}
+          >
+            <button
+              onClick={closeLightbox}
+              className="absolute right-4 top-4 z-10 rounded-full bg-white/10 p-2.5 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="relative max-h-[85vh] max-w-[92vw] md:max-w-[80vw]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Image
+                src={lightbox.src}
+                alt={lightbox.title}
+                width={1600}
+                height={1000}
+                className="max-h-[85vh] w-auto rounded-lg object-contain"
+              />
+              <div className="absolute inset-x-0 bottom-0 rounded-b-lg bg-gradient-to-t from-black/80 to-transparent px-6 py-4">
+                <p className="text-center font-medium text-white">
+                  {lightbox.title}
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </PageTransition>
   );
 }

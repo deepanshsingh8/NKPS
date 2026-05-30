@@ -51,7 +51,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "NK Public School — Best CBSE School in Jaipur Since 1985",
     description:
-      "Premier CBSE school in Jaipur offering holistic education from Nursery to Class XII. 40+ years, 20,000+ students.",
+      "Premier CBSE school in Jaipur offering holistic education from Nursery to Class XII. 40+ years, 4,000+ students.",
     url: SITE_URL,
     type: "website",
     locale: "en_IN",

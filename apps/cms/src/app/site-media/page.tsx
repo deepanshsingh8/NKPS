@@ -58,6 +58,8 @@ const SECTION_LABELS: Record<string, string> = {
   accolades: "School Accolades",
   student_achievements: "Student Achievements",
   alumni: "Alumni Achievements",
+  sports_indoor: "Sports — Indoor",
+  sports_outdoor: "Sports — Outdoor",
 };
 
 // Sections that support dynamic cards
@@ -74,6 +76,8 @@ const CARD_ENABLED_SECTIONS: SectionCardType[] = [
   "accolades",
   "student_achievements",
   "alumni",
+  "sports_indoor",
+  "sports_outdoor",
 ];
 
 const SECTION_FIELD_MAP: Record<SectionCardType, { required: string[]; optional: string[] }> = {
@@ -124,6 +128,14 @@ const SECTION_FIELD_MAP: Record<SectionCardType, { required: string[]; optional:
   alumni: {
     required: ["name"],
     optional: ["year", "designation", "description"],
+  },
+  sports_indoor: {
+    required: ["title"],
+    optional: [],
+  },
+  sports_outdoor: {
+    required: ["title"],
+    optional: [],
   },
 };
 
@@ -230,7 +242,7 @@ const SECTION_ORDER: Record<string, string[]> = {
     "why_choose_us",
   ],
   facilities: ["campus_facilities"],
-  "student-life": ["activities", "annual_events"],
+  "student-life": ["activities", "sports_indoor", "sports_outdoor", "annual_events"],
   alumni: ["alumni"],
   global: ["branding"],
 };
@@ -855,6 +867,8 @@ export default function AdminSiteMediaPage() {
     annual_events: "student-life",
     campus_facilities: "facilities",
     alumni: "alumni",
+    sports_indoor: "student-life",
+    sports_outdoor: "student-life",
   };
 
   const grouped = groupMedia(items);

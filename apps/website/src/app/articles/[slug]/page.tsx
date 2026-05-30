@@ -6,7 +6,13 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ArrowLeft, Calendar, User } from "lucide-react";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
+import {
+  FacebookIcon,
+  InstagramIcon,
+  YoutubeIcon,
+} from "@nkps/shared/components/SocialIcons";
 import { getArticleBySlug, getPublishedArticles } from "@nkps/shared/lib/articles";
+import { SCHOOL } from "@nkps/shared/lib/constants";
 import { SITE_URL } from "@nkps/shared/lib/seo";
 
 export const revalidate = 300;
@@ -191,14 +197,57 @@ export default async function ArticleDetailPage({ params }: PageProps) {
             </ReactMarkdown>
           </div>
 
+          {/* Follow us — shown at the bottom of every article by default */}
           <div className="mt-12 pt-8 border-t border-gray-100">
-            <Link
-              href="/articles"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-navy-900 hover:text-gold-600 transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to all articles
-            </Link>
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-heading text-base font-semibold text-navy-900">
+                  Follow {SCHOOL.name}
+                </p>
+                <p className="mt-0.5 text-sm text-gray-500">
+                  Stay connected for the latest updates, events and achievements.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Link
+                  href={SCHOOL.social.facebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Facebook"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-cream-50 text-navy-900 transition-colors hover:bg-navy-900 hover:text-white"
+                >
+                  <FacebookIcon className="h-5 w-5" />
+                </Link>
+                <Link
+                  href={SCHOOL.social.instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Instagram"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-cream-50 text-navy-900 transition-colors hover:bg-navy-900 hover:text-white"
+                >
+                  <InstagramIcon className="h-5 w-5" />
+                </Link>
+                <Link
+                  href={SCHOOL.social.youtube}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="YouTube"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-cream-50 text-navy-900 transition-colors hover:bg-navy-900 hover:text-white"
+                >
+                  <YoutubeIcon className="h-5 w-5" />
+                </Link>
+              </div>
+            </div>
+
+            <div className="mt-8">
+              <Link
+                href="/articles"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-navy-900 hover:text-gold-600 transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to all articles
+              </Link>
+            </div>
           </div>
         </div>
       </article>

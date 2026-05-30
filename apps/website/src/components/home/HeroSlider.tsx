@@ -10,10 +10,10 @@ import { useMouseMotion } from "@nkps/shared/hooks/useMousePosition";
 import type { SectionCard } from "@nkps/shared/types";
 
 const stats = [
-  { number: "20,000+", label: "Students", icon: Users },
+  { number: "4,000+", label: "Students", icon: Users },
   { number: "40+", label: "Years", icon: CalendarDays },
-  { number: "300+", label: "Faculty", icon: GraduationCap },
-  { number: "6", label: "Institutes", icon: Building2 },
+  { number: "200+", label: "Faculty", icon: GraduationCap },
+  { number: "4", label: "Institutes", icon: Building2 },
 ];
 
 const INTERVAL = 7000;
@@ -213,11 +213,14 @@ export function HeroSlider({ cards }: HeroSliderProps = {}) {
           }}
           style={{ x: bgX, y: bgY }}
         >
+          {/* On phones we letterbox (object-contain) against the navy backdrop
+              so the full landscape campus photo stays visible; from md up we go
+              full-bleed (object-cover). */}
           <Image
             src={activeSlide.image}
             alt={activeSlide.alt}
             fill
-            className="object-cover"
+            className="object-contain md:object-cover"
             priority={safeCurrent === 0}
             sizes="100vw"
           />
@@ -332,14 +335,14 @@ export function HeroSlider({ cards }: HeroSliderProps = {}) {
               <FadeIn delay={0} duration={600} className="block mb-5">
                 <Link
                   href="/admissions"
-                  className="group inline-flex items-center gap-2 rounded-full border border-gold-400/40 bg-gold-400/10 px-4 py-1.5 text-sm font-medium text-gold-300 backdrop-blur-sm transition-all duration-300 hover:bg-gold-400/20 hover:text-gold-200"
+                  className="group inline-flex items-center gap-2.5 rounded-full border-2 border-gold-400/40 bg-gold-400/10 px-6 py-3 text-base md:text-lg font-semibold text-gold-300 backdrop-blur-sm animate-admission-flash transition-colors duration-300 hover:bg-gold-400/20 hover:text-gold-200"
                 >
-                  <span className="relative flex h-2 w-2">
+                  <span className="relative flex h-2.5 w-2.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-400/70" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-gold-400" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-gold-400" />
                   </span>
                   Admissions Open 2026&ndash;27
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
+                  <ArrowRight className="h-4 w-4 md:h-5 md:w-5 transition-transform duration-300 group-hover:translate-x-0.5" />
                 </Link>
               </FadeIn>
 
@@ -392,7 +395,7 @@ export function HeroSlider({ cards }: HeroSliderProps = {}) {
               >
                 <div className="liquid-glass border border-white/15 px-6 py-3.5 rounded-xl gold-glow-sm">
                   <p className="text-lg md:text-xl lg:text-2xl font-light text-white/90 tracking-tight">
-                    CBSE Affiliated&ensp;&middot;&ensp;Est. 1985&ensp;&middot;&ensp;6 Campuses
+                    CBSE Affiliated&ensp;&middot;&ensp;Est. 1985&ensp;&middot;&ensp;4 Campuses
                   </p>
                 </div>
               </FadeIn>

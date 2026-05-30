@@ -63,6 +63,7 @@ export default async function AcademicCalendarPage() {
     .select("*")
     .gte("start_date", today)
     .is("class_id", null)
+    .eq("is_public", true) // Only events the admin marked public
     .order("start_date", { ascending: true });
 
   const events = (data as CalendarEvent[] | null) ?? [];

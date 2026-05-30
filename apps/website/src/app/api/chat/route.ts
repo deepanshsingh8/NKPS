@@ -16,11 +16,11 @@ Here is everything about NK Public School:
 - Founded: 1985
 - Affiliation: CBSE (Central Board of Secondary Education)
 - Classes: Nursery to Class XII
-- Total Students: 10,000+
+- Total Students: 4,000+
 - Total Faculty: 200+
-- Number of Institutes: 6
+- Number of Institutes: 4
 - Years of Excellence: 40+
-- Alumni Network: 10,000+
+- Alumni Network: 20,000+
 - Awards Won: 50+
 - Board Results: 100%
 

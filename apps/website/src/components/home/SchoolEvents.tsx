@@ -42,6 +42,7 @@ export function SchoolEvents() {
         .select("*")
         .gte("start_date", today)
         .is("class_id", null) // Only school-wide events
+        .eq("is_public", true) // Only events the admin marked public
         .order("start_date", { ascending: true })
         .limit(6);
 
