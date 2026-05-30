@@ -743,11 +743,16 @@ export const staffCreateSchema = z.object({
   category: staffCategoryEnum,
   photo_url: z.string().url().optional().or(z.literal("")),
   sort_order: z.number().int().min(0).max(100000).optional(),
-  email: z.string().email("Invalid email").optional().or(z.literal("")),
-  phone: phoneOptionalSchema.optional().or(z.literal("")),
-  date_of_birth: dobOptionalSchema,
-  address: optionalNullableString,
-  qualifications: optionalNullableString,
+  // The edit form sends `null` (not "") for optional fields the admin leaves
+  // blank or clears, so these must accept null in addition to ""/undefined —
+  // otherwise an otherwise-valid staff/teacher update is rejected with
+  // "Invalid data". null is written through to the (nullable) columns to
+  // clear them.
+  email: z.string().email("Invalid email").nullish().or(z.literal("")),
+  phone: phoneOptionalSchema.nullish().or(z.literal("")),
+  date_of_birth: dobOptionalSchema.nullable(),
+  address: optionalNullableString.nullable(),
+  qualifications: optionalNullableString.nullable(),
 });
 
 // PATCH allows any subset of the create fields (plus the row id, handled

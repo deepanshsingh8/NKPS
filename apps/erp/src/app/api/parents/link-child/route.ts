@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     // Verify caller is a parent with a linked parent record
     const { data: profile } = await serverSupabase
       .from("profiles")
-      .select("role, parent_id")
+      .select("role, parent_id, full_name, email, phone")
       .eq("id", user.id)
       .single();
 
@@ -32,9 +32,72 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!profile.parent_id) {
+    // A verified parent account can end up without a linked `parents` row when
+    // the row's insert was skipped or failed at account-creation time — most
+    // commonly a duplicate parents.email (the column is UNIQUE), which the
+    // create/approve flows only log. Rather than dead-end the parent with
+    // "contact administration", self-heal: adopt the existing parents row that
+    // matches this account's email, or provision a fresh one from the profile,
+    // then link it. The per-child relationship is still captured below in
+    // student_parents, so a default here is fine.
+    let parentId = profile.parent_id as string | null;
+    if (!parentId) {
+      const heal = createAdminClient();
+      if (profile.email) {
+        const { data: existing } = await heal
+          .from("parents")
+          .select("id")
+          .eq("email", profile.email)
+          .maybeSingle();
+        parentId = existing?.id ?? null;
+      }
+      if (!parentId) {
+        const { data: created, error: createErr } = await heal
+          .from("parents")
+          .insert({
+            full_name: profile.full_name,
+            email: profile.email,
+            phone: profile.phone || "",
+            relationship: "guardian",
+          })
+          .select("id")
+          .single();
+        if (createErr || !created) {
+          console.error("Failed to provision parent record:", createErr);
+          return NextResponse.json(
+            {
+              error:
+                "Parent profile not set up. Please contact the school administration.",
+            },
+            { status: 403 }
+          );
+        }
+        parentId = created.id;
+      }
+      const { error: linkErr } = await heal
+        .from("profiles")
+        .update({ parent_id: parentId })
+        .eq("id", user.id);
+      if (linkErr) {
+        console.error("Failed to link parent_id to profile:", linkErr);
+        return NextResponse.json(
+          {
+            error:
+              "Parent profile not set up. Please contact the school administration.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Provisioning above either resolved a parent id or returned; this guard
+    // makes that invariant explicit (and narrows the type for the rest).
+    if (!parentId) {
       return NextResponse.json(
-        { error: "Parent profile not set up. Please contact the school administration." },
+        {
+          error:
+            "Parent profile not set up. Please contact the school administration.",
+        },
         { status: 403 }
       );
     }
@@ -45,7 +108,7 @@ export async function POST(request: Request) {
     // Generous enough that a parent linking a few siblings will never hit it.
     const parentLimit = rateLimit({
       name: "link-child:parent",
-      key: profile.parent_id,
+      key: parentId,
       max: 5,
       windowSeconds: 30 * 60,
     });
@@ -121,7 +184,7 @@ export async function POST(request: Request) {
       .from("student_parents")
       .select("id")
       .eq("student_id", student.id)
-      .eq("parent_id", profile.parent_id)
+      .eq("parent_id", parentId)
       .single();
 
     if (existingLink) {
@@ -137,7 +200,7 @@ export async function POST(request: Request) {
     const { count: ownChildrenCount } = await supabase
       .from("student_parents")
       .select("id", { count: "exact", head: true })
-      .eq("parent_id", profile.parent_id);
+      .eq("parent_id", parentId);
     if ((ownChildrenCount ?? 0) >= MAX_CHILDREN_PER_PARENT) {
       return NextResponse.json(
         {
@@ -161,7 +224,7 @@ export async function POST(request: Request) {
       .from("student_parents")
       .insert({
         student_id: student.id,
-        parent_id: profile.parent_id,
+        parent_id: parentId,
         relationship,
         is_primary_contact: isPrimary,
       });
