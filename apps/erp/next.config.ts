@@ -2,16 +2,21 @@ import type { NextConfig } from "next";
 
 // Content-Security-Policy. 'unsafe-inline' on script-src is required by Next's
 // App Router (nonce-less inline hydration scripts); the other directives still
-// constrain exfiltration and clickjacking. Origins: Supabase (storage images),
-// OpenStreetMap tiles (transport slab map base layer), Nominatim/OpenStreetMap
-// (transport address geocoding fetch).
+// constrain exfiltration and clickjacking. Origins:
+//   - Supabase: storage images (img) + REST/auth (connect)
+//   - OpenStreetMap tiles: transport slab map base layer (img)
+//   - Nominatim: transport address geocoding fallback fetch (connect)
+//   - Google Maps JS API: Places Autocomplete on the transport address fields.
+//     The js-api-loader injects scripts from maps.googleapis.com/maps.gstatic.com
+//     (script), the widget XHRs to maps.googleapis.com (connect), and its
+//     dropdown shows the "powered by Google" logo from maps.gstatic.com (img).
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://maps.gstatic.com",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://*.supabase.co https://*.tile.openstreetmap.org https://tile.openstreetmap.org",
+  "img-src 'self' data: blob: https://*.supabase.co https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://maps.googleapis.com https://maps.gstatic.com",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co https://nominatim.openstreetmap.org",
+  "connect-src 'self' https://*.supabase.co https://nominatim.openstreetmap.org https://maps.googleapis.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
