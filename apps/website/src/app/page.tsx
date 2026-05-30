@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { HeroSlider } from "@/components/home/HeroSlider";
 import { QuickLinks } from "@/components/home/QuickLinks";
 import { FacilitiesPreview } from "@/components/home/FacilitiesPreview";
+import { NewsAchievements } from "@/components/home/NewsAchievements";
 import { StatsCounter } from "@/components/home/StatsCounter";
-import { LatestUpdates } from "@/components/home/LatestUpdates";
 import { Testimonials } from "@/components/home/Testimonials";
 import { SchoolEvents } from "@/components/home/SchoolEvents";
 import { SectionDivider } from "@nkps/shared/components/SectionDivider";
@@ -24,11 +24,13 @@ export const metadata: Metadata = buildMetadata({
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const [media, heroCards, testimonialCards, facilityCards, latestArticles] = await Promise.all([
+  const [media, heroCards, testimonialCards, facilityCards, accoladeCards, studentAchievementCards, latestArticles] = await Promise.all([
     getPageMedia("home"),
     getSectionCards("hero_slider"),
     getSectionCards("testimonials"),
     getSectionCards("facilities_preview"),
+    getSectionCards("accolades"),
+    getSectionCards("student_achievements"),
     getLatestArticles(9),
   ]);
 
@@ -79,9 +81,13 @@ export default async function HomePage() {
 
       <FacilitiesPreview cards={facilityCards} />
 
-      <StatsCounter backgroundImage={statsBackground} />
+      <NewsAchievements
+        articles={latestArticles}
+        studentAchievements={studentAchievementCards}
+        accolades={accoladeCards}
+      />
 
-      <LatestUpdates articles={latestArticles} />
+      <StatsCounter backgroundImage={statsBackground} />
 
       <SchoolEvents />
 

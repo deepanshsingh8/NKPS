@@ -204,6 +204,11 @@ export async function POST(request: Request) {
       }
     }
 
+    // Surfaced to the admin UI when the parent's child link couldn't be made,
+    // so they know to fix it via the "Link record" tool rather than assuming
+    // the parent is fully set up.
+    let linkWarning: string | null = null;
+
     // For parent role: create a parents record, link profile, and create student_parents junction
     if (role === "parent" && newUser.user) {
       const { data: parentRecord, error: parentError } = await supabase
@@ -243,13 +248,17 @@ export async function POST(request: Request) {
 
             if (junctionError) {
               console.error("Failed to create student_parents link:", junctionError);
+              linkWarning = `Account created, but linking to the child could not be completed. Use the "Link record" tool to connect ${full_name} to admission no ${registration.student_admission_no}.`;
             }
           } else {
             console.error(
               "Student not found for admission_no:",
               registration.student_admission_no
             );
+            linkWarning = `Account created, but no student matches admission no "${registration.student_admission_no}". Link ${full_name} to the correct student via the "Link record" tool.`;
           }
+        } else {
+          linkWarning = `Account created without a child link (no admission number was provided). Use the "Link record" tool to connect ${full_name} to a student.`;
         }
       } else {
         console.error("Failed to create parent record:", parentError);
@@ -288,6 +297,7 @@ export async function POST(request: Request) {
       email,
       email_delivered: emailDelivered,
       ...(emailDelivered ? {} : { generated_password: password }),
+      ...(linkWarning ? { link_warning: linkWarning } : {}),
     });
   } catch (err) {
     console.error("Approve registration error:", err);

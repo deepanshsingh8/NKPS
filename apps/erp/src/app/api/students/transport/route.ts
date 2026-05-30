@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
+import { SCHOOL, haversineKm } from "@nkps/shared/lib/geo";
 import { z } from "zod";
 
 // POST /api/students/transport
@@ -15,7 +16,14 @@ import { z } from "zod";
 //   - The body shape is different enough (pickup coords, reason) that
 //     overloading PATCH would obscure the audit contract.
 
-const SCHOOL = { lat: 27.0688458, lng: 75.7495752 };
+// Road distance is computed in the browser (referrer-restricted key) and sent
+// here. We can't recompute it server-side without a server key, so we GUARD it
+// against the straight-line distance we CAN compute: a real road can't be
+// shorter than the crow-flies line, and it shouldn't be wildly longer either.
+// These bounds catch a tampered/garbage value before it bills a family.
+const ROAD_FLOOR_SLACK_KM = 0.1; // rounding slack on the >= straight-line floor
+const MAX_DETOUR_RATIO = 3; // road km ceiling = straight-line * ratio + slack
+const DETOUR_SLACK_KM = 2; // absolute slack so short trips aren't false-flagged
 
 const bodySchema = z.object({
   enrollment_id: z.string().uuid(),
@@ -23,30 +31,25 @@ const bodySchema = z.object({
   // Pickup address is optional — schools may opt in to transport before
   // collecting a full address (the student starts on the bus today but
   // the parent will WhatsApp the address tomorrow). When provided, we
-  // require both coordinates so the haversine math has something to chew.
+  // require both coordinates so the distance math has something to chew.
   pickup_address: z.string().trim().nullable().optional(),
   pickup_lat: z.number().min(-90).max(90).nullable().optional(),
   pickup_lng: z.number().min(-180).max(180).nullable().optional(),
   // Slab is required when has_transport=true.
   slab_id: z.string().uuid().nullable().optional(),
   // Required iff the admin picks a slab that differs from what auto-pick
-  // would suggest given pickup_lat/lng. Trimmed and lower-bounded so the
+  // would suggest given the road distance. Trimmed and lower-bounded so the
   // audit isn't "asdf".
   override_reason: z.string().trim().min(3).nullable().optional(),
+  // Road-distance provenance. road_distance_km is the browser-computed driving
+  // distance; distance_source distinguishes an auto-computed fare from a manual
+  // one (Google failed / no coords). straight_line_km is NOT trusted from the
+  // client — we recompute it from the coords below.
+  road_distance_km: z.number().positive().max(500).nullable().optional(),
+  distance_source: z.enum(["google_routes", "manual"]).nullable().optional(),
+  pickup_place_id: z.string().trim().max(300).nullable().optional(),
+  pickup_route_polyline: z.string().max(20000).nullable().optional(),
 });
-
-function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number) {
-  const R = 6371;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(bLat - aLat);
-  const dLng = toRad(bLng - aLng);
-  const lat1 = toRad(aLat);
-  const lat2 = toRad(bLat);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
 
 export async function POST(request: NextRequest) {
   const access = await verifyAdminOrEditorWithUser("fees");
@@ -93,7 +96,14 @@ export async function POST(request: NextRequest) {
         transport_slab_overridden_at: null,
         transport_slab_overridden_by: null,
         transport_slab_override_reason: null,
-        // pickup_address / pickup_lat / pickup_lng intentionally retained.
+        // No active fare → clear the billed-distance provenance. The pickup
+        // geometry (address / coords / place_id / polyline) is intentionally
+        // retained so a parent who flips back later needn't re-enter it.
+        road_distance_km: null,
+        straight_line_km: null,
+        distance_source: null,
+        distance_computed_at: null,
+        distance_computed_by: null,
       })
       .eq("id", body.enrollment_id);
     if (error) {
@@ -146,18 +156,61 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Compute the suggested slab from the pickup coords (when known). When
-  // no coords are supplied, the assignment can't be audited as override —
-  // we still allow the save but record null as the suggested id.
-  let suggestedId: string | null = null;
-  if (hasLat && hasLng) {
-    const distanceKm = haversineKm(
-      SCHOOL.lat,
-      SCHOOL.lng,
-      body.pickup_lat as number,
-      body.pickup_lng as number
-    );
+  // Straight-line distance is the one number we can compute authoritatively
+  // server-side — the floor and sanity bound for the browser-sent road km.
+  const straightLineKm =
+    hasLat && hasLng
+      ? haversineKm(
+          SCHOOL.lat,
+          SCHOOL.lng,
+          body.pickup_lat as number,
+          body.pickup_lng as number
+        )
+      : null;
 
+  // A fare is "verifiable" (auto-slabbed + audit-checkable) only when it came
+  // from a real road distance against confirmed coordinates. Anything else
+  // (Google failed, no coords) is a manual assignment that needs a reason.
+  let roadKm: number | null = null;
+  let verifiable = false;
+  if (body.distance_source === "google_routes") {
+    if (
+      !hasLat ||
+      !hasLng ||
+      body.road_distance_km == null ||
+      straightLineKm == null
+    ) {
+      return NextResponse.json(
+        { error: "Road distance requires a confirmed pickup point." },
+        { status: 400 }
+      );
+    }
+    roadKm = body.road_distance_km;
+    if (roadKm < straightLineKm - ROAD_FLOOR_SLACK_KM) {
+      return NextResponse.json(
+        {
+          error:
+            "Road distance is shorter than the straight-line distance — recompute the point, or assign a slab manually with a reason.",
+        },
+        { status: 400 }
+      );
+    }
+    if (roadKm > straightLineKm * MAX_DETOUR_RATIO + DETOUR_SLACK_KM) {
+      return NextResponse.json(
+        {
+          error:
+            "Road distance looks implausibly long for this location — recompute the point, or assign a slab manually with a reason.",
+        },
+        { status: 400 }
+      );
+    }
+    verifiable = true;
+  }
+
+  // Suggest a slab from the validated road distance. Only meaningful when
+  // verifiable; a manual assignment records no suggestion.
+  let suggestedId: string | null = null;
+  if (verifiable && roadKm != null) {
     const { data: slabs } = await admin
       .from("transport_fare_slabs")
       .select("id, distance_km_min, distance_km_max, is_active, sort_order")
@@ -175,7 +228,7 @@ export async function POST(request: NextRequest) {
         s.distance_km_max == null
           ? Number.POSITIVE_INFINITY
           : Number(s.distance_km_max);
-      if (distanceKm >= min && distanceKm <= max) {
+      if (roadKm >= min && roadKm <= max) {
         suggestedId = s.id;
         break;
       }
@@ -183,25 +236,25 @@ export async function POST(request: NextRequest) {
   }
 
   // Two cases require a justification:
-  //  1. Coords were supplied and the chosen slab differs from the auto-suggested one.
-  //  2. No coords were supplied at all — the assignment can't be auto-verified,
-  //     so an unverifiable manual slab choice must still be justified. Without
-  //     this, a caller could dodge the audit entirely by omitting coordinates
-  //     and silently assign the cheapest slab.
+  //  1. A verifiable fare whose chosen slab differs from the auto-suggested one.
+  //  2. An unverifiable assignment (manual / no road distance) — it can't be
+  //     auto-checked, so the manual choice must be justified. Without this a
+  //     caller could dodge the audit by omitting the road distance.
   const isOverride = suggestedId != null && suggestedId !== body.slab_id;
-  const isUnverifiable = !hasLat || !hasLng;
+  const isUnverifiable = !verifiable;
   if ((isOverride || isUnverifiable) && !body.override_reason) {
     return NextResponse.json(
       {
         error: isOverride
           ? "This slab differs from the suggested slab — a reason is required to override."
-          : "Pickup coordinates are required to auto-verify the fare slab. Provide coordinates, or supply a reason to assign a slab manually.",
+          : "Auto-calculation is unavailable for this pickup. Recompute the road distance, or supply a reason to assign a slab manually.",
       },
       { status: 400 }
     );
   }
 
   const now = new Date().toISOString();
+  const round2 = (n: number) => Math.round(n * 100) / 100;
   const update: Record<string, unknown> = {
     has_transport: true,
     transport_slab_id: body.slab_id,
@@ -209,6 +262,16 @@ export async function POST(request: NextRequest) {
     pickup_address: body.pickup_address ?? null,
     pickup_lat: body.pickup_lat ?? null,
     pickup_lng: body.pickup_lng ?? null,
+    pickup_place_id: body.pickup_place_id ?? null,
+    // Billed-distance provenance.
+    road_distance_km: verifiable && roadKm != null ? round2(roadKm) : null,
+    straight_line_km: straightLineKm != null ? round2(straightLineKm) : null,
+    distance_source: verifiable ? "google_routes" : "manual",
+    distance_computed_at: now,
+    distance_computed_by: user.id,
+    pickup_route_polyline: verifiable
+      ? body.pickup_route_polyline ?? null
+      : null,
   };
   // Record an audit entry whenever a justification was required — either a true
   // override (chosen slab differs from suggestion) or an unverifiable manual

@@ -18,7 +18,7 @@ export function FounderTribute({ photoUrl }: FounderTributeProps = {}) {
             <div className="w-20 h-0.5 bg-gold-500 mx-auto mb-10" />
 
             {/* Avatar */}
-            <div className="w-40 h-40 rounded-full mx-auto mb-6 overflow-hidden border-4 border-gold-500/30">
+            <div className="w-40 h-40 rounded-2xl mx-auto mb-6 overflow-hidden border-4 border-gold-500/30">
               <Image
                 src={photoUrl || "/images/about/rk-choudhary.png"}
                 alt={SCHOOL.founder.name}

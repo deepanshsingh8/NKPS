@@ -6,6 +6,7 @@ import { createClient } from "@nkps/shared/lib/supabase/server";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { canViewReportCard, getReportCardData } from "@/lib/report-card";
 import type { ReportCardExamGroup } from "@/lib/report-card";
+import { getStudentOutstandingDues, dueGateApplies } from "@/lib/student-dues";
 import { ReportCardPDF } from "@/components/pdf/ReportCardPDF";
 import { getPdfTemplate } from "@/lib/pdf-templates";
 import { contentDispositionAttachment } from "@nkps/shared/lib/utils";
@@ -74,6 +75,22 @@ export async function GET(request: Request) {
     const allowed = await canViewReportCard(supabase, user.id, studentId);
     if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Fee-dues gate: students and parents can see results exist but cannot
+    // download the marksheet while fees are outstanding. Admin/staff/teacher are
+    // never blocked. Service-role client so parents are evaluated correctly.
+    if (await dueGateApplies(supabase, user.id)) {
+      const dues = await getStudentOutstandingDues(createAdminClient(), studentId);
+      if (dues.hasOutstanding) {
+        return NextResponse.json(
+          {
+            error: "Outstanding fee dues",
+            message: `Result download is locked until fees are cleared. Outstanding dues: ₹${dues.total.toLocaleString("en-IN")}.`,
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // Caller-role gate (audit H2): students/parents only see published marks

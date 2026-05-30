@@ -1440,7 +1440,7 @@ export default function AdminStudentsPage() {
                       {student.father_name || "\u2014"}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      {student.enrollment_id && selectedClassId ? (
+                      {student.enrollment_id ? (
                         <Select
                           value={student.enrollment_status || "active"}
                           onValueChange={(val) => {

@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import Image from "next/image";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { VisionMission } from "@/components/about/VisionMission";
 import { LegacyTimeline } from "@/components/about/LegacyTimeline";
 import { FounderTribute } from "@/components/about/FounderTribute";
 import { LeadershipGrid } from "@/components/about/LeadershipGrid";
@@ -41,9 +42,11 @@ export default async function AboutPage() {
         ])}
       />
       <PageHeader
-        title="About NK Public School"
+        title="About Us"
         subtitle="Shaping Futures, Building Character"
       />
+
+      <VisionMission />
 
       {/* Hero Image Section */}
       <div className="relative h-[50vh] w-full overflow-hidden">

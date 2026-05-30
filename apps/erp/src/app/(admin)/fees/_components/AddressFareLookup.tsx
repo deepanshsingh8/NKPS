@@ -12,7 +12,12 @@ import {
 } from "@nkps/shared/components/PlacesAutocompleteInput";
 import { toast } from "sonner";
 import type { TransportFareSlab } from "@nkps/shared/types";
-import { SCHOOL_LOCATION, haversineKm } from "./TransportSlabsMap";
+import { SCHOOL, haversineKm } from "@nkps/shared/lib/geo";
+import {
+  roadDistanceKm,
+  RoadDistanceError,
+  isRoadDistanceConfigured,
+} from "@nkps/shared/lib/road-distance";
 
 // Nominatim fallback for environments without a Google Places key. We hit
 // it only on an explicit user action — Nominatim's TOS disallows the
@@ -68,7 +73,14 @@ function pickSlab(distanceKm: number, slabs: TransportFareSlab[]) {
 interface Props {
   slabs: TransportFareSlab[];
   onResult: (
-    pin: { lat: number; lng: number; label: string; distanceKm: number } | null
+    pin: {
+      lat: number;
+      lng: number;
+      label: string;
+      distanceKm: number;
+      routePath?: { lat: number; lng: number }[];
+      straightLine?: boolean;
+    } | null
   ) => void;
 }
 
@@ -89,6 +101,7 @@ export const AddressFareLookup = forwardRef<AddressFareLookupHandle, Props>(
     const [result, setResult] = useState<{
       address: string;
       distanceKm: number;
+      straightLine: boolean;
     } | null>(null);
 
     const matchedSlab = useMemo<TransportFareSlab | null>(
@@ -98,20 +111,47 @@ export const AddressFareLookup = forwardRef<AddressFareLookupHandle, Props>(
 
     const placesReady = isGooglePlacesConfigured();
 
-    const applyResult = (
+    // Resolve a picked point to a distance + slab. Prefers the real ROAD
+    // distance (and the drawable route); falls back to a clearly-labelled
+    // straight-line estimate only when routing is unavailable. This panel is a
+    // slab-planning tool — the per-student billing flow blocks instead of
+    // estimating.
+    const applyResult = async (
       lat: number,
       lng: number,
       address: string,
       pinLabel: string
     ) => {
-      const distance = haversineKm(
-        SCHOOL_LOCATION.lat,
-        SCHOOL_LOCATION.lng,
+      if (isRoadDistanceConfigured()) {
+        try {
+          const r = await roadDistanceKm(SCHOOL, { lat, lng });
+          setResult({ address, distanceKm: r.km, straightLine: false });
+          onResult({
+            lat,
+            lng,
+            label: pinLabel,
+            distanceKm: r.km,
+            routePath: r.path,
+            straightLine: false,
+          });
+          return;
+        } catch (e) {
+          const reason =
+            e instanceof RoadDistanceError ? e.reason : "ROUTE_FAILED";
+          toast.error(
+            `Routing unavailable (${reason}) — showing straight-line estimate`
+          );
+        }
+      }
+      const straight = haversineKm(SCHOOL.lat, SCHOOL.lng, lat, lng);
+      setResult({ address, distanceKm: straight, straightLine: true });
+      onResult({
         lat,
-        lng
-      );
-      setResult({ address, distanceKm: distance });
-      onResult({ lat, lng, label: pinLabel, distanceKm: distance });
+        lng,
+        label: pinLabel,
+        distanceKm: straight,
+        straightLine: true,
+      });
     };
 
     useImperativeHandle(ref, () => ({
@@ -119,7 +159,7 @@ export const AddressFareLookup = forwardRef<AddressFareLookupHandle, Props>(
         const friendlyLabel =
           label ?? `Pinned (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
         setQuery(friendlyLabel);
-        applyResult(lat, lng, friendlyLabel, friendlyLabel.split(",")[0]);
+        void applyResult(lat, lng, friendlyLabel, friendlyLabel.split(",")[0]);
       },
     }));
 
@@ -140,7 +180,7 @@ export const AddressFareLookup = forwardRef<AddressFareLookupHandle, Props>(
           onResult(null);
           return;
         }
-        applyResult(
+        await applyResult(
           geo.lat,
           geo.lng,
           geo.display_name,
@@ -154,7 +194,7 @@ export const AddressFareLookup = forwardRef<AddressFareLookupHandle, Props>(
     };
 
     const handlePlaceSelect = (place: PlaceSelection) => {
-      applyResult(
+      void applyResult(
         place.lat,
         place.lng,
         place.address,
@@ -172,8 +212,8 @@ export const AddressFareLookup = forwardRef<AddressFareLookupHandle, Props>(
         </div>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-3">
           Type a parent&apos;s pickup address (or click anywhere on the map to drop
-          a pin). We compute the straight-line distance from the school and pick
-          the matching slab.
+          a pin). We compute the real road distance from school and pick the
+          matching slab. The concentric rings are a straight-line guide only.
         </p>
         <div className="flex gap-2">
           <div className="flex-1 relative">
@@ -184,8 +224,8 @@ export const AddressFareLookup = forwardRef<AddressFareLookupHandle, Props>(
                 onValueChange={setQuery}
                 onSelect={handlePlaceSelect}
                 bias={{
-                  lat: SCHOOL_LOCATION.lat,
-                  lng: SCHOOL_LOCATION.lng,
+                  lat: SCHOOL.lat,
+                  lng: SCHOOL.lng,
                   radiusMeters: 25_000,
                 }}
                 placeholder="Type address — suggestions appear as you type"
@@ -246,7 +286,9 @@ export const AddressFareLookup = forwardRef<AddressFareLookupHandle, Props>(
             </div>
             <div className="flex flex-wrap items-center gap-4 text-xs">
               <div>
-                <span className="text-gray-400">Distance</span>{" "}
+                <span className="text-gray-400">
+                  {result.straightLine ? "Straight-line (est.)" : "Road distance"}
+                </span>{" "}
                 <span className="font-semibold text-navy-900 dark:text-white tabular-nums">
                   {result.distanceKm.toFixed(2)} km
                 </span>

@@ -58,6 +58,12 @@ import {
   PlacesAutocompleteInput,
   isGooglePlacesConfigured,
 } from "@nkps/shared/components/PlacesAutocompleteInput";
+import { SCHOOL } from "@nkps/shared/lib/geo";
+import {
+  roadDistanceKm,
+  RoadDistanceError,
+  isRoadDistanceConfigured,
+} from "@nkps/shared/lib/road-distance";
 import { HistoricalFeesImportDialog } from "@/components/HistoricalFeesImportDialog";
 
 const CLASS_NAMES = [
@@ -204,11 +210,34 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   const [studentPickupAddress, setStudentPickupAddress] = useState("");
   const [studentPickupLat, setStudentPickupLat] = useState<number | null>(null);
   const [studentPickupLng, setStudentPickupLng] = useState<number | null>(null);
-const [studentOverrideReason, setStudentOverrideReason] = useState("");
+  const [studentPlaceId, setStudentPlaceId] = useState<string | null>(null);
+  // The student's home address from their record — seeds the pickup lookup.
+  const [studentHomeAddress, setStudentHomeAddress] = useState("");
+  // Road-distance billing state. The road distance is only "confirmed"
+  // (billable) after the admin explicitly confirms the point and we compute
+  // the driving distance — a selected point alone never bills.
+  const [studentRoadKm, setStudentRoadKm] = useState<number | null>(null);
+  const [studentRoutePolyline, setStudentRoutePolyline] = useState<
+    string | null
+  >(null);
+  const [studentDistanceConfirmed, setStudentDistanceConfirmed] =
+    useState(false);
+  const [computingDistance, setComputingDistance] = useState(false);
+  const [distanceError, setDistanceError] = useState<string | null>(null);
+  const [studentOverrideReason, setStudentOverrideReason] = useState("");
   const [studentVerifiedAt, setStudentVerifiedAt] = useState<string | null>(null);
   const [geocoding, setGeocoding] = useState(false);
   const [savingTransport, setSavingTransport] = useState(false);
   const [togglingTransport, setTogglingTransport] = useState(false);
+
+  // Drop the confirmed road distance whenever the pickup point moves — a new
+  // point needs a fresh calculation before it can bill.
+  const resetDistanceConfirmation = useCallback(() => {
+    setStudentRoadKm(null);
+    setStudentRoutePolyline(null);
+    setStudentDistanceConfirmed(false);
+    setDistanceError(null);
+  }, []);
 
   // Transport fare slab catalog (current academic year). Powers both the
   // Transport sub-tab CRUD list and the per-student slab dropdown in Payments.
@@ -221,6 +250,8 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
     lng: number;
     label: string;
     distanceKm: number;
+    routePath?: { lat: number; lng: number }[];
+    straightLine?: boolean;
   } | null>(null);
   // Ref into the AddressFareLookup so map clicks can drop a pin without
   // typing — the panel re-uses the same distance+slab pipeline.
@@ -402,7 +433,7 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
     const { data: enrollment } = await supabase
       .from("student_enrollments")
       .select(
-        "id, class_id, stream_id, has_transport, transport_slab_id, transport_slab_suggested_id, transport_slab_overridden_at, transport_slab_override_reason, pickup_address, pickup_lat, pickup_lng, pickup_verified_at, classes(name, section)"
+        "id, class_id, stream_id, has_transport, transport_slab_id, transport_slab_suggested_id, transport_slab_overridden_at, transport_slab_override_reason, pickup_address, pickup_lat, pickup_lng, pickup_place_id, pickup_verified_at, road_distance_km, distance_source, pickup_route_polyline, classes(name, section), students(address)"
       )
       .eq("student_id", student.id)
       .order("enrollment_date", { ascending: false })
@@ -427,6 +458,26 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
     setStudentPickupLng(
       enrollment?.pickup_lng != null ? Number(enrollment.pickup_lng) : null
     );
+    setStudentPlaceId((enrollment?.pickup_place_id as string | null) ?? null);
+    setStudentHomeAddress(
+      ((enrollment?.students as unknown as { address: string | null } | null)
+        ?.address as string | null) ?? ""
+    );
+    // Re-hydrate a previously confirmed road distance so the panel shows it
+    // without recomputing; a fresh point selection resets this.
+    {
+      const savedRoadKm =
+        enrollment?.road_distance_km != null
+          ? Number(enrollment.road_distance_km)
+          : null;
+      const confirmed = enrollment?.distance_source === "google_routes";
+      setStudentRoadKm(confirmed ? savedRoadKm : null);
+      setStudentRoutePolyline(
+        (enrollment?.pickup_route_polyline as string | null) ?? null
+      );
+      setStudentDistanceConfirmed(confirmed && savedRoadKm != null);
+      setDistanceError(null);
+    }
     setStudentOverrideReason(
       (enrollment?.transport_slab_override_reason as string | null) ?? ""
     );
@@ -590,21 +641,10 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
     );
   }, [classStudents, classStudentSearch]);
 
-  // Compute the suggested slab id from current pickup coords. Used to drive
-  // the "differs from suggestion" badge + the override-reason requirement.
-  const computeSuggestedSlabId = useCallback(
-    (lat: number | null, lng: number | null): string | null => {
-      if (lat == null || lng == null) return null;
-      const R = 6371;
-      const toRad = (d: number) => (d * Math.PI) / 180;
-      const dLat = toRad(lat - 27.0688458);
-      const dLng = toRad(lng - 75.7495752);
-      const lat1 = toRad(27.0688458);
-      const lat2 = toRad(lat);
-      const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
-      const distanceKm = 2 * R * Math.asin(Math.sqrt(a));
+  // Match a distance (km) to the active slab whose [min,max] range contains it.
+  const slabIdForKm = useCallback(
+    (km: number | null): string | null => {
+      if (km == null) return null;
       const sorted = [...transportSlabs]
         .filter((s) => s.is_active)
         .sort(
@@ -617,29 +657,29 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
           s.distance_km_max == null
             ? Number.POSITIVE_INFINITY
             : Number(s.distance_km_max);
-        if (distanceKm >= min && distanceKm <= max) return s.id;
+        if (km >= min && km <= max) return s.id;
       }
       return null;
     },
     [transportSlabs]
   );
 
-  // Pre-save preview of the suggested slab. We don't trust this for the
-  // audit decision (server recomputes), but we do use it to drive the UI:
-  // show the suggestion vs. the current assignment, and only reveal the
-  // override-reason field when the two differ.
+  // Suggested slab from the CONFIRMED road distance. Null until the admin
+  // confirms a point and we compute its driving distance; a manual/unconfirmed
+  // assignment records no suggestion (the server mirrors this). We don't trust
+  // this for the audit decision (server re-validates) — it only drives the UI.
   const currentSuggestedSlabId = useMemo(
-    () => computeSuggestedSlabId(studentPickupLat, studentPickupLng),
-    [computeSuggestedSlabId, studentPickupLat, studentPickupLng]
+    () => (studentDistanceConfirmed ? slabIdForKm(studentRoadKm) : null),
+    [studentDistanceConfirmed, studentRoadKm, slabIdForKm]
   );
   const isOverride =
     currentSuggestedSlabId != null &&
     studentTransportSlabId != null &&
     currentSuggestedSlabId !== studentTransportSlabId;
-  // Without pickup coords the server can't auto-derive a suggestion, so a
-  // manual slab choice is unverifiable and must be justified (mirrors the
+  // No confirmed road distance → the server can't auto-derive a suggestion, so
+  // a manual slab choice is unverifiable and must be justified (mirrors the
   // server guard in /api/students/transport).
-  const isUnverifiable = studentPickupLat == null || studentPickupLng == null;
+  const isUnverifiable = !studentDistanceConfirmed;
   const requiresReason = isOverride || isUnverifiable;
 
   // Geocode the pickup address via Nominatim (same flow as the slab map's
@@ -673,18 +713,70 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
       const lng = parseFloat(json[0].lon);
       setStudentPickupLat(lat);
       setStudentPickupLng(lng);
-      // Auto-snap the slab to the suggestion unless the admin has already
-      // diverged on purpose (override reason already set).
-      const suggested = computeSuggestedSlabId(lat, lng);
-      if (!studentOverrideReason && suggested) {
-        setStudentTransportSlabId(suggested);
-      }
-      toast.success("Address geocoded — slab suggestion updated");
+      setStudentPlaceId(null); // Nominatim has no Google place id.
+      // A new point invalidates any prior road distance — the admin must
+      // confirm + recalculate before it bills.
+      resetDistanceConfirmation();
+      toast.success("Location set — confirm the point to calculate distance");
     } catch {
       toast.error("Geocoding failed");
     } finally {
       setGeocoding(false);
     }
+  };
+
+  // Confirm the selected pickup point and compute the real ROAD distance from
+  // school. This is the pin-confirmation gate: only after this runs is the
+  // distance billable. On failure we surface it and require a manual slab +
+  // reason (never silently fall back to a straight-line guess).
+  const handleComputeDistance = async () => {
+    if (studentPickupLat == null || studentPickupLng == null) {
+      toast.error("Select a pickup location first");
+      return;
+    }
+    setComputingDistance(true);
+    setDistanceError(null);
+    try {
+      const r = await roadDistanceKm(SCHOOL, {
+        lat: studentPickupLat,
+        lng: studentPickupLng,
+      });
+      setStudentRoadKm(r.km);
+      setStudentRoutePolyline(r.encodedPolyline);
+      setStudentDistanceConfirmed(true);
+      // Auto-snap to the suggested slab unless the admin has deliberately
+      // diverged (override reason already entered).
+      const suggested = slabIdForKm(r.km);
+      if (!studentOverrideReason && suggested) {
+        setStudentTransportSlabId(suggested);
+      }
+      toast.success(`Road distance: ${r.km.toFixed(2)} km`);
+    } catch (e) {
+      const reason =
+        e instanceof RoadDistanceError ? e.reason : "ROUTE_FAILED";
+      resetDistanceConfirmation();
+      setDistanceError(reason);
+      toast.error(
+        "Couldn't calculate the road distance — assign a slab manually with a reason."
+      );
+    } finally {
+      setComputingDistance(false);
+    }
+  };
+
+  // Seed the pickup field from the student's home address on file.
+  const handleUseHomeAddress = () => {
+    if (!studentHomeAddress.trim()) {
+      toast.error("No home address on this student's record");
+      return;
+    }
+    setStudentPickupAddress(studentHomeAddress.trim());
+    // Seeding only sets the text — the admin still selects/locates the exact
+    // point on the map, which is what gets confirmed and billed.
+    setStudentPickupLat(null);
+    setStudentPickupLng(null);
+    setStudentPlaceId(null);
+    resetDistanceConfirmation();
   };
 
   // Save the transport assignment through the audit endpoint. Server
@@ -718,9 +810,17 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
           pickup_address: studentPickupAddress.trim() || null,
           pickup_lat: studentPickupLat,
           pickup_lng: studentPickupLng,
+          pickup_place_id: studentPlaceId,
           slab_id: studentTransportSlabId,
           override_reason: requiresReason
             ? studentOverrideReason.trim()
+            : null,
+          // Road-distance provenance — only a confirmed calculation bills as
+          // google_routes; anything else is recorded as a manual assignment.
+          road_distance_km: studentDistanceConfirmed ? studentRoadKm : null,
+          distance_source: studentDistanceConfirmed ? "google_routes" : "manual",
+          pickup_route_polyline: studentDistanceConfirmed
+            ? studentRoutePolyline
             : null,
         }),
       });
@@ -2054,9 +2154,22 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="md:col-span-2">
-                          <Label className="text-xs font-medium mb-1 block">
-                            Pickup address
-                          </Label>
+                          <div className="flex items-center justify-between mb-1">
+                            <Label className="text-xs font-medium block">
+                              Pickup address
+                            </Label>
+                            {studentHomeAddress.trim() && (
+                              <button
+                                type="button"
+                                onClick={handleUseHomeAddress}
+                                disabled={savingTransport}
+                                className="text-[11px] font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                                title={studentHomeAddress}
+                              >
+                                Use home address
+                              </button>
+                            )}
+                          </div>
                           <div className="flex gap-2">
                             {isGooglePlacesConfigured() ? (
                               <PlacesAutocompleteInput
@@ -2069,13 +2182,10 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
                                   setStudentPickupAddress(place.address);
                                   setStudentPickupLat(place.lat);
                                   setStudentPickupLng(place.lng);
-                                  const suggested = computeSuggestedSlabId(
-                                    place.lat,
-                                    place.lng
-                                  );
-                                  if (!studentOverrideReason && suggested) {
-                                    setStudentTransportSlabId(suggested);
-                                  }
+                                  setStudentPlaceId(place.placeId ?? null);
+                                  // New point → must confirm + recalculate the
+                                  // road distance before it bills.
+                                  resetDistanceConfirmation();
                                 }}
                                 bias={{
                                   lat: 27.0688458,
@@ -2115,10 +2225,64 @@ const [studentOverrideReason, setStudentOverrideReason] = useState("");
                             )}
                           </div>
                           {studentPickupLat != null && studentPickupLng != null && (
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                              {studentPickupLat.toFixed(5)},{" "}
-                              {studentPickupLng.toFixed(5)}
-                            </p>
+                            <div className="mt-2 space-y-2">
+                              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                                {studentPickupLat.toFixed(5)},{" "}
+                                {studentPickupLng.toFixed(5)}
+                              </p>
+                              {/* Pin-confirmation gate: the road distance is
+                                  only computed (and billable) on explicit
+                                  confirm. */}
+                              {isRoadDistanceConfigured() ? (
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <Button
+                                    variant={
+                                      studentDistanceConfirmed
+                                        ? "outline"
+                                        : "default"
+                                    }
+                                    size="sm"
+                                    onClick={handleComputeDistance}
+                                    disabled={computingDistance || savingTransport}
+                                    className={
+                                      studentDistanceConfirmed
+                                        ? ""
+                                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                                    }
+                                  >
+                                    {computingDistance && (
+                                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    )}
+                                    {studentDistanceConfirmed
+                                      ? "Recalculate"
+                                      : "Confirm point & calculate"}
+                                  </Button>
+                                  {studentDistanceConfirmed &&
+                                    studentRoadKm != null && (
+                                      <span className="text-sm">
+                                        <span className="text-gray-400">
+                                          Road distance:
+                                        </span>{" "}
+                                        <span className="font-semibold text-navy-900 dark:text-white tabular-nums">
+                                          {studentRoadKm.toFixed(2)} km
+                                        </span>
+                                      </span>
+                                    )}
+                                </div>
+                              ) : (
+                                <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                                  Road-distance calculation needs a Google Maps
+                                  key — assign a slab manually with a reason.
+                                </p>
+                              )}
+                              {distanceError && (
+                                <p className="text-[11px] text-red-600 dark:text-red-400">
+                                  Couldn&apos;t calculate the road distance
+                                  ({distanceError}). Recalculate, or pick a slab
+                                  manually and add a reason below.
+                                </p>
+                              )}
+                            </div>
                           )}
                         </div>
                         <div>

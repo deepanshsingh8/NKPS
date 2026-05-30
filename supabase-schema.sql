@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS site_media (
 -- Section Cards
 CREATE TABLE IF NOT EXISTS section_cards (
   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-  section text NOT NULL CHECK (section IN ('hero_slider', 'testimonials', 'facilities_preview', 'leadership', 'legacy_timeline', 'why_choose_us', 'activities', 'annual_events', 'campus_facilities')),
+  section text NOT NULL CHECK (section IN ('hero_slider', 'testimonials', 'facilities_preview', 'leadership', 'legacy_timeline', 'why_choose_us', 'activities', 'annual_events', 'campus_facilities', 'accolades', 'alumni', 'student_achievements')),
   title text,
   subtitle text,
   description text,
@@ -5151,3 +5151,36 @@ AS $$
    WHERE transport_slab_id = p_slab_id
      AND has_transport = true;
 $$;
+
+-- ─── Migration 063: transport road distance (school → home) ──────────────────
+-- Mirrors scripts/migrations/erp/migration-063-transport-road-distance.sql.
+-- Slabbing moves from straight-line (haversine) to real road distance; these
+-- columns hold the billed road km plus full provenance for audit.
+
+ALTER TABLE student_enrollments
+  ADD COLUMN IF NOT EXISTS road_distance_km numeric(6, 2),
+  ADD COLUMN IF NOT EXISTS straight_line_km numeric(6, 2),
+  ADD COLUMN IF NOT EXISTS distance_source text,
+  ADD COLUMN IF NOT EXISTS distance_computed_at timestamptz,
+  ADD COLUMN IF NOT EXISTS distance_computed_by uuid
+    REFERENCES profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS pickup_place_id text,
+  ADD COLUMN IF NOT EXISTS pickup_route_polyline text;
+
+ALTER TABLE student_enrollments
+  DROP CONSTRAINT IF EXISTS chk_distance_source;
+ALTER TABLE student_enrollments
+  ADD CONSTRAINT chk_distance_source CHECK (
+    distance_source IS NULL
+    OR distance_source IN ('google_routes', 'manual')
+  );
+
+ALTER TABLE student_enrollments
+  DROP CONSTRAINT IF EXISTS chk_road_distance_floor;
+ALTER TABLE student_enrollments
+  ADD CONSTRAINT chk_road_distance_floor CHECK (
+    distance_source IS DISTINCT FROM 'google_routes'
+    OR road_distance_km IS NULL
+    OR straight_line_km IS NULL
+    OR road_distance_km >= straight_line_km - 0.1
+  );

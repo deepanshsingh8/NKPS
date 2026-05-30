@@ -40,6 +40,7 @@ const PAGE_LABELS: Record<string, string> = {
   about: "About Page",
   facilities: "Facilities Page",
   "student-life": "Student Life Page",
+  alumni: "Alumni Page",
   global: "Global (Site-wide)",
 };
 
@@ -54,6 +55,9 @@ const SECTION_LABELS: Record<string, string> = {
   branding: "Branding",
   campus_facilities: "Campus Facilities",
   testimonials: "Testimonials",
+  accolades: "School Accolades",
+  student_achievements: "Student Achievements",
+  alumni: "Alumni Achievements",
 };
 
 // Sections that support dynamic cards
@@ -67,6 +71,9 @@ const CARD_ENABLED_SECTIONS: SectionCardType[] = [
   "activities",
   "annual_events",
   "campus_facilities",
+  "accolades",
+  "student_achievements",
+  "alumni",
 ];
 
 const SECTION_FIELD_MAP: Record<SectionCardType, { required: string[]; optional: string[] }> = {
@@ -105,6 +112,18 @@ const SECTION_FIELD_MAP: Record<SectionCardType, { required: string[]; optional:
   campus_facilities: {
     required: ["title", "description"],
     optional: ["icon"],
+  },
+  accolades: {
+    required: ["title"],
+    optional: ["description"],
+  },
+  student_achievements: {
+    required: ["name", "title"],
+    optional: ["description", "year"],
+  },
+  alumni: {
+    required: ["name"],
+    optional: ["year", "designation", "description"],
   },
 };
 
@@ -198,6 +217,8 @@ const SECTION_ORDER: Record<string, string[]> = {
   home: [
     "hero_slider",
     "facilities_preview",
+    "accolades",
+    "student_achievements",
     "stats_counter",
     "testimonials",
   ],
@@ -210,6 +231,7 @@ const SECTION_ORDER: Record<string, string[]> = {
   ],
   facilities: ["campus_facilities"],
   "student-life": ["activities", "annual_events"],
+  alumni: ["alumni"],
   global: ["branding"],
 };
 
@@ -228,7 +250,7 @@ function sortSections(page: string, sections: string[]): string[] {
 }
 
 function groupMedia(items: SiteMedia[]): GroupedMedia[] {
-  const pageOrder = ["home", "about", "facilities", "student-life", "global"];
+  const pageOrder = ["home", "about", "facilities", "student-life", "alumni", "global"];
   const pageMap = new Map<string, Map<string, SiteMedia[]>>();
 
   for (const item of items) {
@@ -824,12 +846,15 @@ export default function AdminSiteMediaPage() {
     hero_slider: "home",
     testimonials: "home",
     facilities_preview: "home",
+    accolades: "home",
+    student_achievements: "home",
     leadership: "about",
     legacy_timeline: "about",
     why_choose_us: "about",
     activities: "student-life",
     annual_events: "student-life",
     campus_facilities: "facilities",
+    alumni: "alumni",
   };
 
   const grouped = groupMedia(items);
@@ -865,7 +890,7 @@ export default function AdminSiteMediaPage() {
     ? [...SECTION_FIELD_MAP[dialogSection].required, ...SECTION_FIELD_MAP[dialogSection].optional]
     : [];
   // Sections where image is optional
-  const imageOptionalSections: SectionCardType[] = ["testimonials", "leadership", "legacy_timeline", "why_choose_us", "annual_events"];
+  const imageOptionalSections: SectionCardType[] = ["testimonials", "leadership", "legacy_timeline", "why_choose_us", "annual_events", "alumni", "student_achievements"];
   const isImageRequired = !editing && !imageOptionalSections.includes(dialogSection);
 
   return (

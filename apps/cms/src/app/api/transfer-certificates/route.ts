@@ -220,7 +220,7 @@ export async function DELETE(request: NextRequest) {
     // fileUrl) so a crafted body can't delete an arbitrary stored object.
     const { data: row } = await admin
       .from("transfer_certificates")
-      .select("file_url")
+      .select("file_url, student_id")
       .eq("id", id)
       .maybeSingle();
     const fileName = row
@@ -239,6 +239,39 @@ export async function DELETE(request: NextRequest) {
     if (error) {
       console.error("TC delete DB error:", error);
       return NextResponse.json({ error: "Failed to delete certificate" }, { status: 500 });
+    }
+
+    // Removing a TC reopens the student it closed: undo the close that the
+    // upload performed (students.is_active=false + most-recent enrollment
+    // terminated). Best-effort — failures are logged, not fatal, and the admin
+    // can still fix status from the students page.
+    const studentId = row?.student_id as string | null | undefined;
+    if (studentId) {
+      const { error: reactivateErr } = await admin
+        .from("students")
+        .update({ is_active: true })
+        .eq("id", studentId);
+      if (reactivateErr) {
+        console.error("TC delete: failed to reactivate student:", reactivateErr);
+      }
+
+      const { data: terminatedEnrollment } = await admin
+        .from("student_enrollments")
+        .select("id")
+        .eq("student_id", studentId)
+        .eq("status", "terminated")
+        .order("enrollment_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (terminatedEnrollment?.id) {
+        const { error: enrollmentErr } = await admin
+          .from("student_enrollments")
+          .update({ status: "active" })
+          .eq("id", terminatedEnrollment.id);
+        if (enrollmentErr) {
+          console.error("TC delete: failed to revert enrollment status:", enrollmentErr);
+        }
+      }
     }
 
     return NextResponse.json({ success: true });

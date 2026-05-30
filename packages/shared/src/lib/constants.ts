@@ -10,6 +10,10 @@ export const SCHOOL = {
     years: "1929–2005",
     bio: "A former Indian Army officer who served in the Royal Corps and witnessed many battles with neighbouring countries. Decorated with many medals, he dedicated his post-military life to education. His core philosophy centred on discipline, education and human values — principles that continue to guide our institution.",
   },
+  mission:
+    "Our mission is to ensure that all students are well educated, self-disciplined and become productive members of our glorious society.",
+  vision:
+    "To educate, develop and inspire children from diverse backgrounds to achieve their highest academic and creative potential, while embracing ethical values and becoming active contributors to the society. We aim to meet the needs of every unique child through an exciting, board-balanced curriculum based on developing skills, effective partnership with families and the wider community, valuing all children as individuals and developing their interests and potential accordingly.",
   address: {
     line1: "Grand Sikar Road, Rajawas",
     city: "Jaipur",
@@ -83,6 +87,7 @@ export const NAV_MORE_LINKS = [
   { label: "Student Life", href: "/student-life" },
   { label: "Gallery", href: "/gallery" },
   { label: "Articles", href: "/articles" },
+  { label: "Alumni", href: "/alumni" },
 ] as const;
 
 export const STAFF = {

@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     if (!Number.isInteger(r.day_of_week) || r.day_of_week < 1 || r.day_of_week > 6) {
       return NextResponse.json({ error: `Row ${i + 1}: day_of_week must be 1..6` }, { status: 400 });
     }
-    if (!Number.isInteger(r.period_number) || r.period_number < 1) {
+    if (!Number.isInteger(r.period_number) || r.period_number < 0) {
       return NextResponse.json({ error: `Row ${i + 1}: period_number invalid` }, { status: 400 });
     }
     if (!r.start_time || !r.end_time || r.end_time <= r.start_time) {

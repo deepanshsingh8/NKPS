@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyAdminWithUser } from "@nkps/shared/lib/verify-admin";
 import { createPortalUser } from "@nkps/shared/lib/create-portal-user";
 import { rateLimit } from "@nkps/shared/lib/rate-limit";
+import { promoteStaffToTeacher } from "@/lib/staff-teacher-sync";
 
 export const maxDuration = 120;
 
@@ -73,13 +74,36 @@ export async function POST(request: Request) {
     }
 
     const role = type === "student" ? "student" : "teacher";
+
+    // For staff, `item.id` is a `staff_members.id` — but `profiles.teacher_id`
+    // is a FK to `teachers.id`. Writing the staff id here violates the FK
+    // (the update silently fails, leaving teacher_id NULL) and the teacher
+    // ends up unable to see their assigned classes/students or mark
+    // attendance. Resolve (creating if needed) the linked teachers row and
+    // use ITS id. Idempotent — reuses an existing teacher record.
+    let teacherId: string | undefined;
+    if (type === "staff") {
+      const promo = await promoteStaffToTeacher(admin, item.id);
+      if ("error" in promo) {
+        results.push({
+          id: item.id,
+          name: item.fullName,
+          success: false,
+          error: promo.error,
+        });
+        failed++;
+        continue;
+      }
+      teacherId = promo.teacher_id;
+    }
+
     const userResult = await createPortalUser({
       email: item.email,
       fullName: item.fullName,
       role,
       phone: item.phone || null,
       studentId: type === "student" ? item.id : undefined,
-      teacherId: type === "staff" ? item.id : undefined,
+      teacherId,
     });
 
     if (userResult.success && userResult.userId) {
@@ -92,7 +116,7 @@ export async function POST(request: Request) {
       } else {
         await admin
           .from("profiles")
-          .update({ teacher_id: item.id })
+          .update({ teacher_id: teacherId })
           .eq("id", userResult.userId);
       }
       results.push({ id: item.id, name: item.fullName, success: true });

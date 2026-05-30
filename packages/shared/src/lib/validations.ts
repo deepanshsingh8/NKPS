@@ -68,10 +68,55 @@ const admissionNoSchema = z
     "Admission number can only contain letters, digits, '-', '_' and '/' (max 32 chars)"
   );
 
+// ── Public enquiry hardening (Layer 1: free anti-fake checks) ───────────────
+// Goal: reject obviously-fake but well-formatted email/phone on the public
+// contact + admissions-enquiry forms. Kept separate from the ERP phone schemas
+// so internal staff data entry isn't affected. Ownership verification (OTP /
+// email confirmation) is a later layer — see tasks/email-phone-verification.md.
+
+// Disposable / temp-mail domains we refuse. Lowercase, no leading "@".
+export const DISPOSABLE_EMAIL_DOMAINS = new Set<string>([
+  "mailinator.com", "yopmail.com", "guerrillamail.com", "10minutemail.com",
+  "tempmail.com", "temp-mail.org", "throwawaymail.com", "getnada.com",
+  "trashmail.com", "sharklasers.com", "dispostable.com", "fakeinbox.com",
+  "maildrop.cc", "mintemail.com", "mailnesia.com", "mohmal.com",
+  "emailondeck.com", "moakt.com", "tempr.email", "spam4.me",
+]);
+
+export function emailDomain(email: string): string {
+  return email.slice(email.lastIndexOf("@") + 1).toLowerCase().trim();
+}
+
+// Obvious junk mobiles: all-same-digit or trivially sequential.
+const SEQUENTIAL_MOBILES = new Set<string>([
+  "1234567890", "0123456789", "9876543210", "0987654321",
+]);
+function isJunkMobile(num: string): boolean {
+  if (/^(\d)\1{9}$/.test(num)) return true; // 0000000000, 9999999999, …
+  if (SEQUENTIAL_MOBILES.has(num)) return true;
+  return false;
+}
+
+const enquiryEmailSchema = z
+  .string()
+  .min(1, "Email is required")
+  .email("Please enter a valid email")
+  .refine((v) => !DISPOSABLE_EMAIL_DOMAINS.has(emailDomain(v)), {
+    message: "Please use a permanent email — temporary email providers aren't accepted",
+  });
+
+const enquiryPhoneSchema = phoneRequiredSchema.refine(
+  (v) => {
+    const n = normalizeIndianMobile(v);
+    return n !== null && !isJunkMobile(n);
+  },
+  { message: "Please enter a real 10-digit mobile number" }
+);
+
 export const contactFormSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Please enter a valid email"),
-  phone: phoneRequiredSchema,
+  email: enquiryEmailSchema,
+  phone: enquiryPhoneSchema,
   subject: z.string().min(1, "Please select a subject"),
   message: z.string().min(10, "Message must be at least 10 characters"),
 });
@@ -591,7 +636,9 @@ export const timetablePeriodSchema = z.object({
   subject_id: z.string().uuid("Invalid subject"),
   teacher_id: z.string().uuid("Invalid teacher"),
   day_of_week: z.number().int().min(1).max(6, "Day must be between 1 (Monday) and 6 (Saturday)"),
-  period_number: z.number().int().positive("Period number must be positive"),
+  // Period 0 ("zero period" / pre-first period) is allowed, so the floor is 0,
+  // not 1.
+  period_number: z.number().int().min(0, "Period number cannot be negative"),
   start_time: z.string().min(1, "Start time is required"),
   end_time: z.string().min(1, "End time is required"),
 });
@@ -641,6 +688,15 @@ export const linkChildSchema = z.object({
 });
 
 export type LinkChildData = z.infer<typeof linkChildSchema>;
+
+// Student claiming their own record at first login: admission number + DOB,
+// verified the same way as the parent link (no relationship needed).
+export const linkSelfStudentSchema = z.object({
+  admission_no: admissionNoSchema,
+  date_of_birth: dobBaseSchema,
+});
+
+export type LinkSelfStudentData = z.infer<typeof linkSelfStudentSchema>;
 
 // =============================================================
 // Student Records

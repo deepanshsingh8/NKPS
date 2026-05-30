@@ -1,14 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Map as LeafletMap, Circle, Marker, LayerGroup } from "leaflet";
+import type {
+  Map as LeafletMap,
+  Marker,
+  LayerGroup,
+  Polyline,
+} from "leaflet";
 import type { TransportFareSlab } from "@nkps/shared/types";
+import { SCHOOL } from "@nkps/shared/lib/geo";
 
 // Plain Leaflet (no react-leaflet) keeps the dep surface small. The map is
 // instantiated lazily on mount; re-renders only redraw the slab layers, the
 // tile layer and marker are reused.
-
-const SCHOOL = { lat: 27.0688458, lng: 75.7495752 };
+//
+// NOTE: the concentric rings are a STRAIGHT-LINE reference only — billing now
+// uses real road distance (see roadDistanceKm). When a pickup is set we draw
+// its actual driving route so the road distance is what the admin reads, not
+// the radial band the pin happens to fall in.
 
 // Concentric rings are easier to read when the inner band is bright/warm
 // and rings step outward through cooler tones. Keep these pastels — admin
@@ -32,6 +41,12 @@ interface Props {
     lng: number;
     label?: string;
     distanceKm?: number;
+    // Decoded driving route school→pickup. When present it's drawn as a solid
+    // line (the real road the bus would take). When absent (road lookup
+    // unavailable), a straight dashed line is drawn instead.
+    routePath?: { lat: number; lng: number }[];
+    // True when distanceKm is a straight-line estimate, not a road distance.
+    straightLine?: boolean;
   } | null;
   // Optional click handler — receives the clicked map coordinates. When
   // provided, every click on the map (outside the school marker) fires this
@@ -125,7 +140,7 @@ export function TransportSlabsMap({ slabs, pickupMarker, onMapClick }: Props) {
   const ringsLayerRef = useRef<LayerGroup | null>(null);
   const schoolMarkerRef = useRef<Marker | null>(null);
   const pickupMarkerRef = useRef<Marker | null>(null);
-  const pickupCircleRef = useRef<Circle | null>(null);
+  const pickupRouteRef = useRef<Polyline | null>(null);
   // Latest onMapClick — stored in a ref so the click listener attached on
   // mount always sees the current handler without us having to re-bind it.
   const onMapClickRef = useRef(onMapClick);
@@ -297,9 +312,9 @@ export function TransportSlabsMap({ slabs, pickupMarker, onMapClick }: Props) {
         pickupMarkerRef.current.remove();
         pickupMarkerRef.current = null;
       }
-      if (pickupCircleRef.current) {
-        pickupCircleRef.current.remove();
-        pickupCircleRef.current = null;
+      if (pickupRouteRef.current) {
+        pickupRouteRef.current.remove();
+        pickupRouteRef.current = null;
       }
       if (!pickupMarker) return;
 
@@ -326,15 +341,26 @@ export function TransportSlabsMap({ slabs, pickupMarker, onMapClick }: Props) {
         );
       pickupMarkerRef.current = m;
 
-      // Dashed line from school to pickup so admins can eyeball direction.
-      pickupCircleRef.current = L.circle([SCHOOL.lat, SCHOOL.lng], {
-        radius:
-          (pickupMarker.distanceKm ??
-            haversineKm(SCHOOL.lat, SCHOOL.lng, pickupMarker.lat, pickupMarker.lng)) * 1000,
+      // Draw the school→pickup connection. Prefer the real driving route (solid
+      // line); fall back to a straight dashed line when no route was computed.
+      // The old radial circle (radius = distance) was removed — it implied the
+      // billed distance was as-the-crow-flies, which is no longer true.
+      const routeLatLngs =
+        pickupMarker.routePath && pickupMarker.routePath.length > 1
+          ? pickupMarker.routePath.map(
+              (p) => [p.lat, p.lng] as [number, number]
+            )
+          : ([
+              [SCHOOL.lat, SCHOOL.lng],
+              [pickupMarker.lat, pickupMarker.lng],
+            ] as [number, number][]);
+      const usingRealRoute =
+        !!pickupMarker.routePath && pickupMarker.routePath.length > 1;
+      pickupRouteRef.current = L.polyline(routeLatLngs, {
         color: "#dc2626",
-        weight: 1,
-        fill: false,
-        dashArray: "4 4",
+        weight: usingRealRoute ? 3 : 1,
+        opacity: 0.85,
+        dashArray: usingRealRoute ? undefined : "4 4",
       }).addTo(mapRef.current);
 
       mapRef.current.flyTo([pickupMarker.lat, pickupMarker.lng], 14, {
@@ -407,24 +433,4 @@ export function TransportSlabsMap({ slabs, pickupMarker, onMapClick }: Props) {
   );
 }
 
-// Great-circle distance in km. Used as a fallback when the caller didn't
-// pre-compute distance for the pickup marker.
-export function haversineKm(
-  aLat: number,
-  aLng: number,
-  bLat: number,
-  bLng: number
-): number {
-  const R = 6371;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(bLat - aLat);
-  const dLng = toRad(bLng - aLng);
-  const lat1 = toRad(aLat);
-  const lat2 = toRad(bLat);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-export const SCHOOL_LOCATION = SCHOOL;
+// Canonical SCHOOL + haversineKm now live in @nkps/shared/lib/geo.

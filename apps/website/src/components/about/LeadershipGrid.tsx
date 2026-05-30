@@ -53,7 +53,7 @@ export function LeadershipGrid({ cards }: LeadershipGridProps = {}) {
               <motion.div key={leader.id} variants={fadeUp}>
                 <GlassCard className="p-8 text-center" hover>
                   {/* Avatar */}
-                  <div className="w-28 h-28 rounded-full mx-auto mb-4 overflow-hidden border-3 border-gold-500/20">
+                  <div className="w-28 h-28 rounded-2xl mx-auto mb-4 overflow-hidden border-3 border-gold-500/20">
                     {photo ? (
                       <Image
                         src={photo}

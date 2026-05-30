@@ -200,8 +200,10 @@ export async function POST(request: Request) {
     const day = parseDay(dayRaw);
     if (day == null) { messages.push(`Day "${dayRaw}" is not valid (use Monday–Saturday or 1–6)`); status = "error"; }
 
+    // Period 0 is the zero/pre-first period, so 0 is valid; only reject blanks
+    // and negatives.
     const periodNum = /^\d+$/.test(periodRaw) ? parseInt(periodRaw, 10) : NaN;
-    if (!Number.isInteger(periodNum) || periodNum < 1) { messages.push(`Period "${periodRaw}" must be a positive integer`); status = "error"; }
+    if (!Number.isInteger(periodNum) || periodNum < 0) { messages.push(`Period "${periodRaw}" must be 0 or a positive integer`); status = "error"; }
 
     const cls = parseClass(sectionRaw);
     let classRow: { id: string; name: string; section: string } | null = null;
