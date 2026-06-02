@@ -4,6 +4,11 @@ import { createClient } from "@nkps/shared/lib/supabase/server";
 import { createUserSchema } from "@nkps/shared/lib/validations";
 import { generateSecurePassword } from "@nkps/shared/lib/password";
 import { rateLimit } from "@nkps/shared/lib/rate-limit";
+import {
+  linkProfileToStudent,
+  linkProfileToTeacher,
+  linkProfileToParent,
+} from "@/lib/identity/link";
 
 export async function POST(request: Request) {
   try {
@@ -107,11 +112,8 @@ export async function POST(request: Request) {
         .single();
 
       if (!studentError && studentRecord) {
-        // Link the profile to the student record
-        await supabase
-          .from("profiles")
-          .update({ student_id: studentRecord.id })
-          .eq("id", newUser.user.id);
+        // Canonical link: sets role='student' + student_id in one update.
+        await linkProfileToStudent(supabase, newUser.user.id, studentRecord.id);
       } else {
         console.error("Failed to create student record:", studentError);
       }
@@ -159,10 +161,8 @@ export async function POST(request: Request) {
         .single();
 
       if (!teacherError && teacherRecord) {
-        await supabase
-          .from("profiles")
-          .update({ teacher_id: teacherRecord.id })
-          .eq("id", newUser.user.id);
+        // Canonical link: sets role='teacher' + teacher_id in one update.
+        await linkProfileToTeacher(supabase, newUser.user.id, teacherRecord.id);
       } else {
         console.error("Failed to create teacher record:", teacherError);
       }
@@ -182,10 +182,8 @@ export async function POST(request: Request) {
         .single();
 
       if (!parentError && parentRecord) {
-        await supabase
-          .from("profiles")
-          .update({ parent_id: parentRecord.id })
-          .eq("id", newUser.user.id);
+        // Canonical link: sets role='parent' + parent_id in one update.
+        await linkProfileToParent(supabase, newUser.user.id, parentRecord.id);
       } else {
         console.error("Failed to create parent record:", parentError);
       }
@@ -294,16 +292,34 @@ export async function PATCH(request: Request) {
 
     const supabase = createAdminClient();
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({ role, updated_at: new Date().toISOString() })
-      .eq("id", id);
+    // Keep links consistent with the new role (migration 068 trigger): clear
+    // any domain link that the target role may not hold. teacher_id survives
+    // for 'teacher' and 'admin'; student_id only for 'student'; parent_id only
+    // for 'parent'. If the new role REQUIRES a link it doesn't have (e.g.
+    // promote to teacher/parent with no record), the trigger rejects it — we
+    // map that to an actionable message.
+    const patch: Record<string, unknown> = {
+      role,
+      updated_at: new Date().toISOString(),
+    };
+    if (role !== "teacher" && role !== "admin") patch.teacher_id = null;
+    if (role !== "student") patch.student_id = null;
+    if (role !== "parent") patch.parent_id = null;
+
+    const { error } = await supabase.from("profiles").update(patch).eq("id", id);
 
     if (error) {
       console.error("Update role error:", error);
+      const needsLink =
+        (role === "teacher" || role === "parent") &&
+        /requires (teacher|parent)_id/.test(error.message ?? "");
       return NextResponse.json(
-        { error: "Failed to update role" },
-        { status: 500 }
+        {
+          error: needsLink
+            ? `Switching to ${role} needs a linked ${role} record first. Use "Create user" for a new ${role}, or the "Link record" tool.`
+            : "Failed to update role",
+        },
+        { status: needsLink ? 409 : 500 }
       );
     }
 

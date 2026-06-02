@@ -228,6 +228,17 @@ export default function AdminStudentsPage() {
   // Detail view dialog (read-only quick peek, separate from edit)
   const [detailStudent, setDetailStudent] = useState<StudentRow | null>(null);
 
+  // Invite-guardian dialog (creates a parent portal account AND links it to
+  // this student in one shot — the guaranteed-link path, /api/parents/invite)
+  const [inviteStudent, setInviteStudent] = useState<StudentRow | null>(null);
+  const [inviteForm, setInviteForm] = useState({
+    full_name: "",
+    email: "",
+    phone: "",
+    relationship: "guardian" as "father" | "mother" | "guardian",
+  });
+  const [inviting, setInviting] = useState(false);
+
   // Form state
   const [editingStudent, setEditingStudent] = useState<StudentRow | null>(null);
   const [formData, setFormData] = useState({
@@ -495,6 +506,55 @@ export default function AdminStudentsPage() {
   const isHigherClass = selectedFormClass
     ? HIGHER_CLASSES.includes(selectedFormClass.name)
     : false;
+
+  const openInviteDialog = (student: StudentRow) => {
+    setInviteForm({
+      full_name: student.father_name || student.mother_name || "",
+      email: "",
+      phone: student.phone ?? "",
+      relationship: student.father_name ? "father" : "guardian",
+    });
+    setInviteStudent(student);
+  };
+
+  const handleInvite = async () => {
+    if (!inviteStudent) return;
+    if (!inviteForm.full_name.trim() || !inviteForm.email.trim()) {
+      toast.error("Guardian name and email are required");
+      return;
+    }
+    setInviting(true);
+    try {
+      const res = await adminFetch("/api/parents/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: inviteStudent.id,
+          full_name: inviteForm.full_name.trim(),
+          email: inviteForm.email.trim(),
+          phone: inviteForm.phone.trim(),
+          relationship: inviteForm.relationship,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "Failed to invite guardian");
+        return;
+      }
+      if (json.link_warning) {
+        toast.warning(json.link_warning);
+      } else {
+        toast.success(
+          `Invited ${inviteForm.full_name.trim()} as ${inviteForm.relationship} of ${inviteStudent.full_name}. A welcome email with login details was sent.`
+        );
+      }
+      setInviteStudent(null);
+    } catch {
+      toast.error("Failed to invite guardian");
+    } finally {
+      setInviting(false);
+    }
+  };
 
   const openEditDialog = (student: StudentRow) => {
     setEditingStudent(student);
@@ -1510,6 +1570,16 @@ export default function AdminStudentsPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          onClick={() => openInviteDialog(student)}
+                          aria-label="Invite guardian"
+                          className="text-violet-500 hover:text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30"
+                          title="Invite parent/guardian"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={() => handleDelete(student)}
                           aria-label="Delete student"
                           className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
@@ -1639,6 +1709,17 @@ export default function AdminStudentsPage() {
                   onClick={() => {
                     const s = detailStudent;
                     setDetailStudent(null);
+                    openInviteDialog(s);
+                  }}
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Invite guardian
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const s = detailStudent;
+                    setDetailStudent(null);
                     openEditDialog(s);
                   }}
                 >
@@ -1650,6 +1731,129 @@ export default function AdminStudentsPage() {
                   className="bg-navy-900 hover:bg-navy-800 text-white"
                 >
                   Close
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite Guardian Dialog — creates the parent account AND the link */}
+      <Dialog
+        open={!!inviteStudent}
+        onOpenChange={(open) => {
+          if (!open) setInviteStudent(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          {inviteStudent && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10">
+                    <UserPlus className="h-5 w-5 text-violet-600" />
+                  </div>
+                  <div>
+                    <DialogTitle>Invite a guardian</DialogTitle>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Creates a parent login linked to {inviteStudent.full_name} (
+                      {inviteStudent.admission_no}) and emails them their credentials.
+                    </p>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="invite_name" className="text-xs font-medium">
+                    Guardian name *
+                  </Label>
+                  <Input
+                    id="invite_name"
+                    value={inviteForm.full_name}
+                    onChange={(e) =>
+                      setInviteForm((f) => ({ ...f, full_name: e.target.value }))
+                    }
+                    placeholder="e.g. Ramesh Kumar"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="invite_email" className="text-xs font-medium">
+                    Email *
+                  </Label>
+                  <Input
+                    id="invite_email"
+                    type="email"
+                    value={inviteForm.email}
+                    onChange={(e) =>
+                      setInviteForm((f) => ({ ...f, email: e.target.value }))
+                    }
+                    placeholder="guardian@example.com"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="invite_phone" className="text-xs font-medium">
+                      Phone
+                    </Label>
+                    <Input
+                      id="invite_phone"
+                      value={inviteForm.phone}
+                      onChange={(e) =>
+                        setInviteForm((f) => ({ ...f, phone: e.target.value }))
+                      }
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Relationship</Label>
+                    <Select
+                      value={inviteForm.relationship}
+                      onValueChange={(val) =>
+                        val &&
+                        setInviteForm((f) => ({
+                          ...f,
+                          relationship: val as "father" | "mother" | "guardian",
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="father">Father</SelectItem>
+                        <SelectItem value="mother">Mother</SelectItem>
+                        <SelectItem value="guardian">Guardian</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setInviteStudent(null)}
+                  disabled={inviting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleInvite}
+                  disabled={inviting}
+                  className="bg-navy-900 hover:bg-navy-800 text-white"
+                >
+                  {inviting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Inviting…
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Send invite
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </>

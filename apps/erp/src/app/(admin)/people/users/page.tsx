@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@nkps/shared/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@nkps/shared/components/ui/tabs";
+import { LinkHealthPanel } from "@/components/admin/LinkHealthPanel";
 import { toast } from "sonner";
 import {
   Plus,
@@ -479,6 +480,8 @@ export default function AdminUsersPage() {
           </Button>
         )}
       </div>
+
+      <LinkHealthPanel onChanged={fetchProfiles} />
 
       <div className="erp-table-container p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
