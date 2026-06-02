@@ -198,7 +198,7 @@ export function HeroSlider({ cards }: HeroSliderProps = {}) {
   const tagDelay = ctaDelay + 200;
 
   return (
-    <section className="relative h-screen w-full overflow-hidden bg-navy-950">
+    <section className="relative h-[100svh] min-h-[600px] w-full overflow-hidden bg-navy-950">
 
       {/* ═══ LAYER 1: Background image — parallax tracked ═══ */}
       <AnimatePresence mode="wait">
@@ -213,14 +213,14 @@ export function HeroSlider({ cards }: HeroSliderProps = {}) {
           }}
           style={{ x: bgX, y: bgY }}
         >
-          {/* On phones we letterbox (object-contain) against the navy backdrop
-              so the full landscape campus photo stays visible; from md up we go
-              full-bleed (object-cover). */}
+          {/* Full-bleed on every screen. object-position biases the crop toward
+              the upper-centre so the campus building stays framed on tall phone
+              viewports instead of being cut off. */}
           <Image
             src={activeSlide.image}
             alt={activeSlide.alt}
             fill
-            className="object-contain md:object-cover"
+            className="object-cover object-[50%_30%] md:object-center"
             priority={safeCurrent === 0}
             sizes="100vw"
           />
