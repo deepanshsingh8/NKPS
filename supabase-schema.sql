@@ -679,9 +679,11 @@ CREATE INDEX idx_student_parents_student_id ON student_parents(student_id);
 CREATE INDEX idx_student_parents_parent_id ON student_parents(parent_id);
 
 -- Profiles
-CREATE INDEX idx_profiles_teacher_id ON profiles(teacher_id) WHERE teacher_id IS NOT NULL;
-CREATE INDEX idx_profiles_student_id ON profiles(student_id) WHERE student_id IS NOT NULL;
-CREATE INDEX idx_profiles_parent_id ON profiles(parent_id) WHERE parent_id IS NOT NULL;
+-- UNIQUE partial indexes (migration 068): enforce 1:1 between an auth account
+-- and a domain record — one student/parent/teacher cannot be claimed twice.
+CREATE UNIQUE INDEX idx_profiles_teacher_id ON profiles(teacher_id) WHERE teacher_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_profiles_student_id ON profiles(student_id) WHERE student_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_profiles_parent_id ON profiles(parent_id) WHERE parent_id IS NOT NULL;
 CREATE INDEX idx_profiles_role ON profiles(role);
 
 -- Classes
@@ -858,6 +860,42 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Enforce role ↔ link consistency (migration 068). Composes with the guard
+-- above: that one decides WHO may change role/link columns; this one decides
+-- WHAT combinations are valid once changed. Applies to everyone incl. the
+-- service role — a server path that sets role='parent' without a parent_id
+-- should fail loudly. role='student' may keep a NULL student_id (self-claim).
+CREATE OR REPLACE FUNCTION public.enforce_profile_role_link()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'UPDATE'
+     AND NEW.role       IS NOT DISTINCT FROM OLD.role
+     AND NEW.teacher_id IS NOT DISTINCT FROM OLD.teacher_id
+     AND NEW.student_id IS NOT DISTINCT FROM OLD.student_id
+     AND NEW.parent_id  IS NOT DISTINCT FROM OLD.parent_id THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.role = 'teacher' AND NEW.teacher_id IS NULL THEN
+    RAISE EXCEPTION 'profile %: role=teacher requires teacher_id (use the linking service)', NEW.id;
+  END IF;
+  IF NEW.role = 'parent' AND NEW.parent_id IS NULL THEN
+    RAISE EXCEPTION 'profile %: role=parent requires parent_id (use the linking service)', NEW.id;
+  END IF;
+  IF NEW.student_id IS NOT NULL AND NEW.role <> 'student' THEN
+    RAISE EXCEPTION 'profile %: student_id set but role=% (must be student)', NEW.id, NEW.role;
+  END IF;
+  IF NEW.parent_id IS NOT NULL AND NEW.role <> 'parent' THEN
+    RAISE EXCEPTION 'profile %: parent_id set but role=% (must be parent)', NEW.id, NEW.role;
+  END IF;
+  IF NEW.teacher_id IS NOT NULL AND NEW.role NOT IN ('teacher', 'admin') THEN
+    RAISE EXCEPTION 'profile %: teacher_id set but role=% (must be teacher or admin)', NEW.id, NEW.role;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 -- Auto-update updated_at timestamps
 CREATE OR REPLACE FUNCTION public.set_updated_at()
@@ -1315,6 +1353,11 @@ CREATE POLICY "Users can update own profile"
 CREATE TRIGGER guard_profile_privileged_cols
   BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION public.guard_profile_privileged_cols();
+
+-- Role↔link integrity (migration 068): fires on INSERT and on role/link changes.
+CREATE TRIGGER enforce_profile_role_link
+  BEFORE INSERT OR UPDATE ON profiles
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_profile_role_link();
 
 REVOKE UPDATE ON public.profiles FROM authenticated;
 GRANT UPDATE (full_name, phone, avatar_url) ON public.profiles TO authenticated;
@@ -5184,3 +5227,113 @@ ALTER TABLE student_enrollments
     OR straight_line_km IS NULL
     OR road_distance_km >= straight_line_km - 0.1
   );
+
+-- =============================================================================
+-- Migration 068 — Identity & cross-role linking integrity
+-- (UNIQUE link indexes + role↔link trigger are mirrored inline above, next to
+--  the profiles table/indexes and the guard_profile_privileged_cols trigger.)
+-- =============================================================================
+
+-- Deprecate the table-level relationship; student_parents.relationship is the
+-- authoritative per-link source of truth.
+COMMENT ON COLUMN public.parents.relationship IS
+  'DEPRECATED (migration 068). The authoritative relationship lives per-link in '
+  'student_parents.relationship. This column is retained only for backward '
+  'compatibility and must not be read by application code.';
+
+-- Link-health view: one row per cross-role linking anomaly. ERROR categories
+-- (orphaned_profile, role_link_mismatch, duplicate_*_claim) must be resolved;
+-- INFO categories are onboarding signals. Read via GET /api/admin/link-health.
+CREATE OR REPLACE VIEW public.profile_link_health AS
+  SELECT 'orphaned_profile'::text AS category,
+         p.id::text               AS subject_id,
+         COALESCE(p.full_name, p.email) AS subject_label,
+         ('role=' || p.role || ' but ' || p.role || '_id is NULL') AS detail
+  FROM public.profiles p
+  WHERE (p.role = 'teacher' AND p.teacher_id IS NULL)
+     OR (p.role = 'parent'  AND p.parent_id  IS NULL)
+  UNION ALL
+  SELECT 'unclaimed_student', p.id::text, COALESCE(p.full_name, p.email),
+         'role=student but student_id is NULL (awaiting self-link)'
+  FROM public.profiles p
+  WHERE p.role = 'student' AND p.student_id IS NULL
+  UNION ALL
+  SELECT 'role_link_mismatch', p.id::text, COALESCE(p.full_name, p.email),
+         'non-null link inconsistent with role=' || p.role
+  FROM public.profiles p
+  WHERE (p.student_id IS NOT NULL AND p.role <> 'student')
+     OR (p.parent_id  IS NOT NULL AND p.role <> 'parent')
+     OR (p.teacher_id IS NOT NULL AND p.role NOT IN ('teacher', 'admin'))
+  UNION ALL
+  SELECT 'duplicate_teacher_claim', p.teacher_id::text, t.full_name,
+         count(*) || ' accounts linked to this teacher record'
+  FROM public.profiles p JOIN public.teachers t ON t.id = p.teacher_id
+  WHERE p.teacher_id IS NOT NULL
+  GROUP BY p.teacher_id, t.full_name HAVING count(*) > 1
+  UNION ALL
+  SELECT 'duplicate_student_claim', p.student_id::text, s.full_name,
+         count(*) || ' accounts linked to this student record'
+  FROM public.profiles p JOIN public.students s ON s.id = p.student_id
+  WHERE p.student_id IS NOT NULL
+  GROUP BY p.student_id, s.full_name HAVING count(*) > 1
+  UNION ALL
+  SELECT 'duplicate_parent_claim', p.parent_id::text, pa.full_name,
+         count(*) || ' accounts linked to this parent record'
+  FROM public.profiles p JOIN public.parents pa ON pa.id = p.parent_id
+  WHERE p.parent_id IS NOT NULL
+  GROUP BY p.parent_id, pa.full_name HAVING count(*) > 1
+  UNION ALL
+  SELECT 'parent_without_children', pa.id::text, pa.full_name,
+         'active parent record has no student_parents links'
+  FROM public.parents pa
+  WHERE COALESCE(pa.is_active, true)
+    AND NOT EXISTS (SELECT 1 FROM public.student_parents sp WHERE sp.parent_id = pa.id)
+  UNION ALL
+  SELECT 'student_without_guardian_account', s.id::text, s.full_name,
+         'active student has no linked parent with a portal account'
+  FROM public.students s
+  WHERE COALESCE(s.is_active, true) AND NOT COALESCE(s.is_alumni, false)
+    AND NOT EXISTS (
+      SELECT 1 FROM public.student_parents sp
+      JOIN public.profiles p ON p.parent_id = sp.parent_id
+      WHERE sp.student_id = s.id
+    );
+
+COMMENT ON VIEW public.profile_link_health IS
+  'Cross-role linking anomalies. ERROR categories (orphaned_profile, '
+  'role_link_mismatch, duplicate_*_claim) must be resolved; INFO categories '
+  '(unclaimed_student, parent_without_children, student_without_guardian_account) '
+  'are onboarding signals. Read via GET /api/admin/link-health.';
+
+-- =============================================================================
+-- Migration 069 — Timetable ↔ class_subjects teacher-assignment drift
+-- class_subjects is the canonical teacher↔subject authority; this view surfaces
+-- timetable periods whose teacher differs, for reconciliation.
+-- =============================================================================
+CREATE OR REPLACE VIEW public.timetable_assignment_drift AS
+  SELECT tp.id              AS timetable_period_id,
+         tp.class_id,
+         c.name             AS class_name,
+         c.section          AS class_section,
+         tp.subject_id,
+         s.name             AS subject_name,
+         tp.day_of_week,
+         tp.period_number,
+         tp.teacher_id      AS timetable_teacher_id,
+         tt.full_name       AS timetable_teacher_name,
+         cs.teacher_id      AS canonical_teacher_id,
+         ct.full_name       AS canonical_teacher_name
+  FROM public.timetable_periods tp
+  JOIN public.class_subjects cs
+    ON cs.class_id = tp.class_id AND cs.subject_id = tp.subject_id
+  LEFT JOIN public.classes  c  ON c.id  = tp.class_id
+  LEFT JOIN public.subjects s  ON s.id  = tp.subject_id
+  LEFT JOIN public.teachers tt ON tt.id = tp.teacher_id
+  LEFT JOIN public.teachers ct ON ct.id = cs.teacher_id
+  WHERE tp.is_break IS NOT TRUE
+    AND tp.teacher_id IS DISTINCT FROM cs.teacher_id;
+
+COMMENT ON VIEW public.timetable_assignment_drift IS
+  'Timetable periods whose teacher differs from the canonical class_subjects '
+  'assignment for the same (class, subject). class_subjects is authoritative '
+  '(migration 069); rows here are drift to reconcile (or legitimate cover).';

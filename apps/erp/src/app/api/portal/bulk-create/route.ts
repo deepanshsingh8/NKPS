@@ -107,18 +107,8 @@ export async function POST(request: Request) {
     });
 
     if (userResult.success && userResult.userId) {
-      // Link the profile to the student/staff record
-      if (type === "student") {
-        await admin
-          .from("profiles")
-          .update({ student_id: item.id })
-          .eq("id", userResult.userId);
-      } else {
-        await admin
-          .from("profiles")
-          .update({ teacher_id: teacherId })
-          .eq("id", userResult.userId);
-      }
+      // createPortalUser already set role + the link (student_id / teacher_id)
+      // in one update; no second write needed. (Phase 1 — canonical linking.)
       results.push({ id: item.id, name: item.fullName, success: true });
       created++;
     } else {

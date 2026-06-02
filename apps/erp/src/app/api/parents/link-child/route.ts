@@ -3,6 +3,11 @@ import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { createClient } from "@nkps/shared/lib/supabase/server";
 import { linkChildSchema } from "@nkps/shared/lib/validations";
 import { rateLimit, clientIp } from "@nkps/shared/lib/rate-limit";
+import {
+  ensureParentRecord,
+  linkProfileToParent,
+  linkParentToStudentRecord,
+} from "@/lib/identity/link";
 
 const MAX_CHILDREN_PER_PARENT = 10;
 
@@ -32,62 +37,34 @@ export async function POST(request: Request) {
       );
     }
 
-    // A verified parent account can end up without a linked `parents` row when
-    // the row's insert was skipped or failed at account-creation time — most
-    // commonly a duplicate parents.email (the column is UNIQUE), which the
-    // create/approve flows only log. Rather than dead-end the parent with
-    // "contact administration", self-heal: adopt the existing parents row that
-    // matches this account's email, or provision a fresh one from the profile,
-    // then link it. The per-child relationship is still captured below in
-    // student_parents, so a default here is fine.
+    // A verified parent should already have a linked `parents` row — migration
+    // 068 prevents creating role='parent' without parent_id. Defensive fallback
+    // for any pre-068 account that slipped through: provision + link via the
+    // canonical service (find-or-create by email handles the duplicate-email
+    // case that used to fail silently). The per-child relationship is captured
+    // below in student_parents.
     let parentId = profile.parent_id as string | null;
     if (!parentId) {
       const heal = createAdminClient();
-      if (profile.email) {
-        const { data: existing } = await heal
-          .from("parents")
-          .select("id")
-          .eq("email", profile.email)
-          .maybeSingle();
-        parentId = existing?.id ?? null;
-      }
-      if (!parentId) {
-        const { data: created, error: createErr } = await heal
-          .from("parents")
-          .insert({
-            full_name: profile.full_name,
-            email: profile.email,
-            phone: profile.phone || "",
-            relationship: "guardian",
-          })
-          .select("id")
-          .single();
-        if (createErr || !created) {
-          console.error("Failed to provision parent record:", createErr);
-          return NextResponse.json(
-            {
-              error:
-                "Parent profile not set up. Please contact the school administration.",
-            },
-            { status: 403 }
-          );
-        }
-        parentId = created.id;
-      }
-      const { error: linkErr } = await heal
-        .from("profiles")
-        .update({ parent_id: parentId })
-        .eq("id", user.id);
-      if (linkErr) {
-        console.error("Failed to link parent_id to profile:", linkErr);
+      const parent = await ensureParentRecord(heal, {
+        email: profile.email,
+        fullName: profile.full_name,
+        phone: profile.phone,
+      });
+      if ("error" in parent) {
         return NextResponse.json(
-          {
-            error:
-              "Parent profile not set up. Please contact the school administration.",
-          },
+          { error: "Parent profile not set up. Please contact the school administration." },
           { status: 403 }
         );
       }
+      const linked = await linkProfileToParent(heal, user.id, parent.parentId);
+      if (!linked.ok) {
+        return NextResponse.json(
+          { error: "Parent profile not set up. Please contact the school administration." },
+          { status: 403 }
+        );
+      }
+      parentId = parent.parentId;
     }
 
     // Provisioning above either resolved a parent id or returned; this guard
@@ -179,21 +156,6 @@ export async function POST(request: Request) {
     }
     if (student.date_of_birth !== date_of_birth) return verifyFailed;
 
-    // Check for existing link
-    const { data: existingLink } = await supabase
-      .from("student_parents")
-      .select("id")
-      .eq("student_id", student.id)
-      .eq("parent_id", parentId)
-      .single();
-
-    if (existingLink) {
-      return NextResponse.json(
-        { error: "This child is already linked to your account" },
-        { status: 409 }
-      );
-    }
-
     // Cap children per parent. Real families don't have ten children at the
     // school; if they do, an admin can lift the cap manually. This stops a
     // compromised parent account from sweeping the whole student directory.
@@ -211,38 +173,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // Determine primary contact status
-    const { count } = await supabase
-      .from("student_parents")
-      .select("id", { count: "exact", head: true })
-      .eq("student_id", student.id);
-
-    const isPrimary = (count ?? 0) === 0;
-
-    // Create the junction record
-    const { error: insertError } = await supabase
-      .from("student_parents")
-      .insert({
-        student_id: student.id,
-        parent_id: parentId,
-        relationship,
-        is_primary_contact: isPrimary,
-      });
-
-    if (insertError) {
-      // Handle unique constraint violation (race condition)
-      if (insertError.code === "23505") {
-        return NextResponse.json(
-          { error: "This child is already linked to your account" },
-          { status: 409 }
-        );
-      }
-      console.error("Failed to link child:", insertError);
+    // Create the junction via the canonical service (computes primary-contact,
+    // idempotent on the unique constraint / race).
+    const linked = await linkParentToStudentRecord(supabase, {
+      studentId: student.id,
+      parentId,
+      relationship,
+    });
+    if (!linked.ok) {
+      return NextResponse.json({ error: linked.error }, { status: linked.status });
+    }
+    if (linked.alreadyLinked) {
       return NextResponse.json(
-        { error: "Failed to link child. Please try again." },
-        { status: 500 }
+        { error: "This child is already linked to your account" },
+        { status: 409 }
       );
     }
+    const isPrimary = linked.isPrimaryContact ?? false;
 
     // Fetch enrollment info to return full child data
     const { data: enrollment } = await supabase

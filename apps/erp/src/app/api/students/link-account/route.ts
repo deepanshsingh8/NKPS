@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyAdmin } from "@nkps/shared/lib/verify-admin";
 import { z } from "zod";
+import { linkProfileToStudent, linkParentAccountToStudent } from "@/lib/identity/link";
 
 // Admin repair tool: connect an existing student/parent login to a student
 // record by admission number. Fixes accounts that were created without a link
@@ -93,99 +94,30 @@ export async function POST(request: Request) {
     );
   }
 
-  // ---- Student account: set profiles.student_id ----
+  // All linking goes through the canonical identity service: it sets `role`
+  // alongside the link (fixing accounts stranded at role='student'), enforces
+  // 1:1, and is idempotent. (migration 068 / Phase 1)
   if (profile.role === "student") {
-    const { data: claimedBy } = await admin
-      .from("profiles")
-      .select("id")
-      .eq("student_id", student.id)
-      .neq("id", profile_id)
-      .maybeSingle();
-    if (claimedBy) {
-      return NextResponse.json(
-        {
-          error: `${student.full_name}'s record is already linked to another account. Unlink that first.`,
-        },
-        { status: 409 }
-      );
-    }
-    const { error } = await admin
-      .from("profiles")
-      .update({ student_id: student.id })
-      .eq("id", profile_id);
-    if (error) {
-      console.error("link-account: set student_id failed:", error);
-      return NextResponse.json({ error: "Failed to link account" }, { status: 500 });
-    }
+    const linked = await linkProfileToStudent(admin, profile_id, student.id);
+    if (!linked.ok) return NextResponse.json({ error: linked.error }, { status: linked.status });
     return NextResponse.json({
       success: true,
+      alreadyLinked: linked.alreadyLinked,
       linked: { student_name: student.full_name, admission_no: student.admission_no },
     });
   }
 
-  // ---- Parent account: ensure parents row + student_parents junction ----
-  let parentId = profile.parent_id as string | null;
-  if (!parentId && profile.email) {
-    const { data: existing } = await admin
-      .from("parents")
-      .select("id")
-      .eq("email", profile.email)
-      .maybeSingle();
-    parentId = existing?.id ?? null;
-  }
-  if (!parentId) {
-    const { data: created, error: createErr } = await admin
-      .from("parents")
-      .insert({
-        full_name: profile.full_name,
-        email: profile.email,
-        phone: profile.phone || "",
-        relationship: relationship || "guardian",
-      })
-      .select("id")
-      .single();
-    if (createErr || !created) {
-      console.error("link-account: provision parent failed:", createErr);
-      return NextResponse.json({ error: "Failed to set up parent record" }, { status: 500 });
-    }
-    parentId = created.id;
-  }
-  if (profile.parent_id !== parentId) {
-    await admin.from("profiles").update({ parent_id: parentId }).eq("id", profile_id);
-  }
-
-  const { data: existingLink } = await admin
-    .from("student_parents")
-    .select("id")
-    .eq("student_id", student.id)
-    .eq("parent_id", parentId)
-    .maybeSingle();
-  if (existingLink) {
-    return NextResponse.json({
-      success: true,
-      alreadyLinked: true,
-      linked: { student_name: student.full_name, admission_no: student.admission_no },
-    });
-  }
-
-  const { count } = await admin
-    .from("student_parents")
-    .select("id", { count: "exact", head: true })
-    .eq("student_id", student.id);
-
-  const { error: insertErr } = await admin.from("student_parents").insert({
-    student_id: student.id,
-    parent_id: parentId,
+  // ---- Parent account ----
+  const linked = await linkParentAccountToStudent(admin, {
+    profileId: profile_id,
+    profile: { email: profile.email, fullName: profile.full_name, phone: profile.phone },
+    studentId: student.id,
     relationship: relationship || "guardian",
-    is_primary_contact: (count ?? 0) === 0,
   });
-  if (insertErr && insertErr.code !== "23505") {
-    console.error("link-account: junction insert failed:", insertErr);
-    return NextResponse.json({ error: "Failed to link parent to student" }, { status: 500 });
-  }
-
+  if (!linked.ok) return NextResponse.json({ error: linked.error }, { status: linked.status });
   return NextResponse.json({
     success: true,
+    alreadyLinked: linked.alreadyLinked,
     linked: { student_name: student.full_name, admission_no: student.admission_no },
   });
 }

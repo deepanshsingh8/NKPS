@@ -53,9 +53,15 @@ export async function createPortalUser({
   }
 
   if (newUser.user) {
+    // `role` MUST be set here. handle_new_user (migration 061) hardcodes
+    // role='student' on signup and ignores user_metadata.role, so without this
+    // a teacher/parent account would stay role='student' — routed to the wrong
+    // dashboard and invisible to the teacher/parent views. role + link go in
+    // ONE update to satisfy the enforce_profile_role_link trigger (migration 068).
     await supabase
       .from("profiles")
       .update({
+        role,
         phone: phone || null,
         must_change_password: true,
         teacher_id: teacherId || null,

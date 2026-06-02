@@ -3,6 +3,7 @@ import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { createClient } from "@nkps/shared/lib/supabase/server";
 import { linkSelfStudentSchema } from "@nkps/shared/lib/validations";
 import { rateLimit, clientIp } from "@nkps/shared/lib/rate-limit";
+import { linkProfileToStudent } from "@/lib/identity/link";
 
 // A student claiming their own record at first login. Mirrors the parent
 // link-child verification (admission number + date of birth) but writes
@@ -103,33 +104,15 @@ export async function POST(request: Request) {
     }
     if (student.date_of_birth !== date_of_birth) return verifyFailed;
 
-    // Guard against two accounts claiming the same student record.
-    const { data: alreadyClaimed } = await admin
-      .from("profiles")
-      .select("id")
-      .eq("student_id", student.id)
-      .maybeSingle();
-    if (alreadyClaimed) {
-      return NextResponse.json(
-        {
-          error:
-            "This student record is already connected to another account. Please contact the school administration.",
-        },
-        { status: 409 }
-      );
-    }
-
-    const { error: linkErr } = await admin
-      .from("profiles")
-      .update({ student_id: student.id })
-      .eq("id", user.id)
-      .is("student_id", null);
-    if (linkErr) {
-      console.error("link-self: failed to set student_id:", linkErr);
-      return NextResponse.json(
-        { error: "Failed to connect your account. Please try again." },
-        { status: 500 }
-      );
+    // Canonical service: claim-checks 1:1, sets role+student_id, idempotent.
+    const linked = await linkProfileToStudent(admin, user.id, student.id);
+    if (!linked.ok) {
+      // Re-map the generic conflict to the student-facing "contact admin" copy.
+      const message =
+        linked.status === 409
+          ? "This student record is already connected to another account. Please contact the school administration."
+          : "Failed to connect your account. Please try again.";
+      return NextResponse.json({ error: message }, { status: linked.status });
     }
 
     return NextResponse.json({
