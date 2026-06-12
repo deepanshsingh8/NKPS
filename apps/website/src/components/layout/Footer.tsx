@@ -136,7 +136,7 @@ export function Footer() {
           <span className="hidden sm:inline text-gray-600">·</span>
           <Link
             href="/mandatory-public-disclosure"
-            className="text-xs text-gray-500 hover:text-gold-400 transition-colors"
+            className="text-xs text-gray-400 hover:text-gold-400 transition-colors"
           >
             Mandatory Public Disclosure
           </Link>

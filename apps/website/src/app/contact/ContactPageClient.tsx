@@ -129,7 +129,7 @@ export function ContactPageClient() {
                 <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-gold-500 to-gold-400 shadow-lg shadow-gold-500/25 transition-transform duration-300 group-hover:scale-110">
                   <card.icon className="h-7 w-7 text-white" />
                 </div>
-                <p className="text-xs font-medium uppercase tracking-widest text-gold-600">
+                <p className="text-xs font-medium uppercase tracking-widest text-gold-700">
                   {card.subtitle}
                 </p>
                 <h3 className="mt-1 font-heading text-lg font-bold text-navy-900">

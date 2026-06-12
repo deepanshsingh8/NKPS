@@ -23,7 +23,11 @@ const CSP = [
 const nextConfig: NextConfig = {
   transpilePackages: ["@nkps/shared"],
   images: {
-    unoptimized: true,
+    // Public marketing site: let Next optimize images (responsive WebP +
+    // long-lived CDN cache) so we don't ship 1-2MB originals to mobile. The
+    // config below keeps Vercel transformation usage low — webp-only, a single
+    // quality, a 31-day minimum cache TTL, and a bounded set of size buckets.
+    // (cms/erp keep unoptimized:true — auth-gated, low-traffic, not worth the quota.)
     minimumCacheTTL: 2678400,
     formats: ["image/webp"],
     qualities: [75],

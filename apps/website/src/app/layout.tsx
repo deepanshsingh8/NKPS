@@ -23,6 +23,17 @@ const playfair = Playfair_Display({
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 const GSC_VERIFICATION = process.env.NEXT_PUBLIC_GSC_VERIFICATION;
 
+// Supabase Storage serves all hero/section/article imagery (the LCP image lives
+// there). Opening the TLS connection ahead of time shaves ~300ms off LCP on
+// mobile (flagged by Lighthouse "Preconnect to required origins").
+const SUPABASE_ORIGIN = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).origin;
+  } catch {
+    return undefined;
+  }
+})();
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
@@ -94,6 +105,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
+      <head>
+        {SUPABASE_ORIGIN && (
+          <>
+            <link rel="preconnect" href={SUPABASE_ORIGIN} />
+            <link rel="dns-prefetch" href={SUPABASE_ORIGIN} />
+          </>
+        )}
+      </head>
       <body className="min-h-screen flex flex-col antialiased">
         <JsonLd data={schoolJsonLd} />
         <LayoutShell>

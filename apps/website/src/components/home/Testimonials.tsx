@@ -105,12 +105,12 @@ export function Testimonials({ cards }: TestimonialsProps = {}) {
           </div>
 
           {/* Indicators */}
-          <div className="flex items-center justify-center gap-3 mt-8">
+          <div className="flex items-center justify-center gap-1 mt-8">
             {activeTestimonials.map((t, i) => (
               <button
                 key={t.id}
                 onClick={() => setActive(i)}
-                className="relative focus:outline-none cursor-pointer"
+                className="relative flex h-6 w-6 items-center justify-center focus:outline-none cursor-pointer"
                 aria-label={`View testimonial from ${t.name}`}
               >
                 <div

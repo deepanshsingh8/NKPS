@@ -153,7 +153,7 @@ export function LatestUpdates({ articles }: LatestUpdatesProps = {}) {
                           and every card ends up the same height */}
                       <div className="p-6 flex flex-1 flex-col">
                         {/* Date badge */}
-                        <span className="inline-block self-start bg-gold-500/8 text-gold-600 text-xs font-semibold px-3.5 py-1.5 rounded-full border border-gold-500/15 group-hover:bg-gold-500/15 group-hover:border-gold-500/25 transition-all duration-300">
+                        <span className="inline-block self-start bg-gold-500/8 text-gold-700 text-xs font-semibold px-3.5 py-1.5 rounded-full border border-gold-500/15 group-hover:bg-gold-500/15 group-hover:border-gold-500/25 transition-all duration-300">
                           {item.date}
                         </span>
 

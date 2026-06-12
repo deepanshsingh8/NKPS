@@ -115,7 +115,7 @@ export function TransferCertificatesPageClient() {
                     <GraduationCap className="h-6 w-6 text-gold-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-600">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-700">
                       Match found
                     </p>
                     <h3 className="mt-1 font-heading text-2xl font-bold text-navy-900">

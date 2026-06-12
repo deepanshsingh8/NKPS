@@ -30,6 +30,7 @@
   --color-blue-400: #60A5FA;
 
   /* Gold accent */
+  --color-gold-700: #8A6D12; /* AA-contrast (>=4.5:1) gold for text on white/cream */
   --color-gold-600: #B8941F;
   --color-gold-500: #D4A843;
   --color-gold-400: #E5C06E;

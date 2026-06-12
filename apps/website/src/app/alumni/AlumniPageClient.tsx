@@ -120,7 +120,7 @@ export function AlumniPageClient({ cards }: AlumniPageClientProps) {
                       {person.name}
                     </h3>
                     {person.designation && (
-                      <p className="mt-0.5 text-sm font-medium text-gold-600">
+                      <p className="mt-0.5 text-sm font-medium text-gold-700">
                         {person.designation}
                       </p>
                     )}
