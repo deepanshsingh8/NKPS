@@ -92,7 +92,7 @@ function SectionCard({
         </div>
         <div>
           {eyebrow && (
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-600">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-700">
               {eyebrow}
             </p>
           )}

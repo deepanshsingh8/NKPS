@@ -74,7 +74,7 @@ export function LeadershipGrid({ cards }: LeadershipGridProps = {}) {
                   <h3 className="font-heading text-xl font-semibold text-navy-900">
                     {leader.name}
                   </h3>
-                  <p className="text-gold-600 text-sm uppercase tracking-wider mt-1">
+                  <p className="text-gold-700 text-sm uppercase tracking-wider mt-1">
                     {leader.designation}
                   </p>
                   {leader.message && (

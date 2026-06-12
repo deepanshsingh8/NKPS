@@ -173,7 +173,7 @@ function NewsCard({ card }: { card: ColumnCard }) {
       {/* Body */}
       <div className="p-4">
         {card.meta && (
-          <span className="inline-block rounded-full border border-gold-500/15 bg-gold-500/8 px-2.5 py-0.5 text-[11px] font-semibold text-gold-600">
+          <span className="inline-block rounded-full border border-gold-500/15 bg-gold-500/8 px-2.5 py-0.5 text-[11px] font-semibold text-gold-700">
             {card.meta}
           </span>
         )}
