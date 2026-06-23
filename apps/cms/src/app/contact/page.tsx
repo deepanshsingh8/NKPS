@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Mail, MailOpen, Phone, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Mail,
+  MailOpen,
+  Phone,
+  MessageCircle,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { adminFetch, adminPatch } from "@nkps/shared/lib/admin-api";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import { Button } from "@nkps/shared/components/ui/button";
@@ -10,6 +17,13 @@ import { toast } from "sonner";
 import type { ContactSubmission } from "@nkps/shared/types";
 
 type Filter = "all" | "unread" | "read";
+
+// wa.me requires a country-coded number with no symbols. Indian 10-digit
+// numbers get the +91 prefix; anything already longer is assumed to include it.
+function toWhatsAppNumber(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  return digits.length === 10 ? `91${digits}` : digits;
+}
 
 export default function AdminContactPage() {
   const [messages, setMessages] = useState<ContactSubmission[]>([]);
@@ -218,6 +232,36 @@ export default function AdminContactPage() {
                         <Mail className="h-3.5 w-3.5 mr-1.5" />
                         Reply via Email
                       </Button>
+                      {msg.phone && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => {
+                              window.location.href = `tel:${msg.phone}`;
+                            }}
+                          >
+                            <Phone className="h-3.5 w-3.5 mr-1.5" />
+                            Call
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => {
+                              window.open(
+                                `https://wa.me/${toWhatsAppNumber(msg.phone)}`,
+                                "_blank",
+                                "noopener,noreferrer"
+                              );
+                            }}
+                          >
+                            <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
+                            WhatsApp
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
