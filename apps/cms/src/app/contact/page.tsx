@@ -12,6 +12,12 @@ import {
 import { adminFetch, adminPatch } from "@nkps/shared/lib/admin-api";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import { Button } from "@nkps/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@nkps/shared/components/ui/dropdown-menu";
 import { cn } from "@nkps/shared/lib/utils";
 import { toast } from "sonner";
 import type { ContactSubmission } from "@nkps/shared/types";
@@ -145,11 +151,19 @@ export default function AdminContactPage() {
                     : "border-blue-200 bg-blue-50/30 dark:bg-blue-950/30 dark:border-border"
                 )}
               >
-                <button
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() =>
                     setExpandedId(isExpanded ? null : msg.id)
                   }
-                  className="w-full text-left p-5"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setExpandedId(isExpanded ? null : msg.id);
+                    }
+                  }}
+                  className="w-full cursor-pointer text-left p-5"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
@@ -174,10 +188,42 @@ export default function AdminContactPage() {
                           <Mail className="h-3 w-3" />
                           {msg.email}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" />
-                          {msg.phone}
-                        </span>
+                        {msg.phone && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex items-center gap-1 rounded outline-none hover:text-blue-600 focus-visible:text-blue-600 dark:hover:text-blue-400"
+                            >
+                              <Phone className="h-3 w-3" />
+                              {msg.phone}
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="start"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  window.location.href = `tel:${msg.phone}`;
+                                }}
+                              >
+                                <Phone className="h-3.5 w-3.5" />
+                                Call {msg.phone}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  window.open(
+                                    `https://wa.me/${toWhatsAppNumber(msg.phone)}`,
+                                    "_blank",
+                                    "noopener,noreferrer"
+                                  );
+                                }}
+                              >
+                                <MessageCircle className="h-3.5 w-3.5" />
+                                Message on WhatsApp
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
@@ -195,7 +241,7 @@ export default function AdminContactPage() {
                       )}
                     </div>
                   </div>
-                </button>
+                </div>
 
                 {isExpanded && (
                   <div className="px-5 pb-5 border-t border-gray-100 dark:border-border">
@@ -232,36 +278,6 @@ export default function AdminContactPage() {
                         <Mail className="h-3.5 w-3.5 mr-1.5" />
                         Reply via Email
                       </Button>
-                      {msg.phone && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs"
-                            onClick={() => {
-                              window.location.href = `tel:${msg.phone}`;
-                            }}
-                          >
-                            <Phone className="h-3.5 w-3.5 mr-1.5" />
-                            Call
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs"
-                            onClick={() => {
-                              window.open(
-                                `https://wa.me/${toWhatsAppNumber(msg.phone)}`,
-                                "_blank",
-                                "noopener,noreferrer"
-                              );
-                            }}
-                          >
-                            <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
-                            WhatsApp
-                          </Button>
-                        </>
-                      )}
                     </div>
                   </div>
                 )}
