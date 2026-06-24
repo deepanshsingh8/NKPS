@@ -139,6 +139,26 @@ export async function GET(request: Request) {
         .maybeSingle();
 
       if (activeRow?.snapshot) {
+        // A finalized snapshot must still honour the live publish gate for the
+        // people it was distributed to: if an admin un-publishes this class's
+        // results for the exam, students/parents can no longer download the
+        // frozen marksheet. Staff (admin/teacher) keep operational access. The
+        // snapshot row itself is left untouched (audit-quality), so re-publish
+        // restores access with no re-finalize needed.
+        if (!callerIsStaff) {
+          const { count: publishedCount } = await adminClient
+            .from("results")
+            .select("id", { count: "exact", head: true })
+            .eq("student_id", studentId)
+            .eq("exam_type_id", examTypeId)
+            .eq("is_published", true);
+          if (!publishedCount) {
+            return NextResponse.json(
+              { error: "Results for this exam are not currently published." },
+              { status: 403 }
+            );
+          }
+        }
         // Reject snapshots whose schema version we don't know how to render.
         // The marksheet_publications.schema_version column is the source of
         // truth (the JSON's own field is informational); falling back to the

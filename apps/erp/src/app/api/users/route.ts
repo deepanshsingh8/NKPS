@@ -9,6 +9,7 @@ import {
   linkProfileToTeacher,
   linkProfileToParent,
 } from "@/lib/identity/link";
+import { pickFreeAdmissionNo } from "@/lib/admission-no";
 
 export async function POST(request: Request) {
   try {
@@ -100,10 +101,14 @@ export async function POST(request: Request) {
 
     // For student role: create a students record and link it to the profile
     if (role === "student" && newUser.user) {
+      // Collision-safe default admission number — a raw email local-part would
+      // fail the UNIQUE(admission_no) constraint when two "firstname@…" users
+      // exist, stranding this account as role='student' with no students row.
+      const admissionNo = await pickFreeAdmissionNo(supabase, email);
       const { data: studentRecord, error: studentError } = await supabase
         .from("students")
         .insert({
-          admission_no: email.split("@")[0], // default admission_no from email prefix
+          admission_no: admissionNo,
           full_name,
           email,
           phone: phone || null,

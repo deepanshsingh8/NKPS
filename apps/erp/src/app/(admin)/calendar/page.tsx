@@ -142,6 +142,10 @@ export default function AdminCalendarPage() {
         start_date: newEvent.start_date,
         end_date: newEvent.end_date || null,
         class_id: newEvent.class_id || null,
+        // A class-scoped event is, by definition, not school-wide. Without this
+        // the column falls back to its DB default of true, so a single-class
+        // holiday would block attendance for every class.
+        is_school_wide: !newEvent.class_id,
         is_public: newEvent.is_public,
         created_by: session.user.id,
       },

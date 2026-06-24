@@ -136,13 +136,20 @@ export async function POST(request: Request) {
       if (userResult.success) usersCreated++;
     }
 
-    return NextResponse.json({
-      success: true,
-      inserted,
-      usersCreated,
-      errors,
-      total: staff.length,
-    });
+    // Nothing inserted + at least one error = total failure; surface it as
+    // non-2xx so a caller checking only res.ok doesn't read it as success.
+    const allFailed = inserted === 0 && errors.length > 0;
+    return NextResponse.json(
+      {
+        success: !allFailed,
+        ...(allFailed ? { error: "No staff were imported — every row failed." } : {}),
+        inserted,
+        usersCreated,
+        errors,
+        total: staff.length,
+      },
+      { status: allFailed ? 400 : 200 }
+    );
   } catch (err) {
     console.error("Bulk staff upload error:", err);
     return NextResponse.json(

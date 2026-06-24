@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@nkps/shared/lib/supabase/server";
+import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
+import { teacherCanAccessClass, getTeacherStudentIds } from "@/lib/teacher-scope";
 
 export async function GET(request: Request) {
   try {
@@ -10,6 +12,37 @@ export async function GET(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Authorize the caller before reading any remarks. The student_remarks RLS
+    // policy grants every teacher read access to all rows, so without an
+    // app-layer scope check a teacher could pass any class_id/student_id and
+    // read remarks for classes they don't teach. Admins and results-editors
+    // keep full access; teachers are restricted to their own classes/students.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, teacher_id")
+      .eq("id", user.id)
+      .single();
+    if (!profile) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    let teacherScopeId: string | null = null;
+    if (profile.role === "admin") {
+      // full access
+    } else if (profile.role === "teacher" && profile.teacher_id) {
+      teacherScopeId = profile.teacher_id as string;
+    } else {
+      const { data: perm } = await supabase
+        .from("editor_permissions")
+        .select("feature_key")
+        .eq("editor_id", user.id)
+        .eq("feature_key", "results")
+        .maybeSingle();
+      if (!perm) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     const { searchParams } = new URL(request.url);
@@ -27,6 +60,17 @@ export async function GET(request: Request) {
     // Class-scoped fetch: return all remarks for students in that class
     // for the given exam. Used by the teacher's remarks editor.
     if (classId) {
+      if (teacherScopeId) {
+        const ok = await teacherCanAccessClass(
+          createAdminClient(),
+          teacherScopeId,
+          classId
+        );
+        if (!ok) {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+      }
+
       const { data: enrollments } = await supabase
         .from("student_enrollments")
         .select("student_id")
@@ -48,6 +92,16 @@ export async function GET(request: Request) {
 
     // Single-student fetch
     if (studentId) {
+      if (teacherScopeId) {
+        const studentIds = await getTeacherStudentIds(
+          createAdminClient(),
+          teacherScopeId
+        );
+        if (!studentIds.has(studentId)) {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+      }
+
       const { data } = await supabase
         .from("student_remarks")
         .select("student_id, remark, updated_at")
