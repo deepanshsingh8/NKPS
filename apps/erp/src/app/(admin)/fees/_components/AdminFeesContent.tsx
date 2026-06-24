@@ -1592,7 +1592,13 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         toast.error(data.error ?? "Failed to record waiver");
         return;
       }
-      toast.success("Waiver recorded");
+      // Editors don't write directly — the server files a change request for an
+      // admin to approve, and responds with { pending: true }.
+      toast.success(
+        data.pending
+          ? data.message ?? "Waiver submitted for admin approval"
+          : "Waiver recorded"
+      );
       setWaiverOpen(false);
       setWaiverForm({
         fee_structure_id: "",

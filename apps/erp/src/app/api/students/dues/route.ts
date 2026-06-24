@@ -29,6 +29,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const dues = await getStudentOutstandingDues(createAdminClient(), studentId);
-  return NextResponse.json(dues);
+  try {
+    const dues = await getStudentOutstandingDues(createAdminClient(), studentId);
+    return NextResponse.json(dues);
+  } catch (err) {
+    console.error("[students.dues.GET]", err);
+    return NextResponse.json(
+      { error: "Could not determine outstanding dues" },
+      { status: 500 }
+    );
+  }
 }

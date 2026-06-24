@@ -41,7 +41,7 @@ export async function getStudentOutstandingDues(
   admin: SupabaseClient,
   studentId: string
 ): Promise<StudentDues> {
-  const { data: enrollment } = await admin
+  const { data: enrollment, error: enrollmentError } = await admin
     .from("student_enrollments")
     .select(
       "class_id, stream_id, academic_year_id, has_transport, transport_slab_id, classes(name)"
@@ -51,6 +51,13 @@ export async function getStudentOutstandingDues(
     .limit(1)
     .maybeSingle();
 
+  // Never swallow a DB error here: a silent failure would make totalPaid or
+  // totalFees default to 0, which either falsely blocks a paid-up student from
+  // downloading or falsely opens the gate. Propagate so the caller fails the
+  // request explicitly instead of mis-gating.
+  if (enrollmentError) {
+    throw new Error(`Failed to load enrollment for dues: ${enrollmentError.message}`);
+  }
   if (!enrollment) return { total: 0, hasOutstanding: false };
 
   const className =
@@ -72,15 +79,24 @@ export async function getStudentOutstandingDues(
     if (academicYearId) {
       structuresQuery = structuresQuery.eq("academic_year_id", academicYearId);
     }
-    const [{ data: structuresData }, { data: slabsData }] = await Promise.all([
+    const [
+      { data: structuresData, error: structuresError },
+      { data: slabsData, error: slabsError },
+    ] = await Promise.all([
       structuresQuery,
       academicYearId
         ? admin
             .from("transport_fare_slabs")
             .select("id, name, amount, frequency, is_active")
             .eq("academic_year_id", academicYearId)
-        : Promise.resolve({ data: [] as TransportFareSlab[] }),
+        : Promise.resolve({ data: [] as TransportFareSlab[], error: null }),
     ]);
+    if (structuresError) {
+      throw new Error(`Failed to load fee structures for dues: ${structuresError.message}`);
+    }
+    if (slabsError) {
+      throw new Error(`Failed to load transport slabs for dues: ${slabsError.message}`);
+    }
     const lines = resolveEffectiveFeeLines({
       structures: (structuresData as FeeStructure[]) ?? [],
       studentStreamId: streamId,
@@ -91,10 +107,14 @@ export async function getStudentOutstandingDues(
     totalFees = sumAnnualized(lines);
   }
 
-  const { data: paymentData } = await admin
+  const { data: paymentData, error: paymentError } = await admin
     .from("fee_payments")
     .select("amount_paid, waiver_amount, status")
     .eq("student_id", studentId);
+
+  if (paymentError) {
+    throw new Error(`Failed to load fee payments for dues: ${paymentError.message}`);
+  }
 
   const totalPaid = ((paymentData as PaymentRow[]) ?? [])
     .filter((p) => p.status === "paid" || p.status === "partial")

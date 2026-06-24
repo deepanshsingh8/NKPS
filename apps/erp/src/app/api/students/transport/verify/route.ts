@@ -48,6 +48,41 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // A positive verification must actually vouch for something: the student has
+  // to have an active transport opt-in, an assigned fare slab, and a pickup
+  // location on file. Without this, the attestation (and the anti-cheat digest
+  // built on it) certifies a student who isn't even on transport. Resetting
+  // (verified=false) is always allowed.
+  if (body.verified) {
+    const { data: enrollment, error: enrollmentError } = await admin
+      .from("student_enrollments")
+      .select("has_transport, transport_slab_id, pickup_lat, pickup_lng")
+      .eq("id", body.enrollment_id)
+      .maybeSingle();
+    if (enrollmentError) {
+      console.error("[transport.verify] load enrollment:", enrollmentError);
+      return NextResponse.json(
+        { error: "Failed to load enrollment" },
+        { status: 500 }
+      );
+    }
+    if (!enrollment) {
+      return NextResponse.json({ error: "Enrollment not found" }, { status: 404 });
+    }
+    if (!enrollment.has_transport || !enrollment.transport_slab_id) {
+      return NextResponse.json(
+        { error: "Cannot verify pickup: this student has no active transport opt-in or fare slab" },
+        { status: 400 }
+      );
+    }
+    if (enrollment.pickup_lat == null || enrollment.pickup_lng == null) {
+      return NextResponse.json(
+        { error: "Cannot verify pickup: no pickup location is set for this student" },
+        { status: 400 }
+      );
+    }
+  }
+
   const update: Record<string, unknown> = body.verified
     ? {
         pickup_verified_at: new Date().toISOString(),

@@ -325,13 +325,20 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      inserted,
-      classesCreated,
-      errors,
-      total: students.length,
-    });
+    // Nothing inserted + at least one error = total failure; don't let a caller
+    // that only checks res.ok mistake it for success.
+    const allFailed = inserted === 0 && errors.length > 0;
+    return NextResponse.json(
+      {
+        success: !allFailed,
+        ...(allFailed ? { error: "No students were imported — every row failed." } : {}),
+        inserted,
+        classesCreated,
+        errors,
+        total: students.length,
+      },
+      { status: allFailed ? 400 : 200 }
+    );
   } catch (err) {
     console.error("Bulk student upload error:", err);
     return NextResponse.json(

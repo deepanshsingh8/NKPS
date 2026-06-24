@@ -288,9 +288,21 @@ export async function POST(request: NextRequest) {
 
   // If the pickup coords changed, drop the previous verification —
   // a verified pickup at the old coords doesn't vouch for the new ones.
+  // Compare numerically with a tolerance below the stored precision
+  // (numeric(10,7) = 7 decimals): a string compare flags "28.6139000" (DB) vs
+  // "28.6139" (client) as changed and wipes verification on every no-op save.
+  const coordsEqual = (
+    a: number | string | null | undefined,
+    b: number | string | null | undefined
+  ): boolean => {
+    const na = a == null ? null : Number(a);
+    const nb = b == null ? null : Number(b);
+    if (na == null || nb == null) return na === nb;
+    return Math.abs(na - nb) < 1e-7;
+  };
   const coordsChanged =
-    enrollment.pickup_lat?.toString() !== (body.pickup_lat ?? null)?.toString() ||
-    enrollment.pickup_lng?.toString() !== (body.pickup_lng ?? null)?.toString();
+    !coordsEqual(enrollment.pickup_lat, body.pickup_lat ?? null) ||
+    !coordsEqual(enrollment.pickup_lng, body.pickup_lng ?? null);
   if (coordsChanged) {
     update.pickup_verified_at = null;
     update.pickup_verified_by = null;

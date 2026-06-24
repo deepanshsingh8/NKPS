@@ -614,10 +614,12 @@ CREATE TABLE fee_change_requests (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   target_table text NOT NULL
     CHECK (target_table IN ('fee_payments')),
-  target_id uuid NOT NULL,
+  -- Migration 070: nullable for action='insert' (no target row yet).
+  target_id uuid,
   action text NOT NULL
-    CHECK (action IN ('update', 'delete')),
-  current_snapshot jsonb NOT NULL,
+    CHECK (action IN ('insert', 'update', 'delete')),
+  -- Migration 070: nullable for action='insert' (no prior row to snapshot).
+  current_snapshot jsonb,
   proposed_changes jsonb NOT NULL DEFAULT '{}'::jsonb,
   reason text NOT NULL
     CHECK (char_length(reason) >= 5),
@@ -632,6 +634,15 @@ CREATE TABLE fee_change_requests (
     (status = 'pending' AND reviewed_by IS NULL AND reviewed_at IS NULL)
     OR (status IN ('approved', 'rejected', 'cancelled')
         AND reviewed_at IS NOT NULL)
+  ),
+  -- Migration 070: an INSERT has no target/snapshot; update/delete require both.
+  CONSTRAINT chk_change_request_target CHECK (
+    (action = 'insert'
+      AND target_id IS NULL
+      AND current_snapshot IS NULL)
+    OR (action IN ('update', 'delete')
+      AND target_id IS NOT NULL
+      AND current_snapshot IS NOT NULL)
   )
 );
 
@@ -641,10 +652,12 @@ CREATE TABLE fee_change_requests (
 CREATE TABLE fee_change_audit_log (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   target_table text NOT NULL,
-  target_id uuid NOT NULL,
+  -- Migration 070: nullable for an applied INSERT (new id is in after_snapshot).
+  target_id uuid,
   action text NOT NULL
-    CHECK (action IN ('update', 'delete')),
-  before_snapshot jsonb NOT NULL,
+    CHECK (action IN ('insert', 'update', 'delete')),
+  -- Migration 070: nullable for an applied INSERT (no prior row).
+  before_snapshot jsonb,
   after_snapshot jsonb,
   performed_by uuid NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
   performed_at timestamptz NOT NULL DEFAULT now(),
@@ -737,11 +750,20 @@ CREATE INDEX idx_stream_subjects_subject_id ON stream_subjects(subject_id);
 -- Timetable
 CREATE INDEX idx_timetable_class_day ON timetable_periods(class_id, day_of_week);
 CREATE INDEX idx_timetable_teacher_id ON timetable_periods(teacher_id);
--- A teacher cannot be in two places at the same slot. Partial because
--- teacher_id is nullable (e.g. break/free period rows).
-CREATE UNIQUE INDEX IF NOT EXISTS idx_timetable_teacher_slot_unique
-  ON timetable_periods (teacher_id, day_of_week, period_number)
-  WHERE teacher_id IS NOT NULL;
+-- Migration 071: a teacher cannot be in two periods that OVERLAP IN TIME on the
+-- same weekday. Classes are staggered, so this is a time-range exclusion rather
+-- than a (teacher, day, period_number) unique index. Breaks/free rows exempt.
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+-- start_time < end_time excludes degenerate rows: tsrange() errors when the
+-- lower bound exceeds the upper, so a bad row (end <= start) would otherwise
+-- break the constraint build. Such rows can't overlap anything anyway.
+ALTER TABLE timetable_periods
+  ADD CONSTRAINT timetable_teacher_no_overlap
+  EXCLUDE USING gist (
+    teacher_id WITH =,
+    day_of_week WITH =,
+    tsrange('2000-01-01'::date + start_time, '2000-01-01'::date + end_time) WITH &&
+  ) WHERE (teacher_id IS NOT NULL AND is_break IS NOT TRUE AND start_time < end_time);
 
 -- Calendar Events
 CREATE INDEX idx_calendar_events_dates ON calendar_events(start_date, end_date);

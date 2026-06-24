@@ -11,42 +11,7 @@ import {
   linkParentAccountToStudent,
   ensureParentRecord,
 } from "@/lib/identity/link";
-
-type AdminClient = ReturnType<typeof createAdminClient>;
-
-async function isAdmissionNoTaken(
-  supabase: AdminClient,
-  candidate: string
-): Promise<boolean> {
-  const { data } = await supabase
-    .from("students")
-    .select("id")
-    .eq("admission_no", candidate)
-    .maybeSingle();
-  return !!data;
-}
-
-// Pick a free admission number for a brand-new student approval. We try the
-// email-localpart first (preserves the previous default for the common case)
-// and fall back to a year-prefixed random tag if it's taken.
-async function pickFreeAdmissionNo(
-  supabase: AdminClient,
-  email: string
-): Promise<string> {
-  const localPart = email.split("@")[0]?.replace(/[^A-Za-z0-9_-]/g, "") ?? "";
-  if (localPart && !(await isAdmissionNoTaken(supabase, localPart))) {
-    return localPart;
-  }
-  const year = new Date().getFullYear();
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
-    const candidate = `${year}-${suffix}`;
-    if (!(await isAdmissionNoTaken(supabase, candidate))) return candidate;
-  }
-  // Extremely unlikely fallthrough — return a timestamp-based id which is
-  // effectively unique and let the DB unique constraint be the final guard.
-  return `${year}-${Date.now()}`;
-}
+import { pickFreeAdmissionNo } from "@/lib/admission-no";
 
 export async function POST(request: Request) {
   try {
