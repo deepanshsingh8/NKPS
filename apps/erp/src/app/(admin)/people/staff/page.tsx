@@ -62,6 +62,7 @@ import {
 } from "@nkps/shared/lib/photo-spec";
 import { StaffBulkUpload } from "@/components/StaffBulkUpload";
 import { CreatePortalUsersDialog } from "@/components/CreatePortalUsersDialog";
+import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import type { StaffMember, StaffCategory } from "@nkps/shared/types";
 import { downloadCSV, STAFF_CSV_COLUMNS } from "@/lib/csv-export";
 
@@ -140,6 +141,10 @@ function getAvatarColor(name: string): string {
 }
 
 export default function AdminStaffPage() {
+  // Creating portal login accounts is admin-only (enforced server-side in
+  // /api/portal/bulk-create). Editors granted `staff` can manage staff records
+  // but not provision logins, so hide the "Create Users" action from them.
+  const isAdmin = useIsAdmin();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -584,16 +589,20 @@ export default function AdminStaffPage() {
           <span className="text-sm font-medium text-red-700">
             {selectedIds.size} selected
           </span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setPortalDialogOpen(true)}
-            className="gap-1"
-          >
-            <UserPlus className="h-3.5 w-3.5" />
-            Create Users
-          </Button>
-          <div className="w-px h-6 bg-red-200" />
+          {isAdmin && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPortalDialogOpen(true)}
+                className="gap-1"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                Create Users
+              </Button>
+              <div className="w-px h-6 bg-red-200" />
+            </>
+          )}
           <Button
             size="sm"
             variant="destructive"

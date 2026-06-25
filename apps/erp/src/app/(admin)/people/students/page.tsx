@@ -56,6 +56,7 @@ import {
 } from "@nkps/shared/components/ui/dropdown-menu";
 import { StudentBulkUpload } from "@/components/StudentBulkUpload";
 import { CreatePortalUsersDialog } from "@/components/CreatePortalUsersDialog";
+import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { formatClassName } from "@nkps/shared/lib/utils";
 import { downloadCSV, STUDENT_CSV_COLUMNS } from "@/lib/csv-export";
@@ -159,6 +160,11 @@ function DetailField({
 }
 
 export default function AdminStudentsPage() {
+  // These actions are admin-only (enforced server-side): creating portal login
+  // accounts (/api/portal/bulk-create), inviting a guardian (/api/parents/invite)
+  // and reverting alumni (/api/students/revert-alumni). Editors granted
+  // `students` manage records but can't perform them, so hide the triggers.
+  const isAdmin = useIsAdmin();
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [streams, setStreams] = useState<Stream[]>([]);
@@ -1227,11 +1233,13 @@ export default function AdminStudentsPage() {
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Excel
               </DropdownMenuItem>
-              {/* H16-C — alumni revert manager. */}
-              <DropdownMenuItem onClick={() => setAlumniDialogOpen(true)}>
-                <GraduationCap className="h-4 w-4 mr-2" />
-                Manage Alumni
-              </DropdownMenuItem>
+              {/* H16-C — alumni revert manager. Admin-only (revert endpoint). */}
+              {isAdmin && (
+                <DropdownMenuItem onClick={() => setAlumniDialogOpen(true)}>
+                  <GraduationCap className="h-4 w-4 mr-2" />
+                  Manage Alumni
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
@@ -1386,16 +1394,20 @@ export default function AdminStudentsPage() {
               {applyingBulk && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
               Apply
             </Button>
-            <div className="w-px h-6 bg-blue-200 dark:bg-blue-700" />
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setPortalDialogOpen(true)}
-              className="gap-1"
-            >
-              <UserPlus className="h-3.5 w-3.5" />
-              Create Users
-            </Button>
+            {isAdmin && (
+              <>
+                <div className="w-px h-6 bg-blue-200 dark:bg-blue-700" />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPortalDialogOpen(true)}
+                  className="gap-1"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Create Users
+                </Button>
+              </>
+            )}
             <div className="w-px h-6 bg-blue-200 dark:bg-blue-700" />
             <Button
               size="sm"
@@ -1567,16 +1579,18 @@ export default function AdminStudentsPage() {
                         >
                           <Receipt className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => openInviteDialog(student)}
-                          aria-label="Invite guardian"
-                          className="text-violet-500 hover:text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30"
-                          title="Invite parent/guardian"
-                        >
-                          <UserPlus className="h-4 w-4" />
-                        </Button>
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => openInviteDialog(student)}
+                            aria-label="Invite guardian"
+                            className="text-violet-500 hover:text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30"
+                            title="Invite parent/guardian"
+                          >
+                            <UserPlus className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon-sm"
@@ -1704,17 +1718,19 @@ export default function AdminStudentsPage() {
               </div>
 
               <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    const s = detailStudent;
-                    setDetailStudent(null);
-                    openInviteDialog(s);
-                  }}
-                >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Invite guardian
-                </Button>
+                {isAdmin && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const s = detailStudent;
+                      setDetailStudent(null);
+                      openInviteDialog(s);
+                    }}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Invite guardian
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={() => {
