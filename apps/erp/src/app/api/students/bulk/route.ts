@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import { studentBulkUploadSchema } from "@nkps/shared/lib/validations";
+import {
+  buildStudentRecord,
+  normalizeToken,
+  studentsInsertKeys,
+} from "@nkps/shared/lib/student-template";
 
 export const maxDuration = 120; // Allow up to 2 minutes for large uploads
 
@@ -22,6 +27,26 @@ export async function POST(request: Request) {
     }
 
     const { students } = result.data;
+
+    // Column projection: only columns that were actually present in the
+    // uploaded sheet get written. A blank cell in a present column clears the
+    // value; a column absent from the sheet leaves existing data untouched,
+    // so a sparse re-upload can't null out previously filled fields. The
+    // client sends the mapped keys; fall back to the union of row keys.
+    const studentColumnSet = new Set(studentsInsertKeys());
+    const rawProvided: string[] = Array.isArray(body.provided_keys)
+      ? body.provided_keys.filter((k: unknown): k is string => typeof k === "string")
+      : Array.from(
+          new Set(
+            students.flatMap((s) =>
+              Object.keys(s).filter((k) => (s as Record<string, unknown>)[k] !== undefined)
+            )
+          )
+        );
+    const recordKeys = Array.from(
+      new Set(["admission_no", "full_name", ...rawProvided])
+    ).filter((k) => k === "indian_national" || studentColumnSet.has(k));
+    const subjectsProvided = rawProvided.includes("subjects");
 
     // Fetch current academic year
     const { data: currentYear } = await admin
@@ -150,6 +175,7 @@ export async function POST(request: Request) {
     }
 
     const errors: { admission_no: string; full_name?: string; class_name?: string; section?: string; error: string }[] = [];
+    const warnings: { admission_no: string; full_name?: string; warning: string }[] = [];
 
     // ── Phase 1: Resolve classes and prepare student records ──
     interface PreparedStudent {
@@ -161,6 +187,7 @@ export async function POST(request: Request) {
       fullName: string;
       className: string;
       section: string;
+      subjectsRaw: string | null;
     }
 
     const prepared: PreparedStudent[] = [];
@@ -185,27 +212,21 @@ export async function POST(request: Request) {
         continue;
       }
 
-      let dob: string | null = s.date_of_birth?.trim() || null;
-      if (dob && !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
-        dob = null;
+      // Only sheet-provided columns are written (column projection above).
+      const record = buildStudentRecord(s as Record<string, unknown>, recordKeys);
+      // Defensive: a malformed date must never fail a whole upsert batch.
+      for (const dateKey of ["date_of_birth", "admission_date"] as const) {
+        if (
+          dateKey in record &&
+          record[dateKey] !== null &&
+          !/^\d{4}-\d{2}-\d{2}$/.test(String(record[dateKey]))
+        ) {
+          record[dateKey] = null;
+        }
       }
 
       prepared.push({
-        record: {
-          admission_no: s.admission_no.trim(),
-          full_name: s.full_name.trim(),
-          father_name: s.father_name?.trim() || null,
-          mother_name: s.mother_name?.trim() || null,
-          date_of_birth: dob,
-          gender: s.gender || null,
-          phone: s.phone?.trim() || null,
-          address: s.address?.trim() || null,
-          email: s.email?.trim() || null,
-          blood_group: s.blood_group?.trim() || null,
-          category: s.category?.trim() || null,
-          aadhar_number: s.aadhar_number?.trim() || null,
-          previous_school: s.previous_school?.trim() || null,
-        },
+        record,
         classId,
         streamId: resolvedStreamId,
         rollNumber: s.roll_number || null,
@@ -213,16 +234,35 @@ export async function POST(request: Request) {
         fullName: s.full_name.trim(),
         className: s.class_name,
         section,
+        subjectsRaw: subjectsProvided ? (s.subjects?.trim() || null) : null,
       });
     }
 
     // ── Phase 2: Bulk upsert students in batches ──
     let inserted = 0;
+    let created = 0;
+    let updated = 0;
     const BATCH_SIZE = 100;
+    // class_id → its class_subjects (id + matchable subject tokens), cached
+    // across batches for the Subjects column resolution.
+    const classSubjectsCache = new Map<
+      string,
+      { id: string; tokens: string[]; name: string }[]
+    >();
 
     for (let i = 0; i < prepared.length; i += BATCH_SIZE) {
       const batch = prepared.slice(i, i + BATCH_SIZE);
       const records = batch.map((p) => p.record);
+
+      // Split the batch into creates vs updates for accurate result counts
+      // (upsert alone can't tell us which rows already existed).
+      const { data: existingRows } = await admin
+        .from("students")
+        .select("admission_no")
+        .in("admission_no", batch.map((p) => p.admissionNo));
+      const existingAdmNos = new Set(
+        (existingRows || []).map((r) => String(r.admission_no).trim())
+      );
 
       const { data: upsertedRows, error: batchError } = await admin
         .from("students")
@@ -264,6 +304,8 @@ export async function POST(request: Request) {
       const admToId = new Map<string, string>();
       for (const row of upsertedRows) {
         admToId.set(String(row.admission_no).trim(), row.id);
+        if (existingAdmNos.has(String(row.admission_no).trim())) updated++;
+        else created++;
       }
 
       // Build enrollment records for successfully upserted students
@@ -323,6 +365,125 @@ export async function POST(request: Request) {
           inserted += enrollmentRecords.length;
         }
       }
+
+      // ── Subjects column resolution (replace semantics) ──
+      // A non-blank Subjects cell is authoritative for that student: their
+      // student_subjects set is replaced with the matched class subjects.
+      // A blank or absent cell leaves existing subject links untouched.
+      const withSubjects = batch.filter(
+        (p) => p.subjectsRaw && admToId.has(p.admissionNo)
+      );
+      if (withSubjects.length > 0) {
+        // Load class_subjects for classes we haven't seen yet.
+        const neededClassIds = Array.from(
+          new Set(withSubjects.map((p) => p.classId))
+        ).filter((id) => !classSubjectsCache.has(id));
+        if (neededClassIds.length > 0) {
+          const { data: csRows, error: csError } = await admin
+            .from("class_subjects")
+            .select("id, class_id, subjects:subject_id(name, nickname)")
+            .in("class_id", neededClassIds);
+          if (csError) {
+            console.error("[students.bulk.POST] class_subjects load:", csError);
+          }
+          for (const id of neededClassIds) classSubjectsCache.set(id, []);
+          for (const row of csRows || []) {
+            const subject = row.subjects as unknown as {
+              name: string;
+              nickname: string | null;
+            } | null;
+            if (!subject) continue;
+            const tokens = [normalizeToken(subject.name)];
+            if (subject.nickname) tokens.push(normalizeToken(subject.nickname));
+            classSubjectsCache
+              .get(row.class_id as string)!
+              .push({ id: row.id as string, tokens, name: subject.name });
+          }
+        }
+
+        const replacedStudentIds: string[] = [];
+        for (const p of withSubjects) {
+          const studentId = admToId.get(p.admissionNo)!;
+          const available = classSubjectsCache.get(p.classId) || [];
+          const requested = (p.subjectsRaw as string)
+            .split(/[,;]/)
+            .map((t) => t.trim())
+            .filter(Boolean);
+          const matchedIds: string[] = [];
+          const unmatched: string[] = [];
+          for (const token of requested) {
+            const norm = normalizeToken(token);
+            const hit = available.find((cs) => cs.tokens.includes(norm));
+            if (hit) {
+              if (!matchedIds.includes(hit.id)) matchedIds.push(hit.id);
+            } else {
+              unmatched.push(token);
+            }
+          }
+          if (unmatched.length > 0) {
+            warnings.push({
+              admission_no: p.admissionNo,
+              full_name: p.fullName,
+              warning:
+                available.length === 0
+                  ? `Class ${p.className}-${p.section} has no subjects assigned yet — assign class subjects, then re-upload the Subjects column.`
+                  : `Subject${unmatched.length === 1 ? "" : "s"} not found for ${p.className}-${p.section}: ${unmatched.join(", ")}`,
+            });
+          }
+          if (matchedIds.length === 0) continue;
+
+          const { error: delError } = await admin
+            .from("student_subjects")
+            .delete()
+            .eq("student_id", studentId);
+          if (delError) {
+            console.error("[students.bulk.POST] student_subjects delete:", delError);
+            warnings.push({
+              admission_no: p.admissionNo,
+              full_name: p.fullName,
+              warning: "Failed to update subject links",
+            });
+            continue;
+          }
+          const { error: insError } = await admin.from("student_subjects").insert(
+            matchedIds.map((id) => ({ student_id: studentId, class_subject_id: id }))
+          );
+          if (insError) {
+            console.error("[students.bulk.POST] student_subjects insert:", insError);
+            warnings.push({
+              admission_no: p.admissionNo,
+              full_name: p.fullName,
+              warning: "Failed to save subject links",
+            });
+            continue;
+          }
+          replacedStudentIds.push(studentId);
+        }
+
+        // The sheet wins over in-app elective picks — surface when a replaced
+        // student had picks so admins know to reconcile. The picks table may
+        // not exist in every environment; ignore lookup failures.
+        if (replacedStudentIds.length > 0) {
+          const { data: picks } = await admin
+            .from("student_elective_picks")
+            .select("student_id")
+            .in("student_id", replacedStudentIds);
+          if (picks && picks.length > 0) {
+            const pickIds = new Set(picks.map((r) => r.student_id as string));
+            for (const p of withSubjects) {
+              const sid = admToId.get(p.admissionNo);
+              if (sid && pickIds.has(sid)) {
+                warnings.push({
+                  admission_no: p.admissionNo,
+                  full_name: p.fullName,
+                  warning:
+                    "Subjects replaced from the sheet, but this student also has in-app elective picks — review their electives.",
+                });
+              }
+            }
+          }
+        }
+      }
     }
 
     // Nothing inserted + at least one error = total failure; don't let a caller
@@ -333,8 +494,11 @@ export async function POST(request: Request) {
         success: !allFailed,
         ...(allFailed ? { error: "No students were imported — every row failed." } : {}),
         inserted,
+        created,
+        updated,
         classesCreated,
         errors,
+        warnings,
         total: students.length,
       },
       { status: allFailed ? 400 : 200 }

@@ -1,4 +1,11 @@
 import { z } from "zod";
+import {
+  STUDENT_TEMPLATE_FIELDS,
+  getTemplateField,
+  normalizeEnum,
+  normalizeNumber,
+  normalizeYesNo,
+} from "./student-template";
 
 // Indian mobile: 10 digits starting with 6-9. We accept either the bare 10
 // digits or a `+91` / `0` / `91` prefix (then strip it for storage).
@@ -701,52 +708,194 @@ export type LinkSelfStudentData = z.infer<typeof linkSelfStudentSchema>;
 // =============================================================
 // Student Records
 // =============================================================
+// The field set mirrors the UDISE+ student template registry
+// (lib/student-template.ts) — a module-init assertion below keeps the two
+// from drifting when a template field is added.
+
+const optionalText = z.string().optional().or(z.literal(""));
+
+/** YES/NO/Y/N/true/false/boolean → boolean; blank/unknown → dropped. */
+const yesNoField = z.preprocess((v) => {
+  if (v === "" || v === null || v === undefined) return undefined;
+  return normalizeYesNo(v);
+}, z.boolean().optional());
+
+/** Enum via the registry's alias-aware matcher; unknown → dropped (or kept
+ *  raw for lenient enums such as Social Category). */
+function enumField(key: string) {
+  const field = getTemplateField(key);
+  if (!field?.enumValues) throw new Error(`No enum registry entry for ${key}`);
+  const values = field.enumValues.map((ev) => ev.value);
+  return z.preprocess((v) => {
+    if (v === "" || v === null || v === undefined) return undefined;
+    return normalizeEnum(field, String(v));
+  }, field.lenientEnum
+    ? z.string().optional()
+    : z.string().refine((v) => values.includes(v), { message: `Invalid ${field.label}` }).optional());
+}
+
+/** "2,50,000" / "142 cm" / 76 → number in [min, max]; unparseable → dropped. */
+function numberField(min: number, max: number) {
+  return z.preprocess((v) => {
+    if (v === "" || v === null || v === undefined) return undefined;
+    if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
+    return normalizeNumber(String(v));
+  }, z.number().min(min).max(max).optional());
+}
+
+/** Optional YYYY-MM-DD (any date, unlike DOB which must be in the past). */
+const dateOptionalSchema = z
+  .string()
+  .optional()
+  .refine(
+    (v) => !v || (/^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`))),
+    { message: "Date must be YYYY-MM-DD" }
+  );
+
+const mobileOptionalSchema = z
+  .string()
+  .regex(/^\d{10}$/, "Mobile number must be exactly 10 digits")
+  .optional()
+  .or(z.literal(""));
+
+const pincodeOptionalSchema = z
+  .string()
+  .regex(/^\d{6}$/, "Pin code must be exactly 6 digits")
+  .optional()
+  .or(z.literal(""));
+
+// UDISE+ profile fields shared by the single-student form schema and the
+// bulk-upload row schema. Booleans/enums/numbers coerce from sheet text.
+const udiseProfileFields = {
+  // General profile
+  name_as_per_aadhar: optionalText,
+  jan_aadhar_number: optionalText,
+  mother_occupation: optionalText,
+  mother_qualification: optionalText,
+  mother_mobile: mobileOptionalSchema,
+  mother_annual_income: numberField(0, 999_999_999),
+  father_occupation: optionalText,
+  father_qualification: optionalText,
+  father_mobile: mobileOptionalSchema,
+  father_annual_income: numberField(0, 999_999_999),
+  guardian_name: optionalText,
+  guardian_relation: optionalText,
+  guardian_mobile: mobileOptionalSchema,
+  present_pincode: pincodeOptionalSchema,
+  permanent_address: optionalText,
+  permanent_pincode: pincodeOptionalSchema,
+  mother_tongue: optionalText,
+  minority_group: enumField("minority_group"),
+  is_bpl: yesNoField,
+  is_ews: yesNoField,
+  is_cwsn: yesNoField,
+  cwsn_impairment_type: optionalText,
+  indian_national: yesNoField, // derived — mapped to `nationality` server-side
+  height_cm: numberField(1, 299),
+  weight_kg: numberField(1, 499),
+  religion: optionalText,
+  // Enrolment profile
+  admission_date: dateOptionalSchema,
+  is_rte: yesNoField,
+  medium_of_instruction: enumField("medium_of_instruction"),
+  previous_school_address: optionalText,
+  previous_school_block: optionalText,
+  previous_school_district: optionalText,
+  previous_school_state: optionalText,
+  previous_school_udise_code: optionalText,
+  previous_school_reason_for_leaving: optionalText,
+  previous_class_studied: optionalText,
+  previous_school_board: optionalText,
+  board_roll_number: optionalText,
+  board_percentage: numberField(0, 100),
+  last_session_attendance: optionalText,
+  is_staff_ward: yesNoField,
+  participates_ncc: yesNoField,
+  participates_nss: yesNoField,
+  participates_scouts: yesNoField,
+  participates_competitions: yesNoField,
+  distance_band: enumField("distance_band"),
+  parent_highest_education: enumField("parent_highest_education"),
+};
 
 export const studentSchema = z.object({
   admission_no: admissionNoSchema,
   full_name: z.string().min(2, "Full name must be at least 2 characters"),
-  father_name: z.string().optional().or(z.literal("")),
-  mother_name: z.string().optional().or(z.literal("")),
+  father_name: optionalText,
+  mother_name: optionalText,
   date_of_birth: dobOptionalSchema,
   gender: z.enum(["male", "female", "other"]).optional(),
-  address: z.string().optional().or(z.literal("")),
-  phone: z.string().optional().or(z.literal("")),
+  address: optionalText,
+  phone: optionalText,
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   blood_group: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]).optional(),
-  category: z.string().optional().or(z.literal("")),
-  aadhar_number: z.string().optional().or(z.literal("")),
-  previous_school: z.string().optional().or(z.literal("")),
+  category: enumField("category"),
+  aadhar_number: optionalText,
+  previous_school: optionalText,
+  ...udiseProfileFields,
 });
 
 export type StudentData = z.infer<typeof studentSchema>;
 
 export const enrollmentStatusSchema = z.enum(['active', 'passed', 'failed', 'terminated', 'exited']);
 
+// Bulk rows are forgiving (only admission/name/class are required; gender and
+// blood group arrive pre-normalized from the client but unknown values must
+// not fail a row). 500 rows per request — the client chunks larger files so
+// a 50-column sheet stays under the serverless request-body limit.
 export const studentBulkUploadSchema = z.object({
   students: z.array(
     z.object({
       admission_no: admissionNoSchema,
       full_name: z.string().min(2, "Name is required"),
       class_name: z.string().min(1, "Class is required"),
-      section: z.string().optional().or(z.literal("")),
-      stream: z.string().optional().or(z.literal("")),
-      father_name: z.string().optional().or(z.literal("")),
-      mother_name: z.string().optional().or(z.literal("")),
+      section: optionalText,
+      stream: optionalText,
+      subjects: optionalText, // raw comma/semicolon list, resolved server-side
+      father_name: optionalText,
+      mother_name: optionalText,
       date_of_birth: dobOptionalSchema,
-      gender: z.string().optional().or(z.literal("")),
-      phone: z.string().optional().or(z.literal("")),
-      address: z.string().optional().or(z.literal("")),
+      gender: optionalText,
+      phone: optionalText,
+      address: optionalText,
       roll_number: z.number().int().optional(),
-      email: z.string().optional().or(z.literal("")),
-      blood_group: z.string().optional().or(z.literal("")),
-      category: z.string().optional().or(z.literal("")),
-      aadhar_number: z.string().optional().or(z.literal("")),
-      previous_school: z.string().optional().or(z.literal("")),
+      email: optionalText,
+      blood_group: optionalText,
+      category: enumField("category"),
+      aadhar_number: optionalText,
+      previous_school: optionalText,
+      ...udiseProfileFields,
+      // Bulk sheets carry dirty phone data; row-level 10-digit enforcement
+      // would reject entire students over a typo. Keep these permissive here
+      // (the strict rules above still apply to the admin form).
+      mother_mobile: optionalText,
+      father_mobile: optionalText,
+      guardian_mobile: optionalText,
+      present_pincode: optionalText,
+      permanent_pincode: optionalText,
     })
-  ).min(1, "At least one student is required").max(5000, "Too many rows in one upload"),
+  ).min(1, "At least one student is required").max(500, "Too many rows in one request"),
 });
 
 export type StudentBulkUploadData = z.infer<typeof studentBulkUploadSchema>;
+
+// Registry ↔ schema drift guard: every template field must be representable
+// in a bulk row. Throws at module init (i.e. at build/dev time) if a field
+// was added to student-template.ts without a matching schema entry.
+{
+  const rowKeys = new Set(
+    Object.keys(studentBulkUploadSchema.shape.students.element.shape)
+  );
+  const missing = STUDENT_TEMPLATE_FIELDS.filter((f) => !rowKeys.has(f.key)).map(
+    (f) => f.key
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `studentBulkUploadSchema is missing template fields: ${missing.join(", ")} — ` +
+        "add them alongside the new entry in lib/student-template.ts"
+    );
+  }
+}
 
 // Staff bulk upload
 export const staffBulkUploadSchema = z.object({
