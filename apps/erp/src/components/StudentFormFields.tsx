@@ -6,7 +6,7 @@
 // registry (lib/student-template.ts) so the form can't drift from the bulk
 // template or the per-student export.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Checkbox } from "@nkps/shared/components/ui/checkbox";
@@ -108,6 +108,9 @@ interface StudentFormFieldsProps {
   setFormData: React.Dispatch<React.SetStateAction<StudentFormState>>;
   classes: StudentFormClassOption[];
   streams: Stream[];
+  /** Server-side validation errors, keyed by field key (zod fieldErrors).
+   *  Highlighted inline under the offending inputs. */
+  errors?: Record<string, string[]>;
 }
 
 export function StudentFormFields({
@@ -115,6 +118,7 @@ export function StudentFormFields({
   setFormData,
   classes,
   streams,
+  errors,
 }: StudentFormFieldsProps) {
   const [openSections, setOpenSections] = useState<{ general: boolean; enrolment: boolean }>({
     general: true,
@@ -132,6 +136,30 @@ export function StudentFormFields({
   const isHigherClass = selectedFormClass
     ? HIGHER_CLASSES.includes(selectedFormClass.name)
     : false;
+  // A class created as "XI Science-A" carries its own stream — the student's
+  // stream is then determined by the class, not chosen separately.
+  const classStreamId = selectedFormClass?.stream_id ?? null;
+
+  // Keep stream consistent with the selected class even when the form was
+  // populated externally (edit dialog): stream-bound class ⇒ its stream;
+  // Nursery–X ⇒ no stream.
+  useEffect(() => {
+    if (classStreamId && formData.stream_id !== classStreamId) {
+      setFormData((prev) => ({ ...prev, stream_id: classStreamId }));
+    } else if (!isHigherClass && formData.stream_id) {
+      setFormData((prev) => ({ ...prev, stream_id: "" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classStreamId, isHigherClass, formData.stream_id]);
+
+  const fieldError = (k: string): string | undefined => errors?.[k]?.[0];
+  const errorRing = "border-red-500 focus-visible:ring-red-500";
+
+  // Fields that only make sense when another field has a given value.
+  const isFieldDisabled = (k: string): boolean => {
+    if (k === "cwsn_impairment_type") return formData.fields.is_cwsn !== "YES";
+    return false;
+  };
 
   // ── Generic registry-driven field control (plain render fn, NOT a nested
   // component — a nested component would remount its Input on every render
@@ -141,6 +169,11 @@ export function StudentFormFields({
     if (!field) return null;
     const value = formData.fields[k] ?? "";
     const label = field.label + (required ? " *" : "");
+    const error = fieldError(k);
+    const disabled = isFieldDisabled(k);
+    const errorEl = error ? (
+      <p className="text-[11px] text-red-600 mt-1">{error}</p>
+    ) : null;
 
     if (field.kind === "boolean") {
       return (
@@ -148,9 +181,22 @@ export function StudentFormFields({
           <Label className="text-xs font-medium">{label}</Label>
           <Select
             value={value || "none"}
-            onValueChange={(val) => updateField(k, !val || val === "none" ? "" : val)}
+            onValueChange={(val) => {
+              const next = !val || val === "none" ? "" : val;
+              setFormData((prev) => ({
+                ...prev,
+                fields: {
+                  ...prev.fields,
+                  [k]: next,
+                  // CWSN off ⇒ impairment type no longer applies
+                  ...(k === "is_cwsn" && next !== "YES"
+                    ? { cwsn_impairment_type: "" }
+                    : {}),
+                },
+              }));
+            }}
           >
-            <SelectTrigger className="w-full mt-1 h-9">
+            <SelectTrigger className={`w-full mt-1 h-9 ${error ? errorRing : ""}`}>
               <SelectValue placeholder="—" />
             </SelectTrigger>
             <SelectContent>
@@ -159,6 +205,7 @@ export function StudentFormFields({
               <SelectItem value="NO" label="No">No</SelectItem>
             </SelectContent>
           </Select>
+          {errorEl}
         </div>
       );
     }
@@ -177,7 +224,7 @@ export function StudentFormFields({
             value={value || "none"}
             onValueChange={(val) => updateField(k, !val || val === "none" ? "" : val)}
           >
-            <SelectTrigger className="w-full mt-1 h-9">
+            <SelectTrigger className={`w-full mt-1 h-9 ${error ? errorRing : ""}`}>
               <SelectValue placeholder="—" />
             </SelectTrigger>
             <SelectContent>
@@ -189,6 +236,7 @@ export function StudentFormFields({
               ))}
             </SelectContent>
           </Select>
+          {errorEl}
         </div>
       );
     }
@@ -198,13 +246,16 @@ export function StudentFormFields({
         <Label htmlFor={k} className="text-xs font-medium">{label}</Label>
         <Input
           id={k}
-          className="h-9 mt-1"
+          className={`h-9 mt-1 ${error ? errorRing : ""}`}
           type={field.kind === "date" ? "date" : field.kind === "number" || field.kind === "integer" ? "number" : "text"}
           step={field.kind === "number" ? "any" : undefined}
           value={value}
           onChange={(e) => updateField(k, e.target.value)}
           required={required}
+          disabled={disabled}
+          placeholder={disabled ? "—" : undefined}
         />
+        {errorEl}
       </div>
     );
   };
@@ -337,16 +388,19 @@ export function StudentFormFields({
                 items={classes.map((c) => ({ value: c.id, label: formatClassName(c) }))}
                 onValueChange={(val) => {
                   if (val) {
-                    updateMeta("class_id", val);
-                    // Reset stream when class changes to a non-senior class
                     const cls = classes.find((c) => c.id === val);
-                    if (!cls || !HIGHER_CLASSES.includes(cls.name)) {
-                      updateMeta("stream_id", "");
-                    }
+                    // Stream follows the class: a stream-bound class (e.g.
+                    // "XI Science-A") auto-fills it; any other class clears
+                    // it so a stale stream can't stick to a Nursery–X child.
+                    setFormData((prev) => ({
+                      ...prev,
+                      class_id: val,
+                      stream_id: cls?.stream_id ?? "",
+                    }));
                   }
                 }}
               >
-                <SelectTrigger className="w-full mt-1 h-9">
+                <SelectTrigger className={`w-full mt-1 h-9 ${fieldError("class_id") ? errorRing : ""}`}>
                   <SelectValue placeholder="Select class..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -358,37 +412,43 @@ export function StudentFormFields({
                 </SelectContent>
               </Select>
             </div>
-            {isHigherClass && streams.length > 0 && (
-              <div>
-                <Label className="text-xs font-medium">Stream</Label>
-                <Select
-                  value={formData.stream_id || "none"}
-                  items={[
-                    { value: "none", label: "No stream" },
-                    ...streams.map((s) => ({
-                      value: s.id,
-                      label: s.name + (s.code ? ` (${s.code})` : ""),
-                    })),
-                  ]}
-                  onValueChange={(val) =>
-                    updateMeta("stream_id", !val || val === "none" ? "" : val)
-                  }
-                >
-                  <SelectTrigger className="w-full mt-1 h-9">
-                    <SelectValue placeholder="Select stream..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none" label="No stream">No stream</SelectItem>
-                    {streams.map((s) => (
-                      <SelectItem key={s.id} value={s.id} label={s.name}>
-                        {s.name}
-                        {s.code ? ` (${s.code})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div>
+              <Label className="text-xs font-medium">Stream</Label>
+              <Select
+                value={formData.stream_id || "none"}
+                disabled={!isHigherClass || Boolean(classStreamId)}
+                items={[
+                  { value: "none", label: "No stream" },
+                  ...streams.map((s) => ({
+                    value: s.id,
+                    label: s.name + (s.code ? ` (${s.code})` : ""),
+                  })),
+                ]}
+                onValueChange={(val) =>
+                  updateMeta("stream_id", !val || val === "none" ? "" : val)
+                }
+              >
+                <SelectTrigger className="w-full mt-1 h-9 disabled:opacity-50">
+                  <SelectValue placeholder="Select stream..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" label="No stream">No stream</SelectItem>
+                  {streams.map((s) => (
+                    <SelectItem key={s.id} value={s.id} label={s.name}>
+                      {s.name}
+                      {s.code ? ` (${s.code})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                {classStreamId
+                  ? "Set automatically from the selected class"
+                  : isHigherClass
+                    ? "Choose the stream for XI/XII"
+                    : "Streams apply to XI/XII only"}
+              </p>
+            </div>
             <div>
               <Label htmlFor="roll_number" className="text-xs font-medium">Roll Number</Label>
               <Input
