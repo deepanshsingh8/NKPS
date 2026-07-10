@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import { studentSchema } from "@nkps/shared/lib/validations";
+import {
+  buildStudentRecord,
+  studentsInsertKeys,
+} from "@nkps/shared/lib/student-template";
 
 export async function GET(request: NextRequest) {
   try {
@@ -257,24 +261,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Insert student
+    // Insert student — every registry-declared column, blank → null.
+    const insertRecord = buildStudentRecord(result.data as Record<string, unknown>, [
+      ...studentsInsertKeys(),
+      "indian_national",
+    ]);
+    // Blank admission date on create should fall back to the DB default
+    // (CURRENT_DATE), not overwrite it with NULL.
+    if (insertRecord.admission_date === null) {
+      delete insertRecord.admission_date;
+    }
     const { data: student, error: studentError } = await admin
       .from("students")
-      .insert({
-        admission_no: result.data.admission_no.trim(),
-        full_name: result.data.full_name.trim(),
-        father_name: result.data.father_name?.trim() || null,
-        mother_name: result.data.mother_name?.trim() || null,
-        date_of_birth: result.data.date_of_birth || null,
-        gender: result.data.gender || null,
-        address: result.data.address?.trim() || null,
-        phone: result.data.phone?.trim() || null,
-        email: result.data.email?.trim() || null,
-        blood_group: result.data.blood_group || null,
-        category: result.data.category?.trim() || null,
-        aadhar_number: result.data.aadhar_number?.trim() || null,
-        previous_school: result.data.previous_school?.trim() || null,
-      })
+      .insert(insertRecord)
       .select("id")
       .single();
 
@@ -353,9 +352,27 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Student id required" }, { status: 400 });
     }
 
+    // Validate + whitelist: only registry-declared student columns may be
+    // updated, and only the keys the caller actually sent (partial update).
+    // Anything else (is_alumni, is_active, photo_url, …) has its own route.
+    const parsed = studentSchema.partial().safeParse(fields);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid data", details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const providedKeys = Object.keys(fields).filter((k) =>
+      k === "indian_national" || studentsInsertKeys().includes(k)
+    );
+    const updateRecord = buildStudentRecord(
+      parsed.data as Record<string, unknown>,
+      providedKeys
+    );
+
     const { error } = await admin
       .from("students")
-      .update({ ...fields, updated_at: new Date().toISOString() })
+      .update({ ...updateRecord, updated_at: new Date().toISOString() })
       .eq("id", id);
 
     if (error) {

@@ -55,12 +55,25 @@ import {
   DropdownMenuTrigger,
 } from "@nkps/shared/components/ui/dropdown-menu";
 import { StudentBulkUpload } from "@/components/StudentBulkUpload";
+import {
+  StudentFormFields,
+  type StudentFormState,
+  buildStudentPayload,
+  emptyStudentForm,
+  studentToForm,
+} from "@/components/StudentFormFields";
+import {
+  STUDENT_TEMPLATE_FIELDS,
+  type StudentTemplateField,
+  formatFieldValue,
+  indianNationalFromNationality,
+} from "@nkps/shared/lib/student-template";
 import { CreatePortalUsersDialog } from "@/components/CreatePortalUsersDialog";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { formatClassName } from "@nkps/shared/lib/utils";
 import { downloadCSV, STUDENT_CSV_COLUMNS } from "@/lib/csv-export";
-import type { Student, Gender, BloodGroup, Stream, EnrollmentStatus } from "@nkps/shared/types";
+import type { Student, Stream, EnrollmentStatus } from "@nkps/shared/types";
 
 interface ClassOption {
   id: string;
@@ -75,8 +88,6 @@ interface AcademicYear {
   name: string;
   is_current: boolean;
 }
-
-const HIGHER_CLASSES = ["XI", "XII"];
 
 interface StudentRow extends Student {
   roll_number: number | null;
@@ -115,11 +126,6 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-const GENDER_OPTIONS: Gender[] = ["male", "female", "other"];
-const BLOOD_GROUP_OPTIONS: BloodGroup[] = [
-  "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-",
-];
-
 const ENROLLMENT_STATUSES: EnrollmentStatus[] = [
   "active", "passed", "failed", "terminated", "exited",
 ];
@@ -154,6 +160,71 @@ function DetailField({
         <p className="text-sm text-gray-800 dark:text-gray-100 break-words">
           {value ?? "—"}
         </p>
+      )}
+    </div>
+  );
+}
+
+/** Registry-driven read-only view of one template section (General/Enrolment).
+ *  Empty fields are skipped so short records don't render a wall of "—". */
+function ProfileDetailSection({
+  title,
+  section,
+  student,
+  streams,
+}: {
+  title: string;
+  section: "general" | "enrolment";
+  student: StudentRow;
+  streams: Stream[];
+}) {
+  const valueFor = (field: StudentTemplateField): string => {
+    switch (field.key) {
+      case "class_name":
+        return student.class_name ?? "";
+      case "section":
+        return student.class_section ?? "";
+      case "stream":
+        return streams.find((s) => s.id === student.stream_id)?.name ?? "";
+      case "subjects":
+      case "roll_number":
+        return ""; // subjects aren't in the list payload; roll no is shown above
+      case "indian_national":
+        return formatFieldValue(
+          field,
+          indianNationalFromNationality(student.nationality)
+        );
+      default:
+        return formatFieldValue(
+          field,
+          (student as unknown as Record<string, unknown>)[field.key]
+        );
+    }
+  };
+
+  const rows = STUDENT_TEMPLATE_FIELDS
+    .filter((f) => f.section === section)
+    .sort((a, b) => a.particular - b.particular)
+    .map((f) => ({ field: f, value: valueFor(f) }))
+    .filter((r) => r.value !== "");
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-navy-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-800 pb-1 mb-3">
+        {title}
+      </p>
+      {rows.length === 0 ? (
+        <p className="text-xs text-gray-400">No details recorded</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+          {rows.map(({ field, value }) => (
+            <DetailField
+              key={field.key}
+              label={field.exportLabel ?? field.label}
+              value={value}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -245,27 +316,10 @@ export default function AdminStudentsPage() {
   });
   const [inviting, setInviting] = useState(false);
 
-  // Form state
+  // Form state — General/Enrolment profile fields live in formData.fields,
+  // keyed by the shared template registry (see StudentFormFields).
   const [editingStudent, setEditingStudent] = useState<StudentRow | null>(null);
-  const [formData, setFormData] = useState({
-    class_id: "",
-    stream_id: "",
-    admission_no: "",
-    full_name: "",
-    father_name: "",
-    mother_name: "",
-    date_of_birth: "",
-    gender: "" as string,
-    address: "",
-    phone: "",
-    email: "",
-    blood_group: "" as string,
-    category: "",
-    aadhar_number: "",
-    previous_school: "",
-    roll_number: "",
-    roll_number_manual: false,
-  });
+  const [formData, setFormData] = useState<StudentFormState>(emptyStudentForm());
 
   const supabase = createClient();
   const router = useRouter();
@@ -485,33 +539,9 @@ export default function AdminStudentsPage() {
   };
 
   const resetForm = () => {
-    setFormData({
-      class_id: selectedClassId,
-      stream_id: "",
-      admission_no: "",
-      full_name: "",
-      father_name: "",
-      mother_name: "",
-      date_of_birth: "",
-      gender: "",
-      address: "",
-      phone: "",
-      email: "",
-      blood_group: "",
-      category: "",
-      aadhar_number: "",
-      previous_school: "",
-      roll_number: "",
-      roll_number_manual: false,
-    });
+    setFormData(emptyStudentForm(selectedClassId));
     setEditingStudent(null);
   };
-
-  // Determine if the selected class in the form is a higher class
-  const selectedFormClass = classes.find((c) => c.id === formData.class_id);
-  const isHigherClass = selectedFormClass
-    ? HIGHER_CLASSES.includes(selectedFormClass.name)
-    : false;
 
   const openInviteDialog = (student: StudentRow) => {
     setInviteForm({
@@ -564,31 +594,13 @@ export default function AdminStudentsPage() {
 
   const openEditDialog = (student: StudentRow) => {
     setEditingStudent(student);
-    setFormData({
-      class_id: student.class_id || selectedClassId || "",
-      stream_id: student.stream_id || "",
-      admission_no: student.admission_no,
-      full_name: student.full_name,
-      father_name: student.father_name ?? "",
-      mother_name: student.mother_name ?? "",
-      date_of_birth: student.date_of_birth ?? "",
-      gender: student.gender ?? "",
-      address: student.address ?? "",
-      phone: student.phone ?? "",
-      email: student.email ?? "",
-      blood_group: student.blood_group ?? "",
-      category: student.category ?? "",
-      aadhar_number: student.aadhar_number ?? "",
-      previous_school: student.previous_school ?? "",
-      roll_number: student.roll_number?.toString() ?? "",
-      roll_number_manual: student.roll_number_manual ?? false,
-    });
+    setFormData(studentToForm(student, selectedClassId));
     setEditDialogOpen(true);
   };
 
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.admission_no || !formData.full_name) {
+    if (!formData.fields.admission_no || !formData.fields.full_name) {
       toast.error("Admission number and name are required");
       return;
     }
@@ -607,19 +619,7 @@ export default function AdminStudentsPage() {
           roll_number: formData.roll_number || undefined,
           roll_number_manual: formData.roll_number_manual,
           stream_id: formData.stream_id || undefined,
-          admission_no: formData.admission_no,
-          full_name: formData.full_name,
-          father_name: formData.father_name || undefined,
-          mother_name: formData.mother_name || undefined,
-          date_of_birth: formData.date_of_birth || undefined,
-          gender: formData.gender || undefined,
-          address: formData.address || undefined,
-          phone: formData.phone || undefined,
-          email: formData.email || undefined,
-          blood_group: formData.blood_group || undefined,
-          category: formData.category || undefined,
-          aadhar_number: formData.aadhar_number || undefined,
-          previous_school: formData.previous_school || undefined,
+          ...buildStudentPayload(formData),
         }),
       });
 
@@ -665,19 +665,7 @@ export default function AdminStudentsPage() {
           stream_id: formData.stream_id,
           roll_number: formData.roll_number || undefined,
           roll_number_manual: formData.roll_number_manual,
-          admission_no: formData.admission_no.trim(),
-          full_name: formData.full_name.trim(),
-          father_name: formData.father_name.trim() || null,
-          mother_name: formData.mother_name.trim() || null,
-          date_of_birth: formData.date_of_birth || null,
-          gender: formData.gender || null,
-          address: formData.address.trim() || null,
-          phone: formData.phone.trim() || null,
-          email: formData.email.trim() || null,
-          blood_group: formData.blood_group || null,
-          category: formData.category.trim() || null,
-          aadhar_number: formData.aadhar_number.trim() || null,
-          previous_school: formData.previous_school.trim() || null,
+          ...buildStudentPayload(formData),
         }),
       });
 
@@ -724,8 +712,26 @@ export default function AdminStudentsPage() {
     await fetchStudents();
   };
 
-  const updateField = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  // Download one student's full profile as the template-formatted xlsx
+  const handleDownloadProfile = async (student: StudentRow) => {
+    try {
+      const res = await adminFetch(`/api/students/${student.id}/export`);
+      if (!res.ok) {
+        toast.error("Failed to export student profile");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `student-profile-${student.admission_no}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Failed to export student profile");
+    }
   };
 
   // Status update for a single student
@@ -903,259 +909,19 @@ export default function AdminStudentsPage() {
   // Get current class info for promote dialog
   const currentClass = classes.find((c) => c.id === selectedClassId);
 
-  // Student form used in both Add and Edit dialogs
+  // Student form used in both Add and Edit dialogs — the field sections
+  // (General Profile / Enrolment Profile) live in StudentFormFields.
   const renderStudentForm = (
     onSubmit: (e: React.FormEvent) => void,
     isEdit: boolean
   ) => (
-    <form onSubmit={onSubmit} className="space-y-3">
-      <div>
-        <Label className="text-xs font-medium">Class *</Label>
-        <Select
-          value={formData.class_id}
-          items={classes.map((c) => ({ value: c.id, label: classLabel(c) }))}
-          onValueChange={(val) => {
-            if (val) {
-              updateField("class_id", val);
-              // Reset stream when class changes
-              const cls = classes.find((c) => c.id === val);
-              if (!cls || !HIGHER_CLASSES.includes(cls.name)) {
-                updateField("stream_id", "");
-              }
-            }
-          }}
-        >
-          <SelectTrigger className="w-full mt-1">
-            <SelectValue placeholder="Select class for enrollment..." />
-          </SelectTrigger>
-          <SelectContent>
-            {classes.map((c) => (
-              <SelectItem key={c.id} value={c.id} label={classLabel(c)}>
-                {classLabel(c)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {isHigherClass && streams.length > 0 && (
-        <div>
-          <Label className="text-xs font-medium">Stream</Label>
-          <Select
-            value={formData.stream_id || "none"}
-            items={[
-              { value: "none", label: "No stream" },
-              ...streams.map((s) => ({ value: s.id, label: s.name + (s.code ? ` (${s.code})` : "") })),
-            ]}
-            onValueChange={(val) =>
-              updateField("stream_id", !val || val === "none" ? "" : val)
-            }
-          >
-            <SelectTrigger className="w-full mt-1">
-              <SelectValue placeholder="Select stream..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none" label="No stream">
-                No stream
-              </SelectItem>
-              {streams.map((s) => (
-                <SelectItem key={s.id} value={s.id} label={s.name}>
-                  {s.name}
-                  {s.code ? ` (${s.code})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Stream determines which subjects the student takes
-          </p>
-        </div>
-      )}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label htmlFor="admission_no" className="text-xs font-medium">Admission No *</Label>
-          <Input
-            id="admission_no"
-            className="h-9"
-            value={formData.admission_no}
-            onChange={(e) => updateField("admission_no", e.target.value)}
-            placeholder="e.g. 1001"
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="full_name" className="text-xs font-medium">Full Name *</Label>
-          <Input
-            id="full_name"
-            className="h-9"
-            value={formData.full_name}
-            onChange={(e) => updateField("full_name", e.target.value)}
-            placeholder="Student's full name"
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="father_name" className="text-xs font-medium">Father&apos;s Name</Label>
-          <Input
-            id="father_name"
-            className="h-9"
-            value={formData.father_name}
-            onChange={(e) => updateField("father_name", e.target.value)}
-            placeholder="Father's name"
-          />
-        </div>
-        <div>
-          <Label htmlFor="mother_name" className="text-xs font-medium">Mother&apos;s Name</Label>
-          <Input
-            id="mother_name"
-            className="h-9"
-            value={formData.mother_name}
-            onChange={(e) => updateField("mother_name", e.target.value)}
-            placeholder="Mother's name"
-          />
-        </div>
-        <div>
-          <Label htmlFor="date_of_birth" className="text-xs font-medium">Date of Birth</Label>
-          <Input
-            id="date_of_birth"
-            className="h-9"
-            type="date"
-            value={formData.date_of_birth}
-            onChange={(e) => updateField("date_of_birth", e.target.value)}
-          />
-        </div>
-        <div>
-          <Label className="text-xs font-medium">Gender</Label>
-          <Select
-            value={formData.gender}
-            onValueChange={(val) => val && updateField("gender", val)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select gender" />
-            </SelectTrigger>
-            <SelectContent>
-              {GENDER_OPTIONS.map((g) => (
-                <SelectItem key={g} value={g}>
-                  {g.charAt(0).toUpperCase() + g.slice(1)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="phone" className="text-xs font-medium">Phone</Label>
-          <Input
-            id="phone"
-            className="h-9"
-            value={formData.phone}
-            onChange={(e) => updateField("phone", e.target.value)}
-            placeholder="Phone number"
-          />
-        </div>
-        <div>
-          <Label htmlFor="email" className="text-xs font-medium">Email</Label>
-          <Input
-            id="email"
-            className="h-9"
-            type="email"
-            value={formData.email}
-            onChange={(e) => updateField("email", e.target.value)}
-            placeholder="Email (optional)"
-          />
-        </div>
-        <div>
-          <Label className="text-xs font-medium">Blood Group</Label>
-          <Select
-            value={formData.blood_group}
-            onValueChange={(val) => val && updateField("blood_group", val)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select blood group" />
-            </SelectTrigger>
-            <SelectContent>
-              {BLOOD_GROUP_OPTIONS.map((bg) => (
-                <SelectItem key={bg} value={bg}>
-                  {bg}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="roll_number" className="text-xs font-medium">Roll Number</Label>
-          <Input
-            id="roll_number"
-            className="h-9"
-            type="number"
-            value={formData.roll_number}
-            onChange={(e) => updateField("roll_number", e.target.value)}
-            placeholder="Roll number"
-            disabled={!formData.roll_number_manual}
-          />
-          <div className="mt-2 flex items-start gap-2">
-            <Checkbox
-              id="roll_number_manual"
-              checked={formData.roll_number_manual}
-              onCheckedChange={(val) =>
-                setFormData((prev) => ({ ...prev, roll_number_manual: val === true }))
-              }
-              className="mt-0.5"
-            />
-            <div className="flex-1">
-              <Label
-                htmlFor="roll_number_manual"
-                className="text-xs font-medium cursor-pointer"
-              >
-                Manual override
-              </Label>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight">
-                {formData.roll_number_manual
-                  ? "Manual — will not be changed by auto-recompute"
-                  : "Auto-assigned alphabetically (default)"}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div>
-          <Label htmlFor="category" className="text-xs font-medium">Category</Label>
-          <Input
-            id="category"
-            className="h-9"
-            value={formData.category}
-            onChange={(e) => updateField("category", e.target.value)}
-            placeholder="e.g. General, OBC, SC, ST"
-          />
-        </div>
-        <div>
-          <Label htmlFor="aadhar_number" className="text-xs font-medium">Aadhar Number</Label>
-          <Input
-            id="aadhar_number"
-            className="h-9"
-            value={formData.aadhar_number}
-            onChange={(e) => updateField("aadhar_number", e.target.value)}
-            placeholder="12-digit Aadhar number"
-          />
-        </div>
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="address" className="text-xs font-medium">Address</Label>
-        <Input
-          id="address"
-          className="h-9"
-          value={formData.address}
-          onChange={(e) => updateField("address", e.target.value)}
-          placeholder="Full address"
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="previous_school" className="text-xs font-medium">Previous School</Label>
-        <Input
-          id="previous_school"
-          className="h-9"
-          value={formData.previous_school}
-          onChange={(e) => updateField("previous_school", e.target.value)}
-          placeholder="Name of previous school"
-        />
-      </div>
+    <form onSubmit={onSubmit} className="space-y-4">
+      <StudentFormFields
+        formData={formData}
+        setFormData={setFormData}
+        classes={classes}
+        streams={streams}
+      />
 
       <DialogFooter>
         <Button
@@ -1179,6 +945,7 @@ export default function AdminStudentsPage() {
       </DialogFooter>
     </form>
   );
+
 
   return (
     <div className="space-y-6">
@@ -1613,7 +1380,7 @@ export default function AdminStudentsPage() {
 
       {/* Add Student Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
@@ -1631,7 +1398,7 @@ export default function AdminStudentsPage() {
 
       {/* Edit Student Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
@@ -1654,7 +1421,7 @@ export default function AdminStudentsPage() {
           if (!open) setDetailStudent(null);
         }}
       >
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-2xl">
           {detailStudent && (
             <>
               <DialogHeader>
@@ -1674,50 +1441,51 @@ export default function AdminStudentsPage() {
                 </div>
               </DialogHeader>
 
-              <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
-                <DetailField label="Roll Number" value={detailStudent.roll_number ?? "—"} />
-                <DetailField label="Status">
-                  <Badge
-                    variant="secondary"
-                    className={
-                      detailStudent.enrollment_status
-                        ? STATUS_BADGE_STYLES[detailStudent.enrollment_status]
+              <div className="space-y-5 max-h-[55vh] overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                  <DetailField label="Roll Number" value={detailStudent.roll_number ?? "—"} />
+                  <DetailField label="Status">
+                    <Badge
+                      variant="secondary"
+                      className={
+                        detailStudent.enrollment_status
+                          ? STATUS_BADGE_STYLES[detailStudent.enrollment_status]
+                          : detailStudent.is_active
+                            ? STATUS_BADGE_STYLES.active
+                            : STATUS_BADGE_STYLES.exited
+                      }
+                    >
+                      {detailStudent.enrollment_status
+                        ? detailStudent.enrollment_status.charAt(0).toUpperCase() +
+                          detailStudent.enrollment_status.slice(1)
                         : detailStudent.is_active
-                          ? STATUS_BADGE_STYLES.active
-                          : STATUS_BADGE_STYLES.exited
-                    }
-                  >
-                    {detailStudent.enrollment_status
-                      ? detailStudent.enrollment_status.charAt(0).toUpperCase() +
-                        detailStudent.enrollment_status.slice(1)
-                      : detailStudent.is_active
-                        ? "Active"
-                        : "Inactive"}
-                  </Badge>
-                </DetailField>
-                <DetailField label="Father's Name" value={detailStudent.father_name || "—"} />
-                <DetailField label="Mother's Name" value={detailStudent.mother_name || "—"} />
-                <DetailField
-                  label="Gender"
-                  value={
-                    detailStudent.gender
-                      ? detailStudent.gender.charAt(0).toUpperCase() + detailStudent.gender.slice(1)
-                      : "—"
-                  }
-                />
-                <DetailField label="Date of Birth" value={detailStudent.date_of_birth || "—"} />
-                <DetailField label="Phone" value={detailStudent.phone || "—"} />
-                <DetailField label="Email" value={detailStudent.email || "—"} />
-                <DetailField label="Blood Group" value={detailStudent.blood_group || "—"} />
-                <DetailField label="Category" value={detailStudent.category || "—"} />
-                <DetailField label="Aadhar" value={detailStudent.aadhar_number || "—"} />
-                <DetailField label="Previous School" value={detailStudent.previous_school || "—"} />
-                <div className="col-span-2">
-                  <DetailField label="Address" value={detailStudent.address || "—"} />
+                          ? "Active"
+                          : "Inactive"}
+                    </Badge>
+                  </DetailField>
                 </div>
+                <ProfileDetailSection
+                  title="General Profile"
+                  section="general"
+                  student={detailStudent}
+                  streams={streams}
+                />
+                <ProfileDetailSection
+                  title="Enrolment Profile"
+                  section="enrolment"
+                  student={detailStudent}
+                  streams={streams}
+                />
               </div>
 
               <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => detailStudent && handleDownloadProfile(detailStudent)}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Profile
+                </Button>
                 {isAdmin && (
                   <Button
                     variant="outline"

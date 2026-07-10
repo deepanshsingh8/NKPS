@@ -184,6 +184,16 @@ export interface Teacher {
 export type Gender = 'male' | 'female' | 'other';
 export type BloodGroup = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
 
+// UDISE+ template enums (migration 072). Stored values match the DB CHECK
+// constraints; display labels/aliases live in lib/student-template.ts.
+export type MinorityGroup =
+  | 'muslim' | 'sikh' | 'christian' | 'jain' | 'buddhist' | 'parsi' | 'none';
+export type MediumOfInstruction = 'english' | 'hindi';
+export type DistanceBand = '1-3km' | '3-5km' | '5-10km' | 'above-10km';
+export type EducationLevel =
+  | 'primary' | 'upper_primary' | 'secondary' | 'senior_secondary'
+  | 'graduation' | 'pg_or_more';
+
 export interface Student {
   id: string;
   admission_no: string;
@@ -208,6 +218,52 @@ export interface Student {
   is_alumni: boolean;
   alumni_passing_year: string | null;
   alumni_academic_year_id: string | null;
+  // ── UDISE+ General Profile (migration 072) ──
+  name_as_per_aadhar: string | null;
+  jan_aadhar_number: string | null;
+  mother_occupation: string | null;
+  mother_qualification: string | null;
+  mother_mobile: string | null;
+  mother_annual_income: number | null;
+  father_occupation: string | null;
+  father_qualification: string | null;
+  father_mobile: string | null;
+  father_annual_income: number | null;
+  guardian_name: string | null;
+  guardian_relation: string | null;
+  guardian_mobile: string | null;
+  present_pincode: string | null;
+  permanent_address: string | null;
+  permanent_pincode: string | null;
+  mother_tongue: string | null;
+  minority_group: MinorityGroup | null;
+  is_bpl: boolean | null;
+  is_ews: boolean | null;
+  is_cwsn: boolean | null;
+  cwsn_impairment_type: string | null;
+  height_cm: number | null;
+  weight_kg: number | null;
+  // ── UDISE+ Enrolment Profile (migration 072) ──
+  is_rte: boolean | null;
+  medium_of_instruction: MediumOfInstruction | null;
+  previous_school_address: string | null;
+  previous_school_block: string | null;
+  previous_school_district: string | null;
+  previous_school_state: string | null;
+  previous_school_udise_code: string | null;
+  previous_school_reason_for_leaving: string | null;
+  previous_class_studied: string | null;
+  previous_school_board: string | null;
+  board_roll_number: string | null;
+  board_percentage: number | null;
+  last_session_attendance: string | null;
+  is_staff_ward: boolean | null;
+  participates_ncc: boolean | null;
+  participates_nss: boolean | null;
+  participates_scouts: boolean | null;
+  participates_competitions: boolean | null;
+  distance_band: DistanceBand | null;
+  parent_highest_education: EducationLevel | null;
   created_at: string;
   updated_at: string;
 }
