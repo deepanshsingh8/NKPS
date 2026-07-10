@@ -66,6 +66,7 @@ import {
   STUDENT_TEMPLATE_FIELDS,
   type StudentTemplateField,
   formatFieldValue,
+  getTemplateField,
   indianNationalFromNationality,
 } from "@nkps/shared/lib/student-template";
 import { CreatePortalUsersDialog } from "@/components/CreatePortalUsersDialog";
@@ -320,6 +321,9 @@ export default function AdminStudentsPage() {
   // keyed by the shared template registry (see StudentFormFields).
   const [editingStudent, setEditingStudent] = useState<StudentRow | null>(null);
   const [formData, setFormData] = useState<StudentFormState>(emptyStudentForm());
+  // Server-side validation errors keyed by field key, highlighted inline in
+  // the form (set on a 400 from POST/PATCH, cleared on reset/next submit).
+  const [formErrors, setFormErrors] = useState<Record<string, string[]>>({});
 
   const supabase = createClient();
   const router = useRouter();
@@ -540,7 +544,50 @@ export default function AdminStudentsPage() {
 
   const resetForm = () => {
     setFormData(emptyStudentForm(selectedClassId));
+    setFormErrors({});
     setEditingStudent(null);
+  };
+
+  // Open the Add dialog with the next admission number pre-filled (highest
+  // numeric admission no + 1 — still editable, server rejects duplicates).
+  const openAddDialog = async () => {
+    resetForm();
+    setAddDialogOpen(true);
+    try {
+      const res = await adminFetch("/api/students/next-admission-no");
+      const data = await res.json();
+      if (res.ok && data.next) {
+        setFormData((prev) =>
+          prev.fields.admission_no
+            ? prev
+            : { ...prev, fields: { ...prev.fields, admission_no: data.next } }
+        );
+      }
+    } catch {
+      // Suggestion only — the field stays manually fillable.
+    }
+  };
+
+  // Turn a 400's zod fieldErrors into inline highlights + a readable toast
+  // instead of a bare "Invalid data".
+  const applyServerErrors = (
+    data: { error?: string; details?: { fieldErrors?: Record<string, string[]> } },
+    fallback: string
+  ) => {
+    const fieldErrors = data.details?.fieldErrors;
+    if (fieldErrors && Object.keys(fieldErrors).length > 0) {
+      setFormErrors(fieldErrors);
+      const entries = Object.entries(fieldErrors);
+      const shown = entries
+        .slice(0, 3)
+        .map(([k, v]) => `${getTemplateField(k)?.label ?? k}: ${v[0]}`)
+        .join(" · ");
+      toast.error(
+        `Please fix: ${shown}${entries.length > 3 ? ` (+${entries.length - 3} more)` : ""}`
+      );
+    } else {
+      toast.error(data.error || fallback);
+    }
   };
 
   const openInviteDialog = (student: StudentRow) => {
@@ -626,10 +673,11 @@ export default function AdminStudentsPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error || "Failed to add student");
+        applyServerErrors(data, "Failed to add student");
         return;
       }
 
+      setFormErrors({});
       if (data.warning) {
         toast.warning(data.warning);
       }
@@ -672,10 +720,11 @@ export default function AdminStudentsPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error || "Failed to update student");
+        applyServerErrors(data, "Failed to update student");
         return;
       }
 
+      setFormErrors({});
       toast.success("Student updated successfully");
       resetForm();
       setEditDialogOpen(false);
@@ -921,6 +970,7 @@ export default function AdminStudentsPage() {
         setFormData={setFormData}
         classes={classes}
         streams={streams}
+        errors={formErrors}
       />
 
       <DialogFooter>
@@ -1010,10 +1060,7 @@ export default function AdminStudentsPage() {
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
-            onClick={() => {
-              resetForm();
-              setAddDialogOpen(true);
-            }}
+            onClick={openAddDialog}
             className="bg-navy-900 hover:bg-navy-800 text-white shadow-sm"
           >
             <Plus className="h-4 w-4 mr-2" />

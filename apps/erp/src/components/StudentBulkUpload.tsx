@@ -40,6 +40,7 @@ import {
   type StudentTemplateField,
   bulkTemplateHeaders,
   bulkTemplateColWidths,
+  formatDateDDMMYYYY,
   mapTemplateHeaders,
   normalizeDateString,
   normalizeEnum,
@@ -161,6 +162,18 @@ function normalizeCell(
   }
 }
 
+/** Human-friendly value for the expanded preview row: enum tokens show their
+ *  label ("english" → "English"), ISO dates show as DD/MM/YYYY. */
+function previewDisplayValue(field: StudentTemplateField, raw: string): string {
+  if (!raw) return "";
+  if (field.kind === "enum") {
+    const hit = (field.enumValues ?? []).find((ev) => ev.value === raw);
+    return hit ? hit.label : raw;
+  }
+  if (field.kind === "date") return formatDateDDMMYYYY(raw);
+  return raw;
+}
+
 function validateRow(data: Record<string, string>): string[] {
   const errors: string[] = [];
   if (!data.admission_no || data.admission_no.trim() === "") {
@@ -195,8 +208,11 @@ export function StudentBulkUpload({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [existingClassKeys, setExistingClassKeys] = useState<Set<string>>(new Set());
-  // "className|section|stream" (lowercased) → normalized subject tokens available in that class
-  const [classSubjectTokens, setClassSubjectTokens] = useState<Map<string, Set<string>>>(new Map());
+  // lowercased class label → subjects available in that class (normalized
+  // match tokens + display names for the warning message)
+  const [classSubjects, setClassSubjects] = useState<
+    Map<string, { tokens: Set<string>; names: string[] }>
+  >(new Map());
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
@@ -210,6 +226,8 @@ export function StudentBulkUpload({
       const { data: classes } = await supabase
         .from("classes")
         .select("id, name, section, stream_id, streams:stream_id(name)");
+      // Keys are lowercased so "XI - A (science)" in a sheet still matches
+      // the DB's "XI - A (Science)".
       const keys = new Set<string>();
       const idToKey = new Map<string, string>();
       for (const c of classes || []) {
@@ -218,25 +236,27 @@ export function StudentBulkUpload({
           section: c.section as string,
           streams: c.streams as unknown as { name: string } | null,
         });
-        keys.add(label);
-        idToKey.set(c.id as string, label);
+        keys.add(label.toLowerCase());
+        idToKey.set(c.id as string, label.toLowerCase());
       }
       setExistingClassKeys(keys);
 
       const { data: cs } = await supabase
         .from("class_subjects")
         .select("class_id, subjects:subject_id(name, nickname)");
-      const tokenMap = new Map<string, Set<string>>();
+      const subjectMap = new Map<string, { tokens: Set<string>; names: string[] }>();
       for (const row of cs || []) {
         const key = idToKey.get(row.class_id as string);
         if (!key) continue;
         const subject = row.subjects as unknown as { name: string; nickname: string | null } | null;
         if (!subject) continue;
-        if (!tokenMap.has(key)) tokenMap.set(key, new Set());
-        tokenMap.get(key)!.add(normalizeToken(subject.name));
-        if (subject.nickname) tokenMap.get(key)!.add(normalizeToken(subject.nickname));
+        if (!subjectMap.has(key)) subjectMap.set(key, { tokens: new Set(), names: [] });
+        const entry = subjectMap.get(key)!;
+        entry.tokens.add(normalizeToken(subject.name));
+        if (subject.nickname) entry.tokens.add(normalizeToken(subject.nickname));
+        entry.names.push(subject.name);
       }
-      setClassSubjectTokens(tokenMap);
+      setClassSubjects(subjectMap);
     })();
   }, [step]);
 
@@ -249,7 +269,7 @@ export function StudentBulkUpload({
     setEditingIndex(null);
     setExpandedIndex(null);
     setExistingClassKeys(new Set());
-    setClassSubjectTokens(new Map());
+    setClassSubjects(new Map());
     setUploading(false);
     setUploadProgress(null);
     setUploadResult(null);
@@ -353,8 +373,12 @@ export function StudentBulkUpload({
     new Set(parsedRows.map(classLabel).filter(Boolean))
   ).sort();
 
-  const missingClasses = allFileClasses.filter((cls) => !existingClassKeys.has(cls));
-  const existingClasses = allFileClasses.filter((cls) => existingClassKeys.has(cls));
+  const missingClasses = allFileClasses.filter(
+    (cls) => !existingClassKeys.has(cls.toLowerCase())
+  );
+  const existingClasses = allFileClasses.filter((cls) =>
+    existingClassKeys.has(cls.toLowerCase())
+  );
 
   /** Subject-matching warnings, computed live (class subjects load async). */
   const subjectWarnings = (r: ParsedRow): string[] => {
@@ -362,18 +386,21 @@ export function StudentBulkUpload({
     if (!raw) return [];
     const label = classLabel(r);
     if (!label) return [];
-    if (!existingClassKeys.has(label)) {
+    if (!existingClassKeys.has(label.toLowerCase())) {
       return [`Class ${label} is new — its subjects don't exist yet, so the Subjects column will be skipped for this row until class subjects are assigned.`];
     }
-    const available = classSubjectTokens.get(label);
+    const available = classSubjects.get(label.toLowerCase());
     const unmatched = splitSubjects(raw).filter(
-      (t) => !available || !available.has(normalizeToken(t))
+      (t) => !available || !available.tokens.has(normalizeToken(t))
     );
     if (unmatched.length === 0) return [];
-    if (!available || available.size === 0) {
-      return [`Class ${label} has no subjects assigned yet — the Subjects column will be skipped for this row.`];
+    if (!available || available.tokens.size === 0) {
+      return [`Class ${label} has no subjects assigned yet (Academics → Classes → subjects) — the Subjects column will be skipped for this row.`];
     }
-    return [`Subject${unmatched.length === 1 ? "" : "s"} not found in ${label}: ${unmatched.join(", ")}`];
+    const shown = available.names.slice(0, 8).join(", ");
+    return [
+      `Subject${unmatched.length === 1 ? "" : "s"} not assigned to ${label}: ${unmatched.join(", ")}. This class currently has: ${shown}${available.names.length > 8 ? ", …" : ""}. Only matched subjects will be linked.`,
+    ];
   };
 
   const rowWarnings = (r: ParsedRow): string[] => [...r.warnings, ...subjectWarnings(r)];
@@ -904,23 +931,30 @@ export function StudentBulkUpload({
                           </TableRow>
                           {isExpanded && (
                             <TableRow className="bg-gray-50/70 hover:bg-gray-50/70">
-                              <TableCell colSpan={colCount} className="py-3">
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-1.5 px-2">
+                              {/* TableCell defaults to whitespace-nowrap, which makes
+                                  long values paint over neighbouring grid cells —
+                                  force normal wrapping inside the detail panel. */}
+                              <TableCell colSpan={colCount} className="py-3 whitespace-normal">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2 px-2">
                                   {detailFields
                                     .filter((f) => (row.data[f.key] ?? "") !== "")
                                     .map((f) => (
-                                      <div key={f.key} className="text-xs">
-                                        <span className="text-gray-400">{f.label}: </span>
-                                        <span className="text-gray-700">{row.data[f.key]}</span>
+                                      <div key={f.key} className="text-xs min-w-0">
+                                        <p className="text-gray-400 truncate" title={f.label}>
+                                          {f.label}
+                                        </p>
+                                        <p className="text-gray-700 break-words">
+                                          {previewDisplayValue(f, row.data[f.key])}
+                                        </p>
                                       </div>
                                     ))}
                                 </div>
                                 {warnings.length > 0 && (
                                   <div className="mt-2 px-2 space-y-0.5">
                                     {warnings.map((w, wi) => (
-                                      <p key={wi} className="text-xs text-amber-600 flex items-start gap-1">
+                                      <p key={wi} className="text-xs text-amber-600 flex items-start gap-1 whitespace-normal break-words">
                                         <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                                        {w}
+                                        <span>{w}</span>
                                       </p>
                                     ))}
                                   </div>
