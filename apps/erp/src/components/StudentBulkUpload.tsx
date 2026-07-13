@@ -646,7 +646,7 @@ export function StudentBulkUpload({
             <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
               <p className="text-xs text-blue-700 font-medium mb-1">How it works</p>
               <ul className="text-xs text-blue-600 space-y-0.5 list-disc pl-4">
-                <li>Only <strong>Admission No</strong>, <strong>Name</strong> and <strong>Class</strong> are required — every other template column is optional.</li>
+                <li>Only <strong>Admission No</strong>, <strong>Name</strong> and <strong>Class</strong> are required (marked with <strong>*</strong> in the template) — every other column is optional.</li>
                 <li>Re-uploading a student (same admission no) <strong>updates</strong> them: columns present in your file overwrite (a blank cell clears the value), columns missing from the file stay untouched.</li>
                 <li><strong>Section</strong> defaults to A. <strong>Stream</strong> applies to XI/XII (Science, Commerce, Humanities). Missing classes are auto-created.</li>
                 <li><strong>Subjects</strong>: comma-separated names matched to the class&apos;s subjects (e.g. &quot;Physics, Chemistry, Maths&quot;). Unmatched names are reported as warnings.</li>
