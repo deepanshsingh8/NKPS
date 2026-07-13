@@ -164,9 +164,10 @@ export function StudentFormFields({
   // ── Generic registry-driven field control (plain render fn, NOT a nested
   // component — a nested component would remount its Input on every render
   // and drop focus while typing) ──
-  const renderField = (k: string, required = false) => {
+  const renderField = (k: string) => {
     const field = getTemplateField(k);
     if (!field) return null;
+    const required = field.required ?? false;
     const value = formData.fields[k] ?? "";
     const label = field.label + (required ? " *" : "");
     const error = fieldError(k);
@@ -302,7 +303,7 @@ export function StudentFormFields({
       {openSections.general && (
         <div className="space-y-3">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {renderField("full_name", true)}
+            {renderField("full_name")}
             {renderField("gender")}
             {renderField("date_of_birth")}
             {renderField("aadhar_number")}
@@ -379,7 +380,7 @@ export function StudentFormFields({
       {openSections.enrolment && (
         <div className="space-y-3">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {renderField("admission_no", true)}
+            {renderField("admission_no")}
             {renderField("admission_date")}
             <div>
               <Label className="text-xs font-medium">Class *</Label>

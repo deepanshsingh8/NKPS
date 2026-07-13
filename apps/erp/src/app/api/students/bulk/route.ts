@@ -401,7 +401,13 @@ export async function POST(request: Request) {
           }
         }
 
-        const replacedStudentIds: string[] = [];
+        // Match every student's Subjects cell first (pure, no I/O), then apply
+        // the replacements in TWO batched queries — one delete + one insert per
+        // 100-row batch — instead of a delete+insert pair per student, which on
+        // a 500-row chunk was ~1000 sequential roundtrips and could blow the
+        // route's 120s budget. Per-student error attribution on the write is
+        // traded for the batching; the matching warnings below stay per-student.
+        const toReplace: { p: PreparedStudent; studentId: string; matchedIds: string[] }[] = [];
         for (const p of withSubjects) {
           const studentId = admToId.get(p.admissionNo)!;
           const available = classSubjectsCache.get(p.classId) || [];
@@ -431,33 +437,45 @@ export async function POST(request: Request) {
             });
           }
           if (matchedIds.length === 0) continue;
+          toReplace.push({ p, studentId, matchedIds });
+        }
 
+        let replacedStudentIds: string[] = [];
+        if (toReplace.length > 0) {
+          const targetIds = toReplace.map((t) => t.studentId);
           const { error: delError } = await admin
             .from("student_subjects")
             .delete()
-            .eq("student_id", studentId);
+            .in("student_id", targetIds);
           if (delError) {
             console.error("[students.bulk.POST] student_subjects delete:", delError);
-            warnings.push({
-              admission_no: p.admissionNo,
-              full_name: p.fullName,
-              warning: "Failed to update subject links",
-            });
-            continue;
+            for (const t of toReplace) {
+              warnings.push({
+                admission_no: t.p.admissionNo,
+                full_name: t.p.fullName,
+                warning: "Failed to update subject links",
+              });
+            }
+          } else {
+            const insertRows = toReplace.flatMap((t) =>
+              t.matchedIds.map((id) => ({ student_id: t.studentId, class_subject_id: id }))
+            );
+            const { error: insError } = await admin
+              .from("student_subjects")
+              .insert(insertRows);
+            if (insError) {
+              console.error("[students.bulk.POST] student_subjects insert:", insError);
+              for (const t of toReplace) {
+                warnings.push({
+                  admission_no: t.p.admissionNo,
+                  full_name: t.p.fullName,
+                  warning: "Failed to save subject links",
+                });
+              }
+            } else {
+              replacedStudentIds = targetIds;
+            }
           }
-          const { error: insError } = await admin.from("student_subjects").insert(
-            matchedIds.map((id) => ({ student_id: studentId, class_subject_id: id }))
-          );
-          if (insError) {
-            console.error("[students.bulk.POST] student_subjects insert:", insError);
-            warnings.push({
-              admission_no: p.admissionNo,
-              full_name: p.fullName,
-              warning: "Failed to save subject links",
-            });
-            continue;
-          }
-          replacedStudentIds.push(studentId);
         }
 
         // The sheet wins over in-app elective picks — surface when a replaced

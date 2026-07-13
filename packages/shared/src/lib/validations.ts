@@ -824,11 +824,14 @@ export const studentSchema = z.object({
   father_name: optionalText,
   mother_name: optionalText,
   date_of_birth: dobOptionalSchema,
-  gender: z.enum(["male", "female", "other"]).optional(),
+  // enumField (not bare z.enum): the admin form sends "" for a blank select,
+  // which z.enum(...).optional() rejects — making optional fields look
+  // mandatory. enumField maps blank/unknown to undefined instead.
+  gender: enumField("gender"),
   address: optionalText,
   phone: optionalText,
   email: z.string().email("Invalid email").optional().or(z.literal("")),
-  blood_group: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]).optional(),
+  blood_group: enumField("blood_group"),
   category: enumField("category"),
   aadhar_number: optionalText,
   previous_school: optionalText,

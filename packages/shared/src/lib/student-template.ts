@@ -54,7 +54,8 @@ export interface StudentTemplateField {
   /** Extra lowercase header spellings accepted on import. The normalized
    *  `label` is always accepted automatically. */
   aliases?: string[];
-  /** Row-level requirement in bulk upload (admission_no/full_name/class only). */
+  /** Mandatory field (admission_no/full_name/class only): row-level requirement
+   *  in bulk upload, "*" suffix on the form label and bulk template header. */
   required?: boolean;
   /** Not a template particular — carried in bulk sheet/forms (phone, email,
    *  roll no, …) but excluded from the two-profile export layout. */
@@ -479,9 +480,11 @@ export function getTemplateField(key: string): StudentTemplateField | undefined 
   return STUDENT_TEMPLATE_FIELDS.find((f) => f.key === key);
 }
 
-/** Canonical bulk-sheet headers, in registry (sheet) order. */
+/** Canonical bulk-sheet headers, in registry (sheet) order. Required columns
+ *  carry a "*" suffix — normalizeToken strips it, so headers still match on
+ *  re-upload. */
 export function bulkTemplateHeaders(): string[] {
-  return STUDENT_TEMPLATE_FIELDS.map((f) => f.label);
+  return STUDENT_TEMPLATE_FIELDS.map((f) => (f.required ? `${f.label} *` : f.label));
 }
 
 export function bulkTemplateColWidths(): { wch: number }[] {
@@ -519,6 +522,18 @@ export function normalizeYesNo(raw: unknown): boolean | undefined {
 export function normalizeEnum(field: StudentTemplateField, raw: string): string | undefined {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
+  // Exact value/label match first (case/whitespace-insensitive): token
+  // normalization strips +/-, so blood groups "A+" and "A-" would otherwise
+  // both collapse to "a" and resolve to whichever comes first.
+  const compact = trimmed.toLowerCase().replace(/\s+/g, "");
+  for (const ev of field.enumValues ?? []) {
+    if (
+      compact === ev.value.toLowerCase().replace(/\s+/g, "") ||
+      compact === ev.label.toLowerCase().replace(/\s+/g, "")
+    ) {
+      return ev.value;
+    }
+  }
   const v = normalizeToken(trimmed);
   for (const ev of field.enumValues ?? []) {
     if (v === normalizeToken(ev.value) || v === normalizeToken(ev.label)) return ev.value;
@@ -685,19 +700,35 @@ export function indianNationalFromNationality(nationality: string | null | undef
  * form passes every column). For an included key, absent/blank input becomes
  * NULL — a blank cell in a provided column intentionally clears the value.
  * The virtual `indian_national` boolean is translated to the `nationality`
- * text column.
+ * text column. Pass `existing` (the current DB row) on edits so a NO answer
+ * preserves an already-stored specific non-Indian nationality (e.g. "American")
+ * instead of destroying it — see the indian_national branch below.
  */
 export function buildStudentRecord(
   data: Record<string, unknown>,
-  keys: string[]
+  keys: string[],
+  existing?: Record<string, unknown>
 ): Record<string, unknown> {
   const studentKeys = new Set(studentsInsertKeys());
   const record: Record<string, unknown> = {};
   for (const key of keys) {
     if (key === "indian_national") {
       const v = normalizeYesNo(data[key]);
-      if (v === true) record.nationality = "Indian";
-      else if (v === false) record.nationality = null;
+      if (v === true) {
+        record.nationality = "Indian";
+      } else if (v === false) {
+        // NO must not clobber a stored specific nationality. If the current
+        // value is already a non-Indian string (e.g. "American"), keep it;
+        // otherwise store the explicit "Non-Indian" marker so the NO answer
+        // round-trips (a null would read back as blank, losing the answer).
+        const prior = existing?.nationality;
+        record.nationality =
+          typeof prior === "string" &&
+          prior.trim() !== "" &&
+          normalizeToken(prior) !== "indian"
+            ? prior
+            : "Non-Indian";
+      }
       // unknown/blank → leave nationality untouched
       continue;
     }

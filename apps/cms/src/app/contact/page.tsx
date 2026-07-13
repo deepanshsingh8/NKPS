@@ -24,10 +24,17 @@ import type { ContactSubmission } from "@nkps/shared/types";
 
 type Filter = "all" | "unread" | "read";
 
-// wa.me requires a country-coded number with no symbols. Indian 10-digit
-// numbers get the +91 prefix; anything already longer is assumed to include it.
+// wa.me requires a country-coded number with no symbols. Normalize the two
+// common stored forms to a bare 10-digit national number, then add +91:
+//   "09876543210"  → strip the STD trunk 0  → "9876543210"
+//   "9876543210"   → already bare
+// A 12-digit "91XXXXXXXXXX" is already country-coded and passes through. Any
+// other shape (too short/long) can't be salvaged, so it's returned as-is.
 function toWhatsAppNumber(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
+  let digits = phone.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("0")) {
+    digits = digits.slice(1);
+  }
   return digits.length === 10 ? `91${digits}` : digits;
 }
 
