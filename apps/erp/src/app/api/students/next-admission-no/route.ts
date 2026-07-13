@@ -18,10 +18,18 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Scan admission numbers to find the numeric maximum. The range must clear
+    // the true row count (active + all alumni), not PostgREST's 1000-row
+    // default: a truncated window returns an arbitrary subset that can miss the
+    // real maximum and suggest an already-used number. 100k comfortably covers
+    // a school's full lifetime enrolment; only one lightweight text column is
+    // fetched. (A DB-side aggregate RPC would avoid the transfer entirely if the
+    // table ever grows past this — the field is an editable suggestion backed by
+    // the admission_no UNIQUE constraint, so a stale value only costs a retry.)
     const { data, error } = await admin
       .from("students")
       .select("admission_no")
-      .range(0, 9999);
+      .range(0, 99999);
 
     if (error) {
       console.error("[students.next-admission-no]", error);

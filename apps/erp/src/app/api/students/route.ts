@@ -251,7 +251,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { class_id, roll_number, roll_number_manual, stream_id, ...studentFields } = body;
+    // stream_id is intentionally NOT taken from the client: a student's stream
+    // is a property of their class (a stream-bound senior class carries its own
+    // stream_id; lower classes have none). We derive it from the class below so
+    // the enrollment can never hold a stream that contradicts the class. Any
+    // client-sent stream_id falls into studentFields and is stripped by zod.
+    const { class_id, roll_number, roll_number_manual, ...studentFields } = body;
 
     const result = studentSchema.safeParse(studentFields);
     if (!result.success) {
@@ -292,7 +297,7 @@ export async function POST(request: NextRequest) {
     if (class_id && student) {
       const { data: classRow, error: classLookupError } = await admin
         .from("classes")
-        .select("academic_year_id")
+        .select("academic_year_id, stream_id")
         .eq("id", class_id)
         .single();
 
@@ -312,7 +317,8 @@ export async function POST(request: NextRequest) {
           academic_year_id: classRow.academic_year_id,
           roll_number: roll_number ? parseInt(roll_number, 10) : null,
           roll_number_manual: roll_number_manual === true,
-          stream_id: stream_id || null,
+          // Stream follows the class, authoritatively (see destructure note).
+          stream_id: classRow.stream_id ?? null,
         });
 
       if (enrollError) {
@@ -346,28 +352,59 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, enrollment_id, roll_number, roll_number_manual, class_id, stream_id, ...fields } = body;
+    // stream_id is derived from the class, never trusted from the client (see
+    // the POST note) — a client-sent stream_id lands in `fields` and zod strips it.
+    const { id, enrollment_id, roll_number, roll_number_manual, class_id, ...fields } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Student id required" }, { status: 400 });
     }
 
+    // The current row: used to (a) preserve a stored non-Indian nationality when
+    // the Indian-National toggle says NO, and (b) tolerate unchanged legacy
+    // values the strict schema would otherwise reject (below).
+    const { data: current } = await admin
+      .from("students")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
     // Validate + whitelist: only registry-declared student columns may be
     // updated, and only the keys the caller actually sent (partial update).
     // Anything else (is_alumni, is_active, photo_url, …) has its own route.
-    const parsed = studentSchema.partial().safeParse(fields);
+    let effectiveFields = fields as Record<string, unknown>;
+    let parsed = studentSchema.partial().safeParse(effectiveFields);
+    if (!parsed.success && current) {
+      // The edit form resends every field, so a single legacy value that
+      // predates the strict schema (e.g. a bulk-imported non-10-digit mobile)
+      // would otherwise block every unrelated edit. Drop the failing fields
+      // that are UNCHANGED from what's stored, then re-validate. A genuinely
+      // new invalid value differs from stored, so it stays rejected.
+      const failedKeys = Object.keys(parsed.error.flatten().fieldErrors ?? {});
+      const norm = (x: unknown) => (x === null || x === undefined ? "" : String(x).trim());
+      const unchangedFailing = failedKeys.filter(
+        (k) => norm(effectiveFields[k]) === norm((current as Record<string, unknown>)[k])
+      );
+      if (unchangedFailing.length > 0) {
+        effectiveFields = Object.fromEntries(
+          Object.entries(effectiveFields).filter(([k]) => !unchangedFailing.includes(k))
+        );
+        parsed = studentSchema.partial().safeParse(effectiveFields);
+      }
+    }
     if (!parsed.success) {
       return NextResponse.json(
         { error: "Invalid data", details: parsed.error.flatten() },
         { status: 400 }
       );
     }
-    const providedKeys = Object.keys(fields).filter((k) =>
+    const providedKeys = Object.keys(effectiveFields).filter((k) =>
       k === "indian_national" || studentsInsertKeys().includes(k)
     );
     const updateRecord = buildStudentRecord(
       parsed.data as Record<string, unknown>,
-      providedKeys
+      providedKeys,
+      (current as Record<string, unknown> | null) ?? undefined
     );
 
     const { error } = await admin
@@ -394,7 +431,7 @@ export async function PATCH(request: NextRequest) {
 
         const { data: classRow, error: classLookupError } = await admin
           .from("classes")
-          .select("academic_year_id")
+          .select("academic_year_id, stream_id")
           .eq("id", class_id)
           .single();
 
@@ -406,9 +443,9 @@ export async function PATCH(request: NextRequest) {
           );
         }
         enrollmentUpdate.academic_year_id = classRow.academic_year_id;
-      }
-      if (stream_id !== undefined) {
-        enrollmentUpdate.stream_id = stream_id || null;
+        // Stream follows the (possibly changed) class. When class_id isn't part
+        // of this edit the stream stays as-is — it can only change with the class.
+        enrollmentUpdate.stream_id = classRow.stream_id ?? null;
       }
 
       if (Object.keys(enrollmentUpdate).length > 0) {
@@ -430,7 +467,7 @@ export async function PATCH(request: NextRequest) {
       // tripping the UNIQUE(student_id, class_id) constraint.
       const { data: classRow, error: classLookupError } = await admin
         .from("classes")
-        .select("academic_year_id")
+        .select("academic_year_id, stream_id")
         .eq("id", class_id)
         .single();
 
@@ -461,7 +498,8 @@ export async function PATCH(request: NextRequest) {
         academic_year_id: classRow.academic_year_id,
         roll_number: roll_number ? parseInt(roll_number, 10) : null,
         roll_number_manual: roll_number_manual === true,
-        stream_id: stream_id || null,
+        // Stream follows the class, authoritatively (see the POST note).
+        stream_id: classRow.stream_id ?? null,
         status: "active" as const,
       };
 

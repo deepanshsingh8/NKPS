@@ -156,6 +156,24 @@ export async function POST(request: Request) {
     }
     if (student.date_of_birth !== date_of_birth) return verifyFailed;
 
+    // Already-linked is a no-op that must be reported as such — check it BEFORE
+    // the cap, otherwise a parent at the cap re-submitting a child they've
+    // already linked gets the misleading "maximum number of children" error
+    // (the cap count includes that existing link). linkParentToStudentRecord is
+    // idempotent, but its alreadyLinked signal only surfaces after the cap gate.
+    const { data: existingLink } = await supabase
+      .from("student_parents")
+      .select("id")
+      .eq("student_id", student.id)
+      .eq("parent_id", parentId)
+      .maybeSingle();
+    if (existingLink) {
+      return NextResponse.json(
+        { error: "This child is already linked to your account" },
+        { status: 409 }
+      );
+    }
+
     // Cap children per parent. Real families don't have ten children at the
     // school; if they do, an admin can lift the cap manually. This stops a
     // compromised parent account from sweeping the whole student directory.

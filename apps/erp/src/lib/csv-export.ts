@@ -7,14 +7,14 @@ import {
   formatFieldValue,
   indianNationalFromNationality,
 } from "@nkps/shared/lib/student-template";
+import { csvEscape } from "@nkps/shared/lib/utils";
 
+// Delegate to the shared csvEscape so this client-side export gets the same
+// formula-injection hardening (leading = + - @) as the server CSV routes —
+// student names/addresses are attacker-controllable via bulk import.
 function escapeCSV(value: unknown): string {
   if (value === null || value === undefined) return "";
-  const str = String(value);
-  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
+  return csvEscape(typeof value === "number" ? value : String(value));
 }
 
 export interface CsvColumn<T extends object = Record<string, unknown>> {
