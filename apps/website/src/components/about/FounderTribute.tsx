@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
+import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { SCHOOL } from "@nkps/shared/lib/constants";
 
 interface FounderTributeProps {
@@ -10,8 +11,9 @@ interface FounderTributeProps {
 
 export function FounderTribute({ photoUrl }: FounderTributeProps = {}) {
   return (
-    <section className="section-padding bg-navy-900 text-white">
-      <div className="page-container">
+    <section className="section-padding bg-navy-900 text-white relative overflow-hidden">
+      <FloatingDoodles tone="light" />
+      <div className="page-container relative z-10">
         <AnimatedSection>
           <div className="text-center max-w-3xl mx-auto">
             {/* Decorative gold line */}

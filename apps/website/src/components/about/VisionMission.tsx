@@ -4,13 +4,15 @@ import { motion } from "framer-motion";
 import { Eye, Target } from "lucide-react";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { GlassCard } from "@nkps/shared/components/GlassCard";
+import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import { SCHOOL } from "@nkps/shared/lib/constants";
 
 export function VisionMission() {
   return (
-    <section className="section-padding bg-cream-50">
-      <div className="page-container">
+    <section className="section-padding bg-cream-50 relative overflow-hidden">
+      <FloatingDoodles tone="dark" />
+      <div className="page-container relative z-10">
         <SectionHeading
           label="What Drives Us"
           title="Our Vision & Mission"

@@ -2,12 +2,14 @@
 
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { CounterAnimation } from "@nkps/shared/components/CounterAnimation";
+import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { SCHOOL } from "@nkps/shared/lib/constants";
 
 export function AchievementsCounter() {
   return (
-    <section className="py-20 bg-navy-900">
-      <div className="page-container">
+    <section className="py-20 bg-navy-900 relative overflow-hidden">
+      <FloatingDoodles tone="light" />
+      <div className="page-container relative z-10">
         <SectionHeading title="Our Achievements at a Glance" light />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8 mt-12">

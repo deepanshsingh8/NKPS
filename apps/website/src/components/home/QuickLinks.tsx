@@ -12,6 +12,7 @@ import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { cn } from "@nkps/shared/lib/utils";
 import { getErpUrl } from "@nkps/shared/lib/cross-app";
+import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 
 const links = [
   {
@@ -40,6 +41,7 @@ const links = [
 export function QuickLinks() {
   return (
     <section className="bg-cream-50 section-padding relative overflow-hidden">
+      <FloatingDoodles tone="dark" />
       <div className="page-container relative z-10">
         <SectionHeading
           label="Get Started"
