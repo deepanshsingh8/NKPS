@@ -29,7 +29,9 @@ const nextConfig: NextConfig = {
     // quality, a 31-day minimum cache TTL, and a bounded set of size buckets.
     // (cms/erp keep unoptimized:true — auth-gated, low-traffic, not worth the quota.)
     minimumCacheTTL: 2678400,
-    formats: ["image/webp"],
+    // AVIF first (smaller than WebP on photographic hero images, cutting mobile
+    // LCP bytes), WebP fallback for older clients. Next negotiates per request.
+    formats: ["image/avif", "image/webp"],
     qualities: [75],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [48, 64, 96, 128, 256, 384],
