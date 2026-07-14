@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@nkps/shared/lib/utils";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
+import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 
 const levels = [
   {
@@ -72,8 +73,9 @@ export function CurriculumOverview() {
   const [activeTab, setActiveTab] = useState(0);
 
   return (
-    <section className="section-padding bg-cream-50">
-      <div className="page-container">
+    <section className="section-padding bg-cream-50 relative overflow-hidden">
+      <FloatingDoodles tone="dark" />
+      <div className="page-container relative z-10">
         <SectionHeading
           title="Our Curriculum"
           subtitle="CBSE-affiliated comprehensive education from Nursery to Class XII"
