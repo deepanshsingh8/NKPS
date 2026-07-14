@@ -4,6 +4,7 @@ import Image from "next/image";
 import { ArrowRight, Newspaper } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
+import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { SectionDivider } from "@nkps/shared/components/SectionDivider";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getPublishedArticles } from "@nkps/shared/lib/articles";
@@ -45,8 +46,9 @@ export default async function ArticlesIndexPage() {
 
       <SectionDivider />
 
-      <section className="section-padding">
-        <div className="page-container">
+      <section className="relative overflow-hidden section-padding">
+        <FloatingDoodles tone="dark" />
+        <div className="page-container relative z-10">
           {articles.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="rounded-full bg-cream-100 p-6">

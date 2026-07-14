@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 import { createClient } from "@nkps/shared/lib/supabase/server";
@@ -89,8 +90,9 @@ export default async function AcademicCalendarPage() {
         subtitle="Upcoming events, holidays, exams and meetings"
       />
 
-      <section className="section-padding bg-cream-50">
-        <div className="page-container max-w-5xl">
+      <section className="relative overflow-hidden section-padding bg-cream-50">
+        <FloatingDoodles tone="dark" />
+        <div className="page-container relative z-10 max-w-5xl">
           {monthKeys.length === 0 ? (
             <div className="rounded-3xl border border-gray-100 bg-white p-12 text-center">
               <h2 className="font-heading text-2xl font-semibold text-navy-900">

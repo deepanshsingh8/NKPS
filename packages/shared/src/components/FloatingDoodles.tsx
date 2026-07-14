@@ -1,6 +1,15 @@
 "use client";
 
-import { motion, useReducedMotion, useTransform } from "framer-motion";
+import {
+  motion,
+  useMotionValue,
+  useMotionValueEvent,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+  type MotionValue,
+} from "framer-motion";
+import { useEffect, useRef } from "react";
 import {
   Atom,
   BookOpen,
@@ -69,86 +78,191 @@ const DOODLES: Doodle[] = [
   { Icon: NotebookPen, top: 80, left: 66, size: 34, rotate: 8, depth: 0.85, duration: 8.5, hideOnMobile: true },
 ];
 
+// Cursor "makes space": doodles within this radius (px) of the cursor are pushed
+// away, springing back once it leaves.
+const REPEL_RADIUS = 200;
+const REPEL_STRENGTH = 90; // max push (px) at the cursor, scaled by depth.
+const DRIFT_AMOUNT = 22; // subtle whole-layer parallax travel (px), scaled by depth.
+
 interface FloatingDoodlesProps {
   /**
    * "light" tints for dark backgrounds (lighter blue), "dark" tints for light
    * backgrounds (deeper blue). Default "dark".
    */
   tone?: "light" | "dark";
-  /** Number of doodles to render (from the curated list). Default 12. */
+  /** Number of doodles to render (from the curated list). Default 14. */
   count?: number;
-  /** Base opacity of the layer (0..1). Default 1 (icons carry their own low alpha). */
+  /** Extra classes on the layer wrapper. */
   className?: string;
+}
+
+/** Shared pointer position in viewport pixels (-9999 when the cursor has left). */
+function usePointer() {
+  const px = useMotionValue(-9999);
+  const py = useMotionValue(-9999);
+
+  useEffect(() => {
+    function move(e: MouseEvent) {
+      px.set(e.clientX);
+      py.set(e.clientY);
+    }
+    function leave() {
+      px.set(-9999);
+      py.set(-9999);
+    }
+    window.addEventListener("mousemove", move, { passive: true });
+    document.addEventListener("mouseleave", leave);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseleave", leave);
+    };
+  }, [px, py]);
+
+  return { px, py };
 }
 
 function ParallaxDoodle({
   doodle,
   tone,
   reduced,
+  driftX,
+  driftY,
+  px,
+  py,
+  rectRef,
 }: {
   doodle: Doodle;
   tone: "light" | "dark";
   reduced: boolean;
+  driftX: MotionValue<number>;
+  driftY: MotionValue<number>;
+  px: MotionValue<number>;
+  py: MotionValue<number>;
+  /** Live viewport rect of the layer, measured once per layer (not per icon). */
+  rectRef: { current: DOMRect | null };
 }) {
-  const { x: mouseX, y: mouseY } = useMouseMotion();
-  // Closer (higher depth) doodles travel further with the cursor.
-  const shift = doodle.depth * 26;
-  const x = useTransform(mouseX, (v) => (reduced ? 0 : -v * shift));
-  const y = useTransform(mouseY, (v) => (reduced ? 0 : -v * shift));
+  // Repulsion target (raw) → spring (smooth "make space / snap back").
+  const repelX = useMotionValue(0);
+  const repelY = useMotionValue(0);
+  const springX = useSpring(repelX, { stiffness: 140, damping: 15, mass: 0.4 });
+  const springY = useSpring(repelY, { stiffness: 140, damping: 15, mass: 0.4 });
+
+  // Final translate = global drift (depth parallax) + local cursor repulsion.
+  const drift = doodle.depth * DRIFT_AMOUNT;
+  const x = useTransform(
+    [driftX, springX] as MotionValue[],
+    ([d, r]: number[]) => (reduced ? 0 : -d * drift + r)
+  );
+  const y = useTransform(
+    [driftY, springY] as MotionValue[],
+    ([d, r]: number[]) => (reduced ? 0 : -d * drift + r)
+  );
+
+  // Recompute repulsion whenever the cursor moves. px & py update together, so
+  // subscribing to px alone (and reading py) covers every move. The icon's rest
+  // centre is derived from the layer rect + its own %/size — no per-icon layout
+  // reads on scroll.
+  useMotionValueEvent(px, "change", (mx) => {
+    if (reduced) return;
+    const rect = rectRef.current;
+    if (!rect) return;
+    const my = py.get();
+    const cx = rect.left + (doodle.left / 100) * rect.width + doodle.size / 2;
+    const cy = rect.top + (doodle.top / 100) * rect.height + doodle.size / 2;
+    const dx = cx - mx;
+    const dy = cy - my;
+    const dist = Math.hypot(dx, dy) || 1;
+    if (dist < REPEL_RADIUS) {
+      // Ease-in falloff, strongest right at the cursor; deeper icons shove more.
+      const t = 1 - dist / REPEL_RADIUS;
+      const push = t * t * REPEL_STRENGTH * (0.5 + doodle.depth * 0.5);
+      repelX.set((dx / dist) * push);
+      repelY.set((dy / dist) * push);
+    } else {
+      repelX.set(0);
+      repelY.set(0);
+    }
+  });
 
   const colorClass =
-    tone === "light" ? "text-blue-300/25" : "text-blue-600/[0.13]";
+    tone === "light" ? "text-blue-200/45" : "text-blue-600/40";
 
   return (
-    <motion.div
+    <div
       className={cn(
-        "absolute will-change-transform",
+        "absolute",
         doodle.hideOnMobile && "hidden md:block"
       )}
-      style={{ top: `${doodle.top}%`, left: `${doodle.left}%`, x, y }}
+      style={{ top: `${doodle.top}%`, left: `${doodle.left}%` }}
     >
-      <motion.div
-        initial={false}
-        animate={
-          reduced
-            ? undefined
-            : { y: [0, -12, 0], rotate: [doodle.rotate, doodle.rotate + 6, doodle.rotate] }
-        }
-        transition={
-          reduced
-            ? undefined
-            : { duration: doodle.duration, repeat: Infinity, ease: "easeInOut" }
-        }
-        style={{ rotate: doodle.rotate }}
-      >
-        <doodle.Icon
-          className={colorClass}
-          style={{ width: doodle.size, height: doodle.size }}
-          strokeWidth={1.25}
-        />
+      <motion.div className="will-change-transform" style={{ x, y }}>
+        <motion.div
+          initial={false}
+          animate={
+            reduced
+              ? undefined
+              : { y: [0, -12, 0], rotate: [doodle.rotate, doodle.rotate + 6, doodle.rotate] }
+          }
+          transition={
+            reduced
+              ? undefined
+              : { duration: doodle.duration, repeat: Infinity, ease: "easeInOut" }
+          }
+          style={{ rotate: doodle.rotate }}
+        >
+          <doodle.Icon
+            className={colorClass}
+            style={{ width: doodle.size, height: doodle.size }}
+            strokeWidth={1.6}
+          />
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 }
 
 /**
  * A decorative, non-interactive layer of school/study line-art icons scattered
- * across empty background space. Each icon drifts with the cursor at a slightly
- * different rate (depth parallax) and gently floats on its own.
+ * across empty background space. The whole layer drifts subtly with the cursor
+ * (depth parallax) and each icon also gently idle-floats — and any icon the
+ * cursor comes near is pushed out of the way, springing back once it passes
+ * ("making space for the mouse").
  *
  * Drop it as the first child of a `relative overflow-hidden` section and keep the
  * real content above it (e.g. wrap content in `relative z-10`).
  */
 export function FloatingDoodles({
   tone = "dark",
-  count = 12,
+  count = 14,
   className,
 }: FloatingDoodlesProps) {
   const reduced = useReducedMotion() ?? false;
+  const { x: driftX, y: driftY } = useMouseMotion();
+  const { px, py } = usePointer();
   const doodles = DOODLES.slice(0, Math.min(count, DOODLES.length));
+
+  // The layer's viewport rect, measured once here (not per icon) and refreshed
+  // on scroll/resize. Every doodle derives its rest centre from this + its %/size.
+  const layerRef = useRef<HTMLDivElement>(null);
+  const rectRef = useRef<DOMRect | null>(null);
+  useEffect(() => {
+    if (reduced) return;
+    const measure = () => {
+      const el = layerRef.current;
+      if (el) rectRef.current = el.getBoundingClientRect();
+    };
+    measure();
+    window.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+    };
+  }, [reduced]);
 
   return (
     <div
+      ref={layerRef}
       aria-hidden="true"
       className={cn(
         "pointer-events-none absolute inset-0 z-0 overflow-hidden",
@@ -156,7 +270,17 @@ export function FloatingDoodles({
       )}
     >
       {doodles.map((doodle, i) => (
-        <ParallaxDoodle key={i} doodle={doodle} tone={tone} reduced={reduced} />
+        <ParallaxDoodle
+          key={i}
+          doodle={doodle}
+          tone={tone}
+          reduced={reduced}
+          driftX={driftX}
+          driftY={driftY}
+          px={px}
+          py={py}
+          rectRef={rectRef}
+        />
       ))}
     </div>
   );

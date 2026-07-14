@@ -7,6 +7,7 @@ import { X, Download, Calendar, Filter, ChevronLeft, ChevronRight, ImageIcon } f
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
 import { SectionDivider } from "@nkps/shared/components/SectionDivider";
+import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { cn } from "@nkps/shared/lib/utils";
@@ -287,8 +288,9 @@ export function GalleryPageClient() {
 
       <SectionDivider />
 
-      <section className="py-20 px-6">
-        <div className="mx-auto max-w-6xl">
+      <section className="relative overflow-hidden py-20 px-6">
+        <FloatingDoodles tone="dark" />
+        <div className="relative z-10 mx-auto max-w-6xl">
           <AnimatedSection>
             <SectionHeading title="Photo Gallery" />
           </AnimatedSection>
