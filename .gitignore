@@ -44,3 +44,6 @@ yarn-error.log*
 next-env.d.ts
 .claude/
 
+# local screenshots / scratch captures (kept on disk, not committed)
+screenshots/
+

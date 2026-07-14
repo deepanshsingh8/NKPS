@@ -70,6 +70,7 @@ import {
   indianNationalFromNationality,
 } from "@nkps/shared/lib/student-template";
 import { CreatePortalUsersDialog } from "@/components/CreatePortalUsersDialog";
+import { StudentCallActions } from "@/components/StudentCallActions";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { formatClassName } from "@nkps/shared/lib/utils";
@@ -1523,6 +1524,12 @@ export default function AdminStudentsPage() {
                   student={detailStudent}
                   streams={streams}
                 />
+                <div>
+                  <p className="text-sm font-semibold text-navy-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-800 pb-1 mb-3">
+                    Call
+                  </p>
+                  <StudentCallActions student={detailStudent} />
+                </div>
               </div>
 
               <DialogFooter>
