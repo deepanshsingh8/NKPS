@@ -61,7 +61,12 @@ function AnimatedHeading({
   // Derive `animate` from whether the timeout for the current slideKey has
   // fired. Using a state value rather than calling setAnimate(false) in the
   // effect body avoids the synchronous-setState-in-effect warning.
-  const [readyKey, setReadyKey] = useState<number | null>(null);
+  //
+  // Initialise to the FIRST slide's key (lazy initialiser runs once) so the
+  // initial headline is painted at opacity 1 in the SSR HTML instead of
+  // starting hidden and revealing after hydration — that hidden start delayed
+  // the LCP element past 4s on mobile. Subsequent slide changes still animate.
+  const [readyKey, setReadyKey] = useState<number | null>(() => slideKey);
   const animate = readyKey === slideKey;
 
   useEffect(() => {
@@ -201,7 +206,10 @@ export function HeroSlider({ cards }: HeroSliderProps = {}) {
     <section className="relative h-[100svh] min-h-[600px] w-full overflow-hidden bg-navy-950">
 
       {/* ═══ LAYER 1: Background image — parallax tracked ═══ */}
-      <AnimatePresence mode="wait">
+      {/* initial={false} skips the enter animation on the FIRST render so slide 0
+          (the LCP element) paints at opacity 1 in the SSR HTML without waiting
+          for framer-motion to hydrate. Slide *changes* still crossfade. */}
+      <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={safeCurrent}
           className="absolute -inset-5"
