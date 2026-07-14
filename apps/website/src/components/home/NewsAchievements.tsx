@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Award, Newspaper, Trophy, type LucideIcon } from "lucide-react";
+import { Award, Newspaper, Pause, Play, Trophy, type LucideIcon } from "lucide-react";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { cn } from "@nkps/shared/lib/utils";
 import type { Article, SectionCard } from "@nkps/shared/types";
@@ -116,6 +117,12 @@ function ScrollColumn({ column }: { column: Column }) {
   // internal gaps exactly.
   const loop = animate ? [...cards, ...cards] : cards;
 
+  // Manual pause control. Touch devices have no hover, so the marquee would
+  // otherwise scroll forever with no way to read a card — pause the instant a
+  // finger lands on the column (the user "scrolling to" it), and expose an
+  // explicit Pause/Play toggle so they can resume or freeze it deliberately.
+  const [paused, setPaused] = useState(false);
+
   return (
     <div className="group/col flex flex-col">
       {/* Column header */}
@@ -126,10 +133,26 @@ function ScrollColumn({ column }: { column: Column }) {
         <h3 className="font-heading text-base font-bold text-navy-900">
           {label}
         </h3>
+        {animate && (
+          <button
+            type="button"
+            onClick={() => setPaused((p) => !p)}
+            aria-pressed={paused}
+            aria-label={paused ? `Resume ${label} auto-scroll` : `Pause ${label} auto-scroll`}
+            className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg text-navy-900/60 transition-colors hover:bg-navy-900/5 hover:text-navy-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
+          >
+            {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+          </button>
+        )}
       </div>
 
       {/* Scroll viewport */}
-      <div className="relative h-[24rem] overflow-hidden md:h-[30rem]">
+      <div
+        className="relative h-[24rem] overflow-hidden md:h-[30rem]"
+        // Freeze the moment a finger reaches this column on mobile so it stops
+        // moving out from under the reader. They resume via the header toggle.
+        onTouchStart={animate && !paused ? () => setPaused(true) : undefined}
+      >
         {/* Top / bottom fade masks */}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-cream-50 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-12 bg-gradient-to-t from-cream-50 to-transparent" />
@@ -138,7 +161,8 @@ function ScrollColumn({ column }: { column: Column }) {
           className={cn(
             "flex flex-col",
             animate &&
-              "animate-marquee-vertical group-hover/col:[animation-play-state:paused]"
+              "animate-marquee-vertical group-hover/col:[animation-play-state:paused]",
+            animate && paused && "[animation-play-state:paused]"
           )}
         >
           {loop.map((card, i) => (
