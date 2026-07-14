@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Users, CalendarDays, GraduationCap, Building2, Award, BookOpen } from "lucide-react";
 import { SCHOOL } from "@nkps/shared/lib/constants";
 import { CounterAnimation } from "@nkps/shared/components/CounterAnimation";
+import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 
@@ -28,6 +29,8 @@ export function StatsCounter({ backgroundImage }: StatsCounterProps = {}) {
         />
         <div className="absolute inset-0 bg-navy-950/88" />
       </div>
+
+      <FloatingDoodles tone="light" />
 
       <div className="page-container relative z-10 py-24 px-4">
         <SectionHeading

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
+import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { Users, ClipboardCheck, Lightbulb, BookOpenCheck } from "lucide-react";
 import { buildMetadata } from "@nkps/shared/lib/seo";
@@ -114,7 +115,9 @@ export default function ForParentsPage() {
         subtitle="Guidelines, expectations and recommendations for parents and guardians"
       />
 
-      <section className="mx-auto max-w-5xl px-4 py-16 md:px-8">
+      <section className="relative overflow-hidden px-4 py-16 md:px-8">
+        <FloatingDoodles tone="dark" />
+        <div className="relative z-10 mx-auto max-w-5xl">
         {/* Intro */}
         <AnimatedSection>
           <div className="mb-12 rounded-2xl bg-gradient-to-br from-navy-900 via-navy-800 to-navy-900 p-6 text-center shadow-lg sm:p-10">
@@ -205,6 +208,7 @@ export default function ForParentsPage() {
             </p>
           </div>
         </AnimatedSection>
+        </div>
       </section>
     </PageTransition>
   );

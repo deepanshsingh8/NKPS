@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
 import { SectionDivider } from "@nkps/shared/components/SectionDivider";
+import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { cn } from "@nkps/shared/lib/utils";
@@ -73,8 +74,9 @@ export function TransferCertificatesPageClient() {
 
       <SectionDivider />
 
-      <section className="py-20 px-6">
-        <div className="mx-auto max-w-3xl">
+      <section className="relative overflow-hidden py-20 px-6">
+        <FloatingDoodles tone="dark" />
+        <div className="relative z-10 mx-auto max-w-3xl">
           <AnimatedSection>
             <SectionHeading title="Find Your Transfer Certificate" />
           </AnimatedSection>
