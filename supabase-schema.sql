@@ -5463,3 +5463,41 @@ ALTER TABLE students DROP CONSTRAINT IF EXISTS chk_students_board_percentage;
 ALTER TABLE students ADD CONSTRAINT chk_students_board_percentage CHECK (
   board_percentage IS NULL OR (board_percentage >= 0 AND board_percentage <= 100)
 );
+
+-- Mirrors scripts/migrations/erp/migration-073-telephony-call-logs.sql
+-- Click-to-call audit trail. Teachers/admins ring a student's parent/guardian
+-- from the ERP via Exotel (masked bridge); every call is logged here. No raw
+-- numbers are stored — only contact_type + the student/actor FKs. The agent
+-- leg is read from profiles.phone at call time.
+CREATE TABLE IF NOT EXISTS call_logs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  actor_id uuid NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
+  student_id uuid REFERENCES students(id) ON DELETE SET NULL,
+  contact_type text NOT NULL
+    CHECK (contact_type IN ('student', 'father', 'mother', 'guardian')),
+  exotel_sid text,
+  status text NOT NULL DEFAULT 'initiated'
+    CHECK (status IN (
+      'initiated', 'error', 'queued', 'in-progress',
+      'completed', 'failed', 'busy', 'no-answer', 'canceled'
+    )),
+  duration_seconds integer,
+  recording_url text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_call_logs_actor
+  ON call_logs (actor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_call_logs_student
+  ON call_logs (student_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_call_logs_exotel_sid
+  ON call_logs (exotel_sid)
+  WHERE exotel_sid IS NOT NULL;
+
+ALTER TABLE call_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins have full access to call_logs" ON call_logs;
+CREATE POLICY "Admins have full access to call_logs"
+  ON call_logs FOR ALL
+  USING (public.get_user_role() = 'admin');
