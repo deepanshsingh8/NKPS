@@ -127,7 +127,12 @@ export async function POST(request: NextRequest) {
     const statusCallbackUrl = `${base}/api/telephony/exotel-callback?token=${encodeURIComponent(token)}`;
 
     try {
-      const result = await connectCall({ agentPhone, customerPhone, statusCallbackUrl });
+      const result = await connectCall({
+        agentPhone,
+        customerPhone,
+        statusCallbackUrl,
+        customField: logRow.id,
+      });
       await admin
         .from("call_logs")
         .update({

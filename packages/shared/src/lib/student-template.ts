@@ -572,11 +572,19 @@ export function normalizeDateString(value: string): string {
   return value;
 }
 
-/** Undo Excel's number mangling of phone-like cells ("9.87654e9", "98765.0"). */
+/** Undo Excel's number mangling of phone-like cells ("9.87654e9",
+ *  "9.88E+09", "98765.0"). Scientific notation is *reconstructed* to its full
+ *  integer form rather than truncated — stripping the exponent would corrupt
+ *  the very numbers this exists to fix. */
 export function normalizePhone(value: string): string {
   if (!value) return "";
-  const cleaned = value.replace(/[eE]+\d+$/, "");
-  return cleaned.replace(/\.0+$/, "").trim();
+  const trimmed = value.trim();
+  // Scientific notation ("9.88E+09", "9.87654e9"): expand to the full integer.
+  if (/^-?\d+(\.\d+)?[eE][+-]?\d+$/.test(trimmed)) {
+    const num = Number(trimmed);
+    if (Number.isFinite(num)) return num.toFixed(0);
+  }
+  return trimmed.replace(/\.0+$/, "");
 }
 
 /** "2,50,000", "142 cm", "68.5 kg", "76%" → number (or undefined). */

@@ -192,6 +192,28 @@ export async function POST(request: Request) {
 
     const prepared: PreparedStudent[] = [];
 
+    // When the sheet carries the derived "Indian National?" column, a "No"
+    // answer must not clobber an already-stored specific nationality (e.g.
+    // "American"). buildStudentRecord needs the current row to make that call,
+    // so pre-load nationality for the admission numbers in this upload.
+    const nationalityRelevant = recordKeys.includes("indian_national");
+    const existingByAdmNo = new Map<string, Record<string, unknown>>();
+    if (nationalityRelevant) {
+      const admissionNos = students
+        .map((s) => s.admission_no?.trim())
+        .filter((n): n is string => Boolean(n));
+      for (let i = 0; i < admissionNos.length; i += 200) {
+        const chunk = admissionNos.slice(i, i + 200);
+        const { data: existingNat } = await admin
+          .from("students")
+          .select("admission_no, nationality")
+          .in("admission_no", chunk);
+        for (const row of existingNat ?? []) {
+          existingByAdmNo.set(String(row.admission_no).trim(), row);
+        }
+      }
+    }
+
     for (const s of students) {
       const name = s.class_name.trim();
       const section = (s.section || "A").trim();
@@ -213,7 +235,11 @@ export async function POST(request: Request) {
       }
 
       // Only sheet-provided columns are written (column projection above).
-      const record = buildStudentRecord(s as Record<string, unknown>, recordKeys);
+      const record = buildStudentRecord(
+        s as Record<string, unknown>,
+        recordKeys,
+        existingByAdmNo.get(s.admission_no.trim())
+      );
       // Defensive: a malformed date must never fail a whole upsert batch.
       for (const dateKey of ["date_of_birth", "admission_date"] as const) {
         if (
