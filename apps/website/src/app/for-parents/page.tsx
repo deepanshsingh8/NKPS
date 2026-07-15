@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
-import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { Users, ClipboardCheck, Lightbulb, BookOpenCheck } from "lucide-react";
 import { buildMetadata } from "@nkps/shared/lib/seo";
@@ -116,7 +115,6 @@ export default function ForParentsPage() {
       />
 
       <section className="relative overflow-hidden px-4 py-16 md:px-8">
-        <FloatingDoodles tone="dark" />
         <div className="relative z-10 mx-auto max-w-5xl">
         {/* Intro */}
         <AnimatedSection>

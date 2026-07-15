@@ -6,6 +6,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { TopBar } from "@/components/layout/TopBar";
 import { ScrollToTop } from "@/components/layout/ScrollToTop";
+import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 
 // Floating, below-the-fold widgets. Load them client-side only so their
 // framer-motion bundles don't compete for the main thread during the initial
@@ -36,6 +37,11 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      {/* Single site-wide ambient doodle layer. Pinned to the viewport behind
+          all content, it shows through the page's open cream space so every
+          page/section gets the same subtle texture instead of the old, ad-hoc
+          per-section instances. */}
+      <FloatingDoodles fixed />
       <TopBar />
       <Navbar />
       {children}

@@ -18,7 +18,6 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
-import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import { cn } from "@nkps/shared/lib/utils";
 import type { SectionCard } from "@nkps/shared/types";
@@ -281,7 +280,6 @@ export function StudentLifeContent({
       {/* Annual Events — Timeline Style */}
       {allEvents.length > 0 && (
       <section className="relative overflow-hidden py-20 px-6">
-        <FloatingDoodles tone="dark" />
         <div className="relative z-10 mx-auto max-w-4xl">
           <AnimatedSection>
             <SectionHeading

@@ -60,6 +60,12 @@ export interface ConnectCallParams {
   customerPhone: string;
   /** Absolute URL Exotel POSTs call-status updates to (carries our token). */
   statusCallbackUrl: string;
+  /**
+   * Our own correlation id (the call_logs row id). Exotel echoes it back in the
+   * status callback as `CustomField`, so we can always reconcile the row — even
+   * on the rare 2xx whose body we can't parse a Sid out of.
+   */
+  customField?: string;
 }
 
 export interface ConnectCallResult {
@@ -86,6 +92,7 @@ export async function connectCall(params: ConnectCallParams): Promise<ConnectCal
     // numbers to still connect on a legitimate school↔parent call.
     CallType: "trans",
     StatusCallback: params.statusCallbackUrl,
+    ...(params.customField ? { CustomField: params.customField } : {}),
   });
 
   const res = await fetch(endpoint, {

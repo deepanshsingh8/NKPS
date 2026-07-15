@@ -58,10 +58,10 @@ export async function createPortalUser({
     // teacher_id, role='parent' needs parent_id; role='student' may have a null
     // student_id (the self-claim default). We therefore derive role from the
     // link id actually supplied rather than trusting the `role` argument:
-    // callers like staff-create and parent-invite ask for role='teacher'/
-    // 'parent' BEFORE the domain record is linked (staff has no teachers row
-    // yet; parent-invite links right after). Trusting `role` there would set
-    // role without its id, and the trigger would reject the ENTIRE update —
+    // a caller like staff-create asks for role='teacher' BEFORE the domain
+    // record is linked (staff has no teachers row yet). Trusting `role` there
+    // would set role without its id, and the trigger would reject the ENTIRE
+    // update —
     // silently discarding must_change_password and phone with it (a security
     // regression: the user would never be forced to rotate the emailed
     // password). When no link id is present we keep the signup default

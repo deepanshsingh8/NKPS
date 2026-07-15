@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Quote, Star } from "lucide-react";
 import { cn } from "@nkps/shared/lib/utils";
-import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import Image from "next/image";
 import type { SectionCard } from "@nkps/shared/types";
@@ -44,7 +43,6 @@ export function Testimonials({ cards }: TestimonialsProps = {}) {
 
   return (
     <section className="bg-white section-padding relative overflow-hidden">
-      <FloatingDoodles tone="dark" />
       <div className="page-container relative z-10">
         <SectionHeading
           label="Testimonials"

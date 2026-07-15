@@ -6,7 +6,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ArrowLeft, Calendar, User } from "lucide-react";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
-import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import {
   FacebookIcon,
   InstagramIcon,
@@ -185,7 +184,6 @@ export default async function ArticleDetailPage({ params }: PageProps) {
 
       {/* Body */}
       <article className="relative overflow-hidden section-padding">
-        <FloatingDoodles tone="dark" />
         <div className="relative z-10 mx-auto max-w-3xl px-6">
           {article.excerpt && (
             <p className="text-lg text-gray-700 font-medium leading-relaxed mb-8 pb-8 border-b border-gray-100">

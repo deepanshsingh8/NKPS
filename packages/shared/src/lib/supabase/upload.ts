@@ -1,6 +1,6 @@
 import { createClient } from "./client";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
-import { compressImage } from "@nkps/shared/lib/image-compress";
+import { compressImage, swapToWebpExtension } from "@nkps/shared/lib/image-compress";
 
 /**
  * Upload a file directly to Supabase Storage from the browser.
@@ -23,9 +23,7 @@ export async function uploadToStorage(
   // extension allowlist sees the real upload.
   const optimized = await compressImage(file);
   const uploadName =
-    optimized === file
-      ? fileName
-      : fileName.replace(/\.[^.]+$/, "") + ".webp";
+    optimized === file ? fileName : swapToWebpExtension(fileName);
 
   // 1. Get a signed upload URL from the server
   // Each app exposes /api/upload-url at its root (signed-URL generator).

@@ -78,16 +78,16 @@ export const NAV_LINKS = [
   { label: "Academics", href: "/academics" },
   { label: "Admissions", href: "/admissions" },
   { label: "Facilities", href: "/facilities" },
-  { label: "Contact", href: "/contact" },
+  { label: "Gallery", href: "/gallery" },
 ] as const;
 
 // Secondary nav — surfaced under a "More" dropdown on desktop, inlined on
 // mobile, and kept discoverable in the footer.
 export const NAV_MORE_LINKS = [
   { label: "Student Life", href: "/student-life" },
-  { label: "Gallery", href: "/gallery" },
   { label: "Articles", href: "/articles" },
   { label: "Alumni", href: "/alumni" },
+  { label: "Contact", href: "/contact" },
 ] as const;
 
 export const STAFF = {

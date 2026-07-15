@@ -7,7 +7,6 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
 import { SectionDivider } from "@nkps/shared/components/SectionDivider";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
-import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import {
   Accordion,
@@ -275,7 +274,6 @@ export function AdmissionsPageClient() {
       <section className="relative bg-navy-900 py-20 px-6 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-navy-800 via-navy-900 to-navy-900" />
         <div className="absolute top-0 right-1/4 h-64 w-64 rounded-full bg-gold-500/5 blur-3xl" />
-        <FloatingDoodles tone="light" />
 
         <div className="relative z-10 mx-auto max-w-3xl text-center">
           <AnimatedSection>

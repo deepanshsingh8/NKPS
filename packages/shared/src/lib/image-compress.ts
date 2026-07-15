@@ -17,6 +17,16 @@ const QUALITY = 0.82;
 // (and SVG isn't an allowed upload type anyway).
 const COMPRESSIBLE = new Set(["image/jpeg", "image/png", "image/webp"]);
 
+/**
+ * Rename a file/object name to `.webp`. Only a trailing alphanumeric extension
+ * is stripped — the pattern can't cross a `/` or `-`, so names with dots in a
+ * directory segment or before the extension (e.g. "2024.01/photo",
+ * "my.photo.jpg") keep their real path/basename instead of being truncated.
+ */
+export function swapToWebpExtension(name: string): string {
+  return name.replace(/\.[A-Za-z0-9]+$/, "") + ".webp";
+}
+
 export async function compressImage(file: File): Promise<File> {
   if (!COMPRESSIBLE.has(file.type)) return file;
   if (
@@ -57,7 +67,7 @@ export async function compressImage(file: File): Promise<File> {
     // already-tiny WebP) — never make an upload bigger.
     if (!blob || blob.size >= file.size) return file;
 
-    const newName = file.name.replace(/\.[^.]+$/, "") + ".webp";
+    const newName = swapToWebpExtension(file.name);
     return new File([blob], newName, {
       type: "image/webp",
       lastModified: file.lastModified,

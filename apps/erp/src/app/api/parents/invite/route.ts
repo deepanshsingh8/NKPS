@@ -3,7 +3,7 @@ import { verifyAdminWithUser } from "@nkps/shared/lib/verify-admin";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { createPortalUser } from "@nkps/shared/lib/create-portal-user";
 import { rateLimit } from "@nkps/shared/lib/rate-limit";
-import { linkParentAccountToStudent } from "@/lib/identity/link";
+import { ensureParentRecord, linkParentToStudentRecord } from "@/lib/identity/link";
 import { z } from "zod";
 
 // Admin-initiated "invite a guardian for THIS student" — the guaranteed-link
@@ -59,12 +59,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Student not found" }, { status: 404 });
   }
 
-  // Create the parent portal account (sets role='parent' via createPortalUser).
+  // Provision the parents record FIRST, so the portal account can be created
+  // with role='parent' + parent_id set atomically. Doing it in this order means
+  // the account is a fully-formed parent before the welcome email goes out —
+  // it can never be stranded at the role='student' signup default if a later
+  // step fails.
+  const parent = await ensureParentRecord(admin, {
+    email,
+    fullName: full_name,
+    phone,
+  });
+  if ("error" in parent) {
+    return NextResponse.json({ error: parent.error }, { status: parent.status });
+  }
+
+  // Create the parent portal account already linked to the parents row, so
+  // createPortalUser sets role='parent' (not the 'student' fallback it uses
+  // when no link id is supplied).
   const created = await createPortalUser({
     email,
     fullName: full_name,
     role: "parent",
     phone: phone || null,
+    parentId: parent.parentId,
   });
   if (!created.success || !created.userId) {
     return NextResponse.json(
@@ -73,16 +90,15 @@ export async function POST(request: Request) {
     );
   }
 
-  // Guarantee the link: ensure the parents row, set parent_id, create junction.
-  const linked = await linkParentAccountToStudent(admin, {
-    profileId: created.userId,
-    profile: { email, fullName: full_name, phone },
+  // Only the student_parents junction remains — idempotent, low-risk.
+  const linked = await linkParentToStudentRecord(admin, {
     studentId: student_id,
+    parentId: parent.parentId,
     relationship,
   });
   if (!linked.ok) {
-    // The account exists (welcome email already sent); surface so the admin can
-    // finish the link via the "Link record" tool rather than assume success.
+    // The account is a valid parent (role + parent_id set); only the ward link
+    // failed. Surface so the admin can finish it via the "Link record" tool.
     return NextResponse.json(
       {
         success: true,
