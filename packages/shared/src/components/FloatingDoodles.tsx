@@ -92,6 +92,12 @@ interface FloatingDoodlesProps {
   tone?: "light" | "dark";
   /** Number of doodles to render (from the curated list). Default 14. */
   count?: number;
+  /**
+   * When true the layer is pinned to the viewport (`fixed`, behind all content)
+   * instead of filling its nearest positioned ancestor. Used for the single
+   * site-wide ambient layer that shows through the page's open cream space.
+   */
+  fixed?: boolean;
   /** Extra classes on the layer wrapper. */
   className?: string;
 }
@@ -234,6 +240,7 @@ function ParallaxDoodle({
 export function FloatingDoodles({
   tone = "dark",
   count = 14,
+  fixed = false,
   className,
 }: FloatingDoodlesProps) {
   const reduced = useReducedMotion() ?? false;
@@ -265,7 +272,8 @@ export function FloatingDoodles({
       ref={layerRef}
       aria-hidden="true"
       className={cn(
-        "pointer-events-none absolute inset-0 z-0 overflow-hidden",
+        "pointer-events-none overflow-hidden",
+        fixed ? "fixed inset-0 -z-10" : "absolute inset-0 z-0",
         className
       )}
     >

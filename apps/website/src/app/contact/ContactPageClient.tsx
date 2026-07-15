@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
-import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
 import { SectionDivider } from "@nkps/shared/components/SectionDivider";
@@ -436,7 +435,6 @@ export function ContactPageClient() {
 
       {/* FAQ */}
       <section className="relative overflow-hidden bg-cream-50 py-20 px-6">
-        <FloatingDoodles tone="dark" />
         <div className="relative z-10 mx-auto max-w-3xl">
           <AnimatedSection>
             <SectionHeading

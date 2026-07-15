@@ -1,7 +1,6 @@
 import { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
-import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import {
   Accordion,
@@ -153,7 +152,6 @@ export default async function MandatoryPublicDisclosurePage() {
       />
 
       <section className="relative overflow-hidden py-16 px-4 md:px-8">
-        <FloatingDoodles tone="dark" />
         <div className="relative z-10 max-w-5xl mx-auto">
         <AnimatedSection>
           <p className="text-gray-600 mb-8 text-sm">

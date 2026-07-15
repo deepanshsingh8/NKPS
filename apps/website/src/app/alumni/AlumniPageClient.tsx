@@ -9,7 +9,6 @@ import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
 import { SectionDivider } from "@nkps/shared/components/SectionDivider";
-import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import type { SectionCard } from "@nkps/shared/types";
 
@@ -37,7 +36,6 @@ export function AlumniPageClient({ cards }: AlumniPageClientProps) {
 
       {/* Intro */}
       <section className="relative overflow-hidden py-20 px-6">
-        <FloatingDoodles tone="dark" />
         <div className="relative z-10 mx-auto max-w-3xl text-center">
           <AnimatedSection>
             <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-gold-500 to-gold-400 shadow-lg shadow-gold-500/25">
