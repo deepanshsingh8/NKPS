@@ -5,7 +5,7 @@ import { CmsSidebar } from "@/components/CmsSidebar";
 import { SidebarProvider, useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
 import { cn } from "@nkps/shared/lib/utils";
 
-const NO_SHELL_PATHS = ["/login"];
+const NO_SHELL_PATHS = ["/login", "/offline"];
 
 function CmsShellInner({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();

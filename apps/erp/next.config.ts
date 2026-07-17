@@ -21,6 +21,11 @@ const CSP = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
+  // PWA: the service worker and web-app manifest are same-origin. These
+  // fall back to default-src 'self' if omitted, but are made explicit so
+  // the fallback chain doesn't have to be reasoned about.
+  "worker-src 'self'",
+  "manifest-src 'self'",
 ].join("; ");
 
 const nextConfig: NextConfig = {
@@ -83,6 +88,21 @@ const nextConfig: NextConfig = {
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
+          },
+        ],
+      },
+      {
+        // The service worker must never be cached, or users get stuck on a
+        // stale app version. Also pin the correct MIME type.
+        source: "/sw.js",
+        headers: [
+          {
+            key: "Content-Type",
+            value: "application/javascript; charset=utf-8",
+          },
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
           },
         ],
       },
