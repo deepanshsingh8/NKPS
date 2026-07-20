@@ -138,6 +138,17 @@ function normalizeCell(
           return { value: "", warning: `${field.label}: "${trimmed}" is not a valid past date — left blank` };
         }
       }
+      // Day/month ambiguity: when the day is ≤ 12 the date reads validly both as
+      // DD/MM and MM/DD (e.g. 04/12 vs 12/04). Excel stores dates by locale, so a
+      // sheet authored in US M/D format can silently swap these. Keep the value
+      // but flag the at-risk row so the admin can verify against the real date.
+      const [yy, mm, dd] = normalized.split("-");
+      if (Number(dd) <= 12 && dd !== mm) {
+        return {
+          value: normalized,
+          warning: `${field.label}: imported as ${dd}/${mm}/${yy} (DD/MM). If the sheet used MM/DD it should be ${mm}/${dd}/${yy} — please verify.`,
+        };
+      }
       return { value: normalized };
     }
     case "boolean": {
