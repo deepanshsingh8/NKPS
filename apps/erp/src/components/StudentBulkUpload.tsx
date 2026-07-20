@@ -127,6 +127,17 @@ function normalizeCell(
       if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
         return { value: "", warning: `${field.label}: "${trimmed}" is not a valid date — left blank` };
       }
+      // Date of birth must be a real past date (server rejects future / pre-1900
+      // DOBs, which would fail the whole upload batch with a cryptic error). A
+      // future DOB is almost always a wrong-year typo, so blank it and warn —
+      // consistent with how other unrecognized values are handled above.
+      if (field.key === "date_of_birth") {
+        const t = Date.parse(`${normalized}T00:00:00Z`);
+        const year = Number(normalized.slice(0, 4));
+        if (year < 1900 || t > Date.now()) {
+          return { value: "", warning: `${field.label}: "${trimmed}" is not a valid past date — left blank` };
+        }
+      }
       return { value: normalized };
     }
     case "boolean": {
