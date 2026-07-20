@@ -35,6 +35,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { formatClassName } from "@nkps/shared/lib/utils";
+import { adminFetch } from "@nkps/shared/lib/admin-api";
 import {
   STUDENT_TEMPLATE_FIELDS,
   type StudentTemplateField,
@@ -473,7 +474,7 @@ export function StudentBulkUpload({
             `Uploading ${Math.min(i + CHUNK_SIZE, validRows.length)} of ${validRows.length}…`
           );
         }
-        const res = await fetch("/api/students/bulk", {
+        const res = await adminFetch("/api/students/bulk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
