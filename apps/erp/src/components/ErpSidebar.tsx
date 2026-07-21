@@ -26,6 +26,7 @@ import {
   Bus,
   Banknote,
   GitPullRequestArrow,
+  MapPin,
 } from "lucide-react";
 import {
   SidebarShell,
@@ -110,9 +111,21 @@ const erpItems: SidebarItem[] = [
     hideOverview: true,
     children: [
       { kind: "link", icon: CreditCard, label: "Academic", href: "/fees/academic" },
-      { kind: "link", icon: Bus, label: "Transport", href: "/fees/transport" },
       { kind: "link", icon: Banknote, label: "Payment Management", href: "/fees/payments" },
       { kind: "link", icon: GitPullRequestArrow, label: "Change Requests", href: "/fees/change-requests" },
+    ],
+  },
+  {
+    kind: "group",
+    icon: Bus,
+    label: "Transport",
+    landingHref: "/transport/assignments",
+    children: [
+      { kind: "link", icon: MapPin, label: "Stops & Fees", href: "/transport/stops" },
+      { kind: "link", icon: Bus, label: "Buses & Routes", href: "/transport/buses" },
+      { kind: "link", icon: UserCog, label: "Drivers", href: "/transport/drivers" },
+      { kind: "link", icon: UserCheck, label: "Student Assignments", href: "/transport/assignments" },
+      { kind: "link", icon: GitPullRequestArrow, label: "Change Requests", href: "/transport/changes" },
     ],
   },
   {

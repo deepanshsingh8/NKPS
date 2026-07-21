@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { FeeStructure, TransportFareSlab } from "@nkps/shared/types";
-import { sumAnnualized, resolveEffectiveFeeLines } from "./fees";
+import type { FeeStructure, TransportDirection } from "@nkps/shared/types";
+import {
+  sumAnnualized,
+  resolveEffectiveFeeLines,
+  type StopFeeLookup,
+} from "./fees";
 
 export interface StudentDues {
   /** Outstanding amount in rupees, clamped at 0 and rounded. */
@@ -44,7 +48,7 @@ export async function getStudentOutstandingDues(
   const { data: enrollment, error: enrollmentError } = await admin
     .from("student_enrollments")
     .select(
-      "class_id, stream_id, academic_year_id, has_transport, transport_slab_id, classes(name)"
+      "class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, classes(name)"
     )
     .eq("student_id", studentId)
     .order("enrollment_date", { ascending: false })
@@ -64,8 +68,14 @@ export async function getStudentOutstandingDues(
     (enrollment.classes as unknown as { name: string } | null)?.name ?? "";
   const streamId = (enrollment.stream_id as string | null) ?? null;
   const hasTransport = Boolean(enrollment.has_transport);
-  const transportSlabId =
-    (enrollment.transport_slab_id as string | null) ?? null;
+  const busStopId = (enrollment.bus_stop_id as string | null) ?? null;
+  const direction =
+    ((enrollment.transport_direction as string | null) ??
+      "both") as TransportDirection;
+  const feeOverride =
+    enrollment.transport_fee_override != null
+      ? Number(enrollment.transport_fee_override)
+      : null;
   const academicYearId =
     (enrollment.academic_year_id as string | null) ?? null;
 
@@ -81,28 +91,49 @@ export async function getStudentOutstandingDues(
     }
     const [
       { data: structuresData, error: structuresError },
-      { data: slabsData, error: slabsError },
+      { data: stopFeeData, error: stopFeeError },
     ] = await Promise.all([
       structuresQuery,
-      academicYearId
+      hasTransport && busStopId && academicYearId
         ? admin
-            .from("transport_fare_slabs")
-            .select("id, name, amount, frequency, is_active")
+            .from("bus_stop_fees")
+            .select("bus_stop_id, amount, frequency, is_active, bus_stops(name)")
             .eq("academic_year_id", academicYearId)
-        : Promise.resolve({ data: [] as TransportFareSlab[], error: null }),
+            .eq("bus_stop_id", busStopId)
+        : Promise.resolve({ data: [], error: null }),
     ]);
     if (structuresError) {
       throw new Error(`Failed to load fee structures for dues: ${structuresError.message}`);
     }
-    if (slabsError) {
-      throw new Error(`Failed to load transport slabs for dues: ${slabsError.message}`);
+    if (stopFeeError) {
+      throw new Error(`Failed to load bus stop fees for dues: ${stopFeeError.message}`);
     }
+    const stopFees: StopFeeLookup[] = ((stopFeeData as unknown[]) ?? []).map(
+      (r) => {
+        const row = r as {
+          bus_stop_id: string;
+          amount: number | string;
+          frequency: string;
+          is_active: boolean;
+          bus_stops: { name: string } | null;
+        };
+        return {
+          bus_stop_id: row.bus_stop_id,
+          stop_name: row.bus_stops?.name ?? "",
+          amount: row.amount,
+          frequency: row.frequency,
+          is_active: row.is_active,
+        };
+      }
+    );
     const lines = resolveEffectiveFeeLines({
       structures: (structuresData as FeeStructure[]) ?? [],
       studentStreamId: streamId,
       hasTransport,
-      transportSlabId,
-      slabs: (slabsData as TransportFareSlab[]) ?? [],
+      busStopId,
+      direction,
+      feeOverride,
+      stopFees,
     });
     totalFees = sumAnnualized(lines);
   }
