@@ -57,6 +57,7 @@ type SidebarShellProps = {
   unreadBadgeHrefs?: ReadonlySet<string>;
   pendingRegistrationBadgeHrefs?: ReadonlySet<string>;
   pendingFeeChangeRequestBadgeHrefs?: ReadonlySet<string>;
+  pendingTransportChangeBadgeHrefs?: ReadonlySet<string>;
   // Optional slot rendered just above the profile menu — used to drop in an
   // app switcher so teachers/editors can jump back to their portal or to
   // another app they have access to.
@@ -92,20 +93,27 @@ export function SidebarShell({
   unreadBadgeHrefs,
   pendingRegistrationBadgeHrefs,
   pendingFeeChangeRequestBadgeHrefs,
+  pendingTransportChangeBadgeHrefs,
   footerExtra,
 }: SidebarShellProps) {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebar();
-  const { unreadCount, pendingRegistrationCount, pendingFeeChangeRequestCount } =
-    useUnreadCount({
-      contact: !!unreadBadgeHrefs && unreadBadgeHrefs.size > 0,
-      registrations:
-        !!pendingRegistrationBadgeHrefs &&
-        pendingRegistrationBadgeHrefs.size > 0,
-      feeChangeRequests:
-        !!pendingFeeChangeRequestBadgeHrefs &&
-        pendingFeeChangeRequestBadgeHrefs.size > 0,
-    });
+  const {
+    unreadCount,
+    pendingRegistrationCount,
+    pendingFeeChangeRequestCount,
+    pendingTransportChangeCount,
+  } = useUnreadCount({
+    contact: !!unreadBadgeHrefs && unreadBadgeHrefs.size > 0,
+    registrations:
+      !!pendingRegistrationBadgeHrefs && pendingRegistrationBadgeHrefs.size > 0,
+    feeChangeRequests:
+      !!pendingFeeChangeRequestBadgeHrefs &&
+      pendingFeeChangeRequestBadgeHrefs.size > 0,
+    transportChanges:
+      !!pendingTransportChangeBadgeHrefs &&
+      pendingTransportChangeBadgeHrefs.size > 0,
+  });
   const [userRole, setUserRole] = useState<UserRole>("admin");
   const [permissions, setPermissions] = useState<Set<FeatureKey> | null>(null);
   const [groupOverrides, setGroupOverrides] = useState<Record<string, boolean>>(
@@ -214,6 +222,7 @@ export function SidebarShell({
       unreadBadgeHrefs?.has(href) ? unreadCount
       : pendingRegistrationBadgeHrefs?.has(href) ? pendingRegistrationCount
       : pendingFeeChangeRequestBadgeHrefs?.has(href) ? pendingFeeChangeRequestCount
+      : pendingTransportChangeBadgeHrefs?.has(href) ? pendingTransportChangeCount
       : 0;
     const showBadge = badgeCount > 0;
     const badgeLabel = badgeCount > 99 ? "99+" : badgeCount;
@@ -342,6 +351,7 @@ export function SidebarShell({
       unreadBadgeHrefs?.has(link.href) ? unreadCount
       : pendingRegistrationBadgeHrefs?.has(link.href) ? pendingRegistrationCount
       : pendingFeeChangeRequestBadgeHrefs?.has(link.href) ? pendingFeeChangeRequestCount
+      : pendingTransportChangeBadgeHrefs?.has(link.href) ? pendingTransportChangeCount
       : 0;
     const showBadge = badgeCount > 0;
     const badgeLabel = badgeCount > 99 ? "99+" : badgeCount;

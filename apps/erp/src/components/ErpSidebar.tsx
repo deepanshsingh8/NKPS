@@ -146,6 +146,7 @@ const erpItems: SidebarItem[] = [
 const EDITOR_ALWAYS_ALLOWED = new Set(["/"]);
 const PENDING_REGISTRATION_BADGE_HREFS = new Set(["/people/users"]);
 const PENDING_FEE_CHANGE_REQUEST_BADGE_HREFS = new Set(["/fees/change-requests"]);
+const PENDING_TRANSPORT_CHANGE_BADGE_HREFS = new Set(["/transport/changes"]);
 
 export function ErpSidebar() {
   const { collapsed } = useSidebar();
@@ -157,6 +158,7 @@ export function ErpSidebar() {
       editorAlwaysAllowedHrefs={EDITOR_ALWAYS_ALLOWED}
       pendingRegistrationBadgeHrefs={PENDING_REGISTRATION_BADGE_HREFS}
       pendingFeeChangeRequestBadgeHrefs={PENDING_FEE_CHANGE_REQUEST_BADGE_HREFS}
+      pendingTransportChangeBadgeHrefs={PENDING_TRANSPORT_CHANGE_BADGE_HREFS}
       settingsHref="/portal/settings?from=erp"
       logoutRedirect="/login"
       footerExtra={<AppSwitcher scope="erp-admin" collapsed={collapsed} />}
