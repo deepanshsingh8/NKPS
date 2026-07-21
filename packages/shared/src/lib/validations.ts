@@ -383,11 +383,11 @@ const optionalTrimmedString = z
 export const feePaymentSchema = z
   .object({
     student_id: z.string().uuid("Invalid student"),
-    // Exactly one of fee_structure_id / transport_slab_id must be present.
+    // Exactly one of fee_structure_id / bus_stop_id must be present.
     // Enforced in the superRefine below. Transport payments are routed
-    // against a transport_fare_slabs row directly (migration 050).
+    // against a bus_stops row directly (migration 074).
     fee_structure_id: z.string().uuid("Invalid fee structure").optional(),
-    transport_slab_id: z.string().uuid("Invalid transport slab").optional(),
+    bus_stop_id: z.string().uuid("Invalid bus stop").optional(),
     amount_paid: z
       .number()
       .finite("Amount must be a valid number")
@@ -418,12 +418,12 @@ export const feePaymentSchema = z
   })
   .superRefine((val, ctx) => {
     const hasFs = Boolean(val.fee_structure_id);
-    const hasSlab = Boolean(val.transport_slab_id);
-    if (hasFs === hasSlab) {
+    const hasStop = Boolean(val.bus_stop_id);
+    if (hasFs === hasStop) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message:
-          "Either fee_structure_id or transport_slab_id is required (not both)",
+          "Either fee_structure_id or bus_stop_id is required (not both)",
         path: ["fee_structure_id"],
       });
     }
@@ -480,42 +480,168 @@ export const feePaymentSchema = z
 
 export type FeePaymentData = z.infer<typeof feePaymentSchema>;
 
-// Migration 050 — transport fare slabs. Distance bands min/max are optional
-// metadata; the slab name is the canonical label shown to the user.
-export const transportFareSlabSchema = z
+// Migration 074 — stop-based transport. Fee attaches to a bus stop; students
+// boarding there pay that stop's flat fee.
+const transportFrequencyEnum = z.enum([
+  "monthly",
+  "quarterly",
+  "annual",
+  "one_time",
+]);
+const transportDirectionEnum = z.enum(["both", "pickup_only", "drop_only"]);
+
+export const busStopSchema = z.object({
+  name: z.string().trim().min(1, "Stop name is required").max(120),
+  area: optionalTrimmedString,
+  lat: z.number().min(-90).max(90).nullable().optional(),
+  lng: z.number().min(-180).max(180).nullable().optional(),
+  is_active: z.boolean().optional(),
+  sort_order: z.number().int().optional(),
+});
+export type BusStopData = z.infer<typeof busStopSchema>;
+
+export const busStopFeeSchema = z.object({
+  bus_stop_id: z.string().uuid("Invalid bus stop"),
+  academic_year_id: z.string().uuid("Invalid academic year"),
+  amount: z.number().positive("Amount must be > 0"),
+  frequency: transportFrequencyEnum.optional(),
+  is_active: z.boolean().optional(),
+});
+export type BusStopFeeData = z.infer<typeof busStopFeeSchema>;
+
+export const busSchema = z.object({
+  bus_number: z.string().trim().min(1, "Bus number is required").max(40),
+  registration_number: optionalTrimmedString,
+  capacity: z.number().int().positive("Capacity must be > 0").nullable().optional(),
+  driver_id: z.string().uuid("Invalid driver").nullable().optional(),
+  conductor_id: z.string().uuid("Invalid conductor").nullable().optional(),
+  is_active: z.boolean().optional(),
+  notes: optionalTrimmedString,
+});
+export type BusData = z.infer<typeof busSchema>;
+
+export const busRouteStopSchema = z.object({
+  bus_id: z.string().uuid("Invalid bus"),
+  bus_stop_id: z.string().uuid("Invalid bus stop"),
+  sort_order: z.number().int().nullable().optional(),
+});
+export type BusRouteStopData = z.infer<typeof busRouteStopSchema>;
+
+// Per-student transport assignment (opt-in, stop, bus, one-side facility).
+export const studentTransportAssignmentSchema = z
   .object({
-    academic_year_id: z.string().uuid("Invalid academic year"),
-    name: z.string().trim().min(1, "Slab name is required").max(100),
-    distance_km_min: z
+    enrollment_id: z.string().uuid("Invalid enrollment"),
+    has_transport: z.boolean(),
+    bus_stop_id: z.string().uuid("Invalid bus stop").nullable().optional(),
+    bus_id: z.string().uuid("Invalid bus").nullable().optional(),
+    transport_direction: transportDirectionEnum.optional(),
+    transport_fee_override: z
       .number()
-      .min(0, "Distance must be ≥ 0")
-      .max(999, "Distance too large")
+      .positive("Override must be > 0")
       .nullable()
       .optional(),
-    distance_km_max: z
-      .number()
-      .min(0, "Distance must be ≥ 0")
-      .max(999, "Distance too large")
-      .nullable()
-      .optional(),
-    amount: z.number().positive("Amount must be > 0"),
-    frequency: z.enum(["monthly", "quarterly", "annual", "one_time"]),
-    is_active: z.boolean().optional(),
-    sort_order: z.number().int().optional(),
+    pickup_address: optionalTrimmedString,
   })
   .superRefine((val, ctx) => {
-    const lo = val.distance_km_min ?? null;
-    const hi = val.distance_km_max ?? null;
-    if (lo !== null && hi !== null && hi < lo) {
+    if (val.has_transport && !val.bus_stop_id) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Max km must be ≥ min km",
-        path: ["distance_km_max"],
+        message: "A bus stop is required when transport is enabled",
+        path: ["bus_stop_id"],
+      });
+    }
+    // One-side facility always carries a custom amount (no half-fee rule).
+    if (
+      val.transport_direction &&
+      val.transport_direction !== "both" &&
+      (val.transport_fee_override === null ||
+        val.transport_fee_override === undefined)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "One-side facility needs a custom fee amount",
+        path: ["transport_fee_override"],
       });
     }
   });
+export type StudentTransportAssignmentData = z.infer<
+  typeof studentTransportAssignmentSchema
+>;
 
-export type TransportFareSlabData = z.infer<typeof transportFareSlabSchema>;
+// Transport change / amendment request (office or parent).
+export const transportChangeRequestSchema = z
+  .object({
+    enrollment_id: z.string().uuid("Invalid enrollment"),
+    change_type: z.enum([
+      "bus_change",
+      "stop_change",
+      "direction_change",
+      "drop",
+      "resume",
+    ]),
+    amended_bus_id: z.string().uuid("Invalid bus").nullable().optional(),
+    amended_stop_id: z.string().uuid("Invalid bus stop").nullable().optional(),
+    direction: transportDirectionEnum.nullable().optional(),
+    effective_from: z.string().min(1, "Start date is required"),
+    effective_to: z.string().nullable().optional(),
+    reason_code: z.enum([
+      "house_shifting",
+      "rented_house_change",
+      "bus_point_temporary_change",
+      "facility_dropped",
+      "one_side_facility",
+      "other",
+    ]),
+    reason_note: optionalTrimmedString,
+    application_url: optionalTrimmedString,
+  })
+  .superRefine((val, ctx) => {
+    if (
+      val.reason_code === "other" &&
+      (!val.reason_note || val.reason_note.trim().length < 3)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Please describe the reason",
+        path: ["reason_note"],
+      });
+    }
+    if (
+      val.effective_to &&
+      val.effective_from &&
+      val.effective_to < val.effective_from
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "End date must be on or after the start date",
+        path: ["effective_to"],
+      });
+    }
+    if (val.change_type === "bus_change" && !val.amended_bus_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Select the amended bus",
+        path: ["amended_bus_id"],
+      });
+    }
+    if (val.change_type === "stop_change" && !val.amended_stop_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Select the new stop",
+        path: ["amended_stop_id"],
+      });
+    }
+    if (val.change_type === "direction_change" && !val.direction) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Select the direction",
+        path: ["direction"],
+      });
+    }
+  });
+export type TransportChangeRequestData = z.infer<
+  typeof transportChangeRequestSchema
+>;
 
 // Refund a previously-recorded payment. The endpoint validates that
 // `refund_amount` ≤ original `amount_paid`.

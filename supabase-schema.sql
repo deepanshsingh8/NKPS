@@ -2041,6 +2041,21 @@ UPDATE storage.buckets
       file_size_limit = 10485760
   WHERE id IN ('transfer-certificates','disclosure-documents');
 
+-- Migration 076 — private bucket for transport change-request applications.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('transport-applications','transport-applications', false, 10485760,
+        ARRAY['application/pdf','image/jpeg','image/png'])
+ON CONFLICT (id) DO UPDATE
+  SET file_size_limit = EXCLUDED.file_size_limit,
+      allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DROP POLICY IF EXISTS "Service role manages transport applications" ON storage.objects;
+CREATE POLICY "Service role manages transport applications"
+  ON storage.objects FOR ALL
+  TO service_role
+  USING (bucket_id = 'transport-applications')
+  WITH CHECK (bucket_id = 'transport-applications');
+
 -- ============================================
 -- EDITOR PERMISSIONS (per-feature access for editor role)
 -- ============================================
@@ -4918,337 +4933,200 @@ WHERE NOT EXISTS (SELECT 1 FROM section_cards WHERE section='campus_facilities')
 DELETE FROM site_media WHERE slot IN ('facilities_sports','facilities_auditorium','facilities_indoor_games','facilities_transport');
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Migration 050: Distance-based transport fare slabs
--- Replaces the flat `Transport` row in `fee_structures` with a per-academic-
--- year master of distance slabs. Each enrollment opting in points at a slab;
--- fee_payments gains a slab FK so transport receipts no longer need a fake
--- fee_structure row.
+-- Migration 074: Stop-based transport (fleet, routes, drivers, change workflow)
+-- Replaces the distance/slab model (migrations 050/053/055/063). The fee
+-- attaches to a bus STOP; every student boarding there pays that stop's flat
+-- monthly fee. Buses carry a driver (staff category busDriver) and serve a set
+-- of stops (bus_route_stops). transport_change_requests is the office/parent
+-- amendment workflow. Seed of the 188 stops + 2025-26 fees lives in migration 075.
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE IF NOT EXISTS transport_fare_slabs (
+-- Stable stop registry (name = identity; priced per year in bus_stop_fees).
+CREATE TABLE IF NOT EXISTS bus_stops (
+  id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name        text NOT NULL UNIQUE,
+  area        text,
+  lat         numeric(10,7),
+  lng         numeric(10,7),
+  is_active   boolean NOT NULL DEFAULT true,
+  sort_order  integer NOT NULL DEFAULT 0,
+  created_at  timestamptz DEFAULT now(),
+  updated_at  timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_bus_stops_active ON bus_stops(is_active) WHERE is_active;
+
+-- Per-academic-year flat fee for a stop (re-priced yearly; stop is stable).
+CREATE TABLE IF NOT EXISTS bus_stop_fees (
   id                uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  bus_stop_id       uuid NOT NULL REFERENCES bus_stops(id) ON DELETE CASCADE,
   academic_year_id  uuid NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
-  name              text NOT NULL,
-  distance_km_min   numeric(5,2),
-  distance_km_max   numeric(5,2),
   amount            numeric(10,2) NOT NULL CHECK (amount > 0),
   frequency         text NOT NULL DEFAULT 'monthly'
                     CHECK (frequency IN ('monthly','quarterly','annual','one_time')),
   is_active         boolean NOT NULL DEFAULT true,
-  sort_order        integer NOT NULL DEFAULT 0,
   created_at        timestamptz DEFAULT now(),
   updated_at        timestamptz DEFAULT now(),
-  UNIQUE (academic_year_id, name),
-  CHECK (
-    distance_km_min IS NULL
-    OR distance_km_max IS NULL
-    OR distance_km_max >= distance_km_min
-  )
+  UNIQUE (bus_stop_id, academic_year_id)
 );
+CREATE INDEX IF NOT EXISTS idx_bus_stop_fees_year ON bus_stop_fees(academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_bus_stop_fees_stop ON bus_stop_fees(bus_stop_id);
 
-CREATE INDEX IF NOT EXISTS idx_transport_slabs_year
-  ON transport_fare_slabs(academic_year_id);
-CREATE INDEX IF NOT EXISTS idx_transport_slabs_active
-  ON transport_fare_slabs(academic_year_id) WHERE is_active;
+-- Vehicle registry (source of the Bus No. dropdown). Driver = busDriver staff.
+CREATE TABLE IF NOT EXISTS buses (
+  id                  uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  bus_number          text NOT NULL UNIQUE,
+  registration_number text,
+  capacity            integer CHECK (capacity IS NULL OR capacity > 0),
+  driver_id           uuid REFERENCES staff_members(id) ON DELETE SET NULL,
+  conductor_id        uuid REFERENCES staff_members(id) ON DELETE SET NULL,
+  is_active           boolean NOT NULL DEFAULT true,
+  notes               text,
+  created_at          timestamptz DEFAULT now(),
+  updated_at          timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_buses_active ON buses(is_active) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_buses_driver ON buses(driver_id) WHERE driver_id IS NOT NULL;
 
-DROP TRIGGER IF EXISTS set_updated_at_transport_fare_slabs ON transport_fare_slabs;
-CREATE TRIGGER set_updated_at_transport_fare_slabs
-  BEFORE UPDATE ON transport_fare_slabs
+-- Route: which stops each bus serves (narrows the bus picker per stop).
+CREATE TABLE IF NOT EXISTS bus_route_stops (
+  id           uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  bus_id       uuid NOT NULL REFERENCES buses(id) ON DELETE CASCADE,
+  bus_stop_id  uuid NOT NULL REFERENCES bus_stops(id) ON DELETE CASCADE,
+  sort_order   integer,
+  created_at   timestamptz DEFAULT now(),
+  UNIQUE (bus_id, bus_stop_id)
+);
+CREATE INDEX IF NOT EXISTS idx_bus_route_stops_bus ON bus_route_stops(bus_id);
+CREATE INDEX IF NOT EXISTS idx_bus_route_stops_stop ON bus_route_stops(bus_stop_id);
+
+-- Enrollment transport assignment: stop drives the fee; direction = one-side
+-- facility (school-only) with a required custom amount.
+ALTER TABLE student_enrollments
+  ADD COLUMN IF NOT EXISTS bus_stop_id uuid REFERENCES bus_stops(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS bus_id uuid REFERENCES buses(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS transport_direction text NOT NULL DEFAULT 'both',
+  ADD COLUMN IF NOT EXISTS transport_fee_override numeric(10,2);
+
+ALTER TABLE student_enrollments DROP CONSTRAINT IF EXISTS chk_transport_direction;
+ALTER TABLE student_enrollments ADD CONSTRAINT chk_transport_direction
+  CHECK (transport_direction IN ('both','pickup_only','drop_only'));
+
+ALTER TABLE student_enrollments DROP CONSTRAINT IF EXISTS student_enrollments_bus_stop_required;
+ALTER TABLE student_enrollments ADD CONSTRAINT student_enrollments_bus_stop_required
+  CHECK (has_transport = false OR bus_stop_id IS NOT NULL);
+
+ALTER TABLE student_enrollments DROP CONSTRAINT IF EXISTS chk_one_side_fee_override;
+ALTER TABLE student_enrollments ADD CONSTRAINT chk_one_side_fee_override
+  CHECK (transport_direction = 'both' OR transport_fee_override IS NOT NULL);
+
+CREATE INDEX IF NOT EXISTS idx_enrollments_bus_stop_id
+  ON student_enrollments(bus_stop_id) WHERE bus_stop_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_enrollments_bus_id
+  ON student_enrollments(bus_id) WHERE bus_id IS NOT NULL;
+
+-- fee_payments: a transport receipt targets a bus_stop (XOR with fee_structure).
+ALTER TABLE fee_payments ALTER COLUMN fee_structure_id DROP NOT NULL;
+ALTER TABLE fee_payments ADD COLUMN IF NOT EXISTS bus_stop_id uuid REFERENCES bus_stops(id);
+CREATE INDEX IF NOT EXISTS idx_fee_payments_bus_stop_id
+  ON fee_payments(bus_stop_id) WHERE bus_stop_id IS NOT NULL;
+ALTER TABLE fee_payments DROP CONSTRAINT IF EXISTS fee_payments_target_xor;
+ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_target_xor
+  CHECK (
+    (fee_structure_id IS NOT NULL AND bus_stop_id IS NULL)
+    OR (fee_structure_id IS NULL AND bus_stop_id IS NOT NULL)
+  );
+
+-- Amendment workflow (bus change / stop change / one-side / drop), office+parent.
+CREATE TABLE IF NOT EXISTS transport_change_requests (
+  id              uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  enrollment_id   uuid NOT NULL REFERENCES student_enrollments(id) ON DELETE CASCADE,
+  change_type     text NOT NULL
+                  CHECK (change_type IN ('bus_change','stop_change','direction_change','drop','resume')),
+  previous_bus_id  uuid REFERENCES buses(id) ON DELETE SET NULL,
+  amended_bus_id   uuid REFERENCES buses(id) ON DELETE SET NULL,
+  previous_stop_id uuid REFERENCES bus_stops(id) ON DELETE SET NULL,
+  amended_stop_id  uuid REFERENCES bus_stops(id) ON DELETE SET NULL,
+  direction       text CHECK (direction IS NULL OR direction IN ('both','pickup_only','drop_only')),
+  effective_from  date NOT NULL,
+  effective_to    date,
+  reason_code     text NOT NULL
+                  CHECK (reason_code IN (
+                    'house_shifting','rented_house_change','bus_point_temporary_change',
+                    'facility_dropped','one_side_facility','other')),
+  reason_note     text,
+  application_url text,
+  source          text NOT NULL CHECK (source IN ('office','parent')),
+  status          text NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending','approved','rejected','cancelled','applied')),
+  requested_by    uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  reviewed_by     uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  reviewed_at     timestamptz,
+  review_note     text,
+  created_at      timestamptz DEFAULT now(),
+  updated_at      timestamptz DEFAULT now(),
+  CONSTRAINT chk_tcr_window CHECK (effective_to IS NULL OR effective_to >= effective_from),
+  CONSTRAINT chk_tcr_reason_note CHECK (
+    reason_code <> 'other'
+    OR (reason_note IS NOT NULL AND length(btrim(reason_note)) >= 3)),
+  CONSTRAINT chk_tcr_direction_office CHECK (change_type <> 'direction_change' OR source = 'office')
+);
+CREATE INDEX IF NOT EXISTS idx_tcr_enrollment ON transport_change_requests(enrollment_id);
+CREATE INDEX IF NOT EXISTS idx_tcr_pending ON transport_change_requests(status) WHERE status = 'pending';
+
+-- updated_at triggers
+DROP TRIGGER IF EXISTS set_updated_at_bus_stops ON bus_stops;
+CREATE TRIGGER set_updated_at_bus_stops BEFORE UPDATE ON bus_stops
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+DROP TRIGGER IF EXISTS set_updated_at_bus_stop_fees ON bus_stop_fees;
+CREATE TRIGGER set_updated_at_bus_stop_fees BEFORE UPDATE ON bus_stop_fees
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+DROP TRIGGER IF EXISTS set_updated_at_buses ON buses;
+CREATE TRIGGER set_updated_at_buses BEFORE UPDATE ON buses
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+DROP TRIGGER IF EXISTS set_updated_at_transport_change_requests ON transport_change_requests;
+CREATE TRIGGER set_updated_at_transport_change_requests BEFORE UPDATE ON transport_change_requests
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
-ALTER TABLE transport_fare_slabs ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Public can read transport slabs" ON transport_fare_slabs;
-CREATE POLICY "Public can read transport slabs"
-  ON transport_fare_slabs FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Admins can insert transport slabs" ON transport_fare_slabs;
-CREATE POLICY "Admins can insert transport slabs"
-  ON transport_fare_slabs FOR INSERT
-  WITH CHECK (public.get_user_role() = 'admin');
-
-DROP POLICY IF EXISTS "Admins can update transport slabs" ON transport_fare_slabs;
-CREATE POLICY "Admins can update transport slabs"
-  ON transport_fare_slabs FOR UPDATE
-  USING (public.get_user_role() = 'admin');
-
-DROP POLICY IF EXISTS "Admins can delete transport slabs" ON transport_fare_slabs;
-CREATE POLICY "Admins can delete transport slabs"
-  ON transport_fare_slabs FOR DELETE
-  USING (public.get_user_role() = 'admin');
-
-ALTER TABLE student_enrollments
-  ADD COLUMN IF NOT EXISTS transport_slab_id uuid
-    REFERENCES transport_fare_slabs(id) ON DELETE SET NULL;
-
-CREATE INDEX IF NOT EXISTS idx_enrollments_transport_slab_id
-  ON student_enrollments(transport_slab_id) WHERE transport_slab_id IS NOT NULL;
-
--- The student_enrollments CHECK is added LAST, after the backfill below
--- has assigned slabs and normalized orphans.
-ALTER TABLE student_enrollments
-  DROP CONSTRAINT IF EXISTS student_enrollments_transport_slab_required;
-
-ALTER TABLE fee_payments
-  ADD COLUMN IF NOT EXISTS transport_slab_id uuid
-    REFERENCES transport_fare_slabs(id);
-
-CREATE INDEX IF NOT EXISTS idx_fee_payments_transport_slab_id
-  ON fee_payments(transport_slab_id) WHERE transport_slab_id IS NOT NULL;
-
-ALTER TABLE fee_payments
-  ALTER COLUMN fee_structure_id DROP NOT NULL;
-
-ALTER TABLE fee_payments
-  DROP CONSTRAINT IF EXISTS fee_payments_target_xor;
-ALTER TABLE fee_payments
-  ADD CONSTRAINT fee_payments_target_xor
-  CHECK (
-    (fee_structure_id IS NOT NULL AND transport_slab_id IS NULL)
-    OR (fee_structure_id IS NULL AND transport_slab_id IS NOT NULL)
-  );
+-- RLS: fleet/stop tables public-read + admin-write; change requests admin-full
+-- with parent/student read of their own child's rows.
+ALTER TABLE bus_stops ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bus_stop_fees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE buses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bus_route_stops ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transport_change_requests ENABLE ROW LEVEL SECURITY;
 
 DO $$
-DECLARE
-  rec record;
-  new_slab_id uuid;
-  orphan_count int;
+DECLARE t text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM fee_structures WHERE fee_type = 'Transport') THEN
-    FOR rec IN
-      SELECT
-        academic_year_id,
-        amount,
-        frequency,
-        string_agg(DISTINCT class_name, ', ') AS class_list,
-        array_agg(DISTINCT id) AS source_structure_ids
-      FROM fee_structures
-      WHERE fee_type = 'Transport'
-      GROUP BY academic_year_id, amount, frequency
-    LOOP
-      INSERT INTO transport_fare_slabs
-        (academic_year_id, name, amount, frequency, sort_order)
-      VALUES (
-        rec.academic_year_id,
-        'Default — ' || rec.class_list,
-        rec.amount,
-        rec.frequency,
-        0
-      )
-      ON CONFLICT (academic_year_id, name) DO UPDATE
-        SET amount = EXCLUDED.amount
-      RETURNING id INTO new_slab_id;
-
-      UPDATE fee_payments
-        SET transport_slab_id = new_slab_id,
-            fee_structure_id  = NULL
-        WHERE fee_structure_id = ANY(rec.source_structure_ids);
-
-      UPDATE student_enrollments se
-        SET transport_slab_id = new_slab_id
-        FROM classes c, fee_structures fs
-        WHERE se.class_id = c.id
-          AND se.has_transport = true
-          AND se.transport_slab_id IS NULL
-          AND se.academic_year_id = rec.academic_year_id
-          AND fs.id = ANY(rec.source_structure_ids)
-          AND fs.class_name = c.name;
-    END LOOP;
-
-    DELETE FROM fee_structures WHERE fee_type = 'Transport';
-  END IF;
-
-  -- Normalize orphans: enrollments still flagged has_transport=true with no
-  -- slab mean the class had no Transport fee_structure to migrate from.
-  -- Flip them off so the school can re-opt them in after creating a slab.
-  SELECT COUNT(*) INTO orphan_count
-    FROM student_enrollments
-    WHERE has_transport = true AND transport_slab_id IS NULL;
-
-  IF orphan_count > 0 THEN
-    UPDATE student_enrollments
-      SET has_transport = false
-      WHERE has_transport = true AND transport_slab_id IS NULL;
-    RAISE NOTICE
-      'migration 050: cleared has_transport on % enrollment(s) with no matching Transport fee.',
-      orphan_count;
-  END IF;
+  FOREACH t IN ARRAY ARRAY['bus_stops','bus_stop_fees','buses','bus_route_stops'] LOOP
+    EXECUTE format('DROP POLICY IF EXISTS "Public can read %1$s" ON %1$s', t);
+    EXECUTE format('CREATE POLICY "Public can read %1$s" ON %1$s FOR SELECT USING (true)', t);
+    EXECUTE format('DROP POLICY IF EXISTS "Admins write %1$s" ON %1$s', t);
+    EXECUTE format($p$CREATE POLICY "Admins write %1$s" ON %1$s FOR ALL
+      USING (public.get_user_role() = 'admin')
+      WITH CHECK (public.get_user_role() = 'admin')$p$, t);
+  END LOOP;
 END $$;
 
-ALTER TABLE student_enrollments
-  ADD CONSTRAINT student_enrollments_transport_slab_required
-  CHECK (has_transport = false OR transport_slab_id IS NOT NULL);
+DROP POLICY IF EXISTS "Admins full access transport changes" ON transport_change_requests;
+CREATE POLICY "Admins full access transport changes"
+  ON transport_change_requests FOR ALL
+  USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');
 
--- ─── Migration 053: transport pickup geocoding + override audit ──────────────
--- Mirrors scripts/migrations/erp/migration-053-transport-pickup-audit.sql.
+DROP POLICY IF EXISTS "Parents read own child transport changes" ON transport_change_requests;
+CREATE POLICY "Parents read own child transport changes"
+  ON transport_change_requests FOR SELECT
+  USING (enrollment_id IN (
+    SELECT se.id FROM student_enrollments se
+    WHERE se.student_id IN (SELECT public.get_my_children_ids())));
 
-ALTER TABLE student_enrollments
-  ADD COLUMN IF NOT EXISTS pickup_address text,
-  ADD COLUMN IF NOT EXISTS pickup_lat numeric(10, 7),
-  ADD COLUMN IF NOT EXISTS pickup_lng numeric(10, 7),
-  ADD COLUMN IF NOT EXISTS pickup_verified_at timestamptz,
-  ADD COLUMN IF NOT EXISTS pickup_verified_by uuid
-    REFERENCES profiles(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS pickup_verified_lat numeric(10, 7),
-  ADD COLUMN IF NOT EXISTS pickup_verified_lng numeric(10, 7),
-  ADD COLUMN IF NOT EXISTS transport_slab_suggested_id uuid
-    REFERENCES transport_fare_slabs(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS transport_slab_overridden_at timestamptz,
-  ADD COLUMN IF NOT EXISTS transport_slab_overridden_by uuid
-    REFERENCES profiles(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS transport_slab_override_reason text;
-
-ALTER TABLE student_enrollments
-  DROP CONSTRAINT IF EXISTS chk_pickup_coords_paired;
-ALTER TABLE student_enrollments
-  ADD CONSTRAINT chk_pickup_coords_paired CHECK (
-    (pickup_lat IS NULL AND pickup_lng IS NULL)
-    OR (pickup_lat IS NOT NULL AND pickup_lng IS NOT NULL)
-  );
-
-ALTER TABLE student_enrollments
-  DROP CONSTRAINT IF EXISTS chk_pickup_verified_coords_paired;
-ALTER TABLE student_enrollments
-  ADD CONSTRAINT chk_pickup_verified_coords_paired CHECK (
-    (pickup_verified_lat IS NULL AND pickup_verified_lng IS NULL)
-    OR (pickup_verified_lat IS NOT NULL AND pickup_verified_lng IS NOT NULL)
-  );
-
-ALTER TABLE student_enrollments
-  DROP CONSTRAINT IF EXISTS chk_override_reason_required;
-ALTER TABLE student_enrollments
-  ADD CONSTRAINT chk_override_reason_required CHECK (
-    transport_slab_overridden_at IS NULL
-    OR (transport_slab_override_reason IS NOT NULL
-        AND length(btrim(transport_slab_override_reason)) >= 3)
-  );
-
-CREATE INDEX IF NOT EXISTS idx_enrollments_pickup_unverified
-  ON student_enrollments(has_transport, pickup_verified_at)
-  WHERE has_transport = true AND pickup_verified_at IS NULL;
-
-CREATE INDEX IF NOT EXISTS idx_enrollments_slab_overridden
-  ON student_enrollments(transport_slab_overridden_at)
-  WHERE transport_slab_overridden_at IS NOT NULL;
-
--- ─── Migration 054: payment_method 'historical_unknown' for bulk imports ─────
--- Adds a new enum value so rows ingested from the previous ERP software
--- (where the payment channel was never recorded) can be tagged accurately
--- instead of being defaulted to 'cash' and skewing channel-mix reports.
-
-ALTER TABLE fee_payments DROP CONSTRAINT IF EXISTS fee_payments_payment_method_check;
-ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_payment_method_check
-  CHECK (
-    payment_method IN (
-      'cash',
-      'online',
-      'cheque',
-      'bank_transfer',
-      'upi',
-      'gateway',
-      'waiver',
-      'historical_unknown'
-    )
-  );
-
--- ─── Migration 055: transport slab cascade cleanup ──────────────────────────
--- Mirrors scripts/migrations/erp/migration-055-transport-slab-cascade-cleanup.sql.
--- Opts students out of transport automatically when a slab is deleted or
--- deactivated, plus an RPC the admin UI can call to count affected students
--- before showing the delete confirm.
-
-CREATE OR REPLACE FUNCTION trg_clear_transport_on_slab_change()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  IF TG_OP = 'DELETE' THEN
-    UPDATE student_enrollments
-      SET has_transport = false,
-          transport_slab_id = NULL,
-          transport_slab_suggested_id = NULL,
-          transport_slab_overridden_at = NULL,
-          transport_slab_overridden_by = NULL,
-          transport_slab_override_reason = NULL,
-          updated_at = now()
-    WHERE transport_slab_id = OLD.id;
-    RETURN OLD;
-  END IF;
-
-  IF TG_OP = 'UPDATE'
-     AND OLD.is_active = true
-     AND NEW.is_active = false THEN
-    UPDATE student_enrollments
-      SET has_transport = false,
-          transport_slab_id = NULL,
-          transport_slab_suggested_id = NULL,
-          transport_slab_overridden_at = NULL,
-          transport_slab_overridden_by = NULL,
-          transport_slab_override_reason = NULL,
-          updated_at = now()
-    WHERE transport_slab_id = NEW.id;
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS slab_before_delete_clear_enrollments ON transport_fare_slabs;
-CREATE TRIGGER slab_before_delete_clear_enrollments
-  BEFORE DELETE ON transport_fare_slabs
-  FOR EACH ROW
-  EXECUTE FUNCTION trg_clear_transport_on_slab_change();
-
-DROP TRIGGER IF EXISTS slab_after_deactivate_clear_enrollments ON transport_fare_slabs;
-CREATE TRIGGER slab_after_deactivate_clear_enrollments
-  AFTER UPDATE OF is_active ON transport_fare_slabs
-  FOR EACH ROW
-  WHEN (OLD.is_active IS DISTINCT FROM NEW.is_active)
-  EXECUTE FUNCTION trg_clear_transport_on_slab_change();
-
-CREATE OR REPLACE FUNCTION count_transport_slab_dependents(p_slab_id uuid)
-RETURNS integer
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT COUNT(*)::integer
-    FROM student_enrollments
-   WHERE transport_slab_id = p_slab_id
-     AND has_transport = true;
-$$;
-
--- ─── Migration 063: transport road distance (school → home) ──────────────────
--- Mirrors scripts/migrations/erp/migration-063-transport-road-distance.sql.
--- Slabbing moves from straight-line (haversine) to real road distance; these
--- columns hold the billed road km plus full provenance for audit.
-
-ALTER TABLE student_enrollments
-  ADD COLUMN IF NOT EXISTS road_distance_km numeric(6, 2),
-  ADD COLUMN IF NOT EXISTS straight_line_km numeric(6, 2),
-  ADD COLUMN IF NOT EXISTS distance_source text,
-  ADD COLUMN IF NOT EXISTS distance_computed_at timestamptz,
-  ADD COLUMN IF NOT EXISTS distance_computed_by uuid
-    REFERENCES profiles(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS pickup_place_id text,
-  ADD COLUMN IF NOT EXISTS pickup_route_polyline text;
-
-ALTER TABLE student_enrollments
-  DROP CONSTRAINT IF EXISTS chk_distance_source;
-ALTER TABLE student_enrollments
-  ADD CONSTRAINT chk_distance_source CHECK (
-    distance_source IS NULL
-    OR distance_source IN ('google_routes', 'manual')
-  );
-
-ALTER TABLE student_enrollments
-  DROP CONSTRAINT IF EXISTS chk_road_distance_floor;
-ALTER TABLE student_enrollments
-  ADD CONSTRAINT chk_road_distance_floor CHECK (
-    distance_source IS DISTINCT FROM 'google_routes'
-    OR road_distance_km IS NULL
-    OR straight_line_km IS NULL
-    OR road_distance_km >= straight_line_km - 0.1
-  );
+DROP POLICY IF EXISTS "Students read own transport changes" ON transport_change_requests;
+CREATE POLICY "Students read own transport changes"
+  ON transport_change_requests FOR SELECT
+  USING (enrollment_id IN (
+    SELECT se.id FROM student_enrollments se
+    WHERE se.student_id = public.get_my_student_id()));
 
 -- =============================================================================
 -- Migration 068 — Identity & cross-role linking integrity

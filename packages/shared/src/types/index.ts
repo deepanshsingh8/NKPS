@@ -389,7 +389,11 @@ export interface StudentEnrollment {
   enrollment_date: string;
   status: EnrollmentStatus;
   has_transport: boolean;
-  transport_slab_id: string | null;
+  bus_stop_id: string | null;
+  bus_id: string | null;
+  transport_direction: TransportDirection;
+  transport_fee_override: number | null;
+  pickup_address: string | null;
   updated_at: string;
 }
 
@@ -591,27 +595,117 @@ export interface FeeStructure {
   updated_at: string;
 }
 
-export interface TransportFareSlab {
+// =============================================================
+// Transport — stop-based fleet model
+// =============================================================
+
+export type TransportDirection = 'both' | 'pickup_only' | 'drop_only';
+
+// Stable stop registry. The name is the identity; the fee is priced per
+// academic year in BusStopFee.
+export interface BusStop {
   id: string;
-  academic_year_id: string;
   name: string;
-  distance_km_min: number | null;
-  distance_km_max: number | null;
-  amount: number;
-  frequency: FeeFrequency;
+  area: string | null;
+  lat: number | null;
+  lng: number | null;
   is_active: boolean;
   sort_order: number;
   created_at: string;
   updated_at: string;
 }
 
-// Synthetic fee line for the student's transport slab. Shaped like
+// Per-academic-year flat fee for a stop.
+export interface BusStopFee {
+  id: string;
+  bus_stop_id: string;
+  academic_year_id: string;
+  amount: number;
+  frequency: FeeFrequency;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Vehicle registry. driver_id / conductor_id reference staff_members
+// (category 'busDriver').
+export interface Bus {
+  id: string;
+  bus_number: string;
+  registration_number: string | null;
+  capacity: number | null;
+  driver_id: string | null;
+  conductor_id: string | null;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Which stops a bus serves (its route).
+export interface BusRouteStop {
+  id: string;
+  bus_id: string;
+  bus_stop_id: string;
+  sort_order: number | null;
+  created_at: string;
+}
+
+export type TransportChangeType =
+  | 'bus_change'
+  | 'stop_change'
+  | 'direction_change'
+  | 'drop'
+  | 'resume';
+
+export type TransportChangeReason =
+  | 'house_shifting'
+  | 'rented_house_change'
+  | 'bus_point_temporary_change'
+  | 'facility_dropped'
+  | 'one_side_facility'
+  | 'other';
+
+export type TransportChangeStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled'
+  | 'applied';
+
+// A bus-change / stop-change / one-side / drop amendment, submittable by the
+// office or a parent (parent submissions start 'pending').
+export interface TransportChangeRequest {
+  id: string;
+  enrollment_id: string;
+  change_type: TransportChangeType;
+  previous_bus_id: string | null;
+  amended_bus_id: string | null;
+  previous_stop_id: string | null;
+  amended_stop_id: string | null;
+  direction: TransportDirection | null;
+  effective_from: string;
+  effective_to: string | null;
+  reason_code: TransportChangeReason;
+  reason_note: string | null;
+  application_url: string | null;
+  source: 'office' | 'parent';
+  status: TransportChangeStatus;
+  requested_by: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Synthetic fee line for the student's transport stop. Shaped like
 // FeeStructure so existing UI/dues code can iterate over a unified array of
 // `EffectiveFeeLine` entries. `kind` distinguishes the two so consumers that
 // need to record payments know which FK to send.
 export interface TransportFeeLine {
-  kind: 'transport_slab';
-  id: string;                 // slab id (used as React key + payment FK)
+  kind: 'transport_stop';
+  id: string;                 // bus_stop id (used as React key + payment FK)
   fee_type: 'Transport';
   amount: number;
   frequency: FeeFrequency;
@@ -619,7 +713,8 @@ export interface TransportFeeLine {
   late_fee_percent: 0;
   late_fee_fixed_amount: 0;
   stream_id: null;
-  slab_name: string;          // for UI label, e.g. "0–5 km"
+  stop_name: string;          // for UI label, e.g. "100 Feet Road"
+  direction: TransportDirection;
 }
 
 export type EffectiveFeeLine =
@@ -633,7 +728,7 @@ export interface FeePayment {
   id: string;
   student_id: string;
   fee_structure_id: string | null;
-  transport_slab_id: string | null;
+  bus_stop_id: string | null;
   amount_paid: number;
   payment_date: string;
   payment_method: PaymentMethod;

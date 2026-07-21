@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const {
       student_id,
       fee_structure_id,
-      transport_slab_id,
+      bus_stop_id,
       amount_paid,
       payment_method,
       month,
@@ -37,30 +37,59 @@ export async function POST(request: Request) {
       payment_provider,
     } = result.data;
 
-    // Status resolution. Look up the target row (fee structure or transport
-    // slab) once and use it to:
+    // Status resolution. Look up the target row (fee structure or bus stop
+    // fee) once and use it to:
     //   1. Reject over-payment outright (M7).
     //   2. Downgrade an over-eager 'paid' request to 'partial' when the
     //      caller paid less than the target amount.
     let status: "paid" | "partial" = requestedStatus ?? "paid";
     let expected: number;
     let academicYearId: string;
-    const targetLabel = transport_slab_id ? "transport slab" : "fee structure";
+    const targetLabel = bus_stop_id ? "bus stop fee" : "fee structure";
 
-    if (transport_slab_id) {
-      const { data: slab } = await admin
-        .from("transport_fare_slabs")
-        .select("amount, academic_year_id")
-        .eq("id", transport_slab_id)
+    if (bus_stop_id) {
+      // Resolve the student's current transport config so the expected amount
+      // matches what they actually owe: the stop's flat fee, or their one-side
+      // custom override. The enrollment also supplies the academic year (stops
+      // are not year-scoped; their fee is).
+      const { data: enrollment } = await admin
+        .from("student_enrollments")
+        .select(
+          "academic_year_id, transport_direction, transport_fee_override, bus_stop_id"
+        )
+        .eq("student_id", student_id)
+        .eq("has_transport", true)
+        .order("enrollment_date", { ascending: false })
+        .limit(1)
         .maybeSingle();
-      if (!slab) {
+      if (!enrollment || !enrollment.academic_year_id) {
         return NextResponse.json(
-          { error: "Transport slab not found" },
+          { error: "Student has no active transport enrollment" },
           { status: 400 }
         );
       }
-      expected = Number(slab.amount);
-      academicYearId = slab.academic_year_id as string;
+      academicYearId = enrollment.academic_year_id as string;
+      const isOneSide =
+        (enrollment.transport_direction as string) !== "both" &&
+        enrollment.transport_fee_override != null;
+      if (isOneSide) {
+        expected = Number(enrollment.transport_fee_override);
+      } else {
+        const { data: stopFee } = await admin
+          .from("bus_stop_fees")
+          .select("amount")
+          .eq("bus_stop_id", bus_stop_id)
+          .eq("academic_year_id", academicYearId)
+          .eq("is_active", true)
+          .maybeSingle();
+        if (!stopFee) {
+          return NextResponse.json(
+            { error: "No active fee is defined for this bus stop" },
+            { status: 400 }
+          );
+        }
+        expected = Number(stopFee.amount);
+      }
     } else {
       const { data: structure } = await admin
         .from("fee_structures")
@@ -97,7 +126,7 @@ export async function POST(request: Request) {
       .insert({
         student_id,
         fee_structure_id: fee_structure_id ?? null,
-        transport_slab_id: transport_slab_id ?? null,
+        bus_stop_id: bus_stop_id ?? null,
         academic_year_id: academicYearId,
         amount_paid,
         payment_method,

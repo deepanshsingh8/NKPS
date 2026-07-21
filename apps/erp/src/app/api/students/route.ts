@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       const { data: enrollments, error: enrollError } = await admin
         .from("student_enrollments")
         .select(
-          "student_id, roll_number, roll_number_manual, id, class_id, stream_id, status, academic_year_id, updated_at, has_transport, transport_slab_id, transport_slab_suggested_id, transport_slab_overridden_at, pickup_verified_at, pickup_lat, pickup_lng, pickup_verified_lat, pickup_verified_lng, classes(name, section)"
+          "student_id, roll_number, roll_number_manual, id, class_id, stream_id, status, academic_year_id, updated_at, has_transport, bus_stop_id, transport_direction, classes(name, section)"
         )
         .range(0, 9999);
       if (enrollError) {
@@ -111,14 +111,8 @@ export async function GET(request: NextRequest) {
         const e = enrollment as
           | (typeof enrollment & {
               has_transport?: boolean | null;
-              transport_slab_id?: string | null;
-              transport_slab_suggested_id?: string | null;
-              transport_slab_overridden_at?: string | null;
-              pickup_verified_at?: string | null;
-              pickup_lat?: number | null;
-              pickup_lng?: number | null;
-              pickup_verified_lat?: number | null;
-              pickup_verified_lng?: number | null;
+              bus_stop_id?: string | null;
+              transport_direction?: string | null;
               roll_number_manual?: boolean;
             })
           | undefined;
@@ -133,14 +127,8 @@ export async function GET(request: NextRequest) {
           class_name: cls?.name ?? null,
           class_section: cls?.section ?? null,
           has_transport: e?.has_transport ?? false,
-          transport_slab_id: e?.transport_slab_id ?? null,
-          transport_slab_suggested_id: e?.transport_slab_suggested_id ?? null,
-          transport_slab_overridden_at: e?.transport_slab_overridden_at ?? null,
-          pickup_verified_at: e?.pickup_verified_at ?? null,
-          pickup_lat: e?.pickup_lat ?? null,
-          pickup_lng: e?.pickup_lng ?? null,
-          pickup_verified_lat: e?.pickup_verified_lat ?? null,
-          pickup_verified_lng: e?.pickup_verified_lng ?? null,
+          bus_stop_id: e?.bus_stop_id ?? null,
+          transport_direction: e?.transport_direction ?? null,
         };
       });
 
@@ -151,7 +139,7 @@ export async function GET(request: NextRequest) {
     const { data: enrollments, error: enrollError } = await admin
       .from("student_enrollments")
       .select(
-        "id, student_id, roll_number, roll_number_manual, class_id, stream_id, status, has_transport, transport_slab_id, transport_slab_suggested_id, transport_slab_overridden_at, pickup_verified_at, pickup_lat, pickup_lng, pickup_verified_lat, pickup_verified_lng"
+        "id, student_id, roll_number, roll_number_manual, class_id, stream_id, status, has_transport, bus_stop_id, transport_direction"
       )
       .eq("class_id", classId);
 
@@ -202,14 +190,8 @@ export async function GET(request: NextRequest) {
       const e = enrollment as
         | (typeof enrollment & {
             has_transport?: boolean | null;
-            transport_slab_id?: string | null;
-            transport_slab_suggested_id?: string | null;
-            transport_slab_overridden_at?: string | null;
-            pickup_verified_at?: string | null;
-            pickup_lat?: number | null;
-            pickup_lng?: number | null;
-            pickup_verified_lat?: number | null;
-            pickup_verified_lng?: number | null;
+            bus_stop_id?: string | null;
+            transport_direction?: string | null;
             roll_number_manual?: boolean;
           })
         | undefined;
@@ -222,14 +204,8 @@ export async function GET(request: NextRequest) {
         stream_id: enrollment?.stream_id ?? null,
         enrollment_status: enrollment?.status ?? null,
         has_transport: e?.has_transport ?? false,
-        transport_slab_id: e?.transport_slab_id ?? null,
-        transport_slab_suggested_id: e?.transport_slab_suggested_id ?? null,
-        transport_slab_overridden_at: e?.transport_slab_overridden_at ?? null,
-        pickup_verified_at: e?.pickup_verified_at ?? null,
-        pickup_lat: e?.pickup_lat ?? null,
-        pickup_lng: e?.pickup_lng ?? null,
-        pickup_verified_lat: e?.pickup_verified_lat ?? null,
-        pickup_verified_lng: e?.pickup_verified_lng ?? null,
+        bus_stop_id: e?.bus_stop_id ?? null,
+        transport_direction: e?.transport_direction ?? null,
       };
     });
 
