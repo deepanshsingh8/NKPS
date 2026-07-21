@@ -66,8 +66,7 @@ import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import type { StaffMember, StaffCategory } from "@nkps/shared/types";
 import { downloadCSV, STAFF_CSV_COLUMNS } from "@/lib/csv-export";
 
-const CATEGORIES: { value: StaffCategory | "all"; label: string }[] = [
-  { value: "all", label: "All Categories" },
+const CATEGORY_OPTIONS: { value: StaffCategory; label: string }[] = [
   { value: "management", label: "Management" },
   { value: "admin", label: "Administration" },
   { value: "pgt", label: "PGT" },
@@ -83,20 +82,11 @@ const CATEGORIES: { value: StaffCategory | "all"; label: string }[] = [
   { value: "peon", label: "Peons" },
 ];
 
-const CATEGORY_OPTIONS: { value: StaffCategory; label: string }[] = [
-  { value: "management", label: "Management" },
-  { value: "admin", label: "Administration" },
-  { value: "pgt", label: "PGT" },
-  { value: "tgt", label: "TGT" },
-  { value: "prt", label: "PRT" },
-  { value: "motherTeachers", label: "Mother Teachers" },
-  { value: "prePrimaryCoordinator", label: "Pre-primary Coordinator" },
-  { value: "primaryCoordinator", label: "Primary Coordinator" },
-  { value: "middleCoordinator", label: "Middle Coordinator" },
-  { value: "seniorCoordinator", label: "Senior Coordinator" },
-  { value: "additionalStaff", label: "Additional Staff" },
-  { value: "busDriver", label: "Bus Drivers" },
-  { value: "peon", label: "Peons" },
+// Filter dropdown = the same options plus an "all" sentinel; derive it so the
+// two lists can never drift out of sync.
+const CATEGORIES: { value: StaffCategory | "all"; label: string }[] = [
+  { value: "all", label: "All Categories" },
+  ...CATEGORY_OPTIONS,
 ];
 
 const categoryBadgeColors: Record<StaffCategory, string> = {
@@ -554,7 +544,6 @@ export default function AdminStaffPage() {
           />
         </div>
         <Select
-          items={CATEGORIES}
           value={filterCategory}
           onValueChange={(val) => { if (val) { setFilterCategory(val as StaffCategory | "all"); setSelectedIds(new Set()); } }}
         >
@@ -779,7 +768,6 @@ export default function AdminStaffPage() {
             <div className="space-y-2">
               <Label>Category *</Label>
               <Select
-                items={CATEGORY_OPTIONS}
                 value={category}
                 onValueChange={(val) => val && setCategory(val as StaffCategory)}
               >
