@@ -55,7 +55,21 @@ interface EnrollmentRow {
   transport_fee_override: number | null;
   pickup_address: string | null;
   students: { full_name: string; admission_no: string | null } | null;
-  classes: { name: string; section: string } | null;
+  classes: {
+    name: string;
+    section: string;
+    streams: { name: string } | null;
+  } | null;
+}
+
+// "XI — A · Science" — appends the stream so same class+section rows for
+// different streams aren't indistinguishable.
+function classLabel(
+  c: { name: string; section: string; streams: { name: string } | null } | null
+): string {
+  if (!c) return "—";
+  const base = `${c.name} — ${c.section}`;
+  return c.streams?.name ? `${base} · ${c.streams.name}` : base;
 }
 
 const DIRECTION_OPTIONS: { value: TransportDirection; label: string }[] = [
@@ -131,7 +145,7 @@ export default function StudentTransportAssignmentsPage() {
       supabase
         .from("student_enrollments")
         .select(
-          "id, student_id, class_id, has_transport, bus_stop_id, bus_id, transport_direction, transport_fee_override, pickup_address, students(full_name, admission_no), classes(name, section)"
+          "id, student_id, class_id, has_transport, bus_stop_id, bus_id, transport_direction, transport_fee_override, pickup_address, students(full_name, admission_no), classes(name, section, streams(name))"
         )
         .eq("academic_year_id", year.id),
       supabase
@@ -209,7 +223,7 @@ export default function StudentTransportAssignmentsPage() {
     const m = new Map<string, string>();
     enrollments.forEach((e) => {
       if (e.classes) {
-        m.set(e.class_id, `${e.classes.name} — ${e.classes.section}`);
+        m.set(e.class_id, classLabel(e.classes));
       }
     });
     return Array.from(m.entries())
@@ -434,9 +448,7 @@ export default function StudentTransportAssignmentsPage() {
                       ) : null}
                     </TableCell>
                     <TableCell className="text-gray-600 dark:text-gray-300">
-                      {row.classes
-                        ? `${row.classes.name} — ${row.classes.section}`
-                        : "—"}
+                      {classLabel(row.classes)}
                     </TableCell>
                     <TableCell>
                       <span
@@ -494,9 +506,7 @@ export default function StudentTransportAssignmentsPage() {
                 <DialogTitle>Transport Assignment</DialogTitle>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {editing?.students?.full_name ?? ""}
-                  {editing?.classes
-                    ? ` — ${editing.classes.name} ${editing.classes.section}`
-                    : ""}
+                  {editing?.classes ? ` — ${classLabel(editing.classes)}` : ""}
                 </p>
               </div>
             </div>
