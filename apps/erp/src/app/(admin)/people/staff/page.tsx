@@ -554,6 +554,7 @@ export default function AdminStaffPage() {
           />
         </div>
         <Select
+          items={CATEGORIES}
           value={filterCategory}
           onValueChange={(val) => { if (val) { setFilterCategory(val as StaffCategory | "all"); setSelectedIds(new Set()); } }}
         >
@@ -778,6 +779,7 @@ export default function AdminStaffPage() {
             <div className="space-y-2">
               <Label>Category *</Label>
               <Select
+                items={CATEGORY_OPTIONS}
                 value={category}
                 onValueChange={(val) => val && setCategory(val as StaffCategory)}
               >
