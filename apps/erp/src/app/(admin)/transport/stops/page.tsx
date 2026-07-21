@@ -55,7 +55,6 @@ export default function TransportStopsPage() {
   const [editingStop, setEditingStop] = useState<BusStopWithFee | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [name, setName] = useState("");
-  const [area, setArea] = useState("");
   const [isActive, setIsActive] = useState("true");
 
   // Fee dialog state
@@ -127,16 +126,11 @@ export default function TransportStopsPage() {
   const filteredStops = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return stops;
-    return stops.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        (s.area ?? "").toLowerCase().includes(q)
-    );
+    return stops.filter((s) => s.name.toLowerCase().includes(q));
   }, [stops, search]);
 
   const resetStopForm = () => {
     setName("");
-    setArea("");
     setIsActive("true");
   };
 
@@ -149,7 +143,6 @@ export default function TransportStopsPage() {
   const openEditStop = (stop: BusStopWithFee) => {
     setEditingStop(stop);
     setName(stop.name);
-    setArea(stop.area ?? "");
     setIsActive(stop.is_active ? "true" : "false");
     setStopDialogOpen(true);
   };
@@ -165,7 +158,6 @@ export default function TransportStopsPage() {
 
     const payload = {
       name: trimmedName,
-      area: area.trim() || null,
       is_active: isActive === "true",
     };
 
@@ -298,7 +290,7 @@ export default function TransportStopsPage() {
       <div className="relative mb-4 max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <Input
-          placeholder="Search by name or area..."
+          placeholder="Search by name..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -321,7 +313,6 @@ export default function TransportStopsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Stop Name</TableHead>
-                <TableHead>Area</TableHead>
                 <TableHead>Monthly Fee</TableHead>
                 <TableHead>Active</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -332,7 +323,6 @@ export default function TransportStopsPage() {
                 <TableRow key={stop.id}>
                   <TableCell className="font-medium">{stop.name}</TableCell>
                   <TableCell className="text-gray-600 dark:text-gray-300">
-                    {stop.area || "—"}
                   </TableCell>
                   <TableCell className="text-gray-600 dark:text-gray-300">
                     {formatFee(stop.fee)}
@@ -416,14 +406,6 @@ export default function TransportStopsPage() {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Model Town Chowk"
                 required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Area (optional)</Label>
-              <Input
-                value={area}
-                onChange={(e) => setArea(e.target.value)}
-                placeholder="e.g. Model Town"
               />
             </div>
             <div className="space-y-1">
