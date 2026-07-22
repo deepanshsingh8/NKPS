@@ -11,7 +11,32 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-const DISMISS_KEY = "pwa-install-dismissed";
+// Legacy boolean flag (permanent dismissal). Still honored for users who
+// dismissed under the old behavior.
+const LEGACY_DISMISS_KEY = "pwa-install-dismissed";
+// New scheme: a "don't show again until" timestamp (ms). This is what stops
+// the banner from reappearing on every dashboard visit.
+const SNOOZE_KEY = "pwa-install-snooze-until";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Once the banner has simply been *seen*, hold off for a week so a user who
+// ignores it (rather than tapping install/dismiss) isn't nagged every visit.
+const PASSIVE_SNOOZE_DAYS = 7;
+// Explicit dismissal (or a completed install) snoozes for much longer.
+const DISMISS_SNOOZE_DAYS = 90;
+
+function snoozedUntil(): number {
+  if (typeof window === "undefined") return 0;
+  if (localStorage.getItem(LEGACY_DISMISS_KEY) === "1") return Infinity;
+  const raw = localStorage.getItem(SNOOZE_KEY);
+  const ts = raw ? Number(raw) : 0;
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+function snoozeForDays(days: number) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(SNOOZE_KEY, String(Date.now() + days * DAY_MS));
+}
 
 // Auth screens: a user who isn't logged in yet has no reason to install.
 const HIDDEN_PATH_PARTS = [
@@ -33,7 +58,9 @@ interface InstallPromptProps {
 // - iOS / Safari: there is no `beforeinstallprompt` (Apple doesn't support it),
 //   so we show the manual Share -> "Add to Home Screen" instruction instead.
 // - Renders nothing when already installed (standalone), on auth routes, or
-//   after the user dismisses it (remembered in localStorage).
+//   while snoozed. To avoid nagging on every visit, the banner snoozes itself
+//   for a week the moment it's shown; dismissing or installing snoozes it for
+//   much longer (see SNOOZE_KEY).
 export function InstallPrompt({ appName }: InstallPromptProps) {
   const pathname = usePathname();
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
@@ -52,7 +79,16 @@ export function InstallPrompt({ appName }: InstallPromptProps) {
         true;
     if (standalone) return;
 
-    if (localStorage.getItem(DISMISS_KEY) === "1") return;
+    // Still within a snooze window — stay hidden.
+    if (Date.now() < snoozedUntil()) return;
+
+    // Surface the banner, and immediately start a passive snooze so that
+    // ignoring it (navigating away, reopening the app) doesn't re-show it on
+    // every visit — it only comes back after PASSIVE_SNOOZE_DAYS.
+    function reveal() {
+      snoozeForDays(PASSIVE_SNOOZE_DAYS);
+      setVisible(true);
+    }
 
     const ios =
       /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase()) &&
@@ -61,21 +97,21 @@ export function InstallPrompt({ appName }: InstallPromptProps) {
 
     // iOS can't fire beforeinstallprompt, so show its instruction immediately.
     if (ios) {
-      setVisible(true);
+      reveal();
       return;
     }
 
     function onBeforeInstall(e: Event) {
       e.preventDefault();
       setDeferred(e as BeforeInstallPromptEvent);
-      setVisible(true);
+      reveal();
     }
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
 
     // Once installed, hide and don't nag again.
     function onInstalled() {
       setVisible(false);
-      localStorage.setItem(DISMISS_KEY, "1");
+      snoozeForDays(DISMISS_SNOOZE_DAYS);
     }
     window.addEventListener("appinstalled", onInstalled);
 
@@ -87,9 +123,7 @@ export function InstallPrompt({ appName }: InstallPromptProps) {
 
   function dismiss() {
     setVisible(false);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(DISMISS_KEY, "1");
-    }
+    snoozeForDays(DISMISS_SNOOZE_DAYS);
   }
 
   async function install() {
