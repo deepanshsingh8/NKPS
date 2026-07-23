@@ -119,7 +119,7 @@ const erpItems: SidebarItem[] = [
     kind: "group",
     icon: Bus,
     label: "Transport",
-    landingHref: "/transport/assignments",
+    landingHref: "/transport",
     children: [
       { kind: "link", icon: MapPin, label: "Stops & Fees", href: "/transport/stops" },
       { kind: "link", icon: Bus, label: "Buses & Routes", href: "/transport/buses" },

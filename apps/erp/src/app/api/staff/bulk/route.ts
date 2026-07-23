@@ -88,6 +88,10 @@ export async function POST(request: Request) {
           date_of_birth: validDob,
           address: s.address?.trim() || null,
           qualifications: s.qualifications?.trim() || null,
+          // License applies only to bus drivers; ignore it for other rows so a
+          // stray value in the sheet can't attach a licence to a non-driver.
+          license_number:
+            cat === "busDriver" ? s.license_number?.trim() || null : null,
           sort_order: order,
         };
       });

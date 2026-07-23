@@ -1039,6 +1039,7 @@ export const staffBulkUploadSchema = z.object({
       date_of_birth: dobOptionalSchema,
       address: z.string().optional().or(z.literal("")),
       qualifications: z.string().optional().or(z.literal("")),
+      license_number: z.string().optional().or(z.literal("")),
     })
   ).min(1, "At least one staff member is required").max(5000, "Too many rows in one upload"),
 });
