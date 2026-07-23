@@ -66,25 +66,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Auto-provision a login when the staff member has an email, with the role
-    // their category maps to: teaching staff become 'teacher' (linked to a
-    // teachers record), office staff become 'staff', and the rest (bus
-    // drivers, peons) get no login. See lib/staff-roles.
+    const portalRole = staffPortalRole(category);
+
+    // Teaching staff are ERP teachers regardless of whether they ever get a
+    // login, so create (or reuse) their linked teachers record on add — that's
+    // what makes them assignable to classes/timetable/attendance. This is
+    // decoupled from the email/login step below so an emailless teacher still
+    // becomes a usable teacher record without needing the manual convert action.
+    let teacherId: string | undefined;
+    if (portalRole === "teacher") {
+      const promo = await promoteStaffToTeacher(admin, data.id);
+      if (!("error" in promo)) teacherId = promo.teacher_id;
+    }
+
+    // Auto-provision a login only when there's an email, with the role their
+    // category maps to: teaching → 'teacher' (linked to the record above),
+    // office → 'staff', drivers/peons → no login. See lib/staff-roles.
     let userCreated = false;
     if (email?.trim()) {
-      const portalRole = staffPortalRole(category);
-      if (portalRole === "teacher") {
-        const promo = await promoteStaffToTeacher(admin, data.id);
-        if (!("error" in promo)) {
-          const result = await createPortalUser({
-            email: email.trim(),
-            fullName: name.trim(),
-            role: "teacher",
-            phone: phone || null,
-            teacherId: promo.teacher_id,
-          });
-          userCreated = result.success;
-        }
+      if (portalRole === "teacher" && teacherId) {
+        const result = await createPortalUser({
+          email: email.trim(),
+          fullName: name.trim(),
+          role: "teacher",
+          phone: phone || null,
+          teacherId,
+        });
+        userCreated = result.success;
       } else if (portalRole === "staff") {
         const result = await createPortalUser({
           email: email.trim(),

@@ -141,22 +141,28 @@ export async function POST(request: Request) {
       if (insData) insertedRows.push(...(insData as InsertedRow[]));
     }
 
-    // Auto-create portal users for inserted staff with emails (non-blocking),
-    // each with the role their category maps to: teaching → teacher (linked to
-    // a teachers record), office → staff, drivers/peons → no login.
+    // For each inserted staff row: teaching staff always get a linked teachers
+    // record (regardless of email, so they're immediately assignable), and a
+    // login is additionally provisioned when an email is present — teaching →
+    // teacher, office → staff, drivers/peons → no login.
     let usersCreated = 0;
     for (const s of insertedRows) {
-      if (!s.email?.trim()) continue;
       const portalRole = staffPortalRole(s.category);
+
+      let teacherId: string | undefined;
       if (portalRole === "teacher") {
         const promo = await promoteStaffToTeacher(admin, s.id);
-        if ("error" in promo) continue;
+        if (!("error" in promo)) teacherId = promo.teacher_id;
+      }
+
+      if (!s.email?.trim()) continue;
+      if (portalRole === "teacher" && teacherId) {
         const userResult = await createPortalUser({
           email: s.email.trim(),
           fullName: s.name.trim(),
           role: "teacher",
           phone: s.phone || null,
-          teacherId: promo.teacher_id,
+          teacherId,
         });
         if (userResult.success) usersCreated++;
       } else if (portalRole === "staff") {
