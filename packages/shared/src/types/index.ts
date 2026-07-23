@@ -592,7 +592,14 @@ export interface FeeStructure {
   is_active: boolean;
   description: string | null;
   late_fee_percent: number;
+  // Legacy one-time flat surcharge. Superseded by late_fee_per_day in the UI
+  // (migration 080); column retained so historical rows aren't lost, but the
+  // dues calc no longer reads it.
   late_fee_fixed_amount: number;
+  // Per-day flat surcharge: charged once for every day past due_date.
+  late_fee_per_day: number;
+  // Optional ceiling on the accrued late fee for this structure. null = no cap.
+  late_fee_max: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -714,6 +721,8 @@ export interface TransportFeeLine {
   due_date: null;
   late_fee_percent: 0;
   late_fee_fixed_amount: 0;
+  late_fee_per_day: 0;
+  late_fee_max: null;
   stream_id: null;
   stop_name: string;          // for UI label, e.g. "100 Feet Road"
   direction: TransportDirection;
