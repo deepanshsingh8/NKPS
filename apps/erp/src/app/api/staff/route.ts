@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import { createPortalUser } from "@nkps/shared/lib/create-portal-user";
-import { mirrorStaffToTeacher } from "@/lib/staff-teacher-sync";
+import { mirrorStaffToTeacher, promoteStaffToTeacher } from "@/lib/staff-teacher-sync";
+import { staffPortalRole } from "@nkps/shared/lib/staff-roles";
 import { staffCreateSchema, staffUpdateSchema } from "@nkps/shared/lib/validations";
 import { extractStoragePath } from "@nkps/shared/lib/storage-paths";
 
@@ -65,15 +66,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Auto-provision a login when the staff member has an email, with the role
+    // their category maps to: teaching staff become 'teacher' (linked to a
+    // teachers record), office staff become 'staff', and the rest (bus
+    // drivers, peons) get no login. See lib/staff-roles.
     let userCreated = false;
     if (email?.trim()) {
-      const result = await createPortalUser({
-        email: email.trim(),
-        fullName: name.trim(),
-        role: "teacher",
-        phone: phone || null,
-      });
-      userCreated = result.success;
+      const portalRole = staffPortalRole(category);
+      if (portalRole === "teacher") {
+        const promo = await promoteStaffToTeacher(admin, data.id);
+        if (!("error" in promo)) {
+          const result = await createPortalUser({
+            email: email.trim(),
+            fullName: name.trim(),
+            role: "teacher",
+            phone: phone || null,
+            teacherId: promo.teacher_id,
+          });
+          userCreated = result.success;
+        }
+      } else if (portalRole === "staff") {
+        const result = await createPortalUser({
+          email: email.trim(),
+          fullName: name.trim(),
+          role: "staff",
+          phone: phone || null,
+        });
+        userCreated = result.success;
+      }
     }
 
     return NextResponse.json({ success: true, data, userCreated });

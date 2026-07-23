@@ -1,48 +1,36 @@
-# Transportation Section — Build Tracker
+# Fix staff → portal-user creation
 
-## Migrations & schema
-- [x] migration-074 (schema: drop slabs; add stops/fees/buses/routes/change-requests + enrollment/payment cols)
-- [x] migration-075 (seed 188 stops + 2025-26 fees)
-- [x] Mirror into supabase-schema.sql (slab/distance fragments removed)
+## Problem
+- Auto-create on staff add used `role:"teacher"` with no `teacherId` → `createPortalUser`
+  silently fell through to **student**.
+- Bulk "Create Users" always promoted staff to **teacher** regardless of category
+  (front desk became a teacher).
+- No category → role mapping; `staff` role never used.
+- Staff page can't tell who already has a login (never queries `profiles`).
+- Convert-to-teacher (GraduationCap) shown for non-teaching staff too.
 
-## Shared foundation (packages/shared)
-- [x] types/index.ts — BusStop/BusStopFee/Bus/BusRouteStop/TransportChangeRequest + enrollment/payment/TransportFeeLine
-- [x] validations.ts — stop/bus/route/assignment/change schemas; feePaymentSchema→bus_stop_id
-- [x] permissions.ts — `transport` FeatureKey + catalog entry
+## Decisions
+- Teaching (pgt/tgt/prt/motherTeachers/*Coordinator) → **teacher** (+ linked teacher record)
+- Office-type (management/admin/additionalStaff) → **staff**
+- busDriver/peon → **no login**
+- Keep auto-create-on-add, but with correct role by category
 
-## Fees integration (must all land together)
-- [x] apps/erp/src/lib/fees.ts — resolveTransportLine from stop fee + override
-- [x] apps/erp/src/lib/student-dues.ts — query bus_stop_fees
-- [x] apps/erp/src/lib/transport.ts — apply + effective-bus helper
-- [x] api/fees/receipt/route.tsx — join stop; label "Transport — {stop}"
-- [x] api/fees/payments/route.ts — bus_stop_id branch + expected amount (stop fee / override)
-- [x] parent/fees + student/fees pages — stop/direction/override (agent)
-- [x] dashboard/analytics route + DashboardAnalytics.tsx — stop-based tile (agent)
-- [~] Remove old /fees/transport UI + AdminFeesContent transport section (agent running); delete maps + api/students/transport pending
-
-## Admin proxy & pages
-- [x] api/admin/route.ts — 5 new tables registered; transport_fare_slabs removed (agent)
-- [~] (admin)/transport/stops, buses, drivers, assignments, changes pages (agents running)
-- [x] api/transport/changes (+[id]) routes; stops/buses/routes/assignment via adminApi proxy
-
-## Sidebar & permissions wiring
-- [x] ErpSidebar.tsx — new Transport group; removed Fees>Transport (badge skipped)
-
-## Parent portal
-- [~] parent/transport page + ParentSidebar item (agent running)
-- [x] api/portal/transport/change-request route + transport-applications bucket (migration 076) + upload-url rule
-
-## Verify
-- [x] pnpm build (3/3 apps) + typecheck + lint (0 errors); zero slab refs in source
-- [x] Migration 074 made data-safe: legacy has_transport opt-out + NOT VALID fee XOR
-- [ ] commit, push, merge to main
+## Tasks
+- [x] 1. Shared helper `staffPortalRole(category)` + `isTeachingStaffCategory` (packages/shared/src/lib/staff-roles.ts)
+- [x] 2. `createPortalUser`: accept `"staff"`; validate required links up front; trust role (no student fallback)
+- [x] 3. `/api/staff` POST auto-create: branch by category (teacher+promote / staff / skip)
+- [x] 4. `/api/staff/bulk`: capture inserted ids; create logins with correct role by category
+- [x] 5. `/api/portal/bulk-create`: look up category per staff id; teacher(+promote) / staff / skip
+- [x] 6. `/api/staff/[id]/convert-to-teacher`: reject non-teaching categories
+- [x] 7. Staff page: fetch profiles-by-email → know who has a login; per-row "Create login" button
+      (hidden if login exists or category has no login); gate GraduationCap to teaching categories
+- [x] 8. CreatePortalUsersDialog / bulk flow: skip rows that already have a login
+- [x] 9. typecheck (4 pkgs pass) + lint (0 errors); welcome email uses role as label ("Staff") — OK
 
 ## Review
-- Schema: migration 074 (drop slabs/distance; add bus_stops, bus_stop_fees, buses,
-  bus_route_stops, transport_change_requests + enrollment/payment cols), 075 (188-stop
-  seed for 2025-26), 076 (transport-applications bucket). All mirrored into supabase-schema.sql.
-- Post-merge action required: apply migrations 074–076 to Supabase, then re-assign
-  transport students to stops on Transport → Student Assignments (legacy opt-ins were reset).
-- Deferred: live sidebar pending-badge for /transport/changes (needs shared SidebarShell
-  plumbing); office file-upload uses signed-URL flow; student-template registry transport
-  fields not added (optional export enhancement).
+- No schema/migration needed — the `staff` role already exists in the profiles CHECK constraint.
+- Root cause of the "student" account: createPortalUser derived role from the link id and fell
+  through to "student" when staff-create passed role="teacher" with no teacherId. Now it validates
+  and trusts the role.
+- Existing wrongly-created users are NOT auto-fixed: fix each on /people/users by changing role to
+  "staff" (works; only teacher/parent need a linked record).

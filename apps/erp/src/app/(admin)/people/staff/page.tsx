@@ -43,6 +43,7 @@ import {
   Download,
   ChevronDown,
   UserPlus,
+  UserCheck,
   GraduationCap,
 } from "lucide-react";
 import {
@@ -63,6 +64,10 @@ import {
 import { StaffBulkUpload } from "@/components/StaffBulkUpload";
 import { CreatePortalUsersDialog } from "@/components/CreatePortalUsersDialog";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
+import {
+  staffPortalRole,
+  isTeachingStaffCategory,
+} from "@nkps/shared/lib/staff-roles";
 import type { StaffMember, StaffCategory } from "@nkps/shared/types";
 import { downloadCSV, STAFF_CSV_COLUMNS } from "@/lib/csv-export";
 
@@ -150,6 +155,12 @@ export default function AdminStaffPage() {
     new Set()
   );
   const [convertingId, setConvertingId] = useState<string | null>(null);
+  // Lowercased emails of staff members who already have a portal login, so the
+  // per-row "Create login" action can hide for anyone already provisioned.
+  const [staffLoginEmails, setStaffLoginEmails] = useState<Set<string>>(
+    new Set()
+  );
+  const [creatingLoginId, setCreatingLoginId] = useState<string | null>(null);
 
   // Selection & bulk actions
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -197,7 +208,34 @@ export default function AdminStaffPage() {
       console.error("Failed to fetch staff:", staffRes.error);
       toast.error("Failed to load staff members");
     } else {
-      setStaff((staffRes.data as StaffMember[]) || []);
+      const rows = (staffRes.data as StaffMember[]) || [];
+      setStaff(rows);
+      // Which staff already have a portal login? Both teacher- and staff-role
+      // logins carry the staff member's email, so an email match against
+      // profiles tells us who's already provisioned. (Auth normalizes emails
+      // to lowercase, so we compare lowercased.)
+      const emails = Array.from(
+        new Set(
+          rows
+            .map((r) => r.email?.trim().toLowerCase())
+            .filter((e): e is string => !!e)
+        )
+      );
+      if (emails.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("email")
+          .in("email", emails);
+        setStaffLoginEmails(
+          new Set(
+            (profs ?? [])
+              .map((p) => (p.email as string | null)?.toLowerCase())
+              .filter((e): e is string => !!e)
+          )
+        );
+      } else {
+        setStaffLoginEmails(new Set());
+      }
     }
     if (!teacherLinkRes.error) {
       const ids = new Set<string>();
@@ -246,6 +284,68 @@ export default function AdminStaffPage() {
       }
     },
     [fetchStaff]
+  );
+
+  // Provision a single portal login for a staff member. Routes through the same
+  // category-aware bulk-create endpoint (with one item) so the role logic
+  // (teaching → teacher, office → staff) lives in exactly one place.
+  const handleCreateLogin = useCallback(
+    async (member: StaffMember) => {
+      if (!member.email?.trim()) return;
+      const role = staffPortalRole(member.category);
+      const roleLabel = role === "teacher" ? "teacher" : "staff";
+      if (
+        !confirm(
+          `Create a ${roleLabel} login for "${member.name}"? A welcome email with temporary credentials will be sent to ${member.email}.`
+        )
+      ) {
+        return;
+      }
+      setCreatingLoginId(member.id);
+      try {
+        const res = await adminFetch("/api/portal/bulk-create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "staff",
+            items: [
+              {
+                id: member.id,
+                email: member.email.trim(),
+                fullName: member.name.trim(),
+                phone: member.phone || null,
+              },
+            ],
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error ?? "Failed to create login");
+          return;
+        }
+        if (data.created > 0) {
+          toast.success("Login created — welcome email sent");
+        } else {
+          const reason = data.results?.[0]?.error ?? "Could not create login";
+          toast.error(reason);
+        }
+        await fetchStaff();
+      } catch {
+        toast.error("Network error");
+      } finally {
+        setCreatingLoginId(null);
+      }
+    },
+    [fetchStaff]
+  );
+
+  // Does this staff member already have a portal login? (email present + a
+  // matching profiles row).
+  const hasLogin = useCallback(
+    (member: StaffMember) =>
+      !!member.email?.trim() &&
+      staffLoginEmails.has(member.email.trim().toLowerCase()),
+    [staffLoginEmails]
   );
 
   useEffect(() => {
@@ -697,9 +797,46 @@ export default function AdminStaffPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      {/* H16-B — convert-to-teacher action. Hidden when the
-                          staff_member already has a linked teachers row. */}
-                      {!teacherLinkedIds.has(member.id) && (
+                      {/* Portal login: a green check when one already exists,
+                          otherwise (admins only) a "Create login" action —
+                          shown only for staff with an email whose category
+                          actually gets a login (bus drivers/peons don't). */}
+                      {hasLogin(member) ? (
+                        <span
+                          title="Has a portal login"
+                          className="inline-flex h-9 w-9 items-center justify-center text-green-600"
+                        >
+                          <UserCheck className="h-4 w-4" />
+                        </span>
+                      ) : (
+                        isAdmin &&
+                        !!member.email?.trim() &&
+                        staffPortalRole(member.category) !== null && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleCreateLogin(member)}
+                            disabled={creatingLoginId === member.id}
+                            aria-label="Create login"
+                            title={`Create ${
+                              staffPortalRole(member.category) === "teacher"
+                                ? "teacher"
+                                : "staff"
+                            } login (sends a welcome email)`}
+                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                          >
+                            {creatingLoginId === member.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <UserPlus className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )
+                      )}
+                      {/* Convert-to-teacher: only for teaching categories that
+                          aren't already linked to a teachers row. */}
+                      {isTeachingStaffCategory(member.category) &&
+                        !teacherLinkedIds.has(member.id) && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -954,7 +1091,14 @@ export default function AdminStaffPage() {
         onOpenChange={setPortalDialogOpen}
         type="staff"
         items={filtered
-          .filter((m) => selectedIds.has(m.id))
+          .filter(
+            (m) =>
+              selectedIds.has(m.id) &&
+              // Skip anyone who already has a login or whose category doesn't
+              // get one (bus drivers, peons) — no point offering them.
+              !hasLogin(m) &&
+              staffPortalRole(m.category) !== null
+          )
           .map((m) => ({ id: m.id, name: m.name, email: m.email, phone: m.phone }))}
         onComplete={fetchStaff}
       />

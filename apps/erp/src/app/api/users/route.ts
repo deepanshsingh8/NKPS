@@ -8,6 +8,7 @@ import {
   linkProfileToStudent,
   linkProfileToTeacher,
   linkProfileToParent,
+  ensureTeacherRecord,
 } from "@/lib/identity/link";
 import { pickFreeAdmissionNo } from "@/lib/admission-no";
 
@@ -297,17 +298,56 @@ export async function PATCH(request: Request) {
 
     const supabase = createAdminClient();
 
+    // Switching a login TO teacher requires a linked teacher record (migration
+    // 068). Staff-role accounts carry no teacher link and there's no
+    // teacher-linking UI, so this used to dead-end with "needs a linked teacher
+    // record first". Instead, self-heal: reuse the account's existing teacher
+    // record, or find-or-create one (by email) and link it atomically via the
+    // identity service. This is the common "created as staff by mistake, should
+    // be a teacher" repair.
+    if (role === "teacher") {
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select("full_name, email, phone, teacher_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (!existing) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
+      let teacherId = existing.teacher_id as string | null;
+      if (!teacherId) {
+        const ensured = await ensureTeacherRecord(supabase, {
+          email: (existing.email as string | null) ?? null,
+          fullName: (existing.full_name as string | null) ?? "Teacher",
+          phone: (existing.phone as string | null) ?? null,
+        });
+        if ("error" in ensured) {
+          return NextResponse.json(
+            { error: ensured.error },
+            { status: ensured.status }
+          );
+        }
+        teacherId = ensured.teacherId;
+      }
+
+      const linked = await linkProfileToTeacher(supabase, id, teacherId);
+      if (!linked.ok) {
+        return NextResponse.json({ error: linked.error }, { status: linked.status });
+      }
+      return NextResponse.json({ success: true });
+    }
+
     // Keep links consistent with the new role (migration 068 trigger): clear
-    // any domain link that the target role may not hold. teacher_id survives
-    // for 'teacher' and 'admin'; student_id only for 'student'; parent_id only
-    // for 'parent'. If the new role REQUIRES a link it doesn't have (e.g.
-    // promote to teacher/parent with no record), the trigger rejects it — we
-    // map that to an actionable message.
+    // any domain link that the target role may not hold. student_id only for
+    // 'student'; parent_id only for 'parent'. If the new role REQUIRES a link
+    // it doesn't have (parent with no record), the trigger rejects it — we map
+    // that to an actionable message ('parent'/'student' have a Link-record UI).
     const patch: Record<string, unknown> = {
       role,
       updated_at: new Date().toISOString(),
     };
-    if (role !== "teacher" && role !== "admin") patch.teacher_id = null;
+    if (role !== "admin") patch.teacher_id = null;
     if (role !== "student") patch.student_id = null;
     if (role !== "parent") patch.parent_id = null;
 
@@ -316,8 +356,7 @@ export async function PATCH(request: Request) {
     if (error) {
       console.error("Update role error:", error);
       const needsLink =
-        (role === "teacher" || role === "parent") &&
-        /requires (teacher|parent)_id/.test(error.message ?? "");
+        role === "parent" && /requires parent_id/.test(error.message ?? "");
       return NextResponse.json(
         {
           error: needsLink

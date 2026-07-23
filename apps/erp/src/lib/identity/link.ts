@@ -26,6 +26,7 @@
  * touch privileged profile columns that the migration-061 guard only permits
  * for the service role / admins.
  */
+import { randomBytes } from "crypto";
 import type { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -70,6 +71,55 @@ export async function linkProfileToTeacher(
     .eq("id", profileId);
   if (error) return mapLinkError(error, "teacher");
   return { ok: true, alreadyLinked: false };
+}
+
+/**
+ * Find-or-create the `teachers` record for an account. Reuses an existing,
+ * UNCLAIMED teacher matched by email (so promoting a login that's already in
+ * the Teachers directory links the right row instead of duplicating it),
+ * otherwise provisions a fresh one with a generated employee_id. Mirrors
+ * ensureParentRecord — used when an admin flips a login to role='teacher' and
+ * it has no teacher_id yet.
+ */
+export async function ensureTeacherRecord(
+  admin: Admin,
+  opts: { email: string | null; fullName: string; phone?: string | null }
+): Promise<{ teacherId: string } | { error: string; status: number }> {
+  if (opts.email) {
+    const { data: existing } = await admin
+      .from("teachers")
+      .select("id")
+      .eq("email", opts.email)
+      .maybeSingle();
+    if (existing) {
+      // Only reuse it if no other account has already claimed it.
+      const { data: claimedBy } = await admin
+        .from("profiles")
+        .select("id")
+        .eq("teacher_id", existing.id)
+        .maybeSingle();
+      if (!claimedBy) return { teacherId: existing.id as string };
+    }
+  }
+  // Same employee_id scheme as staff-teacher-sync / registration approve.
+  const employeeId = `TCH-${Date.now().toString(36).toUpperCase()}-${randomBytes(2)
+    .toString("hex")
+    .toUpperCase()}`;
+  const { data: created, error } = await admin
+    .from("teachers")
+    .insert({
+      employee_id: employeeId,
+      full_name: opts.fullName,
+      email: opts.email,
+      phone: opts.phone || null,
+    })
+    .select("id")
+    .single();
+  if (error || !created) {
+    console.error("[identity] ensureTeacherRecord:", error);
+    return { error: "Failed to set up the teacher record.", status: 500 };
+  }
+  return { teacherId: created.id as string };
 }
 
 /** Connect an account to a student record (role := 'student', student_id := …). */

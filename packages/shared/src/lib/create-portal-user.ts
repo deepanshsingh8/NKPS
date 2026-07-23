@@ -4,7 +4,7 @@ import { generateSecurePassword } from "@nkps/shared/lib/password";
 interface CreatePortalUserParams {
   email: string;
   fullName: string;
-  role: "teacher" | "student" | "parent";
+  role: "teacher" | "student" | "parent" | "staff";
   phone?: string | null;
   teacherId?: string | null;
   studentId?: string | null;
@@ -38,6 +38,25 @@ export async function createPortalUser({
     return { success: false, error: "User with this email already exists" };
   }
 
+  // Validate the role↔link requirement BEFORE creating the auth user, so a
+  // caller that asks for a linked role without supplying the link fails cleanly
+  // instead of leaving an orphaned auth user or (as the old code did) silently
+  // downgrading the account to 'student'. The migration-068 trigger requires
+  // teacher_id for role='teacher' and parent_id for role='parent'; 'student'
+  // may be unlinked and 'staff'/'admin' carry no domain link.
+  if (role === "teacher" && !teacherId) {
+    return {
+      success: false,
+      error: "A linked teacher record is required to create a teacher login.",
+    };
+  }
+  if (role === "parent" && !parentId) {
+    return {
+      success: false,
+      error: "A linked parent record is required to create a parent login.",
+    };
+  }
+
   const password = generateSecurePassword();
 
   const { data: newUser, error } = await supabase.auth.admin.createUser({
@@ -54,35 +73,21 @@ export async function createPortalUser({
 
   if (newUser.user) {
     // role + its matching link column go in ONE update to satisfy the
-    // enforce_profile_role_link trigger (migration 068): role='teacher' needs
-    // teacher_id, role='parent' needs parent_id; role='student' may have a null
-    // student_id (the self-claim default). We therefore derive role from the
-    // link id actually supplied rather than trusting the `role` argument:
-    // a caller like staff-create asks for role='teacher' BEFORE the domain
-    // record is linked (staff has no teachers row yet). Trusting `role` there
-    // would set role without its id, and the trigger would reject the ENTIRE
-    // update —
-    // silently discarding must_change_password and phone with it (a security
-    // regression: the user would never be forced to rotate the emailed
-    // password). When no link id is present we keep the signup default
-    // role='student', which is valid with null links; the explicit linking
-    // step (or a later teacher link) promotes the role in its own update.
-    const linkedRole = teacherId
-      ? "teacher"
-      : studentId
-        ? "student"
-        : parentId
-          ? "parent"
-          : "student";
+    // enforce_profile_role_link trigger (migration 068). The required links
+    // were already validated above, so we can trust `role` here and write only
+    // the link column that role is allowed to hold — every other link stays
+    // null. (Previously this derived role from whichever link id was supplied
+    // and fell through to 'student' when none was, which is exactly how a
+    // staff-create with no teacher link produced a bogus student account.)
     const { error: updateError } = await supabase
       .from("profiles")
       .update({
-        role: linkedRole,
+        role,
         phone: phone || null,
         must_change_password: true,
-        teacher_id: teacherId || null,
-        student_id: studentId || null,
-        parent_id: parentId || null,
+        teacher_id: role === "teacher" ? teacherId || null : null,
+        student_id: role === "student" ? studentId || null : null,
+        parent_id: role === "parent" ? parentId || null : null,
       })
       .eq("id", newUser.user.id);
 

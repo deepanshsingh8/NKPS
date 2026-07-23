@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import { staffBulkUploadSchema } from "@nkps/shared/lib/validations";
 import { createPortalUser } from "@nkps/shared/lib/create-portal-user";
+import { staffPortalRole } from "@nkps/shared/lib/staff-roles";
+import { promoteStaffToTeacher } from "@/lib/staff-teacher-sync";
 
 const VALID_CATEGORIES = [
   "management", "admin", "pgt", "tgt", "prt",
@@ -51,6 +53,16 @@ export async function POST(request: Request) {
 
     let inserted = 0;
     const errors: { name: string; error: string }[] = [];
+    // Successfully-inserted rows (with their new ids + category) so we can
+    // provision the right login role per staff member after the inserts.
+    type InsertedRow = {
+      id: string;
+      name: string;
+      category: string;
+      email: string | null;
+      phone: string | null;
+    };
+    const insertedRows: InsertedRow[] = [];
 
     // Get current max sort_order per category
     const categoriesToQuery = perRowMode
@@ -96,16 +108,19 @@ export async function POST(request: Request) {
         };
       });
 
-      const { error: insertError } = await admin
+      const { data: insData, error: insertError } = await admin
         .from("staff_members")
-        .insert(records);
+        .insert(records)
+        .select("id, name, category, email, phone");
 
       if (insertError) {
         // If batch fails, try individually
         for (const record of records) {
-          const { error: singleError } = await admin
+          const { data: singleData, error: singleError } = await admin
             .from("staff_members")
-            .insert(record);
+            .insert(record)
+            .select("id, name, category, email, phone")
+            .single();
 
           if (singleError) {
             console.error("Staff bulk single-insert failed:", singleError);
@@ -116,28 +131,43 @@ export async function POST(request: Request) {
             errors.push({ name: record.name, error: friendly });
           } else {
             inserted++;
+            if (singleData) insertedRows.push(singleData as InsertedRow);
           }
         }
         continue;
       }
 
       inserted += batch.length;
+      if (insData) insertedRows.push(...(insData as InsertedRow[]));
     }
 
-    // Auto-create portal users for staff with emails (non-blocking)
+    // Auto-create portal users for inserted staff with emails (non-blocking),
+    // each with the role their category maps to: teaching → teacher (linked to
+    // a teachers record), office → staff, drivers/peons → no login.
     let usersCreated = 0;
-    const staffWithEmails = staff.filter((s) => s.email?.trim());
-    const failedNames = errors.map((e) => e.name);
-
-    for (const s of staffWithEmails) {
-      if (failedNames.includes(s.name.trim())) continue;
-      const userResult = await createPortalUser({
-        email: s.email!.trim(),
-        fullName: s.name.trim(),
-        role: "teacher",
-        phone: s.phone || null,
-      });
-      if (userResult.success) usersCreated++;
+    for (const s of insertedRows) {
+      if (!s.email?.trim()) continue;
+      const portalRole = staffPortalRole(s.category);
+      if (portalRole === "teacher") {
+        const promo = await promoteStaffToTeacher(admin, s.id);
+        if ("error" in promo) continue;
+        const userResult = await createPortalUser({
+          email: s.email.trim(),
+          fullName: s.name.trim(),
+          role: "teacher",
+          phone: s.phone || null,
+          teacherId: promo.teacher_id,
+        });
+        if (userResult.success) usersCreated++;
+      } else if (portalRole === "staff") {
+        const userResult = await createPortalUser({
+          email: s.email.trim(),
+          fullName: s.name.trim(),
+          role: "staff",
+          phone: s.phone || null,
+        });
+        if (userResult.success) usersCreated++;
+      }
     }
 
     // Nothing inserted + at least one error = total failure; surface it as
