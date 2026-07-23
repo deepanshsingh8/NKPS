@@ -639,8 +639,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       const studentIds = (enrollments ?? []).map((e) => e.student_id as string);
       type PayRow = {
         student_id: string;
+        fee_structure_id: string | null;
         amount_paid: number;
         waiver_amount: number;
+        refund_amount: number | null;
         status: string;
       };
       let payments: PayRow[] = [];
@@ -649,15 +651,18 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         // instead of an INNER join through `fee_structures` — the join
         // dropped payments whose linked structure had been deleted, even
         // though those payments are still real cash receipts the school
-        // received. Refunded rows are excluded; waiver rows contribute via
-        // `waiver_amount` (their amount_paid is 0 by schema).
+        // received. Waiver rows contribute via `waiver_amount` (their
+        // amount_paid is 0 by schema). Refunded rows are INCLUDED: a partial
+        // refund flips status to 'refunded' while amount_paid stays put, so
+        // dropping them by status erased the whole receipt from paid totals
+        // and overstated dues. Each refunded row's net cash is settled below.
         const { data: pays } = await supabase
           .from("fee_payments")
           .select(
-            "student_id, amount_paid, waiver_amount, status"
+            "student_id, fee_structure_id, amount_paid, waiver_amount, refund_amount, status"
           )
           .in("student_id", studentIds)
-          .in("status", ["paid", "partial"])
+          .in("status", ["paid", "partial", "refunded"])
           .eq("academic_year_id", academicYearId);
         payments = (pays as unknown as PayRow[]) ?? [];
       }
@@ -700,18 +705,45 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
               sum + Number(fs.amount) * (FEE_FREQ_MULTIPLIER[fs.frequency] ?? 1),
             0
           ) + transportAnnual;
+        // Net settled cash per fee structure for this student, keyed by
+        // fee_structure_id (transport payments carry a null structure and are
+        // excluded — transport has no late fee). A partial refund leaves
+        // amount_paid intact, so net cash is `amount_paid - refund_amount`
+        // (never below 0 per row); waivers count as settled too. This lets the
+        // late-fee pass below ask "is THIS structure still owed?" rather than
+        // gating on the student's aggregate balance.
+        const paidByStructure = new Map<string, number>();
+        const studentPayments = payments.filter(
+          (p) => p.student_id === e.student_id
+        );
+        for (const p of studentPayments) {
+          if (!p.fee_structure_id) continue;
+          const net =
+            Math.max(0, Number(p.amount_paid) - Number(p.refund_amount ?? 0)) +
+            Number(p.waiver_amount ?? 0);
+          paidByStructure.set(
+            p.fee_structure_id,
+            (paidByStructure.get(p.fee_structure_id) ?? 0) + net
+          );
+        }
         // Late fee per overdue structure: the larger of the one-time percent
         // surcharge and the per-day surcharge accrued since the due date,
         // capped at late_fee_max when set. Structures with no due_date or a
-        // future due_date contribute nothing. Ignored entirely if the student
-        // has no outstanding dues on the structure (covered by the outer
-        // `Math.max(0, expected - paid)` clamp + the per-structure overdue
-        // check).
+        // future due_date contribute nothing. A structure that is individually
+        // fully settled contributes no late fee even when the student owes on
+        // another line (#11) — previously the whole late-fee sum was gated only
+        // on the student's aggregate balance, so a paid-on-time structure was
+        // still surcharged whenever any other fee remained due.
         const lateFee = applicable.reduce((sum, fs) => {
           if (!fs.due_date || fs.due_date >= today) return sum;
           const pct = Number(fs.late_fee_percent ?? 0);
           const perDay = Number(fs.late_fee_per_day ?? 0);
           if (pct === 0 && perDay === 0) return sum;
+          // Skip structures with no outstanding balance of their own.
+          const structureExpected =
+            Number(fs.amount) * (FEE_FREQ_MULTIPLIER[fs.frequency] ?? 1);
+          const structurePaid = paidByStructure.get(fs.id) ?? 0;
+          if (structurePaid >= structureExpected) return sum;
           // Whole days elapsed from due_date to today (≥ 1 here, since the
           // guard above already excluded due_date >= today).
           const daysOverdue = Math.max(
@@ -727,15 +759,15 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             fs.late_fee_max != null ? Number(fs.late_fee_max) : Infinity;
           return sum + Math.min(raw, cap);
         }, 0);
-        // `paid + waived` is what the dues view treats as settled. Refunded
-        // rows are already filtered out of `payments` above.
-        const paid = payments
-          .filter((p) => p.student_id === e.student_id)
-          .reduce(
-            (sum, p) =>
-              sum + Number(p.amount_paid) + Number(p.waiver_amount ?? 0),
-            0
-          );
+        // `paid + waived` is what the dues view treats as settled, summed
+        // across every structure + transport for the student-level balance.
+        const paid = studentPayments.reduce(
+          (sum, p) =>
+            sum +
+            Math.max(0, Number(p.amount_paid) - Number(p.refund_amount ?? 0)) +
+            Number(p.waiver_amount ?? 0),
+          0
+        );
         // Late fee only applies to the unpaid portion. Once a student has
         // covered the base expected amount, the surcharge stops accruing.
         const baseDues = Math.max(0, expected - paid);

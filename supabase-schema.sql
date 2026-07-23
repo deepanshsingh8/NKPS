@@ -683,6 +683,11 @@ CREATE INDEX idx_students_alumni ON students(is_alumni) WHERE is_alumni = true;
 -- Teachers
 CREATE INDEX idx_teachers_employee_id ON teachers(employee_id);
 CREATE INDEX idx_teachers_is_active ON teachers(is_active);
+-- One teacher row per staff member (migration 083); guards promoteStaffToTeacher
+-- against concurrent double-insert.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_teachers_staff_member_id_unique
+  ON teachers(staff_member_id)
+  WHERE staff_member_id IS NOT NULL;
 
 -- Parents
 CREATE INDEX idx_parents_email ON parents(email);
@@ -1185,17 +1190,18 @@ CREATE POLICY "Public can view public gallery images"
     )
   );
 
-CREATE POLICY "Authenticated users can insert gallery images"
-  ON gallery_images FOR INSERT
-  WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Staff can insert gallery images"
+  ON gallery_images FOR INSERT TO authenticated
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can update gallery images"
-  ON gallery_images FOR UPDATE
-  USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can update gallery images"
+  ON gallery_images FOR UPDATE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'))
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can delete gallery images"
-  ON gallery_images FOR DELETE
-  USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can delete gallery images"
+  ON gallery_images FOR DELETE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'));
 
 -- Transfer Certificates: authenticated-only reads, server-mediated public
 -- lookup. Public anonymous SELECTs return zero rows. Public users find
@@ -1207,24 +1213,25 @@ CREATE POLICY "Authenticated users can view transfer certificates"
   ON transfer_certificates FOR SELECT
   USING (auth.role() = 'authenticated');
 
-CREATE POLICY "Authenticated users can insert transfer certificates"
-  ON transfer_certificates FOR INSERT
-  WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Staff can insert transfer certificates"
+  ON transfer_certificates FOR INSERT TO authenticated
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can delete transfer certificates"
-  ON transfer_certificates FOR DELETE
-  USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can delete transfer certificates"
+  ON transfer_certificates FOR DELETE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'));
 
 -- Contact Submissions: authenticated read/write (submitted via service role key)
 ALTER TABLE contact_submissions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Authenticated users can view contact submissions"
-  ON contact_submissions FOR SELECT
-  USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can view contact submissions"
+  ON contact_submissions FOR SELECT TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can update contact submissions"
-  ON contact_submissions FOR UPDATE
-  USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can update contact submissions"
+  ON contact_submissions FOR UPDATE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'))
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
 CREATE POLICY "Service role can insert contact submissions"
   ON contact_submissions FOR INSERT
@@ -1237,13 +1244,14 @@ CREATE POLICY "Public can read site_media"
   ON site_media FOR SELECT
   USING (true);
 
-CREATE POLICY "Authenticated users can update site_media"
-  ON site_media FOR UPDATE
-  USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can update site_media"
+  ON site_media FOR UPDATE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'))
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can insert site_media"
-  ON site_media FOR INSERT
-  WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Staff can insert site_media"
+  ON site_media FOR INSERT TO authenticated
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
 -- Section Cards
 ALTER TABLE section_cards ENABLE ROW LEVEL SECURITY;
@@ -1252,17 +1260,18 @@ CREATE POLICY "Public can read section_cards"
   ON section_cards FOR SELECT
   USING (true);
 
-CREATE POLICY "Authenticated users can insert section_cards"
-  ON section_cards FOR INSERT
-  WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Staff can insert section_cards"
+  ON section_cards FOR INSERT TO authenticated
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can update section_cards"
-  ON section_cards FOR UPDATE
-  USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can update section_cards"
+  ON section_cards FOR UPDATE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'))
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can delete section_cards"
-  ON section_cards FOR DELETE
-  USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can delete section_cards"
+  ON section_cards FOR DELETE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'));
 
 -- Staff Members
 ALTER TABLE staff_members ENABLE ROW LEVEL SECURITY;
@@ -1271,17 +1280,18 @@ CREATE POLICY "Public can view staff members"
   ON staff_members FOR SELECT
   USING (true);
 
-CREATE POLICY "Authenticated users can insert staff members"
-  ON staff_members FOR INSERT
-  WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Staff can insert staff members"
+  ON staff_members FOR INSERT TO authenticated
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can update staff members"
-  ON staff_members FOR UPDATE
-  USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can update staff members"
+  ON staff_members FOR UPDATE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'))
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can delete staff members"
-  ON staff_members FOR DELETE
-  USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can delete staff members"
+  ON staff_members FOR DELETE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'));
 
 -- Disclosure Items
 ALTER TABLE disclosure_items ENABLE ROW LEVEL SECURITY;
@@ -1289,14 +1299,18 @@ ALTER TABLE disclosure_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public can read disclosure_items"
   ON disclosure_items FOR SELECT USING (true);
 
-CREATE POLICY "Authenticated users can update disclosure_items"
-  ON disclosure_items FOR UPDATE USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can update disclosure_items"
+  ON disclosure_items FOR UPDATE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'))
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can insert disclosure_items"
-  ON disclosure_items FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Staff can insert disclosure_items"
+  ON disclosure_items FOR INSERT TO authenticated
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can delete disclosure_items"
-  ON disclosure_items FOR DELETE USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can delete disclosure_items"
+  ON disclosure_items FOR DELETE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'));
 
 -- Disclosure Documents
 ALTER TABLE disclosure_documents ENABLE ROW LEVEL SECURITY;
@@ -1304,14 +1318,18 @@ ALTER TABLE disclosure_documents ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public can read disclosure_documents"
   ON disclosure_documents FOR SELECT USING (true);
 
-CREATE POLICY "Authenticated users can update disclosure_documents"
-  ON disclosure_documents FOR UPDATE USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can update disclosure_documents"
+  ON disclosure_documents FOR UPDATE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'))
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can insert disclosure_documents"
-  ON disclosure_documents FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Staff can insert disclosure_documents"
+  ON disclosure_documents FOR INSERT TO authenticated
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can delete disclosure_documents"
-  ON disclosure_documents FOR DELETE USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can delete disclosure_documents"
+  ON disclosure_documents FOR DELETE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'));
 
 -- Disclosure Board Results
 ALTER TABLE disclosure_board_results ENABLE ROW LEVEL SECURITY;
@@ -1319,14 +1337,18 @@ ALTER TABLE disclosure_board_results ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public can read disclosure_board_results"
   ON disclosure_board_results FOR SELECT USING (true);
 
-CREATE POLICY "Authenticated users can insert disclosure_board_results"
-  ON disclosure_board_results FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Staff can insert disclosure_board_results"
+  ON disclosure_board_results FOR INSERT TO authenticated
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can update disclosure_board_results"
-  ON disclosure_board_results FOR UPDATE USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can update disclosure_board_results"
+  ON disclosure_board_results FOR UPDATE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'))
+  WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Authenticated users can delete disclosure_board_results"
-  ON disclosure_board_results FOR DELETE USING (auth.role() = 'authenticated');
+CREATE POLICY "Staff can delete disclosure_board_results"
+  ON disclosure_board_results FOR DELETE TO authenticated
+  USING (public.get_user_role() IN ('admin', 'staff'));
 
 -- Gallery Events
 ALTER TABLE gallery_events ENABLE ROW LEVEL SECURITY;

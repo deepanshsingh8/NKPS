@@ -119,8 +119,9 @@ export default function ParentResultsPage() {
           .from("student_enrollments")
           .select("classes(name, section)")
           .eq("student_id", student.id)
+          .order("enrollment_date", { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         const classInfo = enrollment?.classes as unknown as {
           name: string;

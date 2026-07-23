@@ -47,10 +47,12 @@ export async function validateWaiver(
     return { ok: false, error: "Fee structure not found." };
   }
 
-  // All non-refunded payments + waivers already settled against this structure.
+  // All settled payments + waivers against this structure. Refunded rows are
+  // pulled too: a partial refund keeps amount_paid intact, so its net cash
+  // (`amount_paid - refund_amount`) still counts toward the cap below.
   const { data: payments, error: payErr } = await admin
     .from("fee_payments")
-    .select("amount_paid, waiver_amount, status, payment_method, month")
+    .select("amount_paid, waiver_amount, refund_amount, status, payment_method, month")
     .eq("student_id", student_id)
     .eq("fee_structure_id", fee_structure_id);
   if (payErr) {
@@ -79,9 +81,17 @@ export async function validateWaiver(
   // Cap: a waiver can't clear more than is still owed on this structure.
   const obligation = annualizedAmount(structure);
   const settled = rows
-    .filter((p) => p.status === "paid" || p.status === "partial")
+    .filter(
+      (p) =>
+        p.status === "paid" ||
+        p.status === "partial" ||
+        p.status === "refunded"
+    )
     .reduce(
-      (sum, p) => sum + Number(p.amount_paid) + Number(p.waiver_amount ?? 0),
+      (sum, p) =>
+        sum +
+        Math.max(0, Number(p.amount_paid) - Number(p.refund_amount ?? 0)) +
+        Number(p.waiver_amount ?? 0),
       0
     );
   const remaining = obligation - settled;

@@ -41,7 +41,7 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   fee_structures: ["id", "academic_year_id", "class_name", "class_level", "stream_id", "fee_type", "amount", "due_date", "frequency", "is_active", "description", "late_fee_percent", "late_fee_fixed_amount", "late_fee_per_day", "late_fee_max", "created_at", "updated_at"],
   fee_payments: ["id", "student_id", "fee_structure_id", "amount_paid", "payment_date", "payment_method", "receipt_number", "month", "status", "recorded_by", "remarks", "cheque_number", "cheque_date", "bank_name", "payer_name", "transaction_ref", "payment_provider", "created_at"],
   exam_types: ["id", "name", "academic_year_id", "max_marks", "weightage", "sort_order", "kind", "upper_header", "class_level", "created_at"],
-  calendar_events: ["id", "title", "description", "event_type", "start_date", "end_date", "class_id", "is_public", "created_by", "created_at"],
+  calendar_events: ["id", "title", "description", "event_type", "start_date", "end_date", "class_id", "is_public", "is_school_wide", "created_by", "created_at"],
   timetable_periods: ["id", "class_id", "subject_id", "teacher_id", "day_of_week", "period_number", "start_time", "end_time", "room", "created_at"],
   attendance: ["id", "student_id", "class_id", "date", "status", "marked_by", "remarks", "created_at"],
   results: ["id", "student_id", "class_id", "subject_id", "exam_type_id", "marks_obtained", "max_marks", "grade", "remarks", "entered_by", "created_at"],

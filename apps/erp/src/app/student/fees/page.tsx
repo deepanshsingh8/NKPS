@@ -144,13 +144,21 @@ export default function StudentFeesPage() {
 
       // Fetch payments — also pull the stop name so the history table can
       // show "Transport — Main Gate" instead of falling back to "--".
-      const { data: paymentData } = await supabase
+      // Scope to the current academic year so prior-year receipts aren't
+      // subtracted from this year's fees (fee structures are year-scoped).
+      let paymentsQuery = supabase
         .from("fee_payments")
         .select(
           "*, fee_structure:fee_structures(*), bus_stop:bus_stops(name)"
         )
-        .eq("student_id", studentId)
-        .order("payment_date", { ascending: false });
+        .eq("student_id", studentId);
+      if (academicYearId) {
+        paymentsQuery = paymentsQuery.eq("academic_year_id", academicYearId);
+      }
+      const { data: paymentData } = await paymentsQuery.order(
+        "payment_date",
+        { ascending: false }
+      );
 
       setPayments(
         (paymentData as (FeePayment & {
@@ -175,10 +183,27 @@ export default function StudentFeesPage() {
   // Compute summary — annualize each line so quarterly/monthly fees are
   // counted correctly for the whole academic year.
   const totalFees = sumAnnualized(feeLines);
-  // Match the admin dues view: cash paid + any waiver granted both settle a fee.
+  // Match the admin dues view: cash paid + any waiver granted both settle a
+  // fee. A partially-refunded payment keeps status 'refunded' with amount_paid
+  // unchanged, so include refunded rows too and net out refund_amount (never
+  // below 0 per row) — otherwise the whole receipt vanishes and dues overstate.
   const totalPaid = payments
-    .filter((p) => p.status === "paid" || p.status === "partial")
-    .reduce((sum, p) => sum + Number(p.amount_paid) + Number(p.waiver_amount ?? 0), 0);
+    .filter(
+      (p) =>
+        p.status === "paid" ||
+        p.status === "partial" ||
+        p.status === "refunded"
+    )
+    .reduce(
+      (sum, p) =>
+        sum +
+        Math.max(
+          0,
+          Number(p.amount_paid) - Number(p.refund_amount ?? 0)
+        ) +
+        Number(p.waiver_amount ?? 0),
+      0
+    );
   const pending = totalFees - totalPaid;
 
   // Lines marked paid: match by fee_structure_id (academic) or

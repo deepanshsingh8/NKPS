@@ -411,6 +411,7 @@ export async function GET(request: Request) {
       const ranks = await computeRanksForClass(supabase, {
         class_id: classId,
         academic_year_id: yearId,
+        includeUnpublished: callerIsStaff,
       });
       const rank = ranks.get(studentId) ?? null;
       enriched = { ...finalResult, rank };

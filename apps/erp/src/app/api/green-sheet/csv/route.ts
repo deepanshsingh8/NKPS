@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@nkps/shared/lib/supabase/server";
+import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { buildGreenSheetData } from "@/lib/green-sheet";
 import { contentDispositionAttachment, csvEscape } from "@nkps/shared/lib/utils";
 
@@ -46,7 +47,9 @@ export async function GET(request: Request) {
     );
   }
 
-  const data = await buildGreenSheetData(supabase, classId, academicYearId);
+  // Build on the service-role client: the `results` table has no editor/staff
+  // SELECT policy, so a cookie-scoped read would return blank sheets. (Audit #29)
+  const data = await buildGreenSheetData(createAdminClient(), classId, academicYearId);
   if (!data) {
     return NextResponse.json(
       { error: "Class or academic year not found" },

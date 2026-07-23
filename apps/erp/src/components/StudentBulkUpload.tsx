@@ -431,8 +431,16 @@ export function StudentBulkUpload({
 
   const removeRow = (index: number) => {
     setParsedRows((prev) => prev.filter((_, i) => i !== index));
-    if (editingIndex === index) setEditingIndex(null);
-    if (expandedIndex === index) setExpandedIndex(null);
+    // Rows are keyed by array index, so removing a row shifts every later
+    // index down by one. Keep the active editing/expanded highlight on the
+    // same row: clear it if it was the removed row, decrement it if it sat
+    // below the removed one.
+    setEditingIndex((cur) =>
+      cur === null ? cur : cur === index ? null : cur > index ? cur - 1 : cur
+    );
+    setExpandedIndex((cur) =>
+      cur === null ? cur : cur === index ? null : cur > index ? cur - 1 : cur
+    );
   };
 
   const updateRow = (index: number, key: string, value: string) => {

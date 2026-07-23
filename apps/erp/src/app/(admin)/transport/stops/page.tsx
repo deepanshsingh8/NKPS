@@ -323,8 +323,6 @@ export default function TransportStopsPage() {
                 <TableRow key={stop.id}>
                   <TableCell className="font-medium">{stop.name}</TableCell>
                   <TableCell className="text-gray-600 dark:text-gray-300">
-                  </TableCell>
-                  <TableCell className="text-gray-600 dark:text-gray-300">
                     {formatFee(stop.fee)}
                   </TableCell>
                   <TableCell>

@@ -304,7 +304,7 @@ export default function AdminTransferCertificatesPage() {
                           <span className="font-medium">{s.full_name}</span>
                           <span className="text-gray-500 dark:text-gray-400 ml-2">({s.admission_no})</span>
                           {s.father_name && (
-                            <span className="text-gray-400 dark:text-gray-500 ml-1 text-xs">\u00B7 {s.father_name}</span>
+                            <span className="text-gray-400 dark:text-gray-500 ml-1 text-xs">{"\u00B7 "}{s.father_name}</span>
                           )}
                         </button>
                       ))}
