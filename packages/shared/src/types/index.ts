@@ -68,6 +68,8 @@ export interface StaffMember {
   date_of_birth: string | null;
   address: string | null;
   qualifications: string | null;
+  // Driving-license number — captured for bus drivers (category 'busDriver').
+  license_number: string | null;
   is_active: boolean;
   sort_order: number;
   created_at: string;
