@@ -90,7 +90,8 @@ const EMPTY_STRUCTURE = {
   frequency: "monthly" as (typeof FREQUENCIES)[number],
   due_date: "",
   late_fee_percent: "",
-  late_fee_fixed_amount: "",
+  late_fee_per_day: "",
+  late_fee_max: "",
 };
 
 interface ClassEntry {
@@ -111,9 +112,10 @@ interface DuesRow {
   expected: number;
   paid: number;
   // Late-fee surcharge auto-applied when at least one applicable fee
-  // structure has a due_date in the past. Computed as
-  //   max( amount * late_fee_percent/100, late_fee_fixed_amount )
-  // per overdue structure, then summed.
+  // structure has a due_date in the past. Computed per overdue structure as
+  //   min( max( amount * late_fee_percent/100, daysOverdue * late_fee_per_day ),
+  //        late_fee_max || Infinity )
+  // then summed.
   late_fee: number;
   dues: number;
 }
@@ -698,19 +700,32 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
               sum + Number(fs.amount) * (FEE_FREQ_MULTIPLIER[fs.frequency] ?? 1),
             0
           ) + transportAnnual;
-        // Late fee per overdue structure: pick the larger of the percent and
-        // the fixed-amount surcharge. Structures with no due_date or a
-        // future due_date contribute nothing. Ignored entirely if the
-        // student has no outstanding dues on the structure (covered by the
-        // outer `Math.max(0, expected - paid)` clamp + the per-structure
-        // overdue check).
+        // Late fee per overdue structure: the larger of the one-time percent
+        // surcharge and the per-day surcharge accrued since the due date,
+        // capped at late_fee_max when set. Structures with no due_date or a
+        // future due_date contribute nothing. Ignored entirely if the student
+        // has no outstanding dues on the structure (covered by the outer
+        // `Math.max(0, expected - paid)` clamp + the per-structure overdue
+        // check).
         const lateFee = applicable.reduce((sum, fs) => {
           if (!fs.due_date || fs.due_date >= today) return sum;
           const pct = Number(fs.late_fee_percent ?? 0);
-          const flat = Number(fs.late_fee_fixed_amount ?? 0);
-          if (pct === 0 && flat === 0) return sum;
+          const perDay = Number(fs.late_fee_per_day ?? 0);
+          if (pct === 0 && perDay === 0) return sum;
+          // Whole days elapsed from due_date to today (≥ 1 here, since the
+          // guard above already excluded due_date >= today).
+          const daysOverdue = Math.max(
+            0,
+            Math.floor(
+              (Date.parse(today) - Date.parse(fs.due_date)) / 86_400_000
+            )
+          );
           const pctAmt = (Number(fs.amount) * pct) / 100;
-          return sum + Math.max(pctAmt, flat);
+          const perDayAmt = daysOverdue * perDay;
+          const raw = Math.max(pctAmt, perDayAmt);
+          const cap =
+            fs.late_fee_max != null ? Number(fs.late_fee_max) : Infinity;
+          return sum + Math.min(raw, cap);
         }, 0);
         // `paid + waived` is what the dues view treats as settled. Refunded
         // rows are already filtered out of `payments` above.
@@ -877,9 +892,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       late_fee_percent: fs.late_fee_percent
         ? String(fs.late_fee_percent)
         : "",
-      late_fee_fixed_amount: fs.late_fee_fixed_amount
-        ? String(fs.late_fee_fixed_amount)
+      late_fee_per_day: fs.late_fee_per_day
+        ? String(fs.late_fee_per_day)
         : "",
+      late_fee_max:
+        fs.late_fee_max != null ? String(fs.late_fee_max) : "",
     });
     setStructureDialogOpen(true);
   };
@@ -903,9 +920,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     const lateFeePct = structureForm.late_fee_percent
       ? Number(structureForm.late_fee_percent)
       : 0;
-    const lateFeeFlat = structureForm.late_fee_fixed_amount
-      ? Number(structureForm.late_fee_fixed_amount)
+    const lateFeePerDay = structureForm.late_fee_per_day
+      ? Number(structureForm.late_fee_per_day)
       : 0;
+    // Empty = no cap (null); any entered value is the ceiling.
+    const lateFeeMax =
+      structureForm.late_fee_max.trim() === ""
+        ? null
+        : Number(structureForm.late_fee_max);
     if (
       !Number.isFinite(lateFeePct) ||
       lateFeePct < 0 ||
@@ -915,8 +937,13 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       setStructureSubmitting(false);
       return;
     }
-    if (!Number.isFinite(lateFeeFlat) || lateFeeFlat < 0) {
-      toast.error("Late fee flat amount must be ≥ 0");
+    if (!Number.isFinite(lateFeePerDay) || lateFeePerDay < 0) {
+      toast.error("Late fee per day must be ≥ 0");
+      setStructureSubmitting(false);
+      return;
+    }
+    if (lateFeeMax !== null && (!Number.isFinite(lateFeeMax) || lateFeeMax < 0)) {
+      toast.error("Max late fee must be ≥ 0");
       setStructureSubmitting(false);
       return;
     }
@@ -930,7 +957,8 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       due_date: structureForm.due_date || null,
       stream_id: supportsStream ? (structureForm.stream_id || null) : null,
       late_fee_percent: lateFeePct,
-      late_fee_fixed_amount: lateFeeFlat,
+      late_fee_per_day: lateFeePerDay,
+      late_fee_max: lateFeeMax,
     };
 
     const result = editingStructureId
@@ -2038,7 +2066,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">
-                  Late Fee Flat ₹ (optional)
+                  Late Fee per Day ₹ (optional)
                 </Label>
                 <Input
                   className="h-9"
@@ -2046,18 +2074,38 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                   min={0}
                   step="1"
                   placeholder="0"
-                  value={structureForm.late_fee_fixed_amount}
+                  value={structureForm.late_fee_per_day}
                   onChange={(e) =>
                     setStructureForm({
                       ...structureForm,
-                      late_fee_fixed_amount: e.target.value,
+                      late_fee_per_day: e.target.value,
                     })
                   }
                 />
               </div>
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">
+                Max Late Fee ₹ (optional)
+              </Label>
+              <Input
+                className="h-9"
+                type="number"
+                min={0}
+                step="1"
+                placeholder="No cap"
+                value={structureForm.late_fee_max}
+                onChange={(e) =>
+                  setStructureForm({
+                    ...structureForm,
+                    late_fee_max: e.target.value,
+                  })
+                }
+              />
+            </div>
             <p className="text-[10px] text-gray-500 dark:text-gray-400 -mt-1">
-              Applied per overdue structure: max(amount × %, flat). Leave both at 0 for no surcharge.
+              Charged per overdue structure: max(amount × %, days late × ₹/day),
+              capped at the max if set. Leave % and ₹/day at 0 for no surcharge.
             </p>
             <Button
               onClick={handleSaveStructure}

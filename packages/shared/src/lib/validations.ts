@@ -757,9 +757,15 @@ export const feeStructureSchema = z.object({
     message: "Please select a frequency",
   }),
   description: z.string().optional().or(z.literal("")),
-  // M9 — late fee config. Both default to 0 (no late fee).
+  // M9 — late fee config. All default to 0/no-cap (no late fee).
   late_fee_percent: z.number().finite().min(0).max(100).optional(),
+  // Legacy one-time flat surcharge — kept for backward compatibility, no longer
+  // surfaced in the form (superseded by late_fee_per_day, migration 080).
   late_fee_fixed_amount: z.number().finite().min(0).optional(),
+  // Per-day flat surcharge (₹/day past the due date).
+  late_fee_per_day: z.number().finite().min(0).optional(),
+  // Optional ceiling on the accrued late fee. null/omitted = uncapped.
+  late_fee_max: z.number().finite().min(0).nullable().optional(),
 });
 
 export type FeeStructureData = z.infer<typeof feeStructureSchema>;
@@ -1076,7 +1082,10 @@ export const staffCreateSchema = z.object({
   name: z.string().trim().min(2, "Name is required").max(200),
   subject: z.string().trim().min(1, "Subject/designation is required").max(200),
   category: staffCategoryEnum,
-  photo_url: z.string().url().optional().or(z.literal("")),
+  // Accept null too: a fresh add with no photo sends `photo_url: null`
+  // (existingPhotoUrl defaults to null), which a plain `.optional()` union
+  // would reject with "Invalid data".
+  photo_url: z.string().url().nullish().or(z.literal("")),
   sort_order: z.number().int().min(0).max(100000).optional(),
   // The edit form sends `null` (not "") for optional fields the admin leaves
   // blank or clears, so these must accept null in addition to ""/undefined —

@@ -2033,8 +2033,12 @@ UPDATE storage.buckets
   SET allowed_mime_types = ARRAY['image/jpeg','image/png','image/webp'],
       file_size_limit = 5242880
   WHERE id IN ('gallery','site-media','avatars');
+-- staff-photos also allows webp: the browser upload pipeline (compressImage)
+-- re-encodes cropped JPEGs to webp before upload, so a jpeg/png-only allowlist
+-- rejected every staff photo with "mime type image/webp is not supported".
+-- (migration 079)
 UPDATE storage.buckets
-  SET allowed_mime_types = ARRAY['image/jpeg','image/png'],
+  SET allowed_mime_types = ARRAY['image/jpeg','image/png','image/webp'],
       file_size_limit = 2097152
   WHERE id = 'staff-photos';
 UPDATE storage.buckets
@@ -4075,6 +4079,20 @@ ALTER TABLE fee_structures ADD CONSTRAINT fee_structures_late_fee_percent_range
 ALTER TABLE fee_structures DROP CONSTRAINT IF EXISTS fee_structures_late_fee_fixed_nonneg;
 ALTER TABLE fee_structures ADD CONSTRAINT fee_structures_late_fee_fixed_nonneg
   CHECK (late_fee_fixed_amount >= 0);
+
+-- Per-day late fee + optional cap (migration 080). late_fee_fixed_amount above
+-- is retained for historical rows but superseded by late_fee_per_day.
+ALTER TABLE fee_structures
+  ADD COLUMN IF NOT EXISTS late_fee_per_day numeric(10,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS late_fee_max numeric(10,2);
+
+ALTER TABLE fee_structures DROP CONSTRAINT IF EXISTS fee_structures_late_fee_per_day_nonneg;
+ALTER TABLE fee_structures ADD CONSTRAINT fee_structures_late_fee_per_day_nonneg
+  CHECK (late_fee_per_day >= 0);
+
+ALTER TABLE fee_structures DROP CONSTRAINT IF EXISTS fee_structures_late_fee_max_nonneg;
+ALTER TABLE fee_structures ADD CONSTRAINT fee_structures_late_fee_max_nonneg
+  CHECK (late_fee_max IS NULL OR late_fee_max >= 0);
 
 ALTER TABLE fee_payments
   ADD COLUMN IF NOT EXISTS waiver_amount numeric(10,2) NOT NULL DEFAULT 0,

@@ -94,6 +94,8 @@ export function resolveTransportLine(opts: {
     due_date: null,
     late_fee_percent: 0,
     late_fee_fixed_amount: 0,
+    late_fee_per_day: 0,
+    late_fee_max: null,
     stream_id: null,
     stop_name: fee.stop_name,
     direction,
