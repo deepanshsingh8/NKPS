@@ -48,6 +48,24 @@ export default function TransportDriversPage() {
     const fetchData = async () => {
       setLoading(true);
 
+      // Resolve the current academic year so per-bus counts only reflect
+      // this year's active enrollments (not inflated by prior-year rows).
+      const { data: yearRow } = await supabase
+        .from("academic_years")
+        .select("id")
+        .eq("is_current", true)
+        .maybeSingle();
+      const currentYearId = (yearRow as { id: string } | null)?.id ?? null;
+
+      let enrollmentQuery = supabase
+        .from("student_enrollments")
+        .select("bus_id")
+        .eq("has_transport", true)
+        .eq("status", "active");
+      if (currentYearId) {
+        enrollmentQuery = enrollmentQuery.eq("academic_year_id", currentYearId);
+      }
+
       const [driversRes, busesRes, enrollmentsRes] = await Promise.all([
         supabase
           .from("staff_members")
@@ -57,10 +75,7 @@ export default function TransportDriversPage() {
         supabase
           .from("buses")
           .select("id, bus_number, driver_id, is_active"),
-        supabase
-          .from("student_enrollments")
-          .select("bus_id")
-          .eq("has_transport", true),
+        enrollmentQuery,
       ]);
 
       if (driversRes.error || busesRes.error || enrollmentsRes.error) {

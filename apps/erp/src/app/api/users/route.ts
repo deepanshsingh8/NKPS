@@ -100,6 +100,26 @@ export async function POST(request: Request) {
         .eq("id", newUser.user.id);
     }
 
+    // For admin/staff role: these carry no domain link, so the student/teacher/
+    // parent branches below never run and the handle_new_user trigger's
+    // hardcoded 'student' default would otherwise stick. Set role explicitly.
+    // Service-role client bypasses the migration-061 self-update guard, and
+    // migration-068's role↔link trigger is satisfied by leaving every link null.
+    if ((role === "admin" || role === "staff") && newUser.user) {
+      const { error: roleError } = await supabase
+        .from("profiles")
+        .update({
+          role,
+          teacher_id: null,
+          student_id: null,
+          parent_id: null,
+        })
+        .eq("id", newUser.user.id);
+      if (roleError) {
+        console.error(`Failed to set role for ${role} account:`, roleError);
+      }
+    }
+
     // For student role: create a students record and link it to the profile
     if (role === "student" && newUser.user) {
       // Collision-safe default admission number — a raw email local-part would

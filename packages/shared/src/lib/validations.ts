@@ -121,11 +121,20 @@ const enquiryPhoneSchema = phoneRequiredSchema.refine(
 );
 
 export const contactFormSchema = z.object({
-  fullName: z.string().min(2, "Name must be at least 2 characters"),
+  fullName: z
+    .string()
+    .min(2, "Name must be at least 2 characters")
+    .max(100, "Name must be at most 100 characters"),
   email: enquiryEmailSchema,
   phone: enquiryPhoneSchema,
-  subject: z.string().min(1, "Please select a subject"),
-  message: z.string().min(10, "Message must be at least 10 characters"),
+  subject: z
+    .string()
+    .min(1, "Please select a subject")
+    .max(120, "Subject must be at most 120 characters"),
+  message: z
+    .string()
+    .min(10, "Message must be at least 10 characters")
+    .max(5000, "Message must be at most 5000 characters"),
 });
 
 export type ContactFormData = z.infer<typeof contactFormSchema>;

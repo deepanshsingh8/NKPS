@@ -224,6 +224,10 @@ export default function AdminCalendarPage() {
         start_date: editData.start_date,
         end_date: editData.end_date || null,
         class_id: editData.class_id || null,
+        // Mirror the insert path: a class-scoped event is not school-wide.
+        // Without this the stale flag would keep a class holiday blocking
+        // attendance for every class.
+        is_school_wide: !editData.class_id,
         is_public: editData.is_public,
       },
       match: { column: "id", value: editingEvent.id },

@@ -145,8 +145,9 @@ export default function ParentTimetablePage() {
         .from("student_enrollments")
         .select("class_id")
         .eq("student_id", selectedChild)
+        .order("enrollment_date", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (!enrollment) {
         setEntries([]);

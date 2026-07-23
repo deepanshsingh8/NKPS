@@ -99,14 +99,15 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { data: tc, error } = await admin
+  const { data: rows, error } = await admin
     .from("transfer_certificates")
     .select(
       "id, file_url, student_name, class_last_attended, academic_year"
     )
     .eq("admission_no", admNo)
     .eq("student_dob", dobStr)
-    .maybeSingle();
+    .order("created_at", { ascending: false })
+    .limit(1);
 
   if (error) {
     console.error("[TC lookup] DB error:", error);
@@ -115,6 +116,8 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  const tc = rows?.[0];
 
   if (!tc) {
     console.info(
