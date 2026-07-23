@@ -36,6 +36,9 @@ import type { Bus, BusStop, BusRouteStop, StaffMember } from "@nkps/shared/types
 interface BusWithRelations extends Bus {
   driver_name?: string;
   stop_count?: number;
+  // Names of the stops this bus serves, in stop sort order — used by the
+  // "Stops served" dialog.
+  stop_names?: string[];
 }
 
 export default function AdminBusesPage() {
@@ -56,6 +59,9 @@ export default function AdminBusesPage() {
   const [driverId, setDriverId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [notes, setNotes] = useState("");
+
+  // View-stops dialog (read-only list of a bus's served stops)
+  const [stopsBus, setStopsBus] = useState<BusWithRelations | null>(null);
 
   // Manage-route dialog
   const [routeDialogOpen, setRouteDialogOpen] = useState(false);
@@ -86,23 +92,42 @@ export default function AdminBusesPage() {
         .select("*")
         .eq("is_active", true)
         .order("sort_order", { ascending: true }),
-      supabase.from("bus_route_stops").select("bus_id"),
+      supabase
+        .from("bus_route_stops")
+        .select("bus_id, bus_stops:bus_stop_id(name, sort_order)"),
     ]);
 
     if (busesRes.error) {
       toast.error("Failed to fetch buses");
     } else {
-      // Count stops served per bus.
-      const counts = new Map<string, number>();
-      for (const row of (routeStopsRes.data as { bus_id: string }[]) ?? []) {
-        counts.set(row.bus_id, (counts.get(row.bus_id) ?? 0) + 1);
+      // Group served stops per bus, ordered by the stop's sort_order so the
+      // dialog lists them the way the route runs.
+      type RouteStopRow = {
+        bus_id: string;
+        // PostgREST returns a single object for this to-one FK embed, but the
+        // generated types widen it to an array — cast via unknown below.
+        bus_stops: { name: string; sort_order: number } | null;
+      };
+      const stopsByBus = new Map<string, { name: string; sort_order: number }[]>();
+      for (const row of (routeStopsRes.data as unknown as RouteStopRow[]) ?? []) {
+        if (!row.bus_stops) continue;
+        const list = stopsByBus.get(row.bus_id) ?? [];
+        list.push(row.bus_stops);
+        stopsByBus.set(row.bus_id, list);
       }
       const enriched: BusWithRelations[] = (busesRes.data ?? []).map(
-        (b: Record<string, unknown>) => ({
-          ...(b as unknown as Bus),
-          driver_name: (b.staff_members as { name: string } | null)?.name ?? "—",
-          stop_count: counts.get((b as unknown as Bus).id) ?? 0,
-        })
+        (b: Record<string, unknown>) => {
+          const id = (b as unknown as Bus).id;
+          const stops = (stopsByBus.get(id) ?? []).sort(
+            (a, z) => a.sort_order - z.sort_order
+          );
+          return {
+            ...(b as unknown as Bus),
+            driver_name: (b.staff_members as { name: string } | null)?.name ?? "—",
+            stop_count: stops.length,
+            stop_names: stops.map((s) => s.name),
+          };
+        }
       );
       setBuses(enriched);
     }
@@ -348,7 +373,18 @@ export default function AdminBusesPage() {
                     {bus.registration_number || "—"}
                   </TableCell>
                   <TableCell className="text-gray-600 dark:text-gray-300">
-                    {bus.stop_count}
+                    {bus.stop_count && bus.stop_count > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setStopsBus(bus)}
+                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-amber-700 hover:bg-amber-50 hover:underline dark:text-amber-400 dark:hover:bg-amber-950/30"
+                        title="View stops served"
+                      >
+                        {bus.stop_count} {bus.stop_count === 1 ? "stop" : "stops"}
+                      </button>
+                    ) : (
+                      <span className="text-gray-400">0 stops</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {bus.is_active ? (
@@ -509,6 +545,73 @@ export default function AdminBusesPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Stops Served Dialog (read-only) */}
+      <Dialog open={!!stopsBus} onOpenChange={(open) => !open && setStopsBus(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
+                <Route className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <DialogTitle>Stops Served</DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {stopsBus
+                    ? `${stopsBus.bus_number} · ${stopsBus.stop_count} ${
+                        stopsBus.stop_count === 1 ? "stop" : "stops"
+                      }`
+                    : ""}
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="max-h-80 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
+            {(stopsBus?.stop_names?.length ?? 0) === 0 ? (
+              <p className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
+                No stops assigned yet.
+              </p>
+            ) : (
+              stopsBus?.stop_names?.map((name, i) => (
+                <div
+                  key={`${name}-${i}`}
+                  className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300"
+                >
+                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-[11px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                    {i + 1}
+                  </span>
+                  {name}
+                </div>
+              ))
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStopsBus(null)}
+            >
+              Close
+            </Button>
+            {stopsBus && (
+              <Button
+                type="button"
+                className="bg-navy-900 hover:bg-navy-800 text-white"
+                onClick={() => {
+                  const bus = stopsBus;
+                  setStopsBus(null);
+                  openRouteDialog(bus);
+                }}
+              >
+                <Route className="h-4 w-4 mr-2" />
+                Manage Route
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

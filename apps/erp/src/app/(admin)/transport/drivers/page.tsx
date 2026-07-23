@@ -19,6 +19,7 @@ interface DriverRow {
   id: string;
   name: string;
   phone: string | null;
+  license_number: string | null;
   bus_number: string | null;
   student_count: number | null;
 }
@@ -28,6 +29,7 @@ interface DriverRecord {
   id: string;
   name: string;
   phone: string | null;
+  license_number: string | null;
 }
 
 type BusRecord = Pick<Bus, "id" | "bus_number" | "driver_id" | "is_active">;
@@ -49,7 +51,7 @@ export default function TransportDriversPage() {
       const [driversRes, busesRes, enrollmentsRes] = await Promise.all([
         supabase
           .from("staff_members")
-          .select("id, name, phone")
+          .select("id, name, phone, license_number")
           .eq("category", "busDriver")
           .order("name", { ascending: true }),
         supabase
@@ -95,6 +97,7 @@ export default function TransportDriversPage() {
           id: driver.id,
           name: driver.name,
           phone: driver.phone,
+          license_number: driver.license_number,
           bus_number: bus?.bus_number ?? null,
           student_count: bus ? countByBus.get(bus.id) ?? 0 : null,
         };
@@ -156,6 +159,7 @@ export default function TransportDriversPage() {
               <TableRow>
                 <TableHead>Driver Name</TableHead>
                 <TableHead>Phone</TableHead>
+                <TableHead>License No.</TableHead>
                 <TableHead>Assigned Bus</TableHead>
                 <TableHead className="text-right">Students on Bus</TableHead>
               </TableRow>
@@ -166,6 +170,9 @@ export default function TransportDriversPage() {
                   <TableCell className="font-medium">{row.name}</TableCell>
                   <TableCell className="text-gray-600 dark:text-gray-300">
                     {row.phone || "—"}
+                  </TableCell>
+                  <TableCell className="text-gray-600 dark:text-gray-300">
+                    {row.license_number || "—"}
                   </TableCell>
                   <TableCell className="text-gray-600 dark:text-gray-300">
                     {row.bus_number ? (

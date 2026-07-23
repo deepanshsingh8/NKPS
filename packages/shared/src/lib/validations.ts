@@ -1087,6 +1087,7 @@ export const staffCreateSchema = z.object({
   date_of_birth: dobOptionalSchema.nullable(),
   address: optionalNullableString.nullable(),
   qualifications: optionalNullableString.nullable(),
+  license_number: optionalNullableString.nullable(),
 });
 
 // PATCH allows any subset of the create fields (plus the row id, handled

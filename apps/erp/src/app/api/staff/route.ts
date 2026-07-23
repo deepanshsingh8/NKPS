@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
       date_of_birth,
       address,
       qualifications,
+      license_number,
     } = parsed.data;
 
     const { data, error: insertError } = await admin
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
         date_of_birth: date_of_birth || null,
         address: address || null,
         qualifications: qualifications || null,
+        license_number: license_number || null,
       })
       .select()
       .single();

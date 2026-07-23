@@ -164,6 +164,7 @@ export default function AdminStaffPage() {
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [address, setAddress] = useState("");
   const [qualifications, setQualifications] = useState("");
+  const [licenseNumber, setLicenseNumber] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
   const [croppedPreviewUrl, setCroppedPreviewUrl] = useState<string | null>(null);
@@ -261,6 +262,7 @@ export default function AdminStaffPage() {
     setDateOfBirth("");
     setAddress("");
     setQualifications("");
+    setLicenseNumber("");
     setPhotoFile(null);
     setExistingPhotoUrl(null);
     if (croppedPreviewUrl) URL.revokeObjectURL(croppedPreviewUrl);
@@ -321,6 +323,7 @@ export default function AdminStaffPage() {
     setDateOfBirth(member.date_of_birth || "");
     setAddress(member.address || "");
     setQualifications(member.qualifications || "");
+    setLicenseNumber(member.license_number || "");
     setPhotoFile(null);
     setExistingPhotoUrl(member.photo_url);
     setDialogOpen(true);
@@ -349,6 +352,10 @@ export default function AdminStaffPage() {
         date_of_birth: dateOfBirth || null,
         address: address.trim() || null,
         qualifications: qualifications.trim() || null,
+        // License applies only to bus drivers; clear it for any other category
+        // so a stale value can't linger if the category is changed.
+        license_number:
+          category === "busDriver" ? licenseNumber.trim() || null : null,
       };
 
       if (editingId) {
@@ -831,6 +838,17 @@ export default function AdminStaffPage() {
                 onChange={(e) => setAddress(e.target.value)}
               />
             </div>
+
+            {category === "busDriver" && (
+              <div className="space-y-2">
+                <Label>Driving License Number</Label>
+                <Input
+                  placeholder="e.g. UP32 20230001234"
+                  value={licenseNumber}
+                  onChange={(e) => setLicenseNumber(e.target.value)}
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Profile Photo</Label>
