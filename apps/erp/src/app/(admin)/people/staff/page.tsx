@@ -797,10 +797,12 @@ export default function AdminStaffPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      {/* Portal login: a green check when one already exists,
-                          otherwise (admins only) a "Create login" action —
-                          shown only for staff with an email whose category
-                          actually gets a login (bus drivers/peons don't). */}
+                      {/* Portal login (admins only, and only for categories
+                          that get a login — bus drivers/peons don't):
+                          - green check when a login already exists;
+                          - "Create login" action when there's an email;
+                          - a muted "No email" hint when there isn't, so the
+                            missing action is explained rather than just absent. */}
                       {hasLogin(member) ? (
                         <span
                           title="Has a portal login"
@@ -808,10 +810,8 @@ export default function AdminStaffPage() {
                         >
                           <UserCheck className="h-4 w-4" />
                         </span>
-                      ) : (
-                        isAdmin &&
-                        !!member.email?.trim() &&
-                        staffPortalRole(member.category) !== null && (
+                      ) : isAdmin && staffPortalRole(member.category) !== null ? (
+                        member.email?.trim() ? (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -831,8 +831,15 @@ export default function AdminStaffPage() {
                               <UserPlus className="h-4 w-4" />
                             )}
                           </Button>
+                        ) : (
+                          <span
+                            title="Add an email (Edit) to create a login"
+                            className="whitespace-nowrap px-1 text-[11px] italic text-gray-400"
+                          >
+                            No email
+                          </span>
                         )
-                      )}
+                      ) : null}
                       {/* Convert-to-teacher: only for teaching categories that
                           aren't already linked to a teachers row. */}
                       {isTeachingStaffCategory(member.category) &&
