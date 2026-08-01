@@ -486,6 +486,20 @@ export default function AdminStudentsPage() {
   const router = useRouter();
 
   const fetchClasses = useCallback(async () => {
+    // Streams and the academic-year list don't depend on the current year, so
+    // they're kicked off immediately and awaited later — only the classes
+    // query has to wait for the current-year lookup. Previously all four ran
+    // back to back, costing four serial round trips on every page load.
+    const streamsPromise = supabase
+      .from("streams")
+      .select("*")
+      .eq("is_active", true)
+      .order("sort_order");
+    const allYearsPromise = supabase
+      .from("academic_years")
+      .select("id, name, is_current")
+      .order("name", { ascending: false });
+
     // Fetch classes for the current academic year
     const { data: years } = await supabase
       .from("academic_years")
@@ -512,19 +526,13 @@ export default function AdminStudentsPage() {
     }));
     setClasses(classOptions);
 
-    // Fetch active streams for higher-class enrollment
-    const { data: streamsData } = await supabase
-      .from("streams")
-      .select("*")
-      .eq("is_active", true)
-      .order("sort_order");
+    // Streams (for higher-class enrolment) and the academic-year list (for
+    // promotion) were requested above and are already in flight.
+    const [{ data: streamsData }, { data: allYears }] = await Promise.all([
+      streamsPromise,
+      allYearsPromise,
+    ]);
     setStreams((streamsData as Stream[]) ?? []);
-
-    // Fetch all academic years for promotion
-    const { data: allYears } = await supabase
-      .from("academic_years")
-      .select("id, name, is_current")
-      .order("name", { ascending: false });
     setAcademicYears((allYears as AcademicYear[]) ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
