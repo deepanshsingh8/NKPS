@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, memo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
@@ -111,6 +111,13 @@ const ENROLLMENT_STATUSES: EnrollmentStatus[] = [
   "active", "passed", "failed", "terminated", "exited",
 ];
 
+// Passed to the row's <Select> so the wrapper can skip its recursive
+// collectSelectItems() walk over the children on every render.
+const ENROLLMENT_STATUS_ITEMS = ENROLLMENT_STATUSES.map((st) => ({
+  value: st,
+  label: st.charAt(0).toUpperCase() + st.slice(1),
+}));
+
 const STATUS_BADGE_STYLES: Record<EnrollmentStatus, string> = {
   active: "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400",
   passed: "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
@@ -210,6 +217,179 @@ function ProfileDetailSection({
     </div>
   );
 }
+
+// One row of the students table, memoised.
+//
+// The Add/Edit dialog keeps its form state in this page component, so every
+// keystroke re-renders the page — and the table sits mounted underneath the
+// dialog. Each row carries a base-ui Select plus 4-5 icon buttons, so a class
+// of 40 students meant ~1,600 elements rebuilt per character typed, which is
+// what made text lag behind the keyboard on mobile.
+//
+// Memoising works only because every prop is a primitive or a stable
+// reference: `actions` is built once (see `actions` in the page) and reads its
+// handlers through a ref, so it never changes identity while still calling the
+// latest logic. A keystroke in the dialog now re-renders zero rows.
+interface StudentRowActions {
+  onOpenDetail: (student: StudentRow) => void;
+  onToggleSelect: (studentId: string) => void;
+  onEdit: (student: StudentRow) => void;
+  onFees: (studentId: string) => void;
+  onInvite: (student: StudentRow) => void;
+  onDelete: (student: StudentRow) => void;
+  onStatusChange: (enrollmentId: string, status: EnrollmentStatus) => void;
+}
+
+const StudentTableRow = memo(function StudentTableRow({
+  student,
+  selected,
+  showClassColumn,
+  isAdmin,
+  actions,
+}: {
+  student: StudentRow;
+  selected: boolean;
+  showClassColumn: boolean;
+  isAdmin: boolean;
+  actions: StudentRowActions;
+}) {
+  return (
+    <TableRow
+      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-muted/30"
+      onClick={() => actions.onOpenDetail(student)}
+    >
+      <TableCell onClick={(e) => e.stopPropagation()}>
+        <Checkbox
+          checked={selected}
+          onCheckedChange={() => actions.onToggleSelect(student.id)}
+        />
+      </TableCell>
+      <TableCell className="font-medium">{student.admission_no}</TableCell>
+      <TableCell>{student.full_name}</TableCell>
+      {showClassColumn && (
+        <TableCell className="text-gray-600 dark:text-gray-300">
+          {student.class_name ? (
+            <span>
+              {student.class_name}
+              {student.class_section ? `-${student.class_section}` : ""}
+            </span>
+          ) : (
+            <Badge
+              variant="secondary"
+              className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-950/50"
+              onClick={(e) => {
+                e.stopPropagation();
+                actions.onEdit(student);
+              }}
+              title="Click to assign a class"
+            >
+              Unassigned
+            </Badge>
+          )}
+        </TableCell>
+      )}
+      {!showClassColumn && (
+        <TableCell className="text-gray-600 dark:text-gray-300">
+          {student.roll_number ?? "—"}
+        </TableCell>
+      )}
+      <TableCell className="text-gray-600 dark:text-gray-300">
+        {student.father_name || "—"}
+      </TableCell>
+      <TableCell onClick={(e) => e.stopPropagation()}>
+        {student.enrollment_id ? (
+          <Select
+            value={student.enrollment_status || "active"}
+            items={ENROLLMENT_STATUS_ITEMS}
+            onValueChange={(val) => {
+              if (val && student.enrollment_id) {
+                actions.onStatusChange(student.enrollment_id, val as EnrollmentStatus);
+              }
+            }}
+          >
+            <SelectTrigger className="h-7 w-[110px] text-xs border-0 bg-transparent p-0 pr-6">
+              <Badge
+                variant="secondary"
+                className={STATUS_BADGE_STYLES[student.enrollment_status || "active"]}
+              >
+                {(student.enrollment_status || "active").charAt(0).toUpperCase() +
+                  (student.enrollment_status || "active").slice(1)}
+              </Badge>
+            </SelectTrigger>
+            <SelectContent>
+              {ENROLLMENT_STATUSES.map((st) => (
+                <SelectItem key={st} value={st}>
+                  {st.charAt(0).toUpperCase() + st.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Badge
+            variant="secondary"
+            className={
+              student.enrollment_status
+                ? STATUS_BADGE_STYLES[student.enrollment_status]
+                : student.is_active
+                  ? STATUS_BADGE_STYLES.active
+                  : STATUS_BADGE_STYLES.exited
+            }
+          >
+            {student.enrollment_status
+              ? student.enrollment_status.charAt(0).toUpperCase() + student.enrollment_status.slice(1)
+              : student.is_active ? "Active" : "Inactive"}
+          </Badge>
+        )}
+      </TableCell>
+      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => actions.onEdit(student)}
+            aria-label="Edit student"
+            className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+            title="Edit student"
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => actions.onFees(student.id)}
+            aria-label="View fees / record payment"
+            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+            title="View fees / record payment"
+          >
+            <Receipt className="h-4 w-4" />
+          </Button>
+          {isAdmin && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => actions.onInvite(student)}
+              aria-label="Invite guardian"
+              className="text-violet-500 hover:text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30"
+              title="Invite parent/guardian"
+            >
+              <UserPlus className="h-4 w-4" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => actions.onDelete(student)}
+            aria-label="Delete student"
+            className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+            title="Delete student"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 export default function AdminStudentsPage() {
   // These actions are admin-only (enforced server-side): creating portal login
@@ -845,6 +1025,38 @@ export default function AdminStudentsPage() {
     });
   };
 
+  // Row callbacks, stabilised via a ref. The handlers above are redefined on
+  // every render (they close over page state), which would defeat the memo on
+  // StudentTableRow. Routing them through a ref gives the rows one permanently
+  // stable `actions` object that still invokes the newest handler — no stale
+  // closures and no dependency arrays to keep in sync.
+  const rowHandlersRef = useRef<StudentRowActions | null>(null);
+  useEffect(() => {
+    rowHandlersRef.current = {
+      onOpenDetail: (student) => setDetailStudent(student),
+      onToggleSelect: (studentId) => toggleSelection(studentId),
+      onEdit: (student) => openEditDialog(student),
+      onFees: (studentId) => router.push(`/fees/payments?student_id=${studentId}`),
+      onInvite: (student) => openInviteDialog(student),
+      onDelete: (student) => handleDelete(student),
+      onStatusChange: (enrollmentId, status) => handleStatusChange(enrollmentId, status),
+    };
+  });
+  const rowActions = useMemo<StudentRowActions>(
+    () => ({
+      onOpenDetail: (student) => rowHandlersRef.current?.onOpenDetail(student),
+      onToggleSelect: (studentId) => rowHandlersRef.current?.onToggleSelect(studentId),
+      onEdit: (student) => rowHandlersRef.current?.onEdit(student),
+      onFees: (studentId) => rowHandlersRef.current?.onFees(studentId),
+      onInvite: (student) => rowHandlersRef.current?.onInvite(student),
+      onDelete: (student) => rowHandlersRef.current?.onDelete(student),
+      onStatusChange: (enrollmentId, status) =>
+        rowHandlersRef.current?.onStatusChange(enrollmentId, status),
+    }),
+    []
+  );
+
+
   const toggleSelectAll = () => {
     if (selectedIds.size === filteredStudents.length) {
       setSelectedIds(new Set());
@@ -1185,144 +1397,14 @@ export default function AdminStudentsPage() {
               </TableHeader>
               <TableBody>
                 {filteredStudents.map((student) => (
-                  <TableRow
+                  <StudentTableRow
                     key={student.id}
-                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-muted/30"
-                    onClick={() => setDetailStudent(student)}
-                  >
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={selectedIds.has(student.id)}
-                        onCheckedChange={() => toggleSelection(student.id)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {student.admission_no}
-                    </TableCell>
-                    <TableCell>{student.full_name}</TableCell>
-                    {!selectedClassId && (
-                      <TableCell className="text-gray-600 dark:text-gray-300">
-                        {student.class_name ? (
-                          <span>
-                            {student.class_name}
-                            {student.class_section ? `-${student.class_section}` : ""}
-                          </span>
-                        ) : (
-                          <Badge
-                            variant="secondary"
-                            className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-950/50"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openEditDialog(student);
-                            }}
-                            title="Click to assign a class"
-                          >
-                            Unassigned
-                          </Badge>
-                        )}
-                      </TableCell>
-                    )}
-                    {selectedClassId && (
-                      <TableCell className="text-gray-600 dark:text-gray-300">
-                        {student.roll_number ?? "\u2014"}
-                      </TableCell>
-                    )}
-                    <TableCell className="text-gray-600 dark:text-gray-300">
-                      {student.father_name || "\u2014"}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      {student.enrollment_id ? (
-                        <Select
-                          value={student.enrollment_status || "active"}
-                          onValueChange={(val) => {
-                            if (val && student.enrollment_id) {
-                              handleStatusChange(student.enrollment_id, val as EnrollmentStatus);
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="h-7 w-[110px] text-xs border-0 bg-transparent p-0 pr-6">
-                            <Badge
-                              variant="secondary"
-                              className={STATUS_BADGE_STYLES[student.enrollment_status || "active"]}
-                            >
-                              {(student.enrollment_status || "active").charAt(0).toUpperCase() +
-                                (student.enrollment_status || "active").slice(1)}
-                            </Badge>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ENROLLMENT_STATUSES.map((st) => (
-                              <SelectItem key={st} value={st}>
-                                {st.charAt(0).toUpperCase() + st.slice(1)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Badge
-                          variant="secondary"
-                          className={
-                            student.enrollment_status
-                              ? STATUS_BADGE_STYLES[student.enrollment_status]
-                              : student.is_active
-                                ? STATUS_BADGE_STYLES.active
-                                : STATUS_BADGE_STYLES.exited
-                          }
-                        >
-                          {student.enrollment_status
-                            ? student.enrollment_status.charAt(0).toUpperCase() + student.enrollment_status.slice(1)
-                            : student.is_active ? "Active" : "Inactive"}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => openEditDialog(student)}
-                          aria-label="Edit student"
-                          className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-                          title="Edit student"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() =>
-                            router.push(`/fees/payments?student_id=${student.id}`)
-                          }
-                          aria-label="View fees / record payment"
-                          className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                          title="View fees / record payment"
-                        >
-                          <Receipt className="h-4 w-4" />
-                        </Button>
-                        {isAdmin && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => openInviteDialog(student)}
-                            aria-label="Invite guardian"
-                            className="text-violet-500 hover:text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30"
-                            title="Invite parent/guardian"
-                          >
-                            <UserPlus className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => handleDelete(student)}
-                          aria-label="Delete student"
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
-                          title="Delete student"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                    student={student}
+                    selected={selectedIds.has(student.id)}
+                    showClassColumn={!selectedClassId}
+                    isAdmin={!!isAdmin}
+                    actions={rowActions}
+                  />
                 ))}
               </TableBody>
             </Table>
