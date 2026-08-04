@@ -8,15 +8,12 @@ import { TopBar } from "@/components/layout/TopBar";
 import { ScrollToTop } from "@/components/layout/ScrollToTop";
 import { FloatingDoodles } from "@nkps/shared/components/FloatingDoodles";
 
-// Floating, below-the-fold widgets. Load them client-side only so their
-// framer-motion bundles don't compete for the main thread during the initial
-// hydration that gates LCP.
-const ChatBot = dynamic(
-  () => import("@nkps/shared/components/ChatBot").then((m) => m.ChatBot),
-  { ssr: false }
-);
-const WhatsAppButton = dynamic(
-  () => import("@nkps/shared/components/WhatsAppButton").then((m) => m.WhatsAppButton),
+// Floating, below-the-fold widget. Loaded client-side only so its
+// framer-motion bundle doesn't compete for the main thread during the initial
+// hydration that gates LCP. The unified NKPS Agent combines the AI assistant,
+// WhatsApp, and call-the-school actions under a single entry point.
+const NkpsAgent = dynamic(
+  () => import("@nkps/shared/components/NkpsAgent").then((m) => m.NkpsAgent),
   { ssr: false }
 );
 
@@ -47,8 +44,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       {children}
       <Footer />
       <ScrollToTop />
-      <WhatsAppButton />
-      <ChatBot />
+      <NkpsAgent />
     </>
   );
 }
