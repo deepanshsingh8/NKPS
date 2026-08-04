@@ -30,7 +30,7 @@ import {
 } from "@nkps/shared/components/ui/table";
 import { toast } from "sonner";
 import { Loader2, Bus as BusIcon, Search, Pencil } from "lucide-react";
-import { adminApi } from "@nkps/shared/lib/admin-api";
+import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import type {
   AcademicYear,
   BusStop,
@@ -119,46 +119,20 @@ export default function StudentTransportAssignmentsPage() {
   const fetchData = async () => {
     setLoading(true);
 
-    // Resolve active academic year: prefer is_current, else newest by name.
-    const { data: yearsData, error: yearsError } = await supabase
-      .from("academic_years")
-      .select("*")
-      .order("name", { ascending: false });
-
-    if (yearsError) {
-      toast.error("Failed to load academic years");
-      setLoading(false);
-      return;
-    }
-
-    const years = (yearsData as AcademicYear[]) ?? [];
-    const year = years.find((y) => y.is_current) ?? years[0] ?? null;
-    setActiveYear(year);
-
-    if (!year) {
-      setEnrollments([]);
-      setLoading(false);
-      return;
-    }
-
-    const [enrollRes, stopsRes, feesRes, busesRes, routeRes] = await Promise.all([
-      supabase
-        .from("student_enrollments")
-        .select(
-          "id, student_id, class_id, has_transport, bus_stop_id, bus_id, transport_direction, transport_fee_override, pickup_address, students(full_name, admission_no), classes(name, section, streams(name))"
-        )
-        .eq("academic_year_id", year.id),
+    // Enrollments and the year-scoped fees come from /api/transport/assignments
+    // (service role, gated on the `transport` grant). Reading student data
+    // straight from the browser put it under RLS, where office staff matched
+    // no policy and got an empty list rather than an error — see the route for
+    // the full story. The fleet tables are world-readable, so they stay here
+    // and load in parallel with that request.
+    const [assignmentsRes, stopsRes, busesRes, routeRes] = await Promise.all([
+      adminFetch("/api/transport/assignments"),
       supabase
         .from("bus_stops")
         .select("*")
         .eq("is_active", true)
         .order("sort_order", { ascending: true })
         .order("name", { ascending: true }),
-      supabase
-        .from("bus_stop_fees")
-        .select("*")
-        .eq("academic_year_id", year.id)
-        .eq("is_active", true),
       supabase
         .from("buses")
         .select("*")
@@ -167,19 +141,22 @@ export default function StudentTransportAssignmentsPage() {
       supabase.from("bus_route_stops").select("*"),
     ]);
 
-    if (enrollRes.error) {
-      toast.error("Failed to load enrollments");
+    const payload = await assignmentsRes.json().catch(() => null);
+
+    if (!assignmentsRes.ok || !payload) {
+      toast.error(payload?.error || "Failed to load enrollments");
       setLoading(false);
       return;
     }
 
-    setEnrollments((enrollRes.data as unknown as EnrollmentRow[]) ?? []);
+    setActiveYear((payload.year as AcademicYear | null) ?? null);
+    setEnrollments((payload.enrollments as EnrollmentRow[]) ?? []);
     setStops((stopsRes.data as BusStop[]) ?? []);
     setBuses((busesRes.data as Bus[]) ?? []);
     setRouteStops((routeRes.data as BusRouteStop[]) ?? []);
 
     const feeMap = new Map<string, number>();
-    ((feesRes.data as BusStopFee[] | null) ?? []).forEach((f) => {
+    ((payload.fees as BusStopFee[] | null) ?? []).forEach((f) => {
       feeMap.set(f.bus_stop_id, f.amount);
     });
     setFeeByStop(feeMap);
