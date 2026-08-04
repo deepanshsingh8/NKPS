@@ -1449,6 +1449,13 @@ CREATE POLICY "Admins can read all students"
   ON students FOR SELECT
   USING (public.get_user_role() = 'admin');
 
+-- Office staff holding any editor capability (transport, attendance, fees, …)
+-- read student data from the browser on the admin screens. Per-feature gating
+-- is applied in the app layer; RLS stays role-coarse. See migration 084.
+CREATE POLICY "students_select_staff"
+  ON students FOR SELECT
+  USING (public.get_user_role() = 'staff');
+
 CREATE POLICY "Teachers can read students in their classes"
   ON students FOR SELECT
   USING (
@@ -1668,6 +1675,12 @@ ALTER TABLE student_enrollments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Admins can read all enrollments"
   ON student_enrollments FOR SELECT
   USING (public.get_user_role() = 'admin');
+
+-- Mirrors students_select_staff — the admin screens embed students(...) under
+-- enrollment queries, and RLS applies to the embedded resource too.
+CREATE POLICY "student_enrollments_select_staff"
+  ON student_enrollments FOR SELECT
+  USING (public.get_user_role() = 'staff');
 
 CREATE POLICY "Admins can insert enrollments"
   ON student_enrollments FOR INSERT
