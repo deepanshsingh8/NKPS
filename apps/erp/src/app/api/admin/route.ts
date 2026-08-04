@@ -67,8 +67,29 @@ const EDITOR_RESTRICTED_ACTIONS = {
   fee_payments: ["update", "delete"],
 } as const;
 
+// student_enrollments is owned by the students module, but /transport/assignments
+// updates only its transport columns. Without this, an editor granted 'transport'
+// could open the page and save nothing. The rule is column-scoped, so a transport
+// grant still cannot reach roll_number, status or any other enrollment column.
+const COLUMN_SCOPED_FEATURE_KEYS = {
+  student_enrollments: [
+    {
+      featureKey: "transport",
+      columns: [
+        "has_transport",
+        "bus_stop_id",
+        "bus_id",
+        "transport_direction",
+        "transport_fee_override",
+        "pickup_address",
+      ],
+    },
+  ],
+} as const;
+
 export const POST = createAdminProxyHandler({
   tableFeatureKey: TABLE_FEATURE_KEY,
   allowedColumns: ALLOWED_COLUMNS,
   editorRestrictedActions: EDITOR_RESTRICTED_ACTIONS,
+  columnScopedFeatureKeys: COLUMN_SCOPED_FEATURE_KEYS,
 });
