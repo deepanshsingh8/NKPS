@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getCallerAccess } from "@nkps/shared/lib/verify-admin";
 import {
   resolveEffectiveFeeStructures,
+  resolveStudentType,
+  amountBilledToDate,
   sumAnnualized,
   annualizedAmount,
   resolveTransportLine,
@@ -24,12 +26,21 @@ export async function GET() {
   const can = (key: FeatureKey) => isAdmin || permissions.has(key);
 
   // Current academic year (cheap; used by fee + enrollment blocks)
+  // start_date/end_date drive two things in the fee block: classifying a
+  // student as new vs returning (admission-fee eligibility), and anchoring
+  // recurring fees that carry no due date of their own.
   const { data: currentYear } = await admin
     .from("academic_years")
-    .select("id")
+    .select("id, start_date, end_date")
     .eq("is_current", true)
     .maybeSingle();
   const currentYearId = currentYear?.id ?? null;
+  const currentYearRange = currentYear
+    ? {
+        start_date: (currentYear.start_date as string | null) ?? null,
+        end_date: (currentYear.end_date as string | null) ?? null,
+      }
+    : null;
 
   // Date ranges
   const now = new Date();
@@ -65,19 +76,24 @@ export async function GET() {
       // !inner join through fee_structures dropped transport-slab payments
       // (whose fee_structure_id is null) and waiver/historical payments
       // whose linked structure was deleted.
+      // 'refunded' rows are pulled too: a partial refund flips the status
+      // while amount_paid stays put, so filtering them out erased the whole
+      // receipt from collections. Each row's net cash is settled below.
+      // waiver_amount rides along because a waived fee is settled for dues
+      // purposes even though no cash was collected.
       wantFees && currentYearId
         ? admin
             .from("fee_payments")
-            .select("amount_paid, status")
+            .select("amount_paid, refund_amount, waiver_amount, status")
             .eq("academic_year_id", currentYearId)
-            .in("status", ["paid", "partial"])
+            .in("status", ["paid", "partial", "refunded"])
         : Promise.resolve({ data: null }),
 
       wantFees && currentYearId
         ? admin
             .from("fee_structures")
             .select(
-              "id, academic_year_id, class_name, class_level, stream_id, fee_type, amount, due_date, frequency, is_active, description, created_at, updated_at"
+              "id, academic_year_id, class_name, class_level, stream_id, fee_type, amount, due_date, frequency, is_active, description, instalment_no, instalment_name, month_label, student_type, late_fee_start_date, created_at, updated_at"
             )
             .eq("academic_year_id", currentYearId)
             .eq("is_active", true)
@@ -102,7 +118,7 @@ export async function GET() {
         ? admin
             .from("student_enrollments")
             .select(
-              "class_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, classes!inner(name, section, academic_year_id), streams(name, code)"
+              "class_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, classes!inner(name, section, academic_year_id), streams(name, code), students(admission_date)"
             )
             .eq("classes.academic_year_id", currentYearId)
             .eq("status", "active")
@@ -182,6 +198,10 @@ export async function GET() {
     bus_stop_id: string | null;
     transport_direction: TransportDirection | null;
     transport_fee_override: number | null;
+    students:
+      | { admission_date: string | null }
+      | { admission_date: string | null }[]
+      | null;
     classes:
       | { name: string; section: string }
       | { name: string; section: string }[]
@@ -193,8 +213,24 @@ export async function GET() {
   }[];
 
   if (wantFees) {
-    const payments = (feePaymentsRes.data ?? []) as { amount_paid: number }[];
-    const collected = payments.reduce((sum, p) => sum + Number(p.amount_paid), 0);
+    const payments = (feePaymentsRes.data ?? []) as {
+      amount_paid: number;
+      refund_amount: number | null;
+      waiver_amount: number | null;
+    }[];
+    // Two different numbers, deliberately:
+    //   collected — actual cash the school holds, net of refunds. Drives the
+    //               collection percentage; a waived fee was never collected.
+    //   settled   — cash plus waivers. Drives dues, because a waived fee is
+    //               not owed. Matches the admin dues register exactly.
+    const collected = payments.reduce(
+      (sum, p) =>
+        sum + Math.max(0, Number(p.amount_paid) - Number(p.refund_amount ?? 0)),
+      0
+    );
+    const settled =
+      collected +
+      payments.reduce((sum, p) => sum + Number(p.waiver_amount ?? 0), 0);
 
     const structures = (feeStructuresRes.data ?? []) as FeeStructure[];
     const structuresByClass = new Map<string, FeeStructure[]>();
@@ -226,17 +262,38 @@ export async function GET() {
       };
     });
 
+    // One "today" for the whole pass so two students evaluated either side of
+    // midnight can't disagree about whether an instalment has fallen due.
+    const today = new Date().toISOString().slice(0, 10);
+    const yearStartDate = currentYearRange?.start_date ?? null;
+
+    // totalExpected  — the session's whole obligation.
+    // totalDueToDate — the slice of it that has actually fallen due. Dues are
+    //                  measured against this, so the dashboard agrees with the
+    //                  Dues / No-Dues register instead of counting a January
+    //                  instalment as an August arrear.
     let totalExpected = 0;
+    let totalDueToDate = 0;
     for (const e of enrollments) {
       const raw = e.classes;
       const cls = Array.isArray(raw) ? raw[0] : raw;
       if (!cls) continue;
+      const studentRaw = e.students;
+      const student = Array.isArray(studentRaw) ? studentRaw[0] : studentRaw;
       const classStructures = structuresByClass.get(cls.name);
       if (classStructures && classStructures.length > 0) {
         const effective = resolveEffectiveFeeStructures(classStructures, {
           studentStreamId: e.stream_id ?? null,
+          // Admission/registration rows bill this year's intake only.
+          studentType: resolveStudentType(
+            student?.admission_date,
+            currentYearRange
+          ),
         });
         totalExpected += sumAnnualized(effective);
+        for (const fs of effective) {
+          totalDueToDate += amountBilledToDate(fs, today, yearStartDate);
+        }
       }
       const transportLine = resolveTransportLine({
         hasTransport: !!e.has_transport,
@@ -245,13 +302,31 @@ export async function GET() {
         feeOverride: e.transport_fee_override,
         stopFees,
       });
-      if (transportLine) totalExpected += annualizedAmount(transportLine);
+      if (transportLine) {
+        totalExpected += annualizedAmount(transportLine);
+        totalDueToDate += amountBilledToDate(
+          transportLine,
+          today,
+          yearStartDate
+        );
+      }
     }
 
     response.feeCollection = {
       collected,
       expected: totalExpected,
-      percentage: totalExpected > 0 ? Math.round((collected / totalExpected) * 100) : 0,
+      dueToDate: totalDueToDate,
+      // Outstanding as of today — what the office would chase this week.
+      dues: Math.max(0, totalDueToDate - settled),
+      // Progress against what has fallen due, not against the whole session.
+      // Measured on cash so the bar tracks money actually banked.
+      percentage:
+        totalDueToDate > 0
+          ? Math.round((collected / totalDueToDate) * 100)
+          : 0,
+      // Kept separately so the card can still say "x% of the year" if needed.
+      percentageOfYear:
+        totalExpected > 0 ? Math.round((collected / totalExpected) * 100) : 0,
     };
   }
 
