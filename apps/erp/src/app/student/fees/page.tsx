@@ -19,7 +19,11 @@ import {
 } from "@nkps/shared/components/ui/table";
 import { Button } from "@nkps/shared/components/ui/button";
 import { CreditCard, CheckCircle, AlertCircle, Loader2, Download } from "lucide-react";
-import { resolveEffectiveFeeLines, sumAnnualized } from "@/lib/fees";
+import {
+  resolveEffectiveFeeLines,
+  resolveStudentType,
+  sumAnnualized,
+} from "@/lib/fees";
 import type { StopFeeLookup } from "@/lib/fees";
 import type {
   FeeStructure,
@@ -90,6 +94,30 @@ export default function StudentFeesPage() {
       const academicYearId =
         (enrollment?.academic_year_id as string | null) ?? null;
 
+      // A schedule row can be restricted to newly-admitted or returning
+      // students (the admission fee bills only this year's intake), so the
+      // student's own admission date and the year's span decide which rows
+      // they actually owe.
+      const [{ data: studentRow }, { data: yearRow }] = await Promise.all([
+        supabase
+          .from("students")
+          .select("admission_date")
+          .eq("id", studentId)
+          .maybeSingle(),
+        academicYearId
+          ? supabase
+              .from("academic_years")
+              .select("start_date, end_date")
+              .eq("id", academicYearId)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
+      const studentType = resolveStudentType(
+        (studentRow?.admission_date as string | null) ?? null,
+        (yearRow as { start_date: string | null; end_date: string | null } | null) ??
+          null
+      );
+
       // Fetch fee structures for student's class + per-stop fees for the year,
       // then resolve unified fee lines (academic + the assigned stop's fee).
       if (className) {
@@ -133,6 +161,7 @@ export default function StudentFeesPage() {
         const resolved = resolveEffectiveFeeLines({
           structures: (structuresData as FeeStructure[]) ?? [],
           studentStreamId: streamId,
+          studentType,
           hasTransport,
           busStopId,
           direction,

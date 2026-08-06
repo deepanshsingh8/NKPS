@@ -21,7 +21,11 @@ import {
 } from "@nkps/shared/components/ui/table";
 import { CreditCard, CheckCircle, AlertCircle, Loader2, Users, Wallet, Download } from "lucide-react";
 import { toast } from "sonner";
-import { resolveEffectiveFeeLines, sumAnnualized } from "@/lib/fees";
+import {
+  resolveEffectiveFeeLines,
+  resolveStudentType,
+  sumAnnualized,
+} from "@/lib/fees";
 import type { StopFeeLookup } from "@/lib/fees";
 import type {
   FeeStructure,
@@ -163,6 +167,29 @@ export default function ParentFeesPage() {
       const academicYearId =
         (enrollment?.academic_year_id as string | null) ?? null;
 
+      // A schedule row can bill newly-admitted or returning students only
+      // (the admission fee applies to this year's intake), so resolve which
+      // side of that line this child falls on before listing their fees.
+      const [{ data: studentRow }, { data: yearRow }] = await Promise.all([
+        supabase
+          .from("students")
+          .select("admission_date")
+          .eq("id", selectedChild)
+          .maybeSingle(),
+        academicYearId
+          ? supabase
+              .from("academic_years")
+              .select("start_date, end_date")
+              .eq("id", academicYearId)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
+      const studentType = resolveStudentType(
+        (studentRow?.admission_date as string | null) ?? null,
+        (yearRow as { start_date: string | null; end_date: string | null } | null) ??
+          null
+      );
+
       // Fetch fee structures for the class + per-stop fees for the year,
       // then resolve unified fee lines (academic + the assigned stop's fee).
       let lines: EffectiveFeeLine[] = [];
@@ -208,6 +235,7 @@ export default function ParentFeesPage() {
         lines = resolveEffectiveFeeLines({
           structures: (structuresData as FeeStructure[]) ?? [],
           studentStreamId: streamId,
+          studentType,
           hasTransport,
           busStopId,
           direction,
