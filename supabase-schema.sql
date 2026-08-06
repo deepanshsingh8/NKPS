@@ -4129,6 +4129,36 @@ ALTER TABLE fee_structures DROP CONSTRAINT IF EXISTS fee_structures_late_fee_max
 ALTER TABLE fee_structures ADD CONSTRAINT fee_structures_late_fee_max_nonneg
   CHECK (late_fee_max IS NULL OR late_fee_max >= 0);
 
+-- Instalment-based fee schedules (migration 085). Each row of the school's
+-- fee-schedule grid is a `fee_structures` row with frequency='one_time';
+-- these columns carry the grid's own fields. `late_fee_start_date` is the
+-- grace anchor the late fee accrues from (NULL = fall back to due_date).
+ALTER TABLE fee_structures
+  ADD COLUMN IF NOT EXISTS instalment_no smallint,
+  ADD COLUMN IF NOT EXISTS instalment_name text,
+  ADD COLUMN IF NOT EXISTS month_label text,
+  ADD COLUMN IF NOT EXISTS student_type text NOT NULL DEFAULT 'both',
+  ADD COLUMN IF NOT EXISTS late_fee_start_date date;
+
+ALTER TABLE fee_structures DROP CONSTRAINT IF EXISTS fee_structures_student_type_check;
+ALTER TABLE fee_structures ADD CONSTRAINT fee_structures_student_type_check
+  CHECK (student_type IN ('new', 'existing', 'both'));
+
+ALTER TABLE fee_structures DROP CONSTRAINT IF EXISTS fee_structures_instalment_no_positive;
+ALTER TABLE fee_structures ADD CONSTRAINT fee_structures_instalment_no_positive
+  CHECK (instalment_no IS NULL OR instalment_no > 0);
+
+ALTER TABLE fee_structures DROP CONSTRAINT IF EXISTS fee_structures_late_fee_start_after_due;
+ALTER TABLE fee_structures ADD CONSTRAINT fee_structures_late_fee_start_after_due
+  CHECK (
+    late_fee_start_date IS NULL
+    OR due_date IS NULL
+    OR late_fee_start_date >= due_date
+  );
+
+CREATE INDEX IF NOT EXISTS idx_fee_structures_schedule
+  ON fee_structures (academic_year_id, class_name, stream_id, due_date, instalment_no);
+
 ALTER TABLE fee_payments
   ADD COLUMN IF NOT EXISTS waiver_amount numeric(10,2) NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS waiver_reason text,

@@ -3,6 +3,7 @@ import type { FeeStructure, TransportDirection } from "@nkps/shared/types";
 import {
   sumAnnualized,
   resolveEffectiveFeeLines,
+  resolveStudentType,
   type StopFeeLookup,
 } from "./fees";
 
@@ -79,6 +80,30 @@ export async function getStudentOutstandingDues(
   const academicYearId =
     (enrollment.academic_year_id as string | null) ?? null;
 
+  // Schedule rows may be restricted to newly-admitted or returning students
+  // (migration 085). Gating on a fee the student never owed would block a
+  // returning student's downloads over an admission fee, so classify them the
+  // same way the fees screens do — by admission date against the billed year.
+  const [{ data: studentRow }, { data: yearRow }] = await Promise.all([
+    admin
+      .from("students")
+      .select("admission_date")
+      .eq("id", studentId)
+      .maybeSingle(),
+    academicYearId
+      ? admin
+          .from("academic_years")
+          .select("start_date, end_date")
+          .eq("id", academicYearId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const studentType = resolveStudentType(
+    (studentRow?.admission_date as string | null) ?? null,
+    (yearRow as { start_date: string | null; end_date: string | null } | null) ??
+      null
+  );
+
   let totalFees = 0;
   if (className) {
     let structuresQuery = admin
@@ -129,6 +154,7 @@ export async function getStudentOutstandingDues(
     const lines = resolveEffectiveFeeLines({
       structures: (structuresData as FeeStructure[]) ?? [],
       studentStreamId: streamId,
+      studentType,
       hasTransport,
       busStopId,
       direction,

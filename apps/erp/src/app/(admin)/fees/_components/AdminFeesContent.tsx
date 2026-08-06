@@ -38,10 +38,14 @@ import { formatClassName } from "@nkps/shared/lib/utils";
 import {
   resolveEffectiveFeeStructures,
   resolveEffectiveFeeLines,
+  resolveStudentType,
+  computeLateFee,
+  feeLineLabel,
   FEE_FREQ_MULTIPLIER,
   annualizedAmount,
   type StopFeeLookup,
 } from "@/lib/fees";
+import { FEE_HEADS } from "@nkps/shared/types";
 import type {
   FeeStructure,
   FeePayment,
@@ -50,8 +54,10 @@ import type {
   EffectiveFeeLine,
   TransportDirection,
   FeeFrequency,
+  FeeStudentType,
 } from "@nkps/shared/types";
 import { HistoricalFeesImportDialog } from "@/components/HistoricalFeesImportDialog";
+import { FeeScheduleGrid } from "./FeeScheduleGrid";
 
 const CLASS_NAMES = [
   "Nursery",
@@ -73,7 +79,16 @@ const CLASS_NAMES = [
 
 const STREAM_CLASSES = ["XI", "XII"];
 
-const FEE_TYPES = ["Tuition", "Lab", "Annual", "Other"];
+// Heads offered by the single-row dialog. FEE_HEADS carries the schedule's
+// vocabulary ("Tuition Fee", "Admission Fee"); the older short labels stay
+// listed so pre-085 rows keep their own head when edited here.
+const FEE_TYPES = [...FEE_HEADS, "Tuition", "Lab", "Annual", "Other"];
+
+const STUDENT_TYPE_OPTIONS: { value: FeeStudentType; label: string }[] = [
+  { value: "both", label: "Both" },
+  { value: "new", label: "New Student" },
+  { value: "existing", label: "Old Student" },
+];
 const FREQUENCIES = ["monthly", "quarterly", "annual", "one_time"] as const;
 const PAYMENT_METHODS = [
   "cash",
@@ -89,6 +104,10 @@ const EMPTY_STRUCTURE = {
   amount: "",
   frequency: "monthly" as (typeof FREQUENCIES)[number],
   due_date: "",
+  instalment_name: "",
+  month_label: "",
+  student_type: "both" as FeeStudentType,
+  late_fee_start_date: "",
   late_fee_percent: "",
   late_fee_per_day: "",
   late_fee_max: "",
@@ -267,16 +286,28 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   });
   const [waiverSubmitting, setWaiverSubmitting] = useState(false);
 
-  // Academic year
+  // Academic year. The date range is needed as well as the id: a student
+  // counts as "new" (and so owes the admission fee) when their admission date
+  // falls inside the year being billed.
   const [academicYearId, setAcademicYearId] = useState("");
+  const [academicYearRange, setAcademicYearRange] = useState<{
+    start_date: string | null;
+    end_date: string | null;
+  } | null>(null);
 
   const fetchAcademicYear = useCallback(async () => {
     const { data } = await supabase
       .from("academic_years")
-      .select("id")
+      .select("id, start_date, end_date")
       .eq("is_current", true)
       .single();
-    if (data) setAcademicYearId(data.id);
+    if (data) {
+      setAcademicYearId(data.id);
+      setAcademicYearRange({
+        start_date: (data.start_date as string | null) ?? null,
+        end_date: (data.end_date as string | null) ?? null,
+      });
+    }
   }, [supabase]);
 
   const fetchStreams = useCallback(async () => {
@@ -420,7 +451,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       let query = supabase
         .from("fee_structures")
         .select("*")
-        .eq("class_name", className);
+        // Only live rows for the year being billed. A schedule row that was
+        // already receipted can't be hard-deleted, so removing it from the
+        // schedule flips is_active instead — those must not reappear here.
+        .eq("class_name", className)
+        .eq("is_active", true);
+      if (academicYearId) {
+        query = query.eq("academic_year_id", academicYearId);
+      }
 
       if (streamId) {
         query = query.or(`stream_id.is.null,stream_id.eq.${streamId}`);
@@ -604,7 +642,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       const { data: enrollments } = await supabase
         .from("student_enrollments")
         .select(
-          "id, student_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, students(id, full_name, admission_no, father_name, is_active)"
+          "id, student_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, students(id, full_name, admission_no, father_name, is_active, admission_date)"
         )
         .eq("class_id", duesClassId)
         .eq("academic_year_id", academicYearId)
@@ -678,9 +716,15 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           full_name: string;
           admission_no: string;
           father_name: string | null;
+          admission_date: string | null;
         } | null;
         const applicable = resolveEffectiveFeeStructures(allStructures, {
           studentStreamId: (e.stream_id as string | null) ?? null,
+          // Admission/registration rows bill this year's intake only.
+          studentType: resolveStudentType(
+            stu?.admission_date,
+            academicYearRange
+          ),
         });
         // Transport dues: price the assigned stop's per-year fee. A one-side
         // facility (direction != 'both') bills the per-student override when
@@ -727,37 +771,21 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           );
         }
         // Late fee per overdue structure: the larger of the one-time percent
-        // surcharge and the per-day surcharge accrued since the due date,
-        // capped at late_fee_max when set. Structures with no due_date or a
-        // future due_date contribute nothing. A structure that is individually
+        // surcharge and the per-day surcharge accrued since the late-fee
+        // anchor (the schedule's grace date, else the due date), capped at
+        // late_fee_max when set — see computeLateFee. Structures that aren't
+        // overdue yet contribute nothing. A structure that is individually
         // fully settled contributes no late fee even when the student owes on
         // another line (#11) — previously the whole late-fee sum was gated only
         // on the student's aggregate balance, so a paid-on-time structure was
         // still surcharged whenever any other fee remained due.
         const lateFee = applicable.reduce((sum, fs) => {
-          if (!fs.due_date || fs.due_date >= today) return sum;
-          const pct = Number(fs.late_fee_percent ?? 0);
-          const perDay = Number(fs.late_fee_per_day ?? 0);
-          if (pct === 0 && perDay === 0) return sum;
           // Skip structures with no outstanding balance of their own.
           const structureExpected =
             Number(fs.amount) * (FEE_FREQ_MULTIPLIER[fs.frequency] ?? 1);
           const structurePaid = paidByStructure.get(fs.id) ?? 0;
           if (structurePaid >= structureExpected) return sum;
-          // Whole days elapsed from due_date to today (≥ 1 here, since the
-          // guard above already excluded due_date >= today).
-          const daysOverdue = Math.max(
-            0,
-            Math.floor(
-              (Date.parse(today) - Date.parse(fs.due_date)) / 86_400_000
-            )
-          );
-          const pctAmt = (Number(fs.amount) * pct) / 100;
-          const perDayAmt = daysOverdue * perDay;
-          const raw = Math.max(pctAmt, perDayAmt);
-          const cap =
-            fs.late_fee_max != null ? Number(fs.late_fee_max) : Infinity;
-          return sum + Math.min(raw, cap);
+          return sum + computeLateFee(fs, today);
         }, 0);
         // `paid + waived` is what the dues view treats as settled, summed
         // across every structure + transport for the student-level balance.
@@ -793,7 +821,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     } finally {
       setDuesLoading(false);
     }
-  }, [supabase, duesClassId, academicYearId, classesList]);
+  }, [supabase, duesClassId, academicYearId, academicYearRange, classesList]);
 
   useEffect(() => {
     if (duesClassId) computeDues();
@@ -852,15 +880,25 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     );
   };
 
+  // New vs returning student, for schedule rows restricted by audience —
+  // the admission/registration fee bills only this year's intake.
+  const selectedStudentType = useMemo<FeeStudentType | null>(
+    () =>
+      resolveStudentType(selectedStudent?.admission_date, academicYearRange),
+    [selectedStudent?.admission_date, academicYearRange]
+  );
+
   // Effective academic fee structures for the selected student. Applies the
   // section/stream override rule (a stream-specific structure hides the
-  // class-wide one for the same fee_type). Transport is no longer part of
-  // fee_structures (migration 050) — it's resolved separately below.
+  // class-wide one for the same fee_type) and the schedule's student-type
+  // restriction. Transport is no longer part of fee_structures
+  // (migration 050) — it's resolved separately below.
   const applicableFeeStructures = useMemo(() => {
     return resolveEffectiveFeeStructures(studentFeeStructures, {
       studentStreamId: selectedStudentStreamId,
+      studentType: selectedStudentType,
     });
-  }, [studentFeeStructures, selectedStudentStreamId]);
+  }, [studentFeeStructures, selectedStudentStreamId, selectedStudentType]);
 
   // Unified fee lines (academic + the student's assigned transport stop).
   // The record-payment dropdown maps over this so transport sits alongside
@@ -883,6 +921,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     return resolveEffectiveFeeLines({
       structures: studentFeeStructures,
       studentStreamId: selectedStudentStreamId,
+      studentType: selectedStudentType,
       hasTransport: studentHasTransport,
       busStopId: studentBusStopId,
       direction: studentTransportDirection,
@@ -892,6 +931,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   }, [
     studentFeeStructures,
     selectedStudentStreamId,
+    selectedStudentType,
     studentHasTransport,
     studentBusStopId,
     studentTransportDirection,
@@ -921,6 +961,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       amount: String(fs.amount),
       frequency: fs.frequency,
       due_date: fs.due_date ?? "",
+      instalment_name: fs.instalment_name ?? "",
+      month_label: fs.month_label ?? "",
+      student_type: fs.student_type ?? "both",
+      late_fee_start_date: fs.late_fee_start_date ?? "",
       late_fee_percent: fs.late_fee_percent
         ? String(fs.late_fee_percent)
         : "",
@@ -979,6 +1023,17 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       setStructureSubmitting(false);
       return;
     }
+    // The DB rejects a grace date that precedes the due date; catch it here so
+    // the admin gets a sentence instead of a constraint name.
+    if (
+      structureForm.late_fee_start_date &&
+      structureForm.due_date &&
+      structureForm.late_fee_start_date < structureForm.due_date
+    ) {
+      toast.error("Late fee start date cannot be before the due date");
+      setStructureSubmitting(false);
+      return;
+    }
 
     const data: Record<string, unknown> = {
       academic_year_id: academicYearId,
@@ -988,6 +1043,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       frequency: structureForm.frequency,
       due_date: structureForm.due_date || null,
       stream_id: supportsStream ? (structureForm.stream_id || null) : null,
+      instalment_name: structureForm.instalment_name.trim() || null,
+      month_label: structureForm.month_label.trim() || null,
+      student_type: structureForm.student_type,
+      late_fee_start_date: structureForm.late_fee_start_date || null,
       late_fee_percent: lateFeePct,
       late_fee_per_day: lateFeePerDay,
       late_fee_max: lateFeeMax,
@@ -1309,7 +1368,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     section === "academic" ? "Academic Fees" : "Payment Management";
   const sectionSubtitle =
     section === "academic"
-      ? "Tuition, lab, annual and other class-level fee structures."
+      ? "Instalment-wise fee schedule per class, and the full structure list."
       : "Record payments, refunds and dues by class.";
 
   return (
@@ -1324,7 +1383,21 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       </div>
 
       {section === "academic" && (
-        <div>
+        <Tabs defaultValue="schedule">
+          <TabsList>
+            <TabsTrigger value="schedule">Fee Schedule</TabsTrigger>
+            <TabsTrigger value="all">All Structures</TabsTrigger>
+          </TabsList>
+
+          {/* The schedule grid is the primary editor: a row per instalment,
+              laid out the way the school publishes its fees. The flat list
+              below stays for cross-class review and for legacy recurring
+              rows the grid intentionally doesn't model. */}
+          <TabsContent value="schedule">
+            <FeeScheduleGrid />
+          </TabsContent>
+
+          <TabsContent value="all">
           {/* Academic — tuition / lab / annual / other */}
           <div>
               <Card className="bg-white dark:bg-card rounded-2xl shadow-sm mt-3">
@@ -1367,10 +1440,12 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                         <TableRow>
                           <TableHead>Class</TableHead>
                           <TableHead>Stream</TableHead>
-                          <TableHead>Fee Type</TableHead>
+                          <TableHead>Fee Head</TableHead>
+                          <TableHead>Instalment</TableHead>
                           <TableHead>Amount</TableHead>
                           <TableHead>Frequency</TableHead>
                           <TableHead>Due Date</TableHead>
+                          <TableHead>Student Type</TableHead>
                           <TableHead className="w-24 text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1384,6 +1459,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                               {fs.stream_id ? streamById[fs.stream_id] ?? "—" : "All streams"}
                             </TableCell>
                             <TableCell>{fs.fee_type}</TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-300">
+                              {fs.instalment_name ?? "--"}
+                              {fs.month_label ? (
+                                <span className="block text-xs text-gray-400 dark:text-gray-500">
+                                  {fs.month_label}
+                                </span>
+                              ) : null}
+                            </TableCell>
                             <TableCell>
                               {new Intl.NumberFormat("en-IN", {
                                 style: "currency",
@@ -1394,7 +1477,24 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                             <TableCell className="capitalize">
                               {fs.frequency.replace("_", " ")}
                             </TableCell>
-                            <TableCell>{fs.due_date ?? "--"}</TableCell>
+                            <TableCell>
+                              {fs.due_date ?? "--"}
+                              {/* The grace date the late fee actually runs
+                                  from, when it differs from the due date. */}
+                              {fs.late_fee_start_date &&
+                              fs.late_fee_start_date !== fs.due_date ? (
+                                <span className="block text-xs text-gray-400 dark:text-gray-500">
+                                  late fee from {fs.late_fee_start_date}
+                                </span>
+                              ) : null}
+                            </TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-300">
+                              {fs.student_type === "new"
+                                ? "New Student"
+                                : fs.student_type === "existing"
+                                  ? "Old Student"
+                                  : "Both"}
+                            </TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1">
                                 <button
@@ -1421,7 +1521,8 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </CardContent>
               </Card>
           </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       )}
 
       {section === "payments" && (
@@ -1556,13 +1657,23 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {applicableFeeLines.map((line) => {
                           const isTransport = line.kind === "transport_stop";
+                          // Schedule rows carry their own dates and month
+                          // label, which is what the family recognises on the
+                          // printed schedule — show those instead of the
+                          // frequency multiplier a one_time row doesn't use.
                           const subtitle = isTransport
                             ? `${line.frequency.replace("_", " ")} • ${line.stop_name}`
-                            : `${line.frequency.replace("_", " ")}${
+                            : [
+                                line.due_date
+                                  ? `Due ${line.due_date}`
+                                  : line.frequency.replace("_", " "),
+                                line.month_label,
                                 line.stream_id && streamById[line.stream_id]
-                                  ? ` • ${streamById[line.stream_id]}`
-                                  : ""
-                              }`;
+                                  ? streamById[line.stream_id]
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" • ");
                           return (
                             <div
                               key={line.id}
@@ -1571,6 +1682,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                               <p className="font-medium text-sm">
                                 {line.fee_type}
                               </p>
+                              {!isTransport && line.instalment_name ? (
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {line.instalment_name}
+                                </p>
+                              ) : null}
                               <p className="text-lg font-bold text-navy-900 dark:text-white">
                                 {new Intl.NumberFormat("en-IN", {
                                   style: "currency",
@@ -1578,7 +1694,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                   maximumFractionDigits: 0,
                                 }).format(line.amount)}
                               </p>
-                              <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">
+                              <p className="text-xs text-gray-400 dark:text-gray-500">
                                 {subtitle}
                               </p>
                             </div>
@@ -1620,7 +1736,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                             <TableCell>
                               {p.bus_stop
                                 ? `Transport — ${p.bus_stop.name}`
-                                : p.fee_structure?.fee_type ?? "--"}
+                                : p.fee_structure
+                                  ? feeLineLabel(p.fee_structure)
+                                  : "--"}
                             </TableCell>
                             <TableCell>
                               {new Intl.NumberFormat("en-IN", {
@@ -2064,16 +2182,94 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </select>
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Due Date (optional)</Label>
+                <Input
+                  className="h-9"
+                  type="date"
+                  value={structureForm.due_date}
+                  onChange={(e) =>
+                    setStructureForm({ ...structureForm, due_date: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">
+                  Late Fee Start Date (optional)
+                </Label>
+                <Input
+                  className="h-9"
+                  type="date"
+                  min={structureForm.due_date || undefined}
+                  value={structureForm.late_fee_start_date}
+                  onChange={(e) =>
+                    setStructureForm({
+                      ...structureForm,
+                      late_fee_start_date: e.target.value,
+                    })
+                  }
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Blank = the late fee starts on the due date.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">
+                  Instalment Name (optional)
+                </Label>
+                <Input
+                  className="h-9"
+                  placeholder="1st Instalment (Tuition Fee)"
+                  value={structureForm.instalment_name}
+                  onChange={(e) =>
+                    setStructureForm({
+                      ...structureForm,
+                      instalment_name: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">
+                  Month Name (optional)
+                </Label>
+                <Input
+                  className="h-9"
+                  placeholder="April, 2026"
+                  value={structureForm.month_label}
+                  onChange={(e) =>
+                    setStructureForm({
+                      ...structureForm,
+                      month_label: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </div>
             <div className="space-y-1">
-              <Label className="text-xs font-medium">Due Date (optional)</Label>
-              <Input
-                className="h-9"
-                type="date"
-                value={structureForm.due_date}
+              <Label className="text-xs font-medium">Student Type</Label>
+              <select
+                value={structureForm.student_type}
                 onChange={(e) =>
-                  setStructureForm({ ...structureForm, due_date: e.target.value })
+                  setStructureForm({
+                    ...structureForm,
+                    student_type: e.target.value as FeeStudentType,
+                  })
                 }
-              />
+                className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+              >
+                {STUDENT_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Admission and registration fees usually bill new students only.
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -2178,12 +2374,21 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
               <Label className="text-xs font-medium">Fee</Label>
               <select
                 value={newPayment.fee_target}
-                onChange={(e) =>
+                onChange={(e) => {
+                  // A scheduled instalment already says which period it
+                  // covers ("April, 2026"), so prefill Month from it rather
+                  // than making the clerk retype what the schedule states.
+                  const [kind, id] = e.target.value.split(":");
+                  const picked =
+                    kind === "fs"
+                      ? applicableFeeStructures.find((fs) => fs.id === id)
+                      : undefined;
                   setNewPayment({
                     ...newPayment,
                     fee_target: e.target.value,
-                  })
-                }
+                    month: picked?.month_label ?? newPayment.month,
+                  });
+                }}
                 className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
               >
                 <option value="">Select fee</option>
@@ -2195,13 +2400,16 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     currency: "INR",
                     maximumFractionDigits: 0,
                   }).format(line.amount);
+                  // Instalments of the same head are otherwise
+                  // indistinguishable in this list — name and due date are
+                  // what tells the 2nd instalment from the 3rd.
                   const label = isTransport
                     ? `Transport — ${line.stop_name} (${amountText})`
-                    : `${
+                    : `${feeLineLabel(line)}${
                         line.stream_id && streamById[line.stream_id]
-                          ? `${line.fee_type} (${streamById[line.stream_id]})`
-                          : line.fee_type
-                      } - ${amountText}`;
+                          ? ` (${streamById[line.stream_id]})`
+                          : ""
+                      }${line.due_date ? ` · due ${line.due_date}` : ""} - ${amountText}`;
                   return (
                     <option key={value} value={value}>
                       {label}
@@ -2504,10 +2712,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 className="mt-1 block w-full rounded-md border border-gray-200 dark:border-border px-3 py-2 text-sm dark:bg-muted"
               >
                 <option value="">Select…</option>
-                {studentFeeStructures.map((fs) => (
+                {applicableFeeStructures.map((fs) => (
                   <option key={fs.id} value={fs.id}>
-                    {fs.fee_type} — ₹{fs.amount}
+                    {feeLineLabel(fs)} — ₹{fs.amount}
                     {fs.frequency !== "one_time" ? ` / ${fs.frequency}` : ""}
+                    {fs.due_date ? ` · due ${fs.due_date}` : ""}
                   </option>
                 ))}
               </select>
