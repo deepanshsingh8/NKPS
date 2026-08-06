@@ -40,6 +40,7 @@ import {
   resolveEffectiveFeeLines,
   resolveStudentType,
   computeLateFee,
+  amountBilledToDate,
   feeLineLabel,
   FEE_FREQ_MULTIPLIER,
   annualizedAmount,
@@ -128,7 +129,12 @@ interface DuesRow {
   father_name: string | null;
   class_label: string;
   has_transport: boolean;
+  // Whole-year obligation — what the class's schedule totals for this student.
   expected: number;
+  // The slice of `expected` that has actually fallen due as of today. Dues are
+  // measured against this, not the annual figure: an instalment due in January
+  // is not an arrear in August.
+  billed_to_date: number;
   paid: number;
   // Late-fee surcharge auto-applied when at least one applicable fee
   // structure has a due_date in the past. Computed per overdue structure as
@@ -711,6 +717,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       // crossing midnight mid-computation doesn't get a different verdict
       // than its neighbour.
       const today = new Date().toISOString().slice(0, 10);
+      // Fallback anchor for recurring fees that carry no due date of their own
+      // (legacy monthly/quarterly rows, transport stop fees): they run with the
+      // academic year, so periods elapse from its start.
+      const yearStartDate = academicYearRange?.start_date ?? null;
       const rows: DuesRow[] = (enrollments ?? []).map((e) => {
         const stu = e.students as unknown as {
           full_name: string;
@@ -733,15 +743,21 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           e.has_transport && e.bus_stop_id
             ? stopFeesById.get(e.bus_stop_id as string)
             : undefined;
-        const transportAnnual = stopFee
-          ? annualizedAmount({
+        const transportLine = stopFee
+          ? {
               amount:
                 (e.transport_direction as string | null) !== "both" &&
                 e.transport_fee_override != null
                   ? Number(e.transport_fee_override)
                   : Number(stopFee.amount),
               frequency: stopFee.frequency,
-            })
+              // Stop fees carry no due date of their own; they run with the
+              // academic year, so that's the anchor for elapsed periods.
+              due_date: null,
+            }
+          : null;
+        const transportAnnual = transportLine
+          ? annualizedAmount(transportLine)
           : 0;
         const expected =
           applicable.reduce(
@@ -749,6 +765,16 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
               sum + Number(fs.amount) * (FEE_FREQ_MULTIPLIER[fs.frequency] ?? 1),
             0
           ) + transportAnnual;
+        // The same total, restricted to what has actually fallen due. This is
+        // what dues are measured against — see DuesRow.billed_to_date.
+        const billedToDate =
+          applicable.reduce(
+            (sum, fs) => sum + amountBilledToDate(fs, today, yearStartDate),
+            0
+          ) +
+          (transportLine
+            ? amountBilledToDate(transportLine, today, yearStartDate)
+            : 0);
         // Net settled cash per fee structure for this student, keyed by
         // fee_structure_id (transport payments carry a null structure and are
         // excluded — transport has no late fee). A partial refund leaves
@@ -796,9 +822,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             Number(p.waiver_amount ?? 0),
           0
         );
-        // Late fee only applies to the unpaid portion. Once a student has
-        // covered the base expected amount, the surcharge stops accruing.
-        const baseDues = Math.max(0, expected - paid);
+        // Dues are what's owed TODAY: the amount billed so far, less what has
+        // been settled. Money paid ahead against a future instalment still
+        // counts as settled, so a family that clears the year in April shows
+        // Nil rather than a phantom credit.
+        //
+        // Late fee only applies while something billed remains unpaid. Once a
+        // student has covered everything due to date, the surcharge stops.
+        const baseDues = Math.max(0, billedToDate - paid);
         const effectiveLateFee = baseDues > 0 ? lateFee : 0;
         return {
           student_id: e.student_id as string,
@@ -808,6 +839,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           class_label: classLabel,
           has_transport: Boolean(e.has_transport),
           expected,
+          billed_to_date: billedToDate,
           paid,
           late_fee: effectiveLateFee,
           dues: baseDues + effectiveLateFee,
@@ -872,8 +904,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         { key: "father_name", header: "Father" },
         { key: "class_label", header: "Class" },
         { key: "has_transport", header: "Transport" },
-        { key: "expected", header: "Expected (INR)" },
+        { key: "expected", header: "Annual Fee (INR)" },
+        { key: "billed_to_date", header: "Due Till Date (INR)" },
         { key: "paid", header: "Paid (INR)" },
+        { key: "late_fee", header: "Late Fee (INR)" },
         { key: "dues", header: "Dues (INR)" },
       ],
       `${subset === "clear" ? "no-dues" : subset === "dues" ? "dues" : "fees-report"}-${new Date().toISOString().split("T")[0]}`
@@ -1863,6 +1897,21 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         <TabsContent value="dues">
           <Card className="bg-white dark:bg-card rounded-2xl shadow-sm mt-4">
             <CardContent>
+              {/* The basis of the figures has to be stated: a register that
+                  silently mixed "owed now" with "owed by March" would name
+                  every student a defaulter from day one of the session. */}
+              <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+                Dues are counted as of{" "}
+                <span className="font-medium">
+                  {new Date().toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </span>
+                . Instalments that fall due later in the session are shown under
+                Annual Fee but are not treated as arrears.
+              </p>
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
                 <div>
                   <Label className="text-xs font-medium">Class</Label>
@@ -1976,7 +2025,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                   <TableHead>Father</TableHead>
                                   <TableHead>Transport</TableHead>
                                   <TableHead className="text-right">
-                                    Expected
+                                    Annual Fee
+                                  </TableHead>
+                                  <TableHead className="text-right">
+                                    Due Till Date
                                   </TableHead>
                                   <TableHead className="text-right">
                                     Paid
@@ -2010,12 +2062,19 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                         </span>
                                       )}
                                     </TableCell>
-                                    <TableCell className="text-right">
+                                    <TableCell className="text-right text-gray-500 dark:text-gray-400">
                                       {new Intl.NumberFormat("en-IN", {
                                         style: "currency",
                                         currency: "INR",
                                         maximumFractionDigits: 0,
                                       }).format(r.expected)}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      {new Intl.NumberFormat("en-IN", {
+                                        style: "currency",
+                                        currency: "INR",
+                                        maximumFractionDigits: 0,
+                                      }).format(r.billed_to_date)}
                                     </TableCell>
                                     <TableCell className="text-right">
                                       {new Intl.NumberFormat("en-IN", {

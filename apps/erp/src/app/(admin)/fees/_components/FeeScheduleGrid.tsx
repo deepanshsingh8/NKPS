@@ -17,7 +17,7 @@ import {
 } from "@nkps/shared/components/ui/dialog";
 import { Card, CardContent } from "@nkps/shared/components/ui/card";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Copy, AlarmClock } from "lucide-react";
+import { Plus, Trash2, Loader2, Copy, AlarmClock, Eraser } from "lucide-react";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
 import { compareScheduleRows } from "@/lib/fees";
 import { FEE_HEADS } from "@nkps/shared/types";
@@ -47,6 +47,15 @@ const CLASS_NAMES = [
 ];
 
 const STREAM_CLASSES = ["XI"];
+
+// How many times a year the old recurring model bills a row. Shown on legacy
+// rows so it's obvious that a ₹8,750 "quarterly" row is really ₹35,000 a year
+// — the mismatch the instalment schedule exists to remove.
+const LEGACY_MULTIPLIER: Record<string, number> = {
+  monthly: 12,
+  quarterly: 4,
+  annual: 1,
+};
 
 const STUDENT_TYPE_LABELS: Record<FeeStudentType, string> = {
   new: "New Student",
@@ -251,6 +260,11 @@ export function FeeScheduleGrid() {
     };
   }, [rows]);
 
+  const legacyRowCount = useMemo(
+    () => rows.filter((r) => r.legacy_frequency).length,
+    [rows]
+  );
+
   const lateFeeRow = rows.find((r) => r.key === lateFeeRowKey) ?? null;
 
   const handleSave = async () => {
@@ -451,6 +465,26 @@ export function FeeScheduleGrid() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              {/* Starting a class over shouldn't mean clicking the bin once
+                  per row. Clearing is staged like any other edit — nothing
+                  leaves the database until Save. */}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (
+                    !confirm(
+                      `Clear all ${rows.length} row(s) for ${selectedClass}? Nothing is deleted until you press Save.`
+                    )
+                  )
+                    return;
+                  setRows([]);
+                  setDirty(true);
+                }}
+                disabled={rows.length === 0 || loading}
+              >
+                <Eraser className="h-4 w-4 mr-2" />
+                Clear all rows
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => setCopyOpen(true)}
@@ -478,6 +512,19 @@ export function FeeScheduleGrid() {
             </div>
           ) : (
             <>
+              {/* Rows carried over from the old recurring model are billed N
+                  times a year, which almost never matches a published
+                  schedule. Say so plainly rather than leaving the admin to
+                  work out why the totals look wrong. */}
+              {legacyRowCount > 0 && (
+                <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                  {legacyRowCount} row(s) here were set up before this schedule
+                  existed, as recurring fees. The totals below count each of
+                  them once, but the system currently bills them by their
+                  frequency (a quarterly row is charged 4× a year). Replace them
+                  with one row per instalment and press Save to fix that.
+                </div>
+              )}
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1100px] border-collapse text-sm">
                   <thead>
@@ -509,9 +556,13 @@ export function FeeScheduleGrid() {
                       rows.map((row, i) => (
                         <tr
                           key={row.key}
-                          className="border-t border-gray-200 dark:border-border"
+                          // Top-align every cell: a row carrying the legacy
+                          // frequency badge is taller than its neighbours, and
+                          // the default middle alignment then floats that
+                          // row's other inputs out of line with the rest.
+                          className="border-t border-gray-200 dark:border-border [&>td]:align-top"
                         >
-                          <td className="px-2 py-2 text-gray-500 dark:text-gray-400">
+                          <td className="px-2 py-2 text-gray-500 dark:text-gray-400 leading-9">
                             {i + 1}
                           </td>
                           <td className="px-2 py-2">
@@ -581,10 +632,16 @@ export function FeeScheduleGrid() {
                             {row.legacy_frequency && (
                               <Badge
                                 variant="secondary"
-                                className="mt-1 text-[10px]"
-                                title={`This fee was set up as a ${row.legacy_frequency} fee. Saving the schedule converts it to a single dated instalment of this amount.`}
+                                className="mt-1 text-[10px] whitespace-nowrap"
+                                title={`This fee is currently stored as a ${row.legacy_frequency.replace(
+                                  "_",
+                                  " "
+                                )} fee, so the system bills it ${
+                                  LEGACY_MULTIPLIER[row.legacy_frequency] ?? 1
+                                }× a year. Saving converts it to this single dated instalment.`}
                               >
-                                was {row.legacy_frequency.replace("_", " ")}
+                                × {LEGACY_MULTIPLIER[row.legacy_frequency] ?? 1}{" "}
+                                {row.legacy_frequency.replace("_", " ")}
                               </Badge>
                             )}
                           </td>
@@ -639,30 +696,37 @@ export function FeeScheduleGrid() {
                               aria-label={`Late fee start date for row ${i + 1}`}
                             />
                           </td>
-                          <td className="px-2 py-2 text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 px-2 text-xs"
-                              onClick={() => setLateFeeRowKey(row.key)}
-                              title="Late fee rate for this instalment"
-                            >
-                              <AlarmClock className="h-3.5 w-3.5 mr-1" />
-                              {row.late_fee_per_day
-                                ? `₹${row.late_fee_per_day}/day`
-                                : row.late_fee_percent
-                                  ? `${row.late_fee_percent}%`
-                                  : "Set"}
-                            </Button>
+                          {/* The action cells hold buttons shorter than the
+                              h-9 inputs beside them, so each gets an h-9 box
+                              that centres its control on the input's midline. */}
+                          <td className="px-2 py-2">
+                            <div className="flex h-9 items-center justify-end">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 text-xs"
+                                onClick={() => setLateFeeRowKey(row.key)}
+                                title="Late fee rate for this instalment"
+                              >
+                                <AlarmClock className="h-3.5 w-3.5 mr-1" />
+                                {row.late_fee_per_day
+                                  ? `₹${row.late_fee_per_day}/day`
+                                  : row.late_fee_percent
+                                    ? `${row.late_fee_percent}%`
+                                    : "Set"}
+                              </Button>
+                            </div>
                           </td>
-                          <td className="px-2 py-2 text-right">
-                            <button
-                              onClick={() => removeRow(row.key)}
-                              className="rounded-md bg-gold-500 hover:bg-gold-600 text-white p-1.5"
-                              aria-label={`Delete row ${i + 1}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                          <td className="px-2 py-2">
+                            <div className="flex h-9 items-center justify-end">
+                              <button
+                                onClick={() => removeRow(row.key)}
+                                className="rounded-md bg-gold-500 hover:bg-gold-600 text-white p-1.5"
+                                aria-label={`Delete row ${i + 1}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))

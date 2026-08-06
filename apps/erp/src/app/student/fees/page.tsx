@@ -20,6 +20,7 @@ import {
 import { Button } from "@nkps/shared/components/ui/button";
 import { CreditCard, CheckCircle, AlertCircle, Loader2, Download } from "lucide-react";
 import {
+  amountBilledToDate,
   resolveEffectiveFeeLines,
   resolveStudentType,
   sumAnnualized,
@@ -40,9 +41,18 @@ const formatCurrency = (amount: number) =>
     maximumFractionDigits: 0,
   }).format(amount);
 
+// Today, as YYYY-MM-DD. Computed once per render pass so every fee line is
+// judged against the same date.
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
 export default function StudentFeesPage() {
   const [loading, setLoading] = useState(true);
   const [feeLines, setFeeLines] = useState<EffectiveFeeLine[]>([]);
+  // The year's start anchors recurring fees that carry no due date of their
+  // own (transport stop fees, legacy monthly/quarterly rows).
+  const [academicYear, setAcademicYear] = useState<{
+    start_date: string | null;
+  } | null>(null);
   const [payments, setPayments] = useState<
     (FeePayment & {
       fee_structure?: FeeStructure;
@@ -112,10 +122,15 @@ export default function StudentFeesPage() {
               .maybeSingle()
           : Promise.resolve({ data: null }),
       ]);
+      const year =
+        (yearRow as {
+          start_date: string | null;
+          end_date: string | null;
+        } | null) ?? null;
+      setAcademicYear(year);
       const studentType = resolveStudentType(
         (studentRow?.admission_date as string | null) ?? null,
-        (yearRow as { start_date: string | null; end_date: string | null } | null) ??
-          null
+        year
       );
 
       // Fetch fee structures for student's class + per-stop fees for the year,
@@ -209,9 +224,20 @@ export default function StudentFeesPage() {
     );
   }
 
-  // Compute summary — annualize each line so quarterly/monthly fees are
-  // counted correctly for the whole academic year.
+  // Two different questions, so two different totals:
+  //   totalFees      — the whole year's obligation (annualized).
+  //   billedToDate   — the slice of it that has actually fallen due.
+  // "Pending" is measured against the second, because a January instalment
+  // isn't an arrear in August. This is the same figure the download dues gate
+  // uses (see lib/student-dues.ts), so the number shown here is exactly the
+  // number that decides whether an admit card downloads.
+  const today = todayISO();
   const totalFees = sumAnnualized(feeLines);
+  const billedToDate = feeLines.reduce(
+    (sum, line) =>
+      sum + amountBilledToDate(line, today, academicYear?.start_date),
+    0
+  );
   // Match the admin dues view: cash paid + any waiver granted both settle a
   // fee. A partially-refunded payment keeps status 'refunded' with amount_paid
   // unchanged, so include refunded rows too and net out refund_amount (never
@@ -233,7 +259,7 @@ export default function StudentFeesPage() {
         Number(p.waiver_amount ?? 0),
       0
     );
-  const pending = totalFees - totalPaid;
+  const pending = billedToDate - totalPaid;
 
   // Lines marked paid: match by fee_structure_id (academic) or
   // bus_stop_id (transport). Both keys live in EffectiveFeeLine.id by
@@ -269,6 +295,9 @@ export default function StudentFeesPage() {
             <p className="text-3xl font-bold text-navy-900 dark:text-white">
               {formatCurrency(totalFees)}
             </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              For the full session
+            </p>
           </CardContent>
         </Card>
 
@@ -290,12 +319,17 @@ export default function StudentFeesPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white">
               <AlertCircle className="h-5 w-5 text-red-500" />
-              Pending
+              Payable Now
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold text-red-600">
               {formatCurrency(pending > 0 ? pending : 0)}
+            </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {billedToDate < totalFees
+                ? `Instalments due so far: ${formatCurrency(billedToDate)}. The rest falls due later in the session.`
+                : "All instalments for the session have fallen due."}
             </p>
           </CardContent>
         </Card>

@@ -22,6 +22,7 @@ import {
 import { CreditCard, CheckCircle, AlertCircle, Loader2, Users, Wallet, Download } from "lucide-react";
 import { toast } from "sonner";
 import {
+  amountBilledToDate,
   resolveEffectiveFeeLines,
   resolveStudentType,
   sumAnnualized,
@@ -58,6 +59,11 @@ export default function ParentFeesPage() {
   const [loading, setLoading] = useState(true);
   const [loadingFees, setLoadingFees] = useState(false);
   const [feeLines, setFeeLines] = useState<EffectiveFeeLine[]>([]);
+  // The year's start anchors recurring fees that carry no due date of their
+  // own (transport stop fees, legacy monthly/quarterly rows).
+  const [academicYear, setAcademicYear] = useState<{
+    start_date: string | null;
+  } | null>(null);
   const [payments, setPayments] = useState<
     (FeePayment & {
       fee_structure?: FeeStructure;
@@ -184,10 +190,15 @@ export default function ParentFeesPage() {
               .maybeSingle()
           : Promise.resolve({ data: null }),
       ]);
+      const year =
+        (yearRow as {
+          start_date: string | null;
+          end_date: string | null;
+        } | null) ?? null;
+      setAcademicYear(year);
       const studentType = resolveStudentType(
         (studentRow?.admission_date as string | null) ?? null,
-        (yearRow as { start_date: string | null; end_date: string | null } | null) ??
-          null
+        year
       );
 
       // Fetch fee structures for the class + per-stop fees for the year,
@@ -285,7 +296,20 @@ export default function ParentFeesPage() {
 
   // Compute summary — annualize each line so quarterly/monthly fees are
   // counted correctly for the whole academic year.
+  // Two different questions, so two different totals:
+  //   totalFees    — the whole session's obligation (annualized).
+  //   billedToDate — the slice of it that has actually fallen due.
+  // "Payable Now" is measured against the second, because a January instalment
+  // isn't an arrear in August. This is the same figure the download dues gate
+  // uses (see lib/student-dues.ts), so what a parent sees here is exactly what
+  // decides whether their child's admit card downloads.
+  const today = new Date().toISOString().slice(0, 10);
   const totalFees = sumAnnualized(feeLines);
+  const billedToDate = feeLines.reduce(
+    (sum, line) =>
+      sum + amountBilledToDate(line, today, academicYear?.start_date),
+    0
+  );
   // Match the admin dues view: a fee is "settled" by cash paid AND any waiver
   // granted. Counting only amount_paid makes a fully-waived fee look unpaid to
   // the parent while the office considers it cleared. A partially-refunded
@@ -309,7 +333,7 @@ export default function ParentFeesPage() {
         Number(p.waiver_amount ?? 0),
       0
     );
-  const pending = totalFees - totalPaid;
+  const pending = billedToDate - totalPaid;
 
   // Lines marked paid: match by fee_structure_id (academic) or
   // bus_stop_id (transport). Both keys live in the EffectiveFeeLine.id
@@ -381,6 +405,9 @@ export default function ParentFeesPage() {
                 <p className="text-3xl font-bold text-navy-900 dark:text-white">
                   {formatCurrency(totalFees)}
                 </p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  For the full session
+                </p>
               </CardContent>
             </Card>
 
@@ -402,12 +429,17 @@ export default function ParentFeesPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-navy-900 dark:text-white">
                   <AlertCircle className="h-5 w-5 text-red-500" />
-                  Pending
+                  Payable Now
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold text-red-600">
                   {formatCurrency(pending > 0 ? pending : 0)}
+                </p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {billedToDate < totalFees
+                    ? `Instalments due so far: ${formatCurrency(billedToDate)}. The rest falls due later in the session.`
+                    : "All instalments for the session have fallen due."}
                 </p>
               </CardContent>
             </Card>
@@ -423,7 +455,7 @@ export default function ParentFeesPage() {
                   </div>
                   <div>
                     <p className="font-medium text-navy-900 dark:text-white">
-                      Outstanding Balance: {formatCurrency(pending)}
+                      Payable Now: {formatCurrency(pending)}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       Pay online for faster processing

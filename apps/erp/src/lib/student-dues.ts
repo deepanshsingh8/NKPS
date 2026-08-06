@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FeeStructure, TransportDirection } from "@nkps/shared/types";
 import {
-  sumAnnualized,
+  amountBilledToDate,
   resolveEffectiveFeeLines,
   resolveStudentType,
   type StopFeeLookup,
@@ -38,10 +38,14 @@ interface PaymentRow {
 
 // Outstanding fee dues for a single student. Mirrors the student-facing fees
 // page (apps/erp/src/app/student/fees/page.tsx) exactly so the gating amount
-// matches the "Pending" figure the student already sees: annualized fee lines
-// (academic + opted transport slab) minus cash paid + waivers granted on
+// matches the "Pending" figure the student already sees: fee lines billed to
+// date (academic + opted transport stop) minus cash paid + waivers granted on
 // paid/partial payments. Late fees are intentionally excluded to stay
 // consistent with that view. Pass a service-role client to bypass RLS.
+//
+// Billed-to-date, not the annual total: a session's later instalments are not
+// arrears yet, and gating on them would lock a fully paid-up student out of
+// their admit card in April over a fee that isn't payable until January.
 export async function getStudentOutstandingDues(
   admin: SupabaseClient,
   studentId: string
@@ -98,11 +102,16 @@ export async function getStudentOutstandingDues(
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
+  const year =
+    (yearRow as { start_date: string | null; end_date: string | null } | null) ??
+    null;
   const studentType = resolveStudentType(
     (studentRow?.admission_date as string | null) ?? null,
-    (yearRow as { start_date: string | null; end_date: string | null } | null) ??
-      null
+    year
   );
+  // One "today" for the whole calculation, so two lines evaluated either side
+  // of midnight can't disagree about whether an instalment has fallen due.
+  const today = new Date().toISOString().slice(0, 10);
 
   let totalFees = 0;
   if (className) {
@@ -161,7 +170,10 @@ export async function getStudentOutstandingDues(
       feeOverride,
       stopFees,
     });
-    totalFees = sumAnnualized(lines);
+    totalFees = lines.reduce(
+      (sum, line) => sum + amountBilledToDate(line, today, year?.start_date),
+      0
+    );
   }
 
   const { data: paymentData, error: paymentError } = await admin
