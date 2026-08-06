@@ -25,6 +25,71 @@ export function sumAnnualized(structures: Annualizable[]): number {
   return structures.reduce((sum, fs) => sum + annualizedAmount(fs), 0);
 }
 
+// How many months a recurring fee advances between charges.
+const FEE_FREQ_STEP_MONTHS: Record<string, number> = {
+  monthly: 1,
+  quarterly: 3,
+};
+
+// Whole months from `from` to `to` (both YYYY-MM-DD), counting a month only
+// once its day-of-month has been reached. 10 Apr → 6 Aug is 3 months, not 4.
+function wholeMonthsBetween(from: string, to: string): number {
+  const [fy, fm, fd] = from.slice(0, 10).split("-").map(Number);
+  const [ty, tm, td] = to.slice(0, 10).split("-").map(Number);
+  const months = (ty - fy) * 12 + (tm - fm);
+  return td >= fd ? months : months - 1;
+}
+
+// What a fee line has actually become payable for as of `today`.
+//
+// The annualized amount answers "what does this student owe for the year";
+// the dues register needs "what does this student owe *right now*". A tuition
+// instalment due in January is not an arrear in August, and listing it as one
+// makes the register useless for chasing actual defaulters.
+//
+//   • one_time / annual  — the whole amount once its due date arrives; nothing
+//                          before that. This is every schedule row.
+//   • monthly / quarterly — one charge per elapsed period since the anchor,
+//                          capped at the year's full count. Anchor is the row's
+//                          own due date, else the academic year's start.
+//   • no anchor at all    — billed in full. An undated fee has no schedule to
+//                          defer it by, and under-reporting a real debt is the
+//                          worse error.
+export function amountBilledToDate(
+  fs: { amount: number | string; frequency: string; due_date?: string | null },
+  today: string,
+  yearStartDate?: string | null
+): number {
+  const amount = Number(fs.amount);
+  if (!Number.isFinite(amount)) return 0;
+  const step = FEE_FREQ_STEP_MONTHS[fs.frequency];
+
+  if (!step) {
+    // Charged once. Payable from its due date; undated means payable now.
+    if (fs.due_date && fs.due_date.slice(0, 10) > today.slice(0, 10)) return 0;
+    return amount;
+  }
+
+  const anchor = (fs.due_date ?? yearStartDate ?? "").slice(0, 10);
+  if (!anchor) return annualizedAmount(fs);
+  if (anchor > today.slice(0, 10)) return 0;
+
+  const periodsMax = FEE_FREQ_MULTIPLIER[fs.frequency] ?? 1;
+  const elapsed = Math.floor(wholeMonthsBetween(anchor, today) / step) + 1;
+  return amount * Math.min(Math.max(elapsed, 0), periodsMax);
+}
+
+export function sumBilledToDate(
+  structures: Annualizable[] & { due_date?: string | null }[],
+  today: string,
+  yearStartDate?: string | null
+): number {
+  return structures.reduce(
+    (sum, fs) => sum + amountBilledToDate(fs, today, yearStartDate),
+    0
+  );
+}
+
 // Whether a fee line's student_type restriction admits this student.
 // A line marked 'both' (the default, and every legacy row) bills everyone.
 // `studentType` of null means "unknown" — bill only the unrestricted lines
