@@ -81,6 +81,30 @@ special-casing in the dues math.
 - [x] R4. Admin payments view now scopes structures to the current year and `is_active=true`
       (a removed-but-receipted row is deactivated, and must not reappear as billable)
 
+## Dues measured to date, not for the year
+
+An instalment due in January is not an arrear in August. `amountBilledToDate`
+prices a line as of a date:
+
+- `one_time` / `annual` — full amount once the due date arrives, nothing before
+- `monthly` / `quarterly` — one charge per elapsed period from the row's due date,
+  or the academic year's start when it has none (transport stop fees), capped at
+  the year's count
+- undated — billed in full; nothing defers it, and under-reporting a real debt is
+  the worse error
+
+- [x] N1. Admin dues register: "Annual Fee" (reference) + "Due Till Date" (dues basis),
+      both in the CSV export, with an as-of caption on screen
+- [x] N2. Download dues gate (`student-dues.ts`) gates on the billed-to-date figure, so a
+      family paid up to date isn't locked out of an admit card over a January instalment
+- [x] N3. Student + parent portals renamed "Pending" → "Payable Now" on the same basis,
+      with the session total still shown as "Total Fees". The gate and the portal figure
+      are deliberately the same number — a parent must be able to see why a download is
+      blocked.
+
+Money paid ahead against a later instalment still counts as settled, so a family that
+clears the year in April reads Nil rather than a phantom credit.
+
 ## Notes / out of scope
 
 - A legacy row with `frequency != 'one_time'` is shown in the grid with a "was monthly"
