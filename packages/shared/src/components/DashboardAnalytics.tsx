@@ -34,9 +34,18 @@ interface AttendanceData {
 }
 
 interface FeeCollection {
+  /** Cash actually banked this session, net of refunds. */
   collected: number;
+  /** The session's whole obligation across every enrolled student. */
   expected: number;
+  /** The slice of `expected` whose due date has passed. */
+  dueToDate: number;
+  /** Outstanding as of today: dueToDate less cash and waivers. */
+  dues: number;
+  /** Collected as a share of dueToDate — progress against what's payable now. */
   percentage: number;
+  /** Collected as a share of the whole session. */
+  percentageOfYear: number;
 }
 
 interface EnrollmentItem {
@@ -442,7 +451,9 @@ export function DashboardAnalytics() {
               <h3 className="text-sm font-semibold text-navy-900 dark:text-white">
                 Fee Collection
               </h3>
-              <p className="text-[11px] text-gray-400">Current academic year</p>
+              <p className="text-[11px] text-gray-400">
+                Against fees due so far this session
+              </p>
             </div>
           </div>
           {!data.hasAcademicYear ? (
@@ -451,13 +462,16 @@ export function DashboardAnalytics() {
             </p>
           ) : (
             <>
+              {/* Progress is measured against fees that have actually fallen
+                  due, not the whole session — otherwise the bar reads near
+                  zero every April however punctually families pay. */}
               <div className="flex items-end justify-between mb-2">
                 <span className="text-2xl font-bold text-navy-900 dark:text-white">
                   {data.feeCollection.percentage}%
                 </span>
                 <span className="text-xs text-gray-400">
                   {formatCurrency(data.feeCollection.collected)} /{" "}
-                  {formatCurrency(data.feeCollection.expected)}
+                  {formatCurrency(data.feeCollection.dueToDate)}
                 </span>
               </div>
               <div className="h-2.5 w-full rounded-full bg-gray-100 dark:bg-muted overflow-hidden mb-3">
@@ -468,7 +482,16 @@ export function DashboardAnalytics() {
                   }}
                 />
               </div>
-              <div className="flex gap-4 text-xs">
+              {/* The number the office acts on: what is owed right now. */}
+              <div className="flex items-baseline justify-between rounded-lg bg-red-50 dark:bg-red-950/20 px-3 py-2 mb-3">
+                <span className="text-xs font-medium text-red-700 dark:text-red-400">
+                  Outstanding dues
+                </span>
+                <span className="text-base font-bold text-red-600 dark:text-red-400">
+                  {formatCurrency(data.feeCollection.dues)}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                 <div className="flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-blue-500" />
                   <span className="text-gray-500 dark:text-gray-400">
@@ -478,10 +501,16 @@ export function DashboardAnalytics() {
                 <div className="flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-gray-200 dark:bg-muted" />
                   <span className="text-gray-500 dark:text-gray-400">
-                    Pending
+                    Due, unpaid
                   </span>
                 </div>
               </div>
+              {/* Session context, so nobody reads the figures above as the
+                  year's total and under-budgets what is still to come. */}
+              <p className="mt-2 text-[11px] text-gray-400">
+                Full session: {formatCurrency(data.feeCollection.expected)} (
+                {data.feeCollection.percentageOfYear}% collected)
+              </p>
             </>
           )}
         </div>
