@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Input } from "@nkps/shared/components/ui/input";
@@ -28,6 +28,13 @@ import {
   TableHeader,
   TableRow,
 } from "@nkps/shared/components/ui/table";
+import {
+  SortFilterHead,
+  TableFilterSummary,
+  useTableControls,
+  type TableColumns,
+} from "@nkps/shared/components/ui/data-table";
+import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { toast } from "sonner";
 import { Loader2, Bus as BusIcon, Search, Pencil } from "lucide-react";
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
@@ -84,6 +91,37 @@ const directionLabel = (dir: TransportDirection) =>
 const formatRupee = (amount: number | null | undefined) =>
   amount == null ? "—" : `₹${amount.toLocaleString("en-IN")}`;
 
+// Filter-panel label for a transport row that has no bus yet. Kept as a
+// constant because the dashboard's "No bus assigned" tile deep-links straight
+// to this value (see `AUDIT_PRESETS`).
+const NO_BUS_LABEL = "Not assigned";
+
+// `?audit=` presets, so a dashboard stat card can open this page with the
+// column filters that isolate exactly the rows it counted.
+const AUDIT_PRESETS: Record<
+  string,
+  { filters: Record<string, { selected: string[] }>; note: string }
+> = {
+  no_bus: {
+    filters: {
+      transport: { selected: ["Yes"] },
+      bus: { selected: [NO_BUS_LABEL] },
+    },
+    note: "Showing students on transport who have no bus assigned yet.",
+  },
+  using: {
+    filters: { transport: { selected: ["Yes"] } },
+    note: "Showing students opted in to transport.",
+  },
+  one_side: {
+    filters: {
+      transport: { selected: ["Yes"] },
+      direction: { selected: ["Pickup only", "Drop only"] },
+    },
+    note: "Showing one-side (pickup or drop only) transport students.",
+  },
+};
+
 export default function StudentTransportAssignmentsPage() {
   const supabase = createClient();
 
@@ -96,8 +134,9 @@ export default function StudentTransportAssignmentsPage() {
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [classFilter, setClassFilter] = useState<string>("all");
-  const [search, setSearch] = useState("");
+  const [classFilter, setClassFilter] = useUrlState("class_id", "all");
+  const [search, setSearch] = useUrlState("q");
+  const [audit] = useUrlState("audit");
 
   // Edit dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -222,6 +261,74 @@ export default function StudentTransportAssignmentsPage() {
         (a.students?.full_name ?? "").localeCompare(b.students?.full_name ?? "")
       );
   }, [enrollments, classFilter, search]);
+
+  // The fee actually charged for a row — the one-side override when the
+  // student only rides one leg, otherwise the flat stop fee.
+  const feeOf = useCallback(
+    (row: EnrollmentRow): number | null => {
+      if (!row.has_transport) return null;
+      if (row.transport_direction !== "both" && row.transport_fee_override != null) {
+        return row.transport_fee_override;
+      }
+      return row.bus_stop_id ? feeByStop.get(row.bus_stop_id) ?? null : null;
+    },
+    [feeByStop]
+  );
+
+  // Column accessors for header sorting/filtering. Each mirrors exactly what
+  // the matching cell renders, so a filter option always reads like the value
+  // on screen — including the "—" placeholders for students off transport.
+  const columns = useMemo<TableColumns<EnrollmentRow>>(
+    () => ({
+      name: {
+        label: "Name",
+        value: (r) => r.students?.full_name ?? "",
+        filter: "text",
+      },
+      class: { label: "Class", value: (r) => classLabel(r.classes) },
+      transport: { label: "Transport?", value: (r) => r.has_transport },
+      stop: {
+        label: "Stop",
+        value: (r) =>
+          r.has_transport && r.bus_stop_id
+            ? stopById.get(r.bus_stop_id)?.name ?? null
+            : null,
+      },
+      fee: {
+        label: "Fee",
+        value: (r) => {
+          const fee = feeOf(r);
+          return fee == null ? null : formatRupee(fee);
+        },
+        sortValue: (r) => feeOf(r),
+      },
+      bus: {
+        label: "Bus",
+        value: (r) =>
+          r.has_transport && r.bus_id
+            ? busById.get(r.bus_id)?.bus_number ?? null
+            : null,
+        // Students on transport with no bus are the ones the dashboard's
+        // "No bus assigned" card counts — give them a findable label rather
+        // than the bare em dash the cell shows.
+        emptyLabel: NO_BUS_LABEL,
+      },
+      direction: {
+        label: "Direction",
+        value: (r) =>
+          r.has_transport ? directionLabel(r.transport_direction) : null,
+      },
+    }),
+    [stopById, busById, feeOf]
+  );
+
+  const preset = AUDIT_PRESETS[audit];
+
+  const table = useTableControls({
+    rows: filteredEnrollments,
+    columns,
+    initialFilters: preset?.filters,
+  });
 
   // Buses to offer for the chosen stop: those serving it, else fall back to all.
   const busChoices = useMemo(() => {
@@ -387,87 +494,102 @@ export default function StudentTransportAssignmentsPage() {
               : "No students match your filters."}
           </p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Class</TableHead>
-                <TableHead>Transport?</TableHead>
-                <TableHead>Stop</TableHead>
-                <TableHead>Fee</TableHead>
-                <TableHead>Bus</TableHead>
-                <TableHead>Direction</TableHead>
-                <TableHead className="text-right">Edit</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredEnrollments.map((row) => {
-                const stop = row.bus_stop_id
-                  ? stopById.get(row.bus_stop_id)
-                  : undefined;
-                const bus = row.bus_id ? busById.get(row.bus_id) : undefined;
-                const displayFee = row.has_transport
-                  ? row.transport_direction !== "both" &&
-                    row.transport_fee_override != null
-                    ? row.transport_fee_override
-                    : row.bus_stop_id
-                      ? feeByStop.get(row.bus_stop_id)
-                      : undefined
-                  : undefined;
-                return (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium">
-                      {row.students?.full_name ?? "—"}
-                      {row.students?.admission_no ? (
-                        <span className="ml-1 text-xs text-gray-400">
-                          ({row.students.admission_no})
-                        </span>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="text-gray-600 dark:text-gray-300">
-                      {classLabel(row.classes)}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={
-                          row.has_transport
-                            ? "inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950/30 dark:text-green-400"
-                            : "inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-                        }
-                      >
-                        {row.has_transport ? "Yes" : "No"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-gray-600 dark:text-gray-300">
-                      {row.has_transport ? stop?.name ?? "—" : "—"}
-                    </TableCell>
-                    <TableCell className="text-gray-600 dark:text-gray-300">
-                      {row.has_transport ? formatRupee(displayFee) : "—"}
-                    </TableCell>
-                    <TableCell className="text-gray-600 dark:text-gray-300">
-                      {row.has_transport ? bus?.bus_number ?? "—" : "—"}
-                    </TableCell>
-                    <TableCell className="text-gray-600 dark:text-gray-300">
-                      {row.has_transport
-                        ? directionLabel(row.transport_direction)
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => openEdit(row)}
-                        aria-label="Edit transport assignment"
-                        className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+          <>
+            {preset && table.activeFilterCount > 0 && (
+              <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                {preset.note}
+              </p>
+            )}
+            <TableFilterSummary
+              ctl={table}
+              total={filteredEnrollments.length}
+              shown={table.rows.length}
+            />
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SortFilterHead ctl={table} col="name" />
+                  <SortFilterHead ctl={table} col="class" />
+                  <SortFilterHead ctl={table} col="transport" />
+                  <SortFilterHead ctl={table} col="stop" />
+                  <SortFilterHead ctl={table} col="fee" />
+                  <SortFilterHead ctl={table} col="bus" />
+                  <SortFilterHead ctl={table} col="direction" />
+                  <TableHead className="text-right">Edit</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {table.rows.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={8}
+                      className="py-10 text-center text-gray-500 dark:text-gray-400"
+                    >
+                      No students match the column filters.
                     </TableCell>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                )}
+                {table.rows.map((row) => {
+                  const stop = row.bus_stop_id
+                    ? stopById.get(row.bus_stop_id)
+                    : undefined;
+                  const bus = row.bus_id ? busById.get(row.bus_id) : undefined;
+                  const displayFee = feeOf(row);
+                  return (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium">
+                        {row.students?.full_name ?? "—"}
+                        {row.students?.admission_no ? (
+                          <span className="ml-1 text-xs text-gray-400">
+                            ({row.students.admission_no})
+                          </span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="text-gray-600 dark:text-gray-300">
+                        {classLabel(row.classes)}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={
+                            row.has_transport
+                              ? "inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950/30 dark:text-green-400"
+                              : "inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                          }
+                        >
+                          {row.has_transport ? "Yes" : "No"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-gray-600 dark:text-gray-300">
+                        {row.has_transport ? stop?.name ?? "—" : "—"}
+                      </TableCell>
+                      <TableCell className="text-gray-600 dark:text-gray-300">
+                        {row.has_transport ? formatRupee(displayFee) : "—"}
+                      </TableCell>
+                      <TableCell className="text-gray-600 dark:text-gray-300">
+                        {row.has_transport ? bus?.bus_number ?? "—" : "—"}
+                      </TableCell>
+                      <TableCell className="text-gray-600 dark:text-gray-300">
+                        {row.has_transport
+                          ? directionLabel(row.transport_direction)
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => openEdit(row)}
+                          aria-label="Edit transport assignment"
+                          className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+              </Table>
+          </>
         )}
       </div>
 

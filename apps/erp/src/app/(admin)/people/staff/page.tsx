@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { Button } from "@nkps/shared/components/ui/button";
@@ -29,6 +29,12 @@ import {
   TableHeader,
   TableRow,
 } from "@nkps/shared/components/ui/table";
+import {
+  SortFilterHead,
+  TableFilterSummary,
+  useTableControls,
+  type TableColumns,
+} from "@nkps/shared/components/ui/data-table";
 import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import { toast } from "sonner";
 import {
@@ -657,6 +663,26 @@ export default function AdminStaffPage() {
     return matchesCategory && matchesSearch;
   });
 
+  // Header sort/filter accessors — mirror what the matching cell renders.
+  const columns = useMemo<TableColumns<StaffMember>>(
+    () => ({
+      name: { label: "Name", value: (m) => m.name, filter: "text" },
+      subject: {
+        label: "Subject / Designation",
+        value: (m) => m.subject || null,
+        filter: "text",
+      },
+      category: {
+        label: "Category",
+        value: (m) => getCategoryLabel(m.category),
+      },
+    }),
+    []
+  );
+
+  const table = useTableControls({ rows: filtered, columns });
+  const visible = table.rows;
+
   // Selection helpers
   const toggleSelection = (id: string) => {
     setSelectedIds((prev) => {
@@ -668,10 +694,10 @@ export default function AdminStaffPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filtered.length) {
+    if (selectedIds.size === visible.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filtered.map((m) => m.id)));
+      setSelectedIds(new Set(visible.map((m) => m.id)));
     }
   };
 
@@ -852,25 +878,38 @@ export default function AdminStaffPage() {
           </p>
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
+        <div>
+          <TableFilterSummary
+            ctl={table}
+            total={filtered.length}
+            shown={visible.length}
+          />
+          <div className="border rounded-lg overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
                   <Checkbox
-                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                    checked={visible.length > 0 && selectedIds.size === visible.length}
                     onCheckedChange={toggleSelectAll}
                   />
                 </TableHead>
                 <TableHead className="w-16">Photo</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Subject / Designation</TableHead>
-                <TableHead>Category</TableHead>
+                <SortFilterHead ctl={table} col="name" />
+                <SortFilterHead ctl={table} col="subject" />
+                <SortFilterHead ctl={table} col="category" />
                 <TableHead className="w-24 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((member) => (
+              {visible.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-10 text-center text-gray-500 dark:text-gray-400">
+                    No staff match the column filters.
+                  </TableCell>
+                </TableRow>
+              )}
+              {visible.map((member) => (
                 <TableRow key={member.id} className={selectedIds.has(member.id) ? "bg-red-50/50" : undefined}>
                   <TableCell>
                     <Checkbox
@@ -999,6 +1038,7 @@ export default function AdminStaffPage() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </div>
       )}
 

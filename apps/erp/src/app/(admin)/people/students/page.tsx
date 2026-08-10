@@ -31,6 +31,12 @@ import {
   TableHeader,
   TableRow,
 } from "@nkps/shared/components/ui/table";
+import {
+  SortFilterHead,
+  TableFilterSummary,
+  useTableControls,
+  type TableColumns,
+} from "@nkps/shared/components/ui/data-table";
 import { toast } from "sonner";
 import {
   Plus,
@@ -671,6 +677,53 @@ export default function AdminStudentsPage() {
     setAuditHasTransport("");
   };
 
+  // Header sort/filter accessors. Each mirrors what the matching cell renders
+  // so the filter options read exactly like the column on screen — including
+  // the "Unassigned" badge for students without a class.
+  const columns = useMemo<TableColumns<StudentRow>>(
+    () => ({
+      admission_no: {
+        label: "Adm No",
+        value: (s) => s.admission_no,
+        filter: "text",
+      },
+      full_name: { label: "Name", value: (s) => s.full_name, filter: "text" },
+      class: {
+        label: "Class",
+        value: (s) =>
+          s.class_name
+            ? `${s.class_name}${s.class_section ? `-${s.class_section}` : ""}`
+            : null,
+        emptyLabel: "Unassigned",
+      },
+      roll_number: {
+        label: "Roll No",
+        value: (s) => s.roll_number,
+        filter: "none",
+      },
+      father_name: {
+        label: "Father's Name",
+        value: (s) => s.father_name || null,
+        filter: "text",
+      },
+      status: {
+        label: "Status",
+        value: (s) => {
+          const status =
+            s.enrollment_status ??
+            (s.enrollment_id ? "active" : s.is_active ? "active" : "exited");
+          return status.charAt(0).toUpperCase() + status.slice(1);
+        },
+      },
+    }),
+    []
+  );
+
+  const table = useTableControls({ rows: filteredStudents, columns });
+  // Everything downstream of the header filters — selection, the count badge,
+  // CSV export — works on what the user can actually see.
+  const visibleStudents = table.rows;
+
   const resetForm = () => {
     setFormData(emptyStudentForm(selectedClassId));
     setFormErrors({});
@@ -1066,10 +1119,10 @@ export default function AdminStudentsPage() {
 
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredStudents.length) {
+    if (selectedIds.size === visibleStudents.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredStudents.map((s) => s.id)));
+      setSelectedIds(new Set(visibleStudents.map((s) => s.id)));
     }
   };
 
@@ -1192,9 +1245,9 @@ export default function AdminStudentsPage() {
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem
-                disabled={filteredStudents.length === 0}
+                disabled={visibleStudents.length === 0}
                 onClick={() => {
-                  const rows = filteredStudents.map((s) => ({
+                  const rows = visibleStudents.map((s) => ({
                     ...s,
                     class_name: s.class_name ?? "",
                     class_section: s.class_section ?? "",
@@ -1263,8 +1316,8 @@ export default function AdminStudentsPage() {
           <div className="flex items-center">
             <Badge variant="secondary" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300">
               <Users className="h-3 w-3 mr-1" />
-              {filteredStudents.length} student
-              {filteredStudents.length === 1 ? "" : "s"}
+              {visibleStudents.length} student
+              {visibleStudents.length === 1 ? "" : "s"}
             </Badge>
           </div>
         </div>
@@ -1384,39 +1437,56 @@ export default function AdminStudentsPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={selectedIds.size === filteredStudents.length && filteredStudents.length > 0}
-                      onCheckedChange={toggleSelectAll}
+          <>
+            <TableFilterSummary
+              ctl={table}
+              total={filteredStudents.length}
+              shown={visibleStudents.length}
+            />
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={selectedIds.size === visibleStudents.length && visibleStudents.length > 0}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                    <SortFilterHead ctl={table} col="admission_no" />
+                    <SortFilterHead ctl={table} col="full_name" />
+                    {!selectedClassId && <SortFilterHead ctl={table} col="class" />}
+                    {selectedClassId && <SortFilterHead ctl={table} col="roll_number" />}
+                    <SortFilterHead ctl={table} col="father_name" />
+                    <SortFilterHead ctl={table} col="status" />
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visibleStudents.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className="py-10 text-center text-gray-500 dark:text-gray-400"
+                      >
+                        No students match the column filters.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {visibleStudents.map((student) => (
+                    <StudentTableRow
+                      key={student.id}
+                      student={student}
+                      selected={selectedIds.has(student.id)}
+                      showClassColumn={!selectedClassId}
+                      isAdmin={!!isAdmin}
+                      actions={rowActions}
                     />
-                  </TableHead>
-                  <TableHead>Adm No</TableHead>
-                  <TableHead>Name</TableHead>
-                  {!selectedClassId && <TableHead>Class</TableHead>}
-                  {selectedClassId && <TableHead>Roll No</TableHead>}
-                  <TableHead>Father&apos;s Name</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredStudents.map((student) => (
-                  <StudentTableRow
-                    key={student.id}
-                    student={student}
-                    selected={selectedIds.has(student.id)}
-                    showClassColumn={!selectedClassId}
-                    isAdmin={!!isAdmin}
-                    actions={rowActions}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
       </div>
 
@@ -2074,7 +2144,7 @@ export default function AdminStudentsPage() {
         open={portalDialogOpen}
         onOpenChange={setPortalDialogOpen}
         type="student"
-        items={filteredStudents
+        items={visibleStudents
           .filter((s) => selectedIds.has(s.id))
           .map((s) => ({ id: s.id, name: s.full_name, email: s.email, phone: s.phone }))}
         onComplete={fetchStudents}
