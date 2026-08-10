@@ -37,19 +37,18 @@ import {
 } from "@nkps/shared/components/ui/tabs";
 import { Card, CardContent } from "@nkps/shared/components/ui/card";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, FileSpreadsheet, ArrowLeft } from "lucide-react";
+import Link from "next/link";
+import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, FileSpreadsheet, ArrowLeft, ArrowRight } from "lucide-react";
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import { downloadCSV } from "@/lib/csv-export";
-import { formatClassName } from "@nkps/shared/lib/utils";
+import { cn, formatClassName } from "@nkps/shared/lib/utils";
 import {
   resolveEffectiveFeeStructures,
   resolveEffectiveFeeLines,
   resolveStudentType,
-  computeLateFee,
-  amountBilledToDate,
+  computeDuesBreakdown,
   feeLineLabel,
-  FEE_FREQ_MULTIPLIER,
-  annualizedAmount,
+  type DuesBreakdown,
   type StopFeeLookup,
 } from "@/lib/fees";
 import { FEE_HEADS } from "@nkps/shared/types";
@@ -151,7 +150,279 @@ interface DuesRow {
   dues: number;
 }
 
-export type FeesSection = "academic" | "payments";
+export type FeesSection = "academic" | "payments" | "dues";
+
+const inr = (n: number) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(n);
+
+/**
+ * The selected student's balance, shown on the Record & History screen.
+ *
+ * Previously the only place a due figure existed was the class-wide register,
+ * so answering "does this child owe anything?" meant leaving the student you
+ * had just looked up and searching for them again in a list of forty. The
+ * headline here answers it in place; the register link is for when you
+ * genuinely do want the whole class.
+ */
+function StudentDuesSummary({
+  dues,
+  loading,
+  classId,
+}: {
+  dues: DuesBreakdown;
+  loading: boolean;
+  classId: string | null;
+}) {
+  const owes = dues.dues > 0;
+  return (
+    <div
+      className={cn(
+        "mb-6 rounded-xl border p-4",
+        owes
+          ? "border-red-200 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/20"
+          : "border-green-200 bg-green-50/60 dark:border-green-900/40 dark:bg-green-950/20"
+      )}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Outstanding Dues
+          </p>
+          {loading ? (
+            <Loader2 className="mt-1 h-5 w-5 animate-spin text-gray-400" />
+          ) : (
+            <p
+              className={cn(
+                "text-2xl font-bold tabular-nums",
+                owes
+                  ? "text-red-700 dark:text-red-400"
+                  : "text-green-700 dark:text-green-400"
+              )}
+            >
+              {owes ? inr(dues.dues) : "No dues"}
+            </p>
+          )}
+          <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+            As of{" "}
+            {new Date().toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+            . Instalments falling due later this session are not counted.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+          <DuesFigure label="Annual Fee" value={inr(dues.expected)} muted />
+          <DuesFigure label="Due Till Date" value={inr(dues.billedToDate)} />
+          <DuesFigure label="Paid" value={inr(dues.paid)} />
+          {dues.lateFee > 0 && (
+            <DuesFigure
+              label="Late Fee"
+              value={inr(dues.lateFee)}
+              className="text-amber-700 dark:text-amber-400"
+            />
+          )}
+        </div>
+      </div>
+
+      {classId && (
+        <Link
+          href={`/fees/dues?dues_class_id=${classId}`}
+          className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+        >
+          View the whole class register
+          <ArrowRight className="h-3 w-3" />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One side of the dues register — either the students who owe, or the ones who
+ * are clear. Rendered as its own component so each list owns its column
+ * sort/filter state: sorting the Dues tab must not reorder the No-Dues tab.
+ *
+ * Each name links back to that student's Record & History, which is the trip
+ * an operator actually makes from here — spot a defaulter, go take the money.
+ */
+function DuesTable({
+  rows,
+  emptyMessage,
+}: {
+  rows: DuesRow[];
+  emptyMessage: string;
+}) {
+  const columns = useMemo<TableColumns<DuesRow>>(
+    () => ({
+      admission_no: {
+        label: "Adm No",
+        value: (r) => r.admission_no || null,
+        filter: "text",
+      },
+      full_name: { label: "Name", value: (r) => r.full_name, filter: "text" },
+      father_name: {
+        label: "Father",
+        value: (r) => r.father_name || null,
+        filter: "text",
+      },
+      transport: {
+        label: "Transport",
+        value: (r) => (r.has_transport ? "Yes" : "No"),
+      },
+      expected: {
+        label: "Annual Fee",
+        value: (r) => inr(r.expected),
+        sortValue: (r) => r.expected,
+      },
+      billed_to_date: {
+        label: "Due Till Date",
+        value: (r) => inr(r.billed_to_date),
+        sortValue: (r) => r.billed_to_date,
+      },
+      paid: { label: "Paid", value: (r) => inr(r.paid), sortValue: (r) => r.paid },
+      late_fee: {
+        label: "Late Fee",
+        value: (r) => (r.late_fee > 0 ? inr(r.late_fee) : null),
+        sortValue: (r) => r.late_fee,
+        emptyLabel: "None",
+      },
+      dues: {
+        label: "Dues",
+        value: (r) => (r.dues > 0 ? inr(r.dues) : "Nil"),
+        sortValue: (r) => r.dues,
+      },
+    }),
+    []
+  );
+
+  const table = useTableControls({ rows, columns });
+
+  if (rows.length === 0) {
+    return (
+      <p className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
+        {emptyMessage}
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <TableFilterSummary
+        ctl={table}
+        total={rows.length}
+        shown={table.rows.length}
+      />
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <SortFilterHead ctl={table} col="admission_no" />
+            <SortFilterHead ctl={table} col="full_name" />
+            <SortFilterHead ctl={table} col="father_name" />
+            <SortFilterHead ctl={table} col="transport" />
+            <SortFilterHead ctl={table} col="expected" align="right" />
+            <SortFilterHead ctl={table} col="billed_to_date" align="right" />
+            <SortFilterHead ctl={table} col="paid" align="right" />
+            <SortFilterHead ctl={table} col="late_fee" align="right" />
+            <SortFilterHead ctl={table} col="dues" align="right" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {table.rows.length === 0 && (
+            <TableRow>
+              <TableCell
+                colSpan={9}
+                className="py-10 text-center text-gray-500 dark:text-gray-400"
+              >
+                No students match the column filters.
+              </TableCell>
+            </TableRow>
+          )}
+          {table.rows.map((r) => (
+            <TableRow key={r.student_id}>
+              <TableCell className="font-medium">{r.admission_no}</TableCell>
+              <TableCell>
+                <Link
+                  href={`/fees/payments?student_id=${r.student_id}`}
+                  className="text-blue-600 hover:underline dark:text-blue-400"
+                  title="Open this student's payments & history"
+                >
+                  {r.full_name}
+                </Link>
+              </TableCell>
+              <TableCell className="text-gray-600 dark:text-gray-300">
+                {r.father_name || "—"}
+              </TableCell>
+              <TableCell>
+                {r.has_transport ? (
+                  <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                    Yes
+                  </Badge>
+                ) : (
+                  <span className="text-xs text-gray-400">—</span>
+                )}
+              </TableCell>
+              <TableCell className="text-right text-gray-500 dark:text-gray-400">
+                {inr(r.expected)}
+              </TableCell>
+              <TableCell className="text-right">
+                {inr(r.billed_to_date)}
+              </TableCell>
+              <TableCell className="text-right">{inr(r.paid)}</TableCell>
+              <TableCell className="text-right text-amber-700 dark:text-amber-400">
+                {r.late_fee > 0 ? inr(r.late_fee) : "—"}
+              </TableCell>
+              <TableCell className="text-right font-medium">
+                {r.dues > 0 ? (
+                  <span className="text-red-600">{inr(r.dues)}</span>
+                ) : (
+                  <span className="text-green-600">Nil</span>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </>
+  );
+}
+
+function DuesFigure({
+  label,
+  value,
+  muted,
+  className,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+  className?: string;
+}) {
+  return (
+    <div>
+      <p className="text-[11px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+        {label}
+      </p>
+      <p
+        className={cn(
+          "font-semibold tabular-nums",
+          muted
+            ? "text-gray-500 dark:text-gray-400"
+            : "text-navy-900 dark:text-white",
+          className
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
 
 interface AdminFeesContentInnerProps {
   section: FeesSection;
@@ -213,6 +484,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   >(null);
   const [selectedEnrollmentId, setSelectedEnrollmentId] = useState<string | null>(null);
   const [selectedClassLabel, setSelectedClassLabel] = useState<string>("");
+  // The student's own class, so the dues card can deep-link to that class's
+  // register even when the student was reached by name search rather than by
+  // picking a class first.
+  const [selectedStudentClassId, setSelectedStudentClassId] = useState<string | null>(null);
   // Transport state for the selected student. Stop/fee/bus assignment now
   // lives in the standalone /transport section (migration 074); Payments only
   // reads the assigned stop so the office can bill a transport payment.
@@ -418,6 +693,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         : null;
     setSelectedStudentStreamId(streamId);
     setSelectedEnrollmentId(enrollment?.id ?? null);
+    setSelectedStudentClassId((enrollment?.class_id as string | null) ?? null);
     setStudentHasTransport(hasTransport);
     setStudentBusStopId(busStopId);
     setStudentTransportDirection(direction);
@@ -520,6 +796,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     setSelectedStudentStreamId(null);
     setSelectedEnrollmentId(null);
     setSelectedClassLabel("");
+    setSelectedStudentClassId(null);
     setStudentHasTransport(false);
     setStudentBusStopId(null);
     setStudentTransportDirection("both");
@@ -833,109 +1110,45 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           father_name: string | null;
           admission_date: string | null;
         } | null;
-        const applicable = resolveEffectiveFeeStructures(allStructures, {
+        const busStopId = (e.bus_stop_id as string | null) ?? null;
+        const stopFee = busStopId ? stopFeesById.get(busStopId) : undefined;
+        // Same resolution the per-student payment screen runs, so the register
+        // and that screen price a student identically. The stop name is only
+        // ever displayed there, so an empty label is fine here.
+        const lines = resolveEffectiveFeeLines({
+          structures: allStructures,
           studentStreamId: (e.stream_id as string | null) ?? null,
           // Admission/registration rows bill this year's intake only.
           studentType: resolveStudentType(
             stu?.admission_date,
             academicYearRange
           ),
+          hasTransport: Boolean(e.has_transport),
+          busStopId,
+          direction:
+            (e.transport_direction as TransportDirection | null) ?? "both",
+          feeOverride:
+            e.transport_fee_override != null
+              ? Number(e.transport_fee_override)
+              : null,
+          stopFees: stopFee
+            ? [
+                {
+                  bus_stop_id: stopFee.bus_stop_id,
+                  stop_name: "",
+                  amount: stopFee.amount,
+                  frequency: stopFee.frequency,
+                  is_active: true,
+                },
+              ]
+            : [],
         });
-        // Transport dues: price the assigned stop's per-year fee. A one-side
-        // facility (direction != 'both') bills the per-student override when
-        // one is set; otherwise the flat stop fee applies.
-        const stopFee =
-          e.has_transport && e.bus_stop_id
-            ? stopFeesById.get(e.bus_stop_id as string)
-            : undefined;
-        const transportLine = stopFee
-          ? {
-              amount:
-                (e.transport_direction as string | null) !== "both" &&
-                e.transport_fee_override != null
-                  ? Number(e.transport_fee_override)
-                  : Number(stopFee.amount),
-              frequency: stopFee.frequency,
-              // Stop fees carry no due date of their own; they run with the
-              // academic year, so that's the anchor for elapsed periods.
-              due_date: null,
-            }
-          : null;
-        const transportAnnual = transportLine
-          ? annualizedAmount(transportLine)
-          : 0;
-        const expected =
-          applicable.reduce(
-            (sum, fs) =>
-              sum + Number(fs.amount) * (FEE_FREQ_MULTIPLIER[fs.frequency] ?? 1),
-            0
-          ) + transportAnnual;
-        // The same total, restricted to what has actually fallen due. This is
-        // what dues are measured against — see DuesRow.billed_to_date.
-        const billedToDate =
-          applicable.reduce(
-            (sum, fs) => sum + amountBilledToDate(fs, today, yearStartDate),
-            0
-          ) +
-          (transportLine
-            ? amountBilledToDate(transportLine, today, yearStartDate)
-            : 0);
-        // Net settled cash per fee structure for this student, keyed by
-        // fee_structure_id (transport payments carry a null structure and are
-        // excluded — transport has no late fee). A partial refund leaves
-        // amount_paid intact, so net cash is `amount_paid - refund_amount`
-        // (never below 0 per row); waivers count as settled too. This lets the
-        // late-fee pass below ask "is THIS structure still owed?" rather than
-        // gating on the student's aggregate balance.
-        const paidByStructure = new Map<string, number>();
-        const studentPayments = payments.filter(
-          (p) => p.student_id === e.student_id
-        );
-        for (const p of studentPayments) {
-          if (!p.fee_structure_id) continue;
-          const net =
-            Math.max(0, Number(p.amount_paid) - Number(p.refund_amount ?? 0)) +
-            Number(p.waiver_amount ?? 0);
-          paidByStructure.set(
-            p.fee_structure_id,
-            (paidByStructure.get(p.fee_structure_id) ?? 0) + net
-          );
-        }
-        // Late fee per overdue structure: the larger of the one-time percent
-        // surcharge and the per-day surcharge accrued since the late-fee
-        // anchor (the schedule's grace date, else the due date), capped at
-        // late_fee_max when set — see computeLateFee. Structures that aren't
-        // overdue yet contribute nothing. A structure that is individually
-        // fully settled contributes no late fee even when the student owes on
-        // another line (#11) — previously the whole late-fee sum was gated only
-        // on the student's aggregate balance, so a paid-on-time structure was
-        // still surcharged whenever any other fee remained due.
-        const lateFee = applicable.reduce((sum, fs) => {
-          // Skip structures with no outstanding balance of their own.
-          const structureExpected =
-            Number(fs.amount) * (FEE_FREQ_MULTIPLIER[fs.frequency] ?? 1);
-          const structurePaid = paidByStructure.get(fs.id) ?? 0;
-          if (structurePaid >= structureExpected) return sum;
-          return sum + computeLateFee(fs, today);
-        }, 0);
-        // `paid + waived` is what the dues view treats as settled, summed
-        // across every structure + transport for the student-level balance.
-        const paid = studentPayments.reduce(
-          (sum, p) =>
-            sum +
-            Math.max(0, Number(p.amount_paid) - Number(p.refund_amount ?? 0)) +
-            Number(p.waiver_amount ?? 0),
-          0
-        );
-        // Dues are what's owed TODAY: the amount billed so far, less what has
-        // been settled. Money paid ahead against a future instalment still
-        // counts as settled, so a family that clears the year in April shows
-        // Nil rather than a phantom credit.
-        //
-        // Late fee only applies while something billed remains unpaid. Once a
-        // student has covered everything due to date, the surcharge stops.
-        const baseDues = Math.max(0, billedToDate - paid);
-        const effectiveLateFee = baseDues > 0 ? lateFee : 0;
+        const breakdown = computeDuesBreakdown({
+          lines,
+          payments: payments.filter((pay) => pay.student_id === e.student_id),
+          today,
+          yearStartDate,
+        });
         return {
           student_id: e.student_id as string,
           admission_no: stu?.admission_no ?? "",
@@ -943,11 +1156,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           father_name: stu?.father_name ?? null,
           class_label: classLabel,
           has_transport: Boolean(e.has_transport),
-          expected,
-          billed_to_date: billedToDate,
-          paid,
-          late_fee: effectiveLateFee,
-          dues: baseDues + effectiveLateFee,
+          expected: breakdown.expected,
+          billed_to_date: breakdown.billedToDate,
+          paid: breakdown.paid,
+          late_fee: breakdown.lateFee,
+          dues: breakdown.dues,
         };
       });
       rows.sort((a, b) => b.dues - a.dues || a.full_name.localeCompare(b.full_name));
@@ -1078,6 +1291,37 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     studentStopName,
     studentStopFeeAmount,
     studentStopFeeFrequency,
+  ]);
+
+  // What this one student owes, priced by the same function that builds the
+  // class-wide register. Operators asked for the figure here rather than
+  // having to leave the student they are looking at to go find them again in
+  // a whole-class list.
+  //
+  // `studentPayments` is the full receipt history — every year, every status —
+  // because the table below shows it all. Dues are a current-year question, so
+  // the receipts are narrowed to the billed year and to statuses that carry
+  // money. A refunded row stays in: a partial refund leaves amount_paid intact
+  // and settledAmount() nets the returned portion out.
+  const selectedStudentDues = useMemo<DuesBreakdown | null>(() => {
+    if (!selectedStudent || !academicYearId) return null;
+    const yearPayments = studentPayments.filter(
+      (p) =>
+        p.academic_year_id === academicYearId &&
+        ["paid", "partial", "refunded"].includes(p.status)
+    );
+    return computeDuesBreakdown({
+      lines: applicableFeeLines,
+      payments: yearPayments,
+      today: new Date().toISOString().slice(0, 10),
+      yearStartDate: academicYearRange?.start_date ?? null,
+    });
+  }, [
+    selectedStudent,
+    academicYearId,
+    academicYearRange,
+    applicableFeeLines,
+    studentPayments,
   ]);
 
   const openAddStructure = () => {
@@ -1504,11 +1748,17 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   };
 
   const sectionTitle =
-    section === "academic" ? "Academic Fees" : "Payment Management";
+    section === "academic"
+      ? "Academic Fees"
+      : section === "dues"
+        ? "Dues & No-Dues"
+        : "Payment Management";
   const sectionSubtitle =
     section === "academic"
       ? "Instalment-wise fee schedule per class, and the full structure list."
-      : "Record payments, refunds and dues by class.";
+      : section === "dues"
+        ? "Class-wide arrears register — who owes what, and who is clear."
+        : "Record payments and refunds, and read one student's balance and history.";
 
   return (
     <div>
@@ -1678,18 +1928,17 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         </Tabs>
       )}
 
+      {/* Record a payment + read one student's history. The class-wide dues
+          register used to be a sibling tab here, which meant clicking across
+          from a student you were already looking at dumped you into a list of
+          forty and made you find them again. It now lives at /fees/dues, and
+          the balance for the student in hand is shown inline below. */}
       {section === "payments" && (
-        <Tabs defaultValue={initialStudentId ? "record" : "record"}>
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <TabsList>
-              <TabsTrigger value="record">Record &amp; History</TabsTrigger>
-              <TabsTrigger value="dues">Dues / No-Dues</TabsTrigger>
-            </TabsList>
+        <div>
+          <div className="flex items-center justify-end gap-2 flex-wrap">
             <HistoricalFeesImportDialog />
           </div>
 
-          {/* Sub-tab 1: Record payments + per-student history */}
-          <TabsContent value="record">
           <Card className="bg-white dark:bg-card rounded-2xl shadow-sm mt-4">
             <CardContent>
               {/* Class picker + name filter */}
@@ -1800,6 +2049,17 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                       </Button>
                     </div>
                   </div>
+
+                  {/* What this student owes right now. Sits above the fee
+                      list because it is the question an operator taking a
+                      payment actually has. */}
+                  {selectedStudentDues && (
+                    <StudentDuesSummary
+                      dues={selectedStudentDues}
+                      loading={paymentsLoading}
+                      classId={paymentsClassId || selectedStudentClassId}
+                    />
+                  )}
 
                   {/* Fee structures for student's class (academic + transport) */}
                   {applicableFeeLines.length > 0 && (
@@ -2038,11 +2298,13 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
+      )}
 
-        {/* Tab 3: Dues / No Dues */}
-        <TabsContent value="dues">
-          <Card className="bg-white dark:bg-card rounded-2xl shadow-sm mt-4">
+      {/* The whole-class dues & no-dues register, on its own route. */}
+      {section === "dues" && (
+        <div>
+          <Card className="bg-white dark:bg-card rounded-2xl shadow-sm">
             <CardContent>
               {/* The basis of the figures has to be stated: a register that
                   silently mixed "owed now" with "owed by March" would name
@@ -2147,126 +2409,31 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     </TabsTrigger>
                   </TabsList>
 
-                  {(["dues-list", "clear-list"] as const).map((key) => {
-                    const rows =
-                      key === "dues-list"
-                        ? duesSummary.withDues
-                        : duesSummary.clear;
-                    return (
-                      <TabsContent value={key} key={key}>
-                        <div className="mt-3">
-                          {rows.length === 0 ? (
-                            <p className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
-                              {duesSearch.trim()
-                                ? "No students match your search."
-                                : key === "dues-list"
-                                  ? "No students have outstanding dues in this class."
-                                  : "No students are fully paid in this class yet."}
-                            </p>
-                          ) : (
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Adm No</TableHead>
-                                  <TableHead>Name</TableHead>
-                                  <TableHead>Father</TableHead>
-                                  <TableHead>Transport</TableHead>
-                                  <TableHead className="text-right">
-                                    Annual Fee
-                                  </TableHead>
-                                  <TableHead className="text-right">
-                                    Due Till Date
-                                  </TableHead>
-                                  <TableHead className="text-right">
-                                    Paid
-                                  </TableHead>
-                                  <TableHead className="text-right">
-                                    Late Fee
-                                  </TableHead>
-                                  <TableHead className="text-right">
-                                    Dues
-                                  </TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {rows.map((r) => (
-                                  <TableRow key={r.student_id}>
-                                    <TableCell className="font-medium">
-                                      {r.admission_no}
-                                    </TableCell>
-                                    <TableCell>{r.full_name}</TableCell>
-                                    <TableCell className="text-gray-600 dark:text-gray-300">
-                                      {r.father_name || "—"}
-                                    </TableCell>
-                                    <TableCell>
-                                      {r.has_transport ? (
-                                        <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                                          Yes
-                                        </Badge>
-                                      ) : (
-                                        <span className="text-xs text-gray-400">
-                                          —
-                                        </span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-right text-gray-500 dark:text-gray-400">
-                                      {new Intl.NumberFormat("en-IN", {
-                                        style: "currency",
-                                        currency: "INR",
-                                        maximumFractionDigits: 0,
-                                      }).format(r.expected)}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                      {new Intl.NumberFormat("en-IN", {
-                                        style: "currency",
-                                        currency: "INR",
-                                        maximumFractionDigits: 0,
-                                      }).format(r.billed_to_date)}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                      {new Intl.NumberFormat("en-IN", {
-                                        style: "currency",
-                                        currency: "INR",
-                                        maximumFractionDigits: 0,
-                                      }).format(r.paid)}
-                                    </TableCell>
-                                    <TableCell className="text-right text-amber-700 dark:text-amber-400">
-                                      {r.late_fee > 0
-                                        ? new Intl.NumberFormat("en-IN", {
-                                            style: "currency",
-                                            currency: "INR",
-                                            maximumFractionDigits: 0,
-                                          }).format(r.late_fee)
-                                        : "—"}
-                                    </TableCell>
-                                    <TableCell className="text-right font-medium">
-                                      {r.dues > 0 ? (
-                                        <span className="text-red-600">
-                                          {new Intl.NumberFormat("en-IN", {
-                                            style: "currency",
-                                            currency: "INR",
-                                            maximumFractionDigits: 0,
-                                          }).format(r.dues)}
-                                        </span>
-                                      ) : (
-                                        <span className="text-green-600">Nil</span>
-                                      )}
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          )}
-                        </div>
-                      </TabsContent>
-                    );
-                  })}
+                  {(["dues-list", "clear-list"] as const).map((key) => (
+                    <TabsContent value={key} key={key}>
+                      <div className="mt-3">
+                        <DuesTable
+                          rows={
+                            key === "dues-list"
+                              ? duesSummary.withDues
+                              : duesSummary.clear
+                          }
+                          emptyMessage={
+                            duesSearch.trim()
+                              ? "No students match your search."
+                              : key === "dues-list"
+                                ? "No students have outstanding dues in this class."
+                                : "No students are fully paid in this class yet."
+                          }
+                        />
+                      </div>
+                    </TabsContent>
+                  ))}
                 </Tabs>
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-        </Tabs>
+        </div>
       )}
 
       {/* Add/Edit Fee Structure Dialog */}
