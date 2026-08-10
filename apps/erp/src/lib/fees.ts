@@ -309,3 +309,105 @@ export function resolveEffectiveFeeLines(opts: {
   const transport = resolveTransportLine(opts);
   return transport ? [...academic, transport] : academic;
 }
+
+// ---------------------------------------------------------------------------
+// Dues
+// ---------------------------------------------------------------------------
+
+// A receipt row, reduced to the fields the dues maths reads. Waiver rows have
+// amount_paid 0 by schema and carry their value in waiver_amount.
+export type DuesPaymentRow = {
+  fee_structure_id: string | null;
+  amount_paid: number | string;
+  waiver_amount?: number | string | null;
+  refund_amount?: number | string | null;
+};
+
+// Net cash a receipt actually settled. A partial refund leaves amount_paid
+// intact and records the returned portion separately, so the settled figure is
+// the difference (never negative), plus any waived amount.
+export function settledAmount(p: DuesPaymentRow): number {
+  return (
+    Math.max(0, Number(p.amount_paid) - Number(p.refund_amount ?? 0)) +
+    Number(p.waiver_amount ?? 0)
+  );
+}
+
+export interface DuesBreakdown {
+  /** Whole-year obligation across every applicable line. */
+  expected: number;
+  /** The slice of `expected` that has actually fallen due as of `today`. */
+  billedToDate: number;
+  /** Settled cash + waivers, net of refunds. */
+  paid: number;
+  /** Surcharge on overdue, individually-unsettled lines. Zero once cleared. */
+  lateFee: number;
+  /** What is owed today: `billedToDate - paid`, floored at 0, plus lateFee. */
+  dues: number;
+}
+
+/**
+ * Price one student's position from their resolved fee lines and receipts.
+ *
+ * The single source of truth for "what does this student owe": the class-wide
+ * register and the per-student payment screen both call this, so the figure an
+ * operator reads next to a student's name is the same one the Dues report
+ * counts them under.
+ *
+ * `lines` must already be narrowed to the student (stream overrides applied,
+ * student-type restriction honoured, their own transport stop priced) —
+ * `resolveEffectiveFeeLines` produces exactly that. `payments` must already be
+ * scoped to the academic year being billed and to receipt-bearing statuses.
+ */
+export function computeDuesBreakdown(opts: {
+  lines: EffectiveFeeLine[];
+  payments: DuesPaymentRow[];
+  /** YYYY-MM-DD. One reference for a whole pass, so neighbouring rows agree. */
+  today: string;
+  /** Anchor for recurring lines that carry no due date of their own. */
+  yearStartDate?: string | null;
+}): DuesBreakdown {
+  const { lines, payments, today, yearStartDate = null } = opts;
+
+  const expected = lines.reduce((sum, l) => sum + annualizedAmount(l), 0);
+  const billedToDate = lines.reduce(
+    (sum, l) => sum + amountBilledToDate(l, today, yearStartDate),
+    0
+  );
+  const paid = payments.reduce((sum, p) => sum + settledAmount(p), 0);
+
+  // Net settled per fee structure, so the late-fee pass can ask "is THIS line
+  // still owed?" rather than gating on the student's aggregate balance — a
+  // line paid on time must not be surcharged because another one is overdue.
+  const paidByStructure = new Map<string, number>();
+  for (const p of payments) {
+    if (!p.fee_structure_id) continue;
+    paidByStructure.set(
+      p.fee_structure_id,
+      (paidByStructure.get(p.fee_structure_id) ?? 0) + settledAmount(p)
+    );
+  }
+
+  // Transport lines carry no late-fee rule, so they are skipped outright
+  // rather than relying on computeLateFee returning 0 for them.
+  const lateFee = lines.reduce((sum, l) => {
+    if (l.kind !== "fee_structure") return sum;
+    const lineExpected = annualizedAmount(l);
+    if ((paidByStructure.get(l.id) ?? 0) >= lineExpected) return sum;
+    return sum + computeLateFee(l, today);
+  }, 0);
+
+  // Money paid ahead against a future instalment still counts as settled, so a
+  // family that clears the year in April shows Nil rather than a phantom
+  // credit. The surcharge stops as soon as everything billed is covered.
+  const baseDues = Math.max(0, billedToDate - paid);
+  const effectiveLateFee = baseDues > 0 ? lateFee : 0;
+
+  return {
+    expected,
+    billedToDate,
+    paid,
+    lateFee: effectiveLateFee,
+    dues: baseDues + effectiveLateFee,
+  };
+}
