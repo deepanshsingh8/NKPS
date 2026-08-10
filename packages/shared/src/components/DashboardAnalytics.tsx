@@ -677,7 +677,7 @@ export function DashboardAnalytics() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Link
-                href="/transport/assignments"
+                href="/transport/assignments?audit=using"
                 className="rounded-lg border border-gray-200 dark:border-border p-3 hover:bg-gray-50 dark:hover:bg-muted/40 transition-colors"
               >
                 <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">
@@ -691,7 +691,7 @@ export function DashboardAnalytics() {
                 </p>
               </Link>
               <Link
-                href="/transport/assignments"
+                href="/transport/assignments?audit=one_side"
                 className="rounded-lg border border-gray-200 dark:border-border p-3 hover:bg-gray-50 dark:hover:bg-muted/40 transition-colors"
               >
                 <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">
@@ -705,7 +705,7 @@ export function DashboardAnalytics() {
                 </p>
               </Link>
               <Link
-                href="/transport/assignments"
+                href="/transport/assignments?audit=no_bus"
                 className={cn(
                   "rounded-lg border p-3 transition-colors",
                   data.transportAudit.unassignedBus > 0

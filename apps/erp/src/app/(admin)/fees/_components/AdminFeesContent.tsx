@@ -24,6 +24,12 @@ import {
   TableRow,
 } from "@nkps/shared/components/ui/table";
 import {
+  SortFilterHead,
+  TableFilterSummary,
+  useTableControls,
+  type TableColumns,
+} from "@nkps/shared/components/ui/data-table";
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -613,6 +619,105 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         s.admission_no.toLowerCase().includes(q)
     );
   }, [classStudents, classStudentSearch]);
+
+  // Header sort/filter accessors for the three list tables on this page.
+  // Each accessor mirrors what the matching cell renders.
+  const structureColumns = useMemo<TableColumns<FeeStructure>>(
+    () => ({
+      class_name: { label: "Class", value: (fs) => fs.class_name },
+      stream: {
+        label: "Stream",
+        value: (fs) =>
+          fs.stream_id ? streamById[fs.stream_id] ?? "—" : "All streams",
+      },
+      fee_type: { label: "Fee Head", value: (fs) => fs.fee_type },
+      instalment: {
+        label: "Instalment",
+        value: (fs) => fs.instalment_name,
+        sortValue: (fs) => fs.instalment_no,
+      },
+      amount: {
+        label: "Amount",
+        value: (fs) => fs.amount,
+        filter: "none",
+      },
+      frequency: {
+        label: "Frequency",
+        value: (fs) => fs.frequency.replace("_", " "),
+      },
+      due_date: { label: "Due Date", value: (fs) => fs.due_date },
+      student_type: {
+        label: "Student Type",
+        value: (fs) =>
+          fs.student_type === "new"
+            ? "New Student"
+            : fs.student_type === "existing"
+              ? "Old Student"
+              : "Both",
+      },
+    }),
+    [streamById]
+  );
+  const structureTable = useTableControls({
+    rows: feeStructures,
+    columns: structureColumns,
+  });
+
+  const classStudentColumns = useMemo<
+    TableColumns<(typeof classStudents)[number]>
+  >(
+    () => ({
+      admission_no: {
+        label: "Adm No",
+        value: (s) => s.admission_no,
+        filter: "text",
+      },
+      full_name: { label: "Name", value: (s) => s.full_name, filter: "text" },
+      father_name: {
+        label: "Father",
+        value: (s) => s.father_name || null,
+        filter: "text",
+      },
+    }),
+    []
+  );
+  const classStudentTable = useTableControls({
+    rows: filteredClassStudents,
+    columns: classStudentColumns,
+  });
+
+  const paymentColumns = useMemo<
+    TableColumns<(typeof studentPayments)[number]>
+  >(
+    () => ({
+      payment_date: { label: "Date", value: (p) => p.payment_date },
+      type: {
+        label: "Type",
+        value: (p) =>
+          p.bus_stop
+            ? `Transport — ${p.bus_stop.name}`
+            : p.fee_structure
+              ? feeLineLabel(p.fee_structure)
+              : null,
+      },
+      amount: { label: "Amount", value: (p) => p.amount_paid, filter: "none" },
+      method: {
+        label: "Method",
+        value: (p) => p.payment_method?.replace("_", " ") ?? null,
+      },
+      receipt: {
+        label: "Receipt",
+        value: (p) => p.receipt_number,
+        filter: "text",
+      },
+      status: { label: "Status", value: (p) => p.status },
+    }),
+    []
+  );
+  const paymentTable = useTableControls({
+    rows: studentPayments,
+    columns: paymentColumns,
+  });
 
   const downloadReceipt = async (paymentId: string) => {
     try {
@@ -1469,22 +1574,35 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                       No fee structures found.
                     </p>
                   ) : (
+                    <>
+                    <TableFilterSummary
+                      ctl={structureTable}
+                      total={feeStructures.length}
+                      shown={structureTable.rows.length}
+                    />
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Class</TableHead>
-                          <TableHead>Stream</TableHead>
-                          <TableHead>Fee Head</TableHead>
-                          <TableHead>Instalment</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Frequency</TableHead>
-                          <TableHead>Due Date</TableHead>
-                          <TableHead>Student Type</TableHead>
+                          <SortFilterHead ctl={structureTable} col="class_name" />
+                          <SortFilterHead ctl={structureTable} col="stream" />
+                          <SortFilterHead ctl={structureTable} col="fee_type" />
+                          <SortFilterHead ctl={structureTable} col="instalment" />
+                          <SortFilterHead ctl={structureTable} col="amount" />
+                          <SortFilterHead ctl={structureTable} col="frequency" />
+                          <SortFilterHead ctl={structureTable} col="due_date" />
+                          <SortFilterHead ctl={structureTable} col="student_type" />
                           <TableHead className="w-24 text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {feeStructures.map((fs) => (
+                        {structureTable.rows.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={9} className="py-10 text-center text-gray-500 dark:text-gray-400">
+                              No fee structures match the column filters.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {structureTable.rows.map((fs) => (
                           <TableRow key={fs.id}>
                             <TableCell className="font-medium">
                               {fs.class_name}
@@ -1551,6 +1669,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                         ))}
                       </TableBody>
                     </Table>
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -1751,20 +1870,33 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                       No payments recorded yet.
                     </p>
                   ) : (
+                    <>
+                    <TableFilterSummary
+                      ctl={paymentTable}
+                      total={studentPayments.length}
+                      shown={paymentTable.rows.length}
+                    />
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Method</TableHead>
-                          <TableHead>Receipt</TableHead>
-                          <TableHead>Status</TableHead>
+                          <SortFilterHead ctl={paymentTable} col="payment_date" />
+                          <SortFilterHead ctl={paymentTable} col="type" />
+                          <SortFilterHead ctl={paymentTable} col="amount" />
+                          <SortFilterHead ctl={paymentTable} col="method" />
+                          <SortFilterHead ctl={paymentTable} col="receipt" />
+                          <SortFilterHead ctl={paymentTable} col="status" />
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {studentPayments.map((p) => (
+                        {paymentTable.rows.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={7} className="py-10 text-center text-gray-500 dark:text-gray-400">
+                              No payments match the column filters.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {paymentTable.rows.map((p) => (
                           <TableRow key={p.id}>
                             <TableCell>{p.payment_date}</TableCell>
                             <TableCell>
@@ -1826,6 +1958,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                         ))}
                       </TableBody>
                     </Table>
+                    </>
                   )}
                 </>
               )}
@@ -1842,17 +1975,30 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                       : "No students match your filter."}
                   </p>
                 ) : (
+                  <>
+                  <TableFilterSummary
+                    ctl={classStudentTable}
+                    total={filteredClassStudents.length}
+                    shown={classStudentTable.rows.length}
+                  />
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Adm No</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Father</TableHead>
+                        <SortFilterHead ctl={classStudentTable} col="admission_no" />
+                        <SortFilterHead ctl={classStudentTable} col="full_name" />
+                        <SortFilterHead ctl={classStudentTable} col="father_name" />
                         <TableHead className="w-32 text-right">Action</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredClassStudents.map((s) => (
+                      {classStudentTable.rows.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="py-10 text-center text-gray-500 dark:text-gray-400">
+                            No students match the column filters.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {classStudentTable.rows.map((s) => (
                         <TableRow
                           key={s.id}
                           onClick={() => selectStudentById(s.id)}
@@ -1881,6 +2027,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                       ))}
                     </TableBody>
                   </Table>
+                  </>
                 )
               )}
 
