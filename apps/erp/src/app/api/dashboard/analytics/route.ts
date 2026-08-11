@@ -61,6 +61,7 @@ export async function GET() {
     stopFeesRes,
     enrollmentRes,
     admissionsRes,
+    exitsRes,
   ] = await Promise.all([
       wantAttendance
         ? admin
@@ -130,8 +131,25 @@ export async function GET() {
             .range(0, 9999)
         : Promise.resolve({ data: null }),
 
+      // Intake, dated by when the student actually joined rather than when
+      // the record happened to be typed in — a bulk import in August would
+      // otherwise report the whole session's April intake as August.
       wantStudents
-        ? admin.from("students").select("created_at").gte("created_at", sixMonthsAgoStr)
+        ? admin
+            .from("students")
+            .select("admission_date, created_at")
+            .gte("admission_date", sixMonthsAgoStr)
+            .range(0, 9999)
+        : Promise.resolve({ data: null }),
+
+      // Exits. A transfer certificate is the record of a student leaving, so
+      // it is the only dependable outward signal — `student_enrollments`
+      // carries an 'exited' status but no date to bucket it by.
+      wantStudents
+        ? admin
+            .from("transfer_certificates")
+            .select("issue_date, upload_date, created_at")
+            .range(0, 9999)
         : Promise.resolve({ data: null }),
     ]);
 
@@ -386,17 +404,49 @@ export async function GET() {
     });
     response.enrollmentByClass = enrollmentByClass;
 
-    const admissions = (admissionsRes.data ?? []) as { created_at: string }[];
+    const admissions = (admissionsRes.data ?? []) as {
+      admission_date: string | null;
+      created_at: string;
+    }[];
+    const exits = (exitsRes.data ?? []) as {
+      issue_date: string | null;
+      upload_date: string | null;
+      created_at: string;
+    }[];
     const monthNames = [
       "Jan", "Feb", "Mar", "Apr", "May", "Jun",
       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ];
-    const admissionTrend: { month: string; count: number }[] = [];
+    // A TC's issue date is when the student actually left; upload_date is
+    // when the office filed the paperwork. Prefer the former, fall back in
+    // order so a partially-filled record still lands in some month.
+    const exitMonths = exits.map((t) =>
+      (t.issue_date ?? t.upload_date ?? t.created_at).slice(0, 7)
+    );
+    const admissionMonths = admissions.map((a) =>
+      (a.admission_date ?? a.created_at).slice(0, 7)
+    );
+
+    // Joined vs left, month by month. One number without the other says
+    // nothing about whether the roll is growing — 31 admissions reads as a
+    // good April until you see the 28 who left in the same month.
+    const admissionTrend: {
+      month: string;
+      admissions: number;
+      exits: number;
+      net: number;
+    }[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const count = admissions.filter((a) => a.created_at.startsWith(monthKey)).length;
-      admissionTrend.push({ month: monthNames[d.getMonth()], count });
+      const joined = admissionMonths.filter((m) => m === monthKey).length;
+      const left = exitMonths.filter((m) => m === monthKey).length;
+      admissionTrend.push({
+        month: monthNames[d.getMonth()],
+        admissions: joined,
+        exits: left,
+        net: joined - left,
+      });
     }
     response.admissionTrend = admissionTrend;
   }

@@ -47,6 +47,9 @@ import {
   resolveEffectiveFeeLines,
   resolveStudentType,
   computeDuesBreakdown,
+  computeLateFee,
+  annualizedAmount,
+  settledAmount,
   feeLineLabel,
   type DuesBreakdown,
   type StopFeeLookup,
@@ -438,6 +441,66 @@ function DuesTable({
         </TableBody>
       </Table>
     </>
+  );
+}
+
+/**
+ * The late-fee terms on one fee line, and whether they are currently biting.
+ *
+ * Transport lines carry no surcharge and schedule rows often leave it unset,
+ * so this renders nothing at all in the common case rather than a row of
+ * "Late fee: none" noise.
+ */
+function LateFeeNote({
+  line,
+  settled,
+}: {
+  line: EffectiveFeeLine;
+  /** Net cash + waivers recorded against this line for the year. */
+  settled: number;
+}) {
+  const pct = Number(line.late_fee_percent ?? 0);
+  const perDay = Number(line.late_fee_per_day ?? 0);
+  if (pct === 0 && perDay === 0) return null;
+
+  const anchor = line.late_fee_start_date ?? line.due_date;
+  const today = new Date().toISOString().slice(0, 10);
+  // Only "accruing" when the line itself is still owed. A line paid on time
+  // incurs nothing however overdue its neighbours are.
+  const outstanding = settled < annualizedAmount(line);
+  const accrued = outstanding ? computeLateFee(line, today) : 0;
+
+  const rule = [
+    pct > 0 ? `${pct}% of the instalment` : null,
+    perDay > 0 ? `${inr(perDay)}/day` : null,
+  ].filter(Boolean);
+  const ruleText =
+    rule.length === 2 ? `${rule[0]} or ${rule[1]}, whichever is greater` : rule[0];
+  const cap =
+    line.late_fee_max != null ? `, capped at ${inr(Number(line.late_fee_max))}` : "";
+
+  return (
+    <div className="mt-2 border-t border-dashed border-gray-200 pt-1.5 dark:border-gray-700">
+      <p className="text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+        <span className="font-medium text-amber-700 dark:text-amber-500">
+          Late fee
+        </span>
+        {accrued > 0 ? (
+          <>
+            {" "}
+            <span className="font-semibold text-amber-700 dark:text-amber-500">
+              {inr(accrued)}
+            </span>{" "}
+            accruing —{" "}
+          </>
+        ) : (
+          ": "
+        )}
+        {ruleText}
+        {cap}
+        {anchor ? ` — from ${anchor}` : " — no start date set"}
+      </p>
+    </div>
   );
 }
 
@@ -1387,13 +1450,18 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   // the receipts are narrowed to the billed year and to statuses that carry
   // money. A refunded row stays in: a partial refund leaves amount_paid intact
   // and settledAmount() nets the returned portion out.
+  const yearPayments = useMemo(
+    () =>
+      studentPayments.filter(
+        (p) =>
+          p.academic_year_id === academicYearId &&
+          ["paid", "partial", "refunded"].includes(p.status)
+      ),
+    [studentPayments, academicYearId]
+  );
+
   const selectedStudentDues = useMemo<DuesBreakdown | null>(() => {
     if (!selectedStudent || !academicYearId) return null;
-    const yearPayments = studentPayments.filter(
-      (p) =>
-        p.academic_year_id === academicYearId &&
-        ["paid", "partial", "refunded"].includes(p.status)
-    );
     return computeDuesBreakdown({
       lines: applicableFeeLines,
       payments: yearPayments,
@@ -1405,8 +1473,21 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     academicYearId,
     academicYearRange,
     applicableFeeLines,
-    studentPayments,
+    yearPayments,
   ]);
+
+  // Net settled per fee line, so a late-fee note can say whether the
+  // surcharge is actually running on THIS instalment rather than reporting a
+  // rule that a paid-on-time line will never incur.
+  const settledByLine = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of yearPayments) {
+      const key = p.fee_structure_id ?? p.bus_stop_id;
+      if (!key) continue;
+      m.set(key, (m.get(key) ?? 0) + settledAmount(p));
+    }
+    return m;
+  }, [yearPayments]);
 
   const openAddStructure = () => {
     setStructureDialogMode("add");
@@ -2168,6 +2249,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                               <p className="text-xs text-gray-400 dark:text-gray-500">
                                 {subtitle}
                               </p>
+                              {/* The surcharge terms belong next to the fee
+                                  they apply to — an office answering "why is
+                                  this ₹600 more" shouldn't have to open the
+                                  fee structure editor to find out. */}
+                              <LateFeeNote
+                                line={line}
+                                settled={settledByLine.get(line.id) ?? 0}
+                              />
                             </div>
                           );
                         })}

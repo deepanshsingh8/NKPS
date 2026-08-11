@@ -36,7 +36,15 @@ import {
 } from "@nkps/shared/components/ui/data-table";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { toast } from "sonner";
-import { Loader2, Bus as BusIcon, Search, Pencil } from "lucide-react";
+import {
+  Loader2,
+  Bus as BusIcon,
+  Search,
+  Pencil,
+  X,
+  Sparkles,
+  TriangleAlert,
+} from "lucide-react";
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import type {
   AcademicYear,
@@ -50,6 +58,15 @@ import type {
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+/** A bus that serves a stop, with the seat picture that ranks it. */
+interface BusSuggestion {
+  bus: Bus;
+  /** Students already on this bus this year. */
+  load: number;
+  /** `capacity - load`, or null when the bus has no capacity recorded. */
+  seatsLeft: number | null;
+}
 
 interface EnrollmentRow {
   id: string;
@@ -88,6 +105,15 @@ const DIRECTION_OPTIONS: { value: TransportDirection; label: string }[] = [
 const directionLabel = (dir: TransportDirection) =>
   DIRECTION_OPTIONS.find((d) => d.value === dir)?.label ?? "—";
 
+// "BUS-02 · 12 free". The seat count is the whole reason one candidate beats
+// another, so it belongs on the option rather than behind a tooltip.
+const busOptionLabel = (s: BusSuggestion) =>
+  s.seatsLeft == null
+    ? s.bus.bus_number
+    : s.seatsLeft > 0
+      ? `${s.bus.bus_number} · ${s.seatsLeft} free`
+      : `${s.bus.bus_number} · full`;
+
 const formatRupee = (amount: number | null | undefined) =>
   amount == null ? "—" : `₹${amount.toLocaleString("en-IN")}`;
 
@@ -122,6 +148,80 @@ const AUDIT_PRESETS: Record<
   },
 };
 
+/**
+ * The Bus cell for a student who is on transport but has none assigned.
+ *
+ * Rather than an em dash that says only "missing", it names the bus that
+ * actually serves this child's stop and assigns it in one click — which is
+ * the whole job on this screen for the students the dashboard counts.
+ */
+function UnassignedBusCell({
+  suggestion,
+  hasStop,
+  busy,
+  onAssign,
+}: {
+  suggestion: BusSuggestion | null;
+  hasStop: boolean;
+  busy: boolean;
+  onAssign: (bus: Bus) => void;
+}) {
+  if (!hasStop) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+        <TriangleAlert className="h-3.5 w-3.5" />
+        No stop yet
+      </span>
+    );
+  }
+  if (!suggestion) {
+    // A stop no bus route covers. Naming that is more useful than a dash:
+    // the fix is to add the stop to a route, not to pick a bus here.
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
+        title="No bus route includes this stop — add it to a route first"
+      >
+        <TriangleAlert className="h-3.5 w-3.5" />
+        No route covers this stop
+      </span>
+    );
+  }
+  const full = suggestion.seatsLeft != null && suggestion.seatsLeft <= 0;
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      disabled={busy}
+      onClick={() => onAssign(suggestion.bus)}
+      title={
+        `Assign ${suggestion.bus.bus_number} — serves this stop` +
+        (suggestion.seatsLeft != null
+          ? `, ${suggestion.seatsLeft} of ${suggestion.bus.capacity} seats free`
+          : ", capacity not recorded")
+      }
+      className={
+        full
+          ? "h-7 border-amber-300 px-2 text-xs text-amber-700 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400"
+          : "h-7 border-blue-200 px-2 text-xs text-blue-700 hover:bg-blue-50 dark:border-blue-900/50 dark:text-blue-400 dark:hover:bg-blue-950/30"
+      }
+    >
+      {busy ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Sparkles className="h-3.5 w-3.5" />
+      )}
+      <span className="ml-1">{suggestion.bus.bus_number}</span>
+      {suggestion.seatsLeft != null && (
+        <span className="ml-1 opacity-70">
+          {full ? "(full)" : `(${suggestion.seatsLeft} free)`}
+        </span>
+      )}
+    </Button>
+  );
+}
+
 export default function StudentTransportAssignmentsPage() {
   const supabase = createClient();
 
@@ -142,6 +242,7 @@ export default function StudentTransportAssignmentsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<EnrollmentRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [quickAssigning, setQuickAssigning] = useState<string | null>(null);
 
   const [hasTransport, setHasTransport] = useState(false);
   const [busStopId, setBusStopId] = useState<string>("");
@@ -328,18 +429,95 @@ export default function StudentTransportAssignmentsPage() {
     rows: filteredEnrollments,
     columns,
     initialFilters: preset?.filters,
+    // `audit` is read from the URL, which the App Router only commits after
+    // this page's first render — so the preset arrives a tick late and has to
+    // be applied by key rather than seeded once.
+    presetKey: preset ? audit : null,
   });
 
-  // Buses to offer for the chosen stop: those serving it, else fall back to all.
-  const busChoices = useMemo(() => {
-    if (!busStopId) return { list: buses, fallback: false };
-    const serving = busesByStop.get(busStopId);
-    if (serving && serving.size > 0) {
-      const list = buses.filter((b) => serving.has(b.id));
-      if (list.length > 0) return { list, fallback: false };
+  // Students who opted in but have no bus yet — the queue this page exists to
+  // clear. Exposed as a one-click filter so it doesn't depend on arriving via
+  // the dashboard's deep-link.
+  const needsBusCount = useMemo(
+    () => enrollments.filter((e) => e.has_transport && !e.bus_id).length,
+    [enrollments]
+  );
+  const needsBusFilterOn =
+    table.getFilter("transport").selected.includes("Yes") &&
+    table.getFilter("bus").selected.includes(NO_BUS_LABEL);
+  const toggleNeedsBus = () => {
+    if (needsBusFilterOn) {
+      table.clearFilter("transport");
+      table.clearFilter("bus");
+    } else {
+      table.setFilter("transport", { selected: ["Yes"] });
+      table.setFilter("bus", { selected: [NO_BUS_LABEL] });
     }
-    return { list: buses, fallback: true };
-  }, [busStopId, buses, busesByStop]);
+  };
+
+  // How many students each bus already carries this year, for the capacity
+  // side of the suggestion below.
+  const loadByBus = useMemo(() => {
+    const m = new Map<string, number>();
+    enrollments.forEach((e) => {
+      if (e.has_transport && e.bus_id) {
+        m.set(e.bus_id, (m.get(e.bus_id) ?? 0) + 1);
+      }
+    });
+    return m;
+  }, [enrollments]);
+
+  // Which bus should this stop's students ride?
+  //
+  // Only buses whose route actually includes the stop are candidates — putting
+  // a child on a bus that never passes their stop is the mistake this is meant
+  // to prevent, so a bus that doesn't serve it is never suggested at any
+  // capacity. Among those, prefer the one with the most seats left, which
+  // spreads load instead of filling the first bus on the list. Buses with no
+  // capacity recorded sort last: an unknown seat count can't be shown to be
+  // free, and guessing it is what would overfill a route.
+  const suggestBuses = useCallback(
+    (stopId: string | null): BusSuggestion[] => {
+      if (!stopId) return [];
+      const serving = busesByStop.get(stopId);
+      if (!serving || serving.size === 0) return [];
+      return buses
+        .filter((b) => serving.has(b.id))
+        .map((b) => {
+          const load = loadByBus.get(b.id) ?? 0;
+          const seatsLeft = b.capacity != null ? b.capacity - load : null;
+          return { bus: b, load, seatsLeft };
+        })
+        .sort((a, z) => {
+          const aFree = a.seatsLeft ?? -Infinity;
+          const zFree = z.seatsLeft ?? -Infinity;
+          if (aFree !== zFree) return zFree - aFree;
+          return a.bus.bus_number.localeCompare(z.bus.bus_number);
+        });
+    },
+    [buses, busesByStop, loadByBus]
+  );
+
+  // Buses to offer for the chosen stop, best first. When no route covers the
+  // stop we still list every active bus rather than blocking the assignment —
+  // the office may be acting on a route change not yet recorded — but the
+  // fallback is called out so nobody reads the list as "these serve the stop".
+  const busChoices = useMemo(() => {
+    const serving = suggestBuses(busStopId);
+    if (serving.length > 0) return { list: serving, fallback: false };
+    const all = buses.map((b) => {
+      const load = loadByBus.get(b.id) ?? 0;
+      return {
+        bus: b,
+        load,
+        seatsLeft: b.capacity != null ? b.capacity - load : null,
+      };
+    });
+    return { list: all, fallback: !!busStopId };
+  }, [busStopId, buses, loadByBus, suggestBuses]);
+
+  // Only a real suggestion when the shortlist came from the stop's routes.
+  const topSuggestion = busChoices.fallback ? null : busChoices.list[0] ?? null;
 
   const selectedStopFee = busStopId ? feeByStop.get(busStopId) : undefined;
 
@@ -359,6 +537,28 @@ export default function StudentTransportAssignmentsPage() {
     setPickupAddress(row.pickup_address ?? "");
     setErrors({});
     setDialogOpen(true);
+  };
+
+  // Assign the suggested bus without opening the dialog. Only offered on rows
+  // that already have a stop and no bus, so nothing else on the enrollment
+  // changes — the write touches bus_id alone.
+  const assignSuggested = async (row: EnrollmentRow, bus: Bus) => {
+    setQuickAssigning(row.id);
+    const result = await adminApi({
+      action: "update",
+      table: "student_enrollments",
+      data: { bus_id: bus.id },
+      match: { column: "id", value: row.id },
+    });
+    if (!result.success) {
+      toast.error(result.error || "Failed to assign bus");
+    } else {
+      toast.success(
+        `${row.students?.full_name ?? "Student"} assigned to ${bus.bus_number}`
+      );
+      await fetchData();
+    }
+    setQuickAssigning(null);
   };
 
   const validate = (): boolean => {
@@ -480,6 +680,24 @@ export default function StudentTransportAssignmentsPage() {
             className="pl-9"
           />
         </div>
+        {/* The one filter this page is opened for, as a button rather than
+            two column-header selections. */}
+        {needsBusCount > 0 && (
+          <Button
+            type="button"
+            variant={needsBusFilterOn ? "default" : "outline"}
+            onClick={toggleNeedsBus}
+            className={
+              needsBusFilterOn
+                ? "bg-amber-500 hover:bg-amber-600 text-white sm:ml-auto"
+                : "border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/30 sm:ml-auto"
+            }
+          >
+            <BusIcon className="h-4 w-4 mr-2" />
+            Needs a bus ({needsBusCount})
+            {needsBusFilterOn && <X className="h-3.5 w-3.5 ml-2" />}
+          </Button>
+        )}
       </div>
 
       <div className="erp-table-container p-6">
@@ -566,7 +784,18 @@ export default function StudentTransportAssignmentsPage() {
                         {row.has_transport ? formatRupee(displayFee) : "—"}
                       </TableCell>
                       <TableCell className="text-gray-600 dark:text-gray-300">
-                        {row.has_transport ? bus?.bus_number ?? "—" : "—"}
+                        {!row.has_transport ? (
+                          "—"
+                        ) : bus ? (
+                          bus.bus_number
+                        ) : (
+                          <UnassignedBusCell
+                            suggestion={suggestBuses(row.bus_stop_id)[0] ?? null}
+                            hasStop={!!row.bus_stop_id}
+                            busy={quickAssigning === row.id}
+                            onAssign={(b) => assignSuggested(row, b)}
+                          />
+                        )}
                       </TableCell>
                       <TableCell className="text-gray-600 dark:text-gray-300">
                         {row.has_transport
@@ -637,7 +866,9 @@ export default function StudentTransportAssignmentsPage() {
                     onValueChange={(val) => {
                       const next = val ?? "";
                       setBusStopId(next);
-                      // Clear bus if it no longer serves the new stop.
+                      // Clear the bus if it no longer serves the new stop —
+                      // silently keeping it would put the child on a route
+                      // that never passes their new pickup point.
                       if (busId) {
                         const serving = busesByStop.get(next);
                         if (serving && serving.size > 0 && !serving.has(busId)) {
@@ -675,13 +906,41 @@ export default function StudentTransportAssignmentsPage() {
                 {/* Bus */}
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Bus (optional)</Label>
+                  {/* Offered, not applied: the office stays the one deciding,
+                      but the decision is one click when the obvious answer is
+                      the right one. */}
+                  {topSuggestion && busId !== topSuggestion.bus.id && (
+                    <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50/60 px-2.5 py-1.5 dark:border-blue-900/40 dark:bg-blue-950/20">
+                      <Sparkles className="h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-400" />
+                      <p className="flex-1 text-xs text-blue-800 dark:text-blue-300">
+                        <span className="font-semibold">
+                          {topSuggestion.bus.bus_number}
+                        </span>{" "}
+                        serves this stop
+                        {topSuggestion.seatsLeft != null
+                          ? topSuggestion.seatsLeft > 0
+                            ? ` · ${topSuggestion.seatsLeft} of ${topSuggestion.bus.capacity} seats free`
+                            : " · but is at capacity"
+                          : " · capacity not recorded"}
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => setBusId(topSuggestion.bus.id)}
+                      >
+                        Use
+                      </Button>
+                    </div>
+                  )}
                   <Select
                     value={busId || "none"}
                     items={[
                       { value: "none", label: "Not assigned" },
-                      ...busChoices.list.map((b) => ({
-                        value: b.id,
-                        label: b.bus_number,
+                      ...busChoices.list.map((c) => ({
+                        value: c.bus.id,
+                        label: busOptionLabel(c),
                       })),
                     ]}
                     onValueChange={(val) =>
@@ -695,16 +954,21 @@ export default function StudentTransportAssignmentsPage() {
                       <SelectItem value="none" label="Not assigned">
                         Not assigned
                       </SelectItem>
-                      {busChoices.list.map((b) => (
-                        <SelectItem key={b.id} value={b.id} label={b.bus_number}>
-                          {b.bus_number}
+                      {busChoices.list.map((c) => (
+                        <SelectItem
+                          key={c.bus.id}
+                          value={c.bus.id}
+                          label={busOptionLabel(c)}
+                        >
+                          {busOptionLabel(c)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   {busStopId && busChoices.fallback && (
                     <p className="text-xs text-amber-600 dark:text-amber-400">
-                      No bus is mapped to this stop — showing all active buses.
+                      No bus route includes this stop — showing all active
+                      buses, ordered by seats free.
                     </p>
                   )}
                 </div>
