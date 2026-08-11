@@ -46,6 +46,12 @@ interface FeeCollection {
   percentage: number;
   /** Collected as a share of the whole session. */
   percentageOfYear: number;
+  /** Students with nothing outstanding — paid in full, or waived. */
+  studentsClear: number;
+  /** Students still owing something as of today. */
+  studentsWithDues: number;
+  /** Active enrolments the figures above were computed over. */
+  studentsTotal: number;
 }
 
 interface EnrollmentItem {
@@ -83,6 +89,34 @@ function formatCurrency(amount: number) {
   if (amount >= 100000) return `${(amount / 100000).toFixed(1)}L`;
   if (amount >= 1000) return `${(amount / 1000).toFixed(1)}K`;
   return amount.toLocaleString("en-IN");
+}
+
+/** One "students paid / remaining / total" tile on the Fee Collection card. */
+function FeeHeadcount({
+  href,
+  label,
+  value,
+  className,
+}: {
+  href: string;
+  label: string;
+  value: number;
+  className?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "rounded-lg border px-2 py-1.5 text-center transition-colors hover:brightness-95 dark:hover:brightness-110",
+        className
+      )}
+    >
+      <p className="text-lg font-bold tabular-nums leading-tight">{value}</p>
+      <p className="text-[10px] font-medium uppercase tracking-wider opacity-70">
+        {label}
+      </p>
+    </Link>
+  );
 }
 
 function SkeletonCard() {
@@ -437,9 +471,6 @@ export function DashboardAnalytics() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-      {/* Attendance spans full row when present for readability */}
-      {data.attendance && <AttendanceBlock data={data.attendance} />}
-
       {/* Fee Collection */}
       {data.feeCollection && (
         <div className="erp-stat-card">
@@ -490,6 +521,30 @@ export function DashboardAnalytics() {
                 <span className="text-base font-bold text-red-600 dark:text-red-400">
                   {formatCurrency(data.feeCollection.dues)}
                 </span>
+              </div>
+
+              {/* Money answers "how much"; these answer "how many families",
+                  which is what actually gets chased. Each tile opens the
+                  register already filtered to the group it counts. */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <FeeHeadcount
+                  href="/fees/dues?dues_tab=clear-list"
+                  label="Paid"
+                  value={data.feeCollection.studentsClear}
+                  className="border-green-200 bg-green-50/60 text-green-700 dark:border-green-900/40 dark:bg-green-950/20 dark:text-green-400"
+                />
+                <FeeHeadcount
+                  href="/fees/dues?dues_tab=dues-list"
+                  label="Remaining"
+                  value={data.feeCollection.studentsWithDues}
+                  className="border-red-200 bg-red-50/60 text-red-700 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400"
+                />
+                <FeeHeadcount
+                  href="/fees/dues"
+                  label="Total"
+                  value={data.feeCollection.studentsTotal}
+                  className="border-gray-200 bg-gray-50/60 text-navy-900 dark:border-border dark:bg-muted/40 dark:text-white"
+                />
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                 <div className="flex items-center gap-1.5">
@@ -593,6 +648,12 @@ export function DashboardAnalytics() {
           )}
         </div>
       )}
+
+      {/* Attendance sits below fees and enrollment: it is a month-to-date
+          read rather than something acted on, and it spans a full row, so
+          leading with it pushed the two cards the office opens this page
+          for below the fold. */}
+      {data.attendance && <AttendanceBlock data={data.attendance} />}
 
       {/* Recent Admissions Trend */}
       {data.admissionTrend && (
