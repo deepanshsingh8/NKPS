@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCallerAccess } from "@nkps/shared/lib/verify-admin";
 import {
-  resolveEffectiveFeeStructures,
   resolveStudentType,
-  amountBilledToDate,
-  sumAnnualized,
-  annualizedAmount,
-  resolveTransportLine,
+  resolveEffectiveFeeLines,
+  computeDuesBreakdown,
   type StopFeeLookup,
+  type DuesPaymentRow,
 } from "@/lib/fees";
 import type { FeeStructure, TransportDirection } from "@nkps/shared/types";
 import type { FeatureKey } from "@nkps/shared/lib/permissions";
@@ -84,9 +82,15 @@ export async function GET() {
       wantFees && currentYearId
         ? admin
             .from("fee_payments")
-            .select("amount_paid, refund_amount, waiver_amount, status")
+            .select(
+              "student_id, fee_structure_id, amount_paid, refund_amount, waiver_amount, status"
+            )
             .eq("academic_year_id", currentYearId)
             .in("status", ["paid", "partial", "refunded"])
+            // Explicit range: PostgREST caps at 1000 rows by default, and a
+            // year's receipts silently truncated there would under-report
+            // collections with no error to notice.
+            .range(0, 99999)
         : Promise.resolve({ data: null }),
 
       wantFees && currentYearId
@@ -97,6 +101,7 @@ export async function GET() {
             )
             .eq("academic_year_id", currentYearId)
             .eq("is_active", true)
+            .range(0, 9999)
         : Promise.resolve({ data: null }),
 
       // Stop-based transport pricing (migration 074): each opted-in student's
@@ -118,10 +123,11 @@ export async function GET() {
         ? admin
             .from("student_enrollments")
             .select(
-              "class_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, classes!inner(name, section, academic_year_id), streams(name, code), students(admission_date)"
+              "student_id, class_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, classes!inner(name, section, academic_year_id), streams(name, code), students(admission_date)"
             )
             .eq("classes.academic_year_id", currentYearId)
             .eq("status", "active")
+            .range(0, 9999)
         : Promise.resolve({ data: null }),
 
       wantStudents
@@ -192,6 +198,7 @@ export async function GET() {
 
   // ── Fee collection ──
   const enrollments = (enrollmentRes.data ?? []) as unknown as {
+    student_id: string;
     class_id: string;
     stream_id: string | null;
     has_transport: boolean | null;
@@ -213,24 +220,24 @@ export async function GET() {
   }[];
 
   if (wantFees) {
-    const payments = (feePaymentsRes.data ?? []) as {
-      amount_paid: number;
-      refund_amount: number | null;
-      waiver_amount: number | null;
-    }[];
-    // Two different numbers, deliberately:
-    //   collected — actual cash the school holds, net of refunds. Drives the
-    //               collection percentage; a waived fee was never collected.
-    //   settled   — cash plus waivers. Drives dues, because a waived fee is
-    //               not owed. Matches the admin dues register exactly.
+    const payments = (feePaymentsRes.data ?? []) as (DuesPaymentRow & {
+      student_id: string;
+    })[];
+    // Actual cash the school holds, net of refunds. Drives the collection
+    // percentage — a waived fee was never collected, so waivers are excluded
+    // here even though they count as settled for dues.
     const collected = payments.reduce(
       (sum, p) =>
         sum + Math.max(0, Number(p.amount_paid) - Number(p.refund_amount ?? 0)),
       0
     );
-    const settled =
-      collected +
-      payments.reduce((sum, p) => sum + Number(p.waiver_amount ?? 0), 0);
+
+    const paymentsByStudent = new Map<string, DuesPaymentRow[]>();
+    for (const p of payments) {
+      const list = paymentsByStudent.get(p.student_id);
+      if (list) list.push(p);
+      else paymentsByStudent.set(p.student_id, [p]);
+    }
 
     const structures = (feeStructuresRes.data ?? []) as FeeStructure[];
     const structuresByClass = new Map<string, FeeStructure[]>();
@@ -267,49 +274,48 @@ export async function GET() {
     const today = new Date().toISOString().slice(0, 10);
     const yearStartDate = currentYearRange?.start_date ?? null;
 
-    // totalExpected  — the session's whole obligation.
-    // totalDueToDate — the slice of it that has actually fallen due. Dues are
-    //                  measured against this, so the dashboard agrees with the
-    //                  Dues / No-Dues register instead of counting a January
-    //                  instalment as an August arrear.
+    // Priced student by student through the same computeDuesBreakdown() the
+    // Dues / No-Dues register uses, rather than as one school-wide sum. Two
+    // reasons: the headcounts below need a per-student verdict at all, and
+    // summing per-student dues is what the register totals — a school-wide
+    // subtraction would let one family's advance payment cancel out another
+    // family's arrears and quietly under-report what is owed.
     let totalExpected = 0;
     let totalDueToDate = 0;
+    let totalDues = 0;
+    let studentsClear = 0;
+    let studentsWithDues = 0;
     for (const e of enrollments) {
       const raw = e.classes;
       const cls = Array.isArray(raw) ? raw[0] : raw;
       if (!cls) continue;
       const studentRaw = e.students;
       const student = Array.isArray(studentRaw) ? studentRaw[0] : studentRaw;
-      const classStructures = structuresByClass.get(cls.name);
-      if (classStructures && classStructures.length > 0) {
-        const effective = resolveEffectiveFeeStructures(classStructures, {
-          studentStreamId: e.stream_id ?? null,
-          // Admission/registration rows bill this year's intake only.
-          studentType: resolveStudentType(
-            student?.admission_date,
-            currentYearRange
-          ),
-        });
-        totalExpected += sumAnnualized(effective);
-        for (const fs of effective) {
-          totalDueToDate += amountBilledToDate(fs, today, yearStartDate);
-        }
-      }
-      const transportLine = resolveTransportLine({
+      const lines = resolveEffectiveFeeLines({
+        structures: structuresByClass.get(cls.name) ?? [],
+        studentStreamId: e.stream_id ?? null,
+        // Admission/registration rows bill this year's intake only.
+        studentType: resolveStudentType(
+          student?.admission_date,
+          currentYearRange
+        ),
         hasTransport: !!e.has_transport,
         busStopId: e.bus_stop_id,
         direction: e.transport_direction ?? "both",
         feeOverride: e.transport_fee_override,
         stopFees,
       });
-      if (transportLine) {
-        totalExpected += annualizedAmount(transportLine);
-        totalDueToDate += amountBilledToDate(
-          transportLine,
-          today,
-          yearStartDate
-        );
-      }
+      const breakdown = computeDuesBreakdown({
+        lines,
+        payments: paymentsByStudent.get(e.student_id) ?? [],
+        today,
+        yearStartDate,
+      });
+      totalExpected += breakdown.expected;
+      totalDueToDate += breakdown.billedToDate;
+      totalDues += breakdown.dues;
+      if (breakdown.dues > 0) studentsWithDues++;
+      else studentsClear++;
     }
 
     response.feeCollection = {
@@ -317,7 +323,13 @@ export async function GET() {
       expected: totalExpected,
       dueToDate: totalDueToDate,
       // Outstanding as of today — what the office would chase this week.
-      dues: Math.max(0, totalDueToDate - settled),
+      dues: totalDues,
+      // How many families that figure is spread across. `studentsClear`
+      // includes those whose fees were waived rather than paid, which is the
+      // same rule the No-Dues list applies.
+      studentsClear,
+      studentsWithDues,
+      studentsTotal: studentsClear + studentsWithDues,
       // Progress against what has fallen due, not against the whole session.
       // Measured on cash so the bar tracks money actually banked.
       percentage:

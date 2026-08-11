@@ -127,6 +127,40 @@ interface ClassEntry {
   streams: { name: string } | { name: string }[] | null;
 }
 
+// PostgREST returns a to-one embed as an object, but the generated types
+// widen it to an array. Both shapes are normalised through pickEmbedded.
+type EmbeddedClass =
+  | { name: string; section: string; streams?: { name: string } | { name: string }[] | null }
+  | { name: string; section: string; streams?: { name: string } | { name: string }[] | null }[]
+  | null;
+
+function pickEmbedded<T>(v: T | T[] | null | undefined): T | null {
+  if (!v) return null;
+  return Array.isArray(v) ? v[0] ?? null : v;
+}
+
+// "V — A · Science". Same label the class picker shows, built from an
+// enrollment's embedded class rather than from the class list.
+function embeddedClassLabel(c: EmbeddedClass): string {
+  const cls = pickEmbedded(c);
+  if (!cls) return "";
+  const stream = pickEmbedded(cls.streams)?.name ?? null;
+  return formatClassName({
+    name: cls.name,
+    section: cls.section,
+    stream_name: stream,
+  });
+}
+
+interface RosterStudent {
+  id: string;
+  full_name: string;
+  admission_no: string;
+  father_name: string | null;
+  /** Empty when the enrollment carries no class — shown as "Unassigned". */
+  class_label: string;
+}
+
 interface DuesRow {
   student_id: string;
   admission_no: string;
@@ -255,9 +289,12 @@ function StudentDuesSummary({
 function DuesTable({
   rows,
   emptyMessage,
+  showClass,
 }: {
   rows: DuesRow[];
   emptyMessage: string;
+  /** Off when a single class is selected — the column would repeat one value. */
+  showClass: boolean;
 }) {
   const columns = useMemo<TableColumns<DuesRow>>(
     () => ({
@@ -267,6 +304,11 @@ function DuesTable({
         filter: "text",
       },
       full_name: { label: "Name", value: (r) => r.full_name, filter: "text" },
+      class_label: {
+        label: "Class",
+        value: (r) => r.class_label || null,
+        emptyLabel: "Unassigned",
+      },
       father_name: {
         label: "Father",
         value: (r) => r.father_name || null,
@@ -324,6 +366,7 @@ function DuesTable({
           <TableRow>
             <SortFilterHead ctl={table} col="admission_no" />
             <SortFilterHead ctl={table} col="full_name" />
+            {showClass && <SortFilterHead ctl={table} col="class_label" />}
             <SortFilterHead ctl={table} col="father_name" />
             <SortFilterHead ctl={table} col="transport" />
             <SortFilterHead ctl={table} col="expected" align="right" />
@@ -337,7 +380,7 @@ function DuesTable({
           {table.rows.length === 0 && (
             <TableRow>
               <TableCell
-                colSpan={9}
+                colSpan={showClass ? 10 : 9}
                 className="py-10 text-center text-gray-500 dark:text-gray-400"
               >
                 No students match the column filters.
@@ -356,6 +399,11 @@ function DuesTable({
                   {r.full_name}
                 </Link>
               </TableCell>
+              {showClass && (
+                <TableCell className="text-gray-600 dark:text-gray-300">
+                  {r.class_label || "Unassigned"}
+                </TableCell>
+              )}
               <TableCell className="text-gray-600 dark:text-gray-300">
                 {r.father_name || "—"}
               </TableCell>
@@ -476,7 +524,6 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   const [structureForm, setStructureForm] = useState(EMPTY_STRUCTURE);
 
   // Payments state
-  const [studentSearch, setStudentSearch] = useState("");
   const [studentResults, setStudentResults] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [selectedStudentStreamId, setSelectedStudentStreamId] = useState<
@@ -520,20 +567,16 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   // click one → land on the existing per-student detail view. Falls back to
   // the global name search when no class is selected.
   const [paymentsClassId, setPaymentsClassId] = useUrlState("payments_class_id");
-  const [classStudents, setClassStudents] = useState<
-    {
-      id: string;
-      full_name: string;
-      admission_no: string;
-      father_name: string | null;
-    }[]
-  >([]);
+  const [classStudents, setClassStudents] = useState<RosterStudent[]>([]);
   const [classStudentsLoading, setClassStudentsLoading] = useState(false);
   const [classStudentSearch, setClassStudentSearch] = useState("");
 
   // Dues tab state
   const [classesList, setClassesList] = useState<ClassEntry[]>([]);
   const [duesClassId, setDuesClassId] = useUrlState("dues_class_id");
+  // Which side of the register is open, in the URL so the dashboard's
+  // "Paid" / "Remaining" tiles can land on the matching list.
+  const [duesTab, setDuesTab] = useUrlState("dues_tab", "dues-list");
   const [duesSearch, setDuesSearch] = useState("");
   const [duesRows, setDuesRows] = useState<DuesRow[]>([]);
   const [duesLoading, setDuesLoading] = useState(false);
@@ -643,28 +686,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   }, [streams]);
 
   // Search students (from students table, not profiles)
-  const searchStudents = async (query: string) => {
-    setStudentSearch(query);
-    if (query.length < 2) {
-      setStudentResults([]);
-      return;
-    }
-
-    const { data } = await supabase
-      .from("students")
-      .select("*")
-      .eq("is_active", true)
-      .ilike("full_name", `%${query}%`)
-      .limit(10);
-
-    setStudentResults((data as Student[]) ?? []);
-  };
-
   // Select a student and load their data
   const selectStudent = useCallback(async (student: Student) => {
     setSelectedStudent(student);
     setStudentResults([]);
-    setStudentSearch(student.full_name);
     setPaymentsLoading(true);
 
     // Get active enrollment to determine class + stream + transport opt-in.
@@ -806,7 +831,6 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     setStudentStopFeeFrequency("monthly");
     setStudentFeeStructures([]);
     setStudentPayments([]);
-    setStudentSearch("");
     setStudentResults([]);
   }, []);
 
@@ -842,23 +866,30 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     })();
   }, [supabase, academicYearId]);
 
-  // Roster for the class picked in the Payments tab.
+  // The Payments roster. With no class picked this is every enrolled student
+  // in the year — the screen opens on the full list rather than an empty
+  // "pick a class first" prompt, which is how the Students section behaves.
+  // Picking a class narrows it.
   useEffect(() => {
-    if (!paymentsClassId || !academicYearId) {
+    if (!academicYearId) {
       setClassStudents([]);
       return;
     }
     let cancelled = false;
     (async () => {
       setClassStudentsLoading(true);
-      const { data } = await supabase
+      let query = supabase
         .from("student_enrollments")
         .select(
-          "students(id, full_name, admission_no, father_name, is_active)"
+          "students(id, full_name, admission_no, father_name, is_active), classes(name, section, streams(name))"
         )
-        .eq("class_id", paymentsClassId)
         .eq("academic_year_id", academicYearId)
-        .eq("status", "active");
+        .eq("status", "active")
+        // Past PostgREST's 1000-row default cap: a whole-school roster
+        // silently truncated at 1000 would hide students with no warning.
+        .range(0, 9999);
+      if (paymentsClassId) query = query.eq("class_id", paymentsClassId);
+      const { data } = await query;
       if (cancelled) return;
       type Row = {
         students: {
@@ -868,15 +899,16 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           father_name: string | null;
           is_active: boolean;
         } | null;
+        classes: EmbeddedClass;
       };
       const rows = ((data as unknown as Row[]) ?? [])
-        .map((r) => r.students)
-        .filter((s): s is NonNullable<Row["students"]> => Boolean(s && s.is_active))
-        .map(({ id, full_name, admission_no, father_name }) => ({
-          id,
-          full_name,
-          admission_no,
-          father_name,
+        .filter((r) => Boolean(r.students?.is_active))
+        .map((r) => ({
+          id: r.students!.id,
+          full_name: r.students!.full_name,
+          admission_no: r.students!.admission_no,
+          father_name: r.students!.father_name,
+          class_label: embeddedClassLabel(r.classes),
         }))
         .sort((a, b) => a.full_name.localeCompare(b.full_name));
       setClassStudents(rows);
@@ -893,9 +925,37 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     return classStudents.filter(
       (s) =>
         s.full_name.toLowerCase().includes(q) ||
-        s.admission_no.toLowerCase().includes(q)
+        s.admission_no.toLowerCase().includes(q) ||
+        (s.father_name ?? "").toLowerCase().includes(q)
     );
   }, [classStudents, classStudentSearch]);
+
+  // The roster covers this year's enrolments. A student who has none — an
+  // alumnus, or someone yet to be placed in a class — is still someone the
+  // office may need to pull a receipt for, so when the roster filter comes up
+  // empty we fall back to searching all student records. Only then: showing
+  // both at once made one search box mean two things.
+  useEffect(() => {
+    const q = classStudentSearch.trim();
+    if (q.length < 2 || filteredClassStudents.length > 0) {
+      setStudentResults([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from("students")
+        .select("*")
+        .eq("is_active", true)
+        .ilike("full_name", `%${q}%`)
+        .limit(10);
+      if (!cancelled) setStudentResults((data as Student[]) ?? []);
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [classStudentSearch, filteredClassStudents.length, supabase]);
 
   // Header sort/filter accessors for the three list tables on this page.
   // Each accessor mirrors what the matching cell renders.
@@ -940,9 +1000,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     columns: structureColumns,
   });
 
-  const classStudentColumns = useMemo<
-    TableColumns<(typeof classStudents)[number]>
-  >(
+  const classStudentColumns = useMemo<TableColumns<RosterStudent>>(
     () => ({
       admission_no: {
         label: "Adm No",
@@ -950,6 +1008,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         filter: "text",
       },
       full_name: { label: "Name", value: (s) => s.full_name, filter: "text" },
+      class_label: {
+        label: "Class",
+        value: (s) => s.class_label || null,
+        emptyLabel: "Unassigned",
+      },
       father_name: {
         label: "Father",
         value: (s) => s.father_name || null,
@@ -1015,32 +1078,39 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     }
   };
 
+  // Prices the register. With no class picked this runs the whole school —
+  // the arrears report opens on every outstanding student rather than on an
+  // empty "pick a class" prompt, which is the question the office actually
+  // arrives with. Picking a class narrows it.
   const computeDues = useCallback(async () => {
-    if (!duesClassId || !academicYearId) {
+    if (!academicYearId) {
       setDuesRows([]);
       return;
     }
     setDuesLoading(true);
     try {
-      const classMeta = classesList.find((c) => c.id === duesClassId);
-      if (!classMeta) {
-        setDuesRows([]);
-        return;
-      }
-      const { data: enrollments } = await supabase
+      // Every query below carries an explicit .range(): PostgREST caps at
+      // 1000 rows by default, and a whole-school pass silently truncated at
+      // 1000 would under-report arrears with no error to notice.
+      let enrollmentQuery = supabase
         .from("student_enrollments")
         .select(
-          "id, student_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, students(id, full_name, admission_no, father_name, is_active, admission_date)"
+          "id, student_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, students(id, full_name, admission_no, father_name, is_active, admission_date), classes(name, section, streams(name))"
         )
-        .eq("class_id", duesClassId)
         .eq("academic_year_id", academicYearId)
-        .eq("status", "active");
+        .eq("status", "active")
+        .range(0, 9999);
+      if (duesClassId) enrollmentQuery = enrollmentQuery.eq("class_id", duesClassId);
+      const { data: enrollments } = await enrollmentQuery;
+      // Structures for every class in the year, grouped by class name below.
+      // Fetched whole even for a single class: the row count is small, and it
+      // keeps one code path for both scopes.
       const { data: structures } = await supabase
         .from("fee_structures")
         .select("*")
-        .eq("class_name", classMeta.name)
         .eq("academic_year_id", academicYearId)
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .range(0, 9999);
       // Per-stop fees for the current year (stop-based model, migration 074).
       // Keyed by bus_stop_id so each transport-using enrollment can price its
       // assigned stop.
@@ -1048,7 +1118,8 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         .from("bus_stop_fees")
         .select("bus_stop_id, amount, frequency, is_active")
         .eq("academic_year_id", academicYearId)
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .range(0, 9999);
       type StopFeeRow = {
         bus_stop_id: string;
         amount: number;
@@ -1082,19 +1153,32 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         // refund flips status to 'refunded' while amount_paid stays put, so
         // dropping them by status erased the whole receipt from paid totals
         // and overstated dues. Each refunded row's net cash is settled below.
-        const { data: pays } = await supabase
+        let payQuery = supabase
           .from("fee_payments")
           .select(
             "student_id, fee_structure_id, amount_paid, waiver_amount, refund_amount, status"
           )
-          .in("student_id", studentIds)
           .in("status", ["paid", "partial", "refunded"])
-          .eq("academic_year_id", academicYearId);
+          .eq("academic_year_id", academicYearId)
+          .range(0, 99999);
+        // Scope by student only for a single class. Across the whole school
+        // the id list would be thousands of UUIDs in a query string, and the
+        // year filter already bounds the result to the same rows.
+        if (duesClassId) payQuery = payQuery.in("student_id", studentIds);
+        const { data: pays } = await payQuery;
         payments = (pays as unknown as PayRow[]) ?? [];
       }
 
-      const classLabel = formatClassName(classMeta);
       const allStructures = (structures as FeeStructure[] | null) ?? [];
+      // Fee structures are keyed by class *name* (not class id), so sections
+      // of the same class share a schedule. Group once instead of filtering
+      // the whole list per student.
+      const structuresByClassName = new Map<string, FeeStructure[]>();
+      for (const fs of allStructures) {
+        const list = structuresByClassName.get(fs.class_name);
+        if (list) list.push(fs);
+        else structuresByClassName.set(fs.class_name, [fs]);
+      }
       // Use a single "today" reference for the whole compute pass so a row
       // crossing midnight mid-computation doesn't get a different verdict
       // than its neighbour.
@@ -1110,13 +1194,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           father_name: string | null;
           admission_date: string | null;
         } | null;
+        const cls = pickEmbedded(e.classes as EmbeddedClass);
         const busStopId = (e.bus_stop_id as string | null) ?? null;
         const stopFee = busStopId ? stopFeesById.get(busStopId) : undefined;
         // Same resolution the per-student payment screen runs, so the register
         // and that screen price a student identically. The stop name is only
         // ever displayed there, so an empty label is fine here.
         const lines = resolveEffectiveFeeLines({
-          structures: allStructures,
+          structures: cls ? structuresByClassName.get(cls.name) ?? [] : [],
           studentStreamId: (e.stream_id as string | null) ?? null,
           // Admission/registration rows bill this year's intake only.
           studentType: resolveStudentType(
@@ -1154,7 +1239,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           admission_no: stu?.admission_no ?? "",
           full_name: stu?.full_name ?? "",
           father_name: stu?.father_name ?? null,
-          class_label: classLabel,
+          class_label: embeddedClassLabel(e.classes as EmbeddedClass),
           has_transport: Boolean(e.has_transport),
           expected: breakdown.expected,
           billed_to_date: breakdown.billedToDate,
@@ -1171,12 +1256,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     } finally {
       setDuesLoading(false);
     }
-  }, [supabase, duesClassId, academicYearId, academicYearRange, classesList]);
+  }, [supabase, duesClassId, academicYearId, academicYearRange]);
 
   useEffect(() => {
-    if (duesClassId) computeDues();
-    else setDuesRows([]);
-  }, [duesClassId, computeDues]);
+    computeDues();
+  }, [computeDues]);
 
   // Reset the search whenever the class changes — sticky search text across
   // an unrelated roster would just confuse the empty-state message.
@@ -1956,7 +2040,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     }}
                     className="block rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted min-w-[220px]"
                   >
-                    <option value="">Select a class…</option>
+                    <option value="">All classes</option>
                     {classesList.map((c) => (
                       <option key={c.id} value={c.id}>
                         {formatClassName(c)}
@@ -1964,45 +2048,19 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     ))}
                   </select>
                 </div>
-                <div className="flex-1 relative">
+                <div className="flex-1">
                   <Label className="mb-2 block text-xs font-medium">
-                    {paymentsClassId ? "Filter Students" : "Search Student"}
+                    Search Students
                   </Label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
                     <Input
-                      placeholder={
-                        paymentsClassId
-                          ? "Filter by name or admission no…"
-                          : "Search by student name…"
-                      }
-                      value={
-                        paymentsClassId ? classStudentSearch : studentSearch
-                      }
-                      onChange={(e) =>
-                        paymentsClassId
-                          ? setClassStudentSearch(e.target.value)
-                          : searchStudents(e.target.value)
-                      }
+                      placeholder="Search by name, admission no or father…"
+                      value={classStudentSearch}
+                      onChange={(e) => setClassStudentSearch(e.target.value)}
                       className="pl-10"
                     />
                   </div>
-                  {!paymentsClassId && studentResults.length > 0 && (
-                    <div className="absolute z-10 mt-1 w-full bg-white dark:bg-card border border-gray-200 dark:border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                      {studentResults.map((s) => (
-                        <button
-                          key={s.id}
-                          onClick={() => selectStudent(s)}
-                          className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-muted text-sm"
-                        >
-                          <span className="font-medium">{s.full_name}</span>
-                          <span className="text-gray-400 dark:text-gray-500 ml-2">
-                            {s.admission_no}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -2223,17 +2281,45 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </>
               )}
 
-              {!selectedStudent && paymentsClassId && (
+              {!selectedStudent && (
                 classStudentsLoading ? (
                   <div className="flex justify-center py-12">
                     <Loader2 className="h-5 w-5 animate-spin text-navy-900 dark:text-white" />
                   </div>
                 ) : filteredClassStudents.length === 0 ? (
-                  <p className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
-                    {classStudents.length === 0
-                      ? "No active students in this class."
-                      : "No students match your filter."}
-                  </p>
+                  <div className="py-12">
+                    <p className="text-center text-gray-400 dark:text-gray-500 text-sm">
+                      {classStudents.length === 0
+                        ? paymentsClassId
+                          ? "No active students in this class."
+                          : "No active enrolments for the current academic year."
+                        : "No students match your search."}
+                    </p>
+                    {/* Students outside this year's roster — alumni, or someone
+                        not yet placed in a class. Only surfaced once the roster
+                        itself has nothing, so the search box keeps one meaning. */}
+                    {studentResults.length > 0 && (
+                      <div className="mx-auto mt-6 max-w-md">
+                        <p className="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                          Not enrolled this year, from all student records:
+                        </p>
+                        <div className="rounded-lg border border-gray-200 dark:border-border divide-y divide-gray-100 dark:divide-border">
+                          {studentResults.map((s) => (
+                            <button
+                              key={s.id}
+                              onClick={() => selectStudent(s)}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-muted text-sm"
+                            >
+                              <span className="font-medium">{s.full_name}</span>
+                              <span className="text-gray-400 dark:text-gray-500 ml-2">
+                                {s.admission_no}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <>
                   <TableFilterSummary
@@ -2246,6 +2332,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                       <TableRow>
                         <SortFilterHead ctl={classStudentTable} col="admission_no" />
                         <SortFilterHead ctl={classStudentTable} col="full_name" />
+                        {!paymentsClassId && (
+                          <SortFilterHead ctl={classStudentTable} col="class_label" />
+                        )}
                         <SortFilterHead ctl={classStudentTable} col="father_name" />
                         <TableHead className="w-32 text-right">Action</TableHead>
                       </TableRow>
@@ -2253,7 +2342,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     <TableBody>
                       {classStudentTable.rows.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={4} className="py-10 text-center text-gray-500 dark:text-gray-400">
+                          <TableCell colSpan={paymentsClassId ? 4 : 5} className="py-10 text-center text-gray-500 dark:text-gray-400">
                             No students match the column filters.
                           </TableCell>
                         </TableRow>
@@ -2268,6 +2357,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                             {s.admission_no}
                           </TableCell>
                           <TableCell>{s.full_name}</TableCell>
+                          {!paymentsClassId && (
+                            <TableCell className="text-gray-600 dark:text-gray-300">
+                              {s.class_label || "Unassigned"}
+                            </TableCell>
+                          )}
                           <TableCell className="text-gray-600 dark:text-gray-300">
                             {s.father_name || "—"}
                           </TableCell>
@@ -2291,11 +2385,6 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 )
               )}
 
-              {!selectedStudent && !paymentsClassId && (
-                <p className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
-                  Pick a class to see its students, or search by name above.
-                </p>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -2329,7 +2418,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     onChange={(e) => setDuesClassId(e.target.value)}
                     className="block mt-1 rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted min-w-[220px]"
                   >
-                    <option value="">Select a class…</option>
+                    <option value="">All classes</option>
                     {classesList.map((c) => (
                       <option key={c.id} value={c.id}>
                         {formatClassName(c)}
@@ -2337,7 +2426,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     ))}
                   </select>
                 </div>
-                {duesClassId && !duesLoading && duesRows.length > 0 && (
+                {!duesLoading && duesRows.length > 0 && (
                   <div className="flex-1 min-w-[220px]">
                     <Label className="text-xs font-medium">Search</Label>
                     <div className="relative mt-1">
@@ -2351,7 +2440,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     </div>
                   </div>
                 )}
-                {duesClassId && !duesLoading && duesRows.length > 0 && (
+                {!duesLoading && duesRows.length > 0 && (
                   <div className="ml-auto flex items-center gap-2 flex-wrap">
                     <Badge className="bg-red-100 text-red-700 border-red-200">
                       Pending:{" "}
@@ -2386,20 +2475,21 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 )}
               </div>
 
-              {!duesClassId ? (
-                <p className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
-                  Select a class to view the dues &amp; no-dues report for the current academic year.
-                </p>
-              ) : duesLoading ? (
+              {duesLoading ? (
                 <div className="flex justify-center py-12">
                   <Loader2 className="h-5 w-5 animate-spin text-navy-900 dark:text-white" />
                 </div>
               ) : duesRows.length === 0 ? (
                 <p className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
-                  No active enrollments for this class in the current academic year.
+                  {duesClassId
+                    ? "No active enrolments for this class in the current academic year."
+                    : "No active enrolments in the current academic year."}
                 </p>
               ) : (
-                <Tabs defaultValue="dues-list">
+                <Tabs
+                  value={duesTab === "clear-list" ? "clear-list" : "dues-list"}
+                  onValueChange={(v) => v && setDuesTab(String(v))}
+                >
                   <TabsList>
                     <TabsTrigger value="dues-list">
                       Dues ({duesSummary.withDues.length})
@@ -2418,6 +2508,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                               ? duesSummary.withDues
                               : duesSummary.clear
                           }
+                          showClass={!duesClassId}
                           emptyMessage={
                             duesSearch.trim()
                               ? "No students match your search."
