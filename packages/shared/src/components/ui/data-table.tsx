@@ -153,12 +153,32 @@ function omitKey<V>(
   return next;
 }
 
+function seedFilters(
+  preset: Record<string, Partial<ColumnFilter>> | undefined
+): Record<string, ColumnFilter> {
+  const seed: Record<string, ColumnFilter> = {};
+  for (const [key, f] of Object.entries(preset ?? {})) {
+    seed[key] = { ...EMPTY_FILTER, ...f };
+  }
+  return seed;
+}
+
 export interface UseTableControlsOptions<T> {
   rows: T[];
   columns: TableColumns<T>;
   defaultSort?: TableSort | null;
   /** Preset column filters, e.g. from a dashboard deep-link. */
   initialFilters?: Record<string, Partial<ColumnFilter>>;
+  /**
+   * Identity of `initialFilters`. The preset is applied once per distinct
+   * non-empty value, which matters because a deep-linked preset usually is
+   * NOT known at mount: the App Router commits the URL after the target
+   * page's first render, so a `?audit=` param read from it arrives a tick
+   * late. Seeding state only in the initializer meant those links opened an
+   * unfiltered table. Applying per-key also means clearing the filters by
+   * hand sticks — the preset does not re-assert itself on the next render.
+   */
+  presetKey?: string | null;
 }
 
 /**
@@ -172,17 +192,19 @@ export function useTableControls<T>({
   columns,
   defaultSort = null,
   initialFilters,
+  presetKey = null,
 }: UseTableControlsOptions<T>): TableControls<T> {
   const [sort, setSort] = React.useState<TableSort | null>(defaultSort);
   const [filters, setFilters] = React.useState<Record<string, ColumnFilter>>(
-    () => {
-      const seed: Record<string, ColumnFilter> = {};
-      for (const [key, f] of Object.entries(initialFilters ?? {})) {
-        seed[key] = { ...EMPTY_FILTER, ...f };
-      }
-      return seed;
-    }
+    () => seedFilters(initialFilters)
   );
+
+  const appliedPreset = React.useRef<string | null>(presetKey);
+  React.useEffect(() => {
+    if (!presetKey || appliedPreset.current === presetKey) return;
+    appliedPreset.current = presetKey;
+    setFilters(seedFilters(initialFilters));
+  }, [presetKey, initialFilters]);
 
   // Callers build `columns` inside their own `useMemo`, so it is a stable
   // reference and the memos below can depend on it directly.

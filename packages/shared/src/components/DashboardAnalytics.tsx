@@ -65,7 +65,12 @@ interface EnrollmentItem {
 
 interface AdmissionTrend {
   month: string;
-  count: number;
+  /** Students whose admission date falls in this month. */
+  admissions: number;
+  /** Transfer certificates issued in this month — students who left. */
+  exits: number;
+  /** `admissions - exits`. Negative months are the ones worth noticing. */
+  net: number;
 }
 
 interface TransportAudit {
@@ -116,6 +121,32 @@ function FeeHeadcount({
         {label}
       </p>
     </Link>
+  );
+}
+
+/** One half of a month column on the admissions/exits chart. */
+function MovementBar({
+  value,
+  max,
+  delay,
+  className,
+}: {
+  value: number;
+  max: number;
+  delay: number;
+  className: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "w-full rounded-t transition-all duration-200 dash-grow-h",
+        value > 0 ? className : "bg-gray-100 dark:bg-muted"
+      )}
+      style={{
+        height: `${value > 0 ? Math.max((value / max) * 100, 10) : 5}%`,
+        animationDelay: `${delay}ms`,
+      }}
+    />
   );
 }
 
@@ -464,8 +495,9 @@ export function DashboardAnalytics() {
     ...(data.enrollmentByClass ?? []).map((e) => e.count),
     1
   );
-  const maxAdmission = Math.max(
-    ...(data.admissionTrend ?? []).map((a) => a.count),
+  // One scale for both series so the two bars in a month are comparable.
+  const maxMovement = Math.max(
+    ...(data.admissionTrend ?? []).flatMap((a) => [a.admissions, a.exits]),
     1
   );
 
@@ -655,53 +687,105 @@ export function DashboardAnalytics() {
           for below the fold. */}
       {data.attendance && <AttendanceBlock data={data.attendance} />}
 
-      {/* Recent Admissions Trend */}
+      {/* Roll movement — intake against exits. Admissions alone can't say
+          whether the school is growing: a strong April reads very differently
+          once the same month's leavers are next to it. */}
       {data.admissionTrend && (
         <div className="erp-stat-card">
           <div className="flex items-center gap-3 mb-4">
             <div className="h-10 w-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
               <UserPlus className="h-5 w-5 text-amber-600" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h3 className="text-sm font-semibold text-navy-900 dark:text-white">
-                Recent Admissions
+                Admissions &amp; Exits
               </h3>
-              <p className="text-[11px] text-gray-400">Last 6 months</p>
+              <p className="text-[11px] text-gray-400">
+                Last 6 months · exits counted from transfer certificates
+              </p>
             </div>
+            {(() => {
+              const joined = data.admissionTrend.reduce(
+                (t, m) => t + m.admissions,
+                0
+              );
+              const left = data.admissionTrend.reduce((t, m) => t + m.exits, 0);
+              const net = joined - left;
+              if (joined === 0 && left === 0) return null;
+              return (
+                <span
+                  className={cn(
+                    "ml-auto shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold tabular-nums",
+                    net > 0
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                      : net < 0
+                        ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400"
+                        : "bg-gray-100 text-gray-600 dark:bg-muted dark:text-gray-300"
+                  )}
+                  title={`${joined} joined, ${left} left over the last 6 months`}
+                >
+                  {net > 0 ? `+${net}` : net} net
+                </span>
+              );
+            })()}
           </div>
-          {data.admissionTrend.every((m) => m.count === 0) ? (
+          {data.admissionTrend.every((m) => m.admissions === 0 && m.exits === 0) ? (
             <p className="text-xs text-gray-400 text-center py-4">
-              No admissions in the last 6 months
+              No admissions or exits in the last 6 months
             </p>
           ) : (
-            <div className="flex items-end gap-2 h-28">
-              {data.admissionTrend.map((item, i) => (
-                <div
-                  key={item.month}
-                  className="flex-1 flex flex-col items-center gap-1 group"
-                  title={`${item.month}: ${item.count} admission${item.count === 1 ? "" : "s"}`}
-                >
-                  <span className="text-[10px] font-semibold text-navy-900 dark:text-white tabular-nums">
-                    {item.count > 0 ? item.count : ""}
-                  </span>
+            <>
+              <div className="flex items-end gap-2">
+                {data.admissionTrend.map((item, i) => (
                   <div
-                    className={cn(
-                      "w-full rounded-t transition-all duration-200 dash-grow-h",
-                      item.count > 0
-                        ? "bg-gradient-to-t from-amber-500 to-amber-300 group-hover:from-amber-600 group-hover:to-amber-400"
-                        : "bg-gray-100 dark:bg-muted"
-                    )}
-                    style={{
-                      height: `${item.count > 0 ? Math.max((item.count / maxAdmission) * 100, 10) : 5}%`,
-                      animationDelay: `${i * 70}ms`,
-                    }}
-                  />
-                  <span className="text-[10px] text-gray-400 group-hover:text-navy-900 dark:group-hover:text-white transition-colors">
-                    {item.month}
-                  </span>
+                    key={item.month}
+                    className="flex-1 flex flex-col items-center gap-1 group"
+                    title={`${item.month}: ${item.admissions} joined, ${item.exits} left (net ${item.net > 0 ? "+" : ""}${item.net})`}
+                  >
+                    <span className="text-[10px] font-semibold tabular-nums text-navy-900 dark:text-white">
+                      {item.admissions > 0 || item.exits > 0
+                        ? `${item.admissions}/${item.exits}`
+                        : ""}
+                    </span>
+                    {/* Two bars, not a net one: a quiet month and a month
+                        where 30 arrived and 30 left are not the same thing,
+                        and a single net bar would draw them identically.
+                        The height here has to be a fixed h-20 rather than a
+                        flex-1 share of the row: the bars size themselves as a
+                        percentage of this box, and a percentage of an
+                        auto-height parent resolves to nothing — which is why
+                        the old single-series chart drew no bars at all. */}
+                    <div className="flex h-20 w-full items-end justify-center gap-[3px]">
+                      <MovementBar
+                        value={item.admissions}
+                        max={maxMovement}
+                        delay={i * 70}
+                        className="bg-gradient-to-t from-emerald-500 to-emerald-300 group-hover:from-emerald-600"
+                      />
+                      <MovementBar
+                        value={item.exits}
+                        max={maxMovement}
+                        delay={i * 70 + 35}
+                        className="bg-gradient-to-t from-rose-500 to-rose-300 group-hover:from-rose-600"
+                      />
+                    </div>
+                    <span className="text-[10px] text-gray-400 group-hover:text-navy-900 dark:group-hover:text-white transition-colors">
+                      {item.month}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="text-gray-500 dark:text-gray-400">Joined</span>
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-rose-500" />
+                  <span className="text-gray-500 dark:text-gray-400">Left</span>
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}
