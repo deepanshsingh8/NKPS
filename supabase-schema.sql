@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS site_media (
 -- Section Cards
 CREATE TABLE IF NOT EXISTS section_cards (
   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-  section text NOT NULL CHECK (section IN ('hero_slider', 'testimonials', 'facilities_preview', 'leadership', 'legacy_timeline', 'why_choose_us', 'activities', 'annual_events', 'campus_facilities', 'accolades', 'alumni', 'student_achievements', 'sports_indoor', 'sports_outdoor')),
+  section text NOT NULL CHECK (section IN ('hero_slider', 'testimonials', 'facilities_preview', 'leadership', 'legacy_timeline', 'why_choose_us', 'activities', 'annual_events', 'campus_facilities', 'accolades', 'alumni', 'student_achievements', 'sports_indoor', 'sports_outdoor', 'student_council', 'house_captains')),
   title text,
   subtitle text,
   description text,

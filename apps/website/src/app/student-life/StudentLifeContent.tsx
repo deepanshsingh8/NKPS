@@ -15,6 +15,10 @@ import {
   X,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import {
+  StudentCouncil,
+  HouseCaptains,
+} from "@/components/student-life/StudentCouncil";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
@@ -41,6 +45,8 @@ interface StudentLifePageProps {
   eventCards?: SectionCard[];
   sportsIndoorCards?: SectionCard[];
   sportsOutdoorCards?: SectionCard[];
+  councilCards?: SectionCard[];
+  houseCaptainCards?: SectionCard[];
 }
 
 export function StudentLifeContent({
@@ -48,6 +54,8 @@ export function StudentLifeContent({
   eventCards,
   sportsIndoorCards,
   sportsOutdoorCards,
+  councilCards,
+  houseCaptainCards,
 }: StudentLifePageProps = {}) {
   // Single source of truth: section_cards. Defaults are seeded as is_default
   // rows (migration 057) for both `activities` and `annual_events`.
@@ -98,6 +106,10 @@ export function StudentLifeContent({
   return (
     <PageTransition>
       <PageHeader title="Student Life" subtitle="Beyond the Classroom" />
+
+      {/* Investiture Ceremony — current office bearers (CMS-managed) */}
+      <StudentCouncil cards={councilCards} onExpandImage={setLightbox} />
+      <HouseCaptains cards={houseCaptainCards} onExpandImage={setLightbox} />
 
       {/* Activities — Masonry-like Grid */}
       {activities.length > 0 && (

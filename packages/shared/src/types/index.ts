@@ -76,7 +76,7 @@ export interface StaffMember {
   updated_at: string;
 }
 
-export type SectionCardType = 'hero_slider' | 'testimonials' | 'facilities_preview' | 'leadership' | 'legacy_timeline' | 'why_choose_us' | 'activities' | 'annual_events' | 'campus_facilities' | 'accolades' | 'alumni' | 'student_achievements' | 'sports_indoor' | 'sports_outdoor';
+export type SectionCardType = 'hero_slider' | 'testimonials' | 'facilities_preview' | 'leadership' | 'legacy_timeline' | 'why_choose_us' | 'activities' | 'annual_events' | 'campus_facilities' | 'accolades' | 'alumni' | 'student_achievements' | 'sports_indoor' | 'sports_outdoor' | 'student_council' | 'house_captains';
 
 export interface SectionCard {
   id: string;
