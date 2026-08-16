@@ -195,24 +195,102 @@ function BearerPortrait({
 
 /* ─── Student Council ─── */
 
-// Councils vary in size — four posts (head boy / head girl + two captains) or
-// six once deputies are invested, sometimes more. Pick the wide-screen column
-// count that leaves the fewest cards stranded on the last row, so six bearers
-// lay out as two rows of three rather than four-then-two.
+// Councils vary in size — four posts, or ten once deputies, scout and guide
+// heads are invested. Pick the wide-screen column count that fills the last
+// row best: a perfect fit wins, otherwise the fullest last row. Six bearers
+// become two rows of three, ten become two rows of five.
 const LG_COLUMNS: Record<number, string> = {
   1: "lg:grid-cols-1",
   2: "lg:grid-cols-2",
   3: "lg:grid-cols-3",
   4: "lg:grid-cols-4",
+  5: "lg:grid-cols-5",
 };
 
+const COLUMN_CANDIDATES = [5, 4, 3];
+
 function columnsClass(count: number): string {
-  if (count <= 4) return LG_COLUMNS[count];
-  const remainderOf4 = count % 4;
-  const remainderOf3 = count % 3;
-  if (remainderOf4 === 0) return LG_COLUMNS[4];
-  if (remainderOf3 === 0) return LG_COLUMNS[3];
-  return remainderOf4 >= remainderOf3 ? LG_COLUMNS[4] : LG_COLUMNS[3];
+  if (count <= 5) return LG_COLUMNS[count];
+
+  let best = 4;
+  let bestRemainder = -1;
+  for (const columns of COLUMN_CANDIDATES) {
+    const remainder = count % columns;
+    if (remainder === 0) return LG_COLUMNS[columns];
+    if (remainder > bestRemainder) {
+      best = columns;
+      bestRemainder = remainder;
+    }
+  }
+  return LG_COLUMNS[best];
+}
+
+// The council spans wings — a senior body and a junior one, each with its own
+// head boy / head girl. `subtitle` carries the wing, and cards that leave it
+// blank form a single unlabelled group, so a school with one council sees no
+// sub-headings at all.
+interface CouncilGroup {
+  wing: string;
+  bearers: OfficeBearer[];
+}
+
+function groupByWing(cards: SectionCard[]): CouncilGroup[] {
+  const groups: CouncilGroup[] = [];
+  for (const card of cards) {
+    const wing = card.subtitle?.trim() || "";
+    let group = groups.find((g) => g.wing === wing);
+    if (!group) {
+      group = { wing, bearers: [] };
+      groups.push(group);
+    }
+    group.bearers.push(toBearer(card));
+  }
+  return groups;
+}
+
+function CouncilCard({
+  bearer,
+  onExpandImage,
+}: {
+  bearer: OfficeBearer;
+  onExpandImage?: ExpandImage;
+}) {
+  return (
+    <motion.div
+      variants={fadeUp}
+      className="group overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm transition-colors duration-300 hover:border-gold-500/40"
+    >
+      <BearerPortrait
+        bearer={bearer}
+        onExpandImage={onExpandImage}
+        className="relative aspect-[4/5] w-full"
+      />
+
+      <div className="p-4 text-center sm:p-5">
+        {/* Fixed height: the longer posts ("Deputy Cultural Head") wrap to two
+            lines in a narrow column, and without it their card's name would sit
+            lower than the rest of the row. */}
+        {bearer.post && (
+          <div className="flex min-h-10 items-center justify-center">
+            <span className="inline-block rounded-full bg-gold-500/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gold-300 sm:text-[11px]">
+              {bearer.post}
+            </span>
+          </div>
+        )}
+        <h3 className="mt-2 font-heading text-base font-bold text-white sm:text-lg">
+          {bearer.name}
+        </h3>
+        {bearer.className && (
+          <p className="mt-0.5 text-xs text-gray-300 sm:text-sm">{bearer.className}</p>
+        )}
+        {bearer.message && (
+          <p className="mt-3 text-sm italic leading-relaxed text-gray-400">
+            &ldquo;{bearer.message}&rdquo;
+          </p>
+        )}
+      </div>
+    </motion.div>
+  );
 }
 
 export function StudentCouncil({
@@ -222,12 +300,16 @@ export function StudentCouncil({
   cards?: SectionCard[];
   onExpandImage?: ExpandImage;
 }) {
-  const bearers = (cards ?? []).map(toBearer);
-  if (bearers.length === 0) return null;
+  const groups = groupByWing(cards ?? []);
+  if (groups.length === 0) return null;
 
   // The session is the same for the whole council — show it once, as a badge
   // under the heading, taken from the first card that carries one.
-  const session = bearers.find((b) => b.session)?.session ?? "";
+  const session =
+    groups.flatMap((g) => g.bearers).find((b) => b.session)?.session ?? "";
+
+  // A single unlabelled group is just "the council" — don't head it.
+  const showWings = groups.length > 1 || Boolean(groups[0].wing);
 
   return (
     <section className="bg-gradient-to-b from-navy-950 to-navy-900 py-20 px-6">
@@ -252,51 +334,40 @@ export function StudentCouncil({
           </AnimatedSection>
         )}
 
-        <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-80px" }}
-          className={cn(
-            "mt-12 grid grid-cols-2 gap-4 sm:gap-6",
-            columnsClass(bearers.length)
-          )}
-        >
-          {bearers.map((bearer) => (
-            <motion.div
-              key={bearer.id}
-              variants={fadeUp}
-              className="group overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm transition-colors duration-300 hover:border-gold-500/40"
-            >
-              <BearerPortrait
-                bearer={bearer}
-                onExpandImage={onExpandImage}
-                className="relative aspect-[4/5] w-full"
-              />
+        {groups.map((group) => (
+          <div key={group.wing || "council"} className="mt-12">
+            {showWings && group.wing && (
+              <AnimatedSection>
+                <div className="mb-7 flex items-center justify-center gap-4">
+                  <span className="h-px w-8 bg-gold-500/40 sm:w-12" />
+                  <h3 className="font-heading text-base font-semibold uppercase tracking-[0.15em] text-gold-300 sm:text-lg">
+                    {group.wing}
+                  </h3>
+                  <span className="h-px w-8 bg-gold-500/40 sm:w-12" />
+                </div>
+              </AnimatedSection>
+            )}
 
-              <div className="p-4 text-center sm:p-5">
-                {bearer.post && (
-                  <span className="inline-block rounded-full bg-gold-500/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gold-300 sm:text-[11px]">
-                    {bearer.post}
-                  </span>
-                )}
-                <h3 className="mt-3 font-heading text-base font-bold text-white sm:text-lg">
-                  {bearer.name}
-                </h3>
-                {bearer.className && (
-                  <p className="mt-0.5 text-xs text-gray-300 sm:text-sm">
-                    {bearer.className}
-                  </p>
-                )}
-                {bearer.message && (
-                  <p className="mt-3 text-sm italic leading-relaxed text-gray-400">
-                    &ldquo;{bearer.message}&rdquo;
-                  </p>
-                )}
-              </div>
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-80px" }}
+              className={cn(
+                "grid grid-cols-2 gap-4 sm:gap-6",
+                columnsClass(group.bearers.length)
+              )}
+            >
+              {group.bearers.map((bearer) => (
+                <CouncilCard
+                  key={bearer.id}
+                  bearer={bearer}
+                  onExpandImage={onExpandImage}
+                />
+              ))}
             </motion.div>
-          ))}
-        </motion.div>
+          </div>
+        ))}
       </div>
     </section>
   );
