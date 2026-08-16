@@ -195,6 +195,26 @@ function BearerPortrait({
 
 /* ─── Student Council ─── */
 
+// Councils vary in size — four posts (head boy / head girl + two captains) or
+// six once deputies are invested, sometimes more. Pick the wide-screen column
+// count that leaves the fewest cards stranded on the last row, so six bearers
+// lay out as two rows of three rather than four-then-two.
+const LG_COLUMNS: Record<number, string> = {
+  1: "lg:grid-cols-1",
+  2: "lg:grid-cols-2",
+  3: "lg:grid-cols-3",
+  4: "lg:grid-cols-4",
+};
+
+function columnsClass(count: number): string {
+  if (count <= 4) return LG_COLUMNS[count];
+  const remainderOf4 = count % 4;
+  const remainderOf3 = count % 3;
+  if (remainderOf4 === 0) return LG_COLUMNS[4];
+  if (remainderOf3 === 0) return LG_COLUMNS[3];
+  return remainderOf4 >= remainderOf3 ? LG_COLUMNS[4] : LG_COLUMNS[3];
+}
+
 export function StudentCouncil({
   cards,
   onExpandImage,
@@ -237,7 +257,10 @@ export function StudentCouncil({
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-80px" }}
-          className="mt-12 grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4"
+          className={cn(
+            "mt-12 grid grid-cols-2 gap-4 sm:gap-6",
+            columnsClass(bearers.length)
+          )}
         >
           {bearers.map((bearer) => (
             <motion.div

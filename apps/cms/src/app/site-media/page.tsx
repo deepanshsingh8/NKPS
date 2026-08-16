@@ -61,7 +61,7 @@ const SECTION_LABELS: Record<string, string> = {
   alumni: "Alumni Achievements",
   sports_indoor: "Sports — Indoor",
   sports_outdoor: "Sports — Outdoor",
-  student_council: "Student Council (Head Boy / Head Girl / Captains)",
+  student_council: "Student Council (Head Boy / Head Girl / Deputies / Captains)",
   house_captains: "House Captains",
 };
 
@@ -208,7 +208,10 @@ const SECTION_FIELD_OVERRIDES: Partial<
 > = {
   student_council: {
     name: { label: "Student Name", placeholder: "e.g., Aarav Sharma" },
-    designation: { label: "Post", placeholder: "e.g., Head Boy, Head Girl, Sports Captain" },
+    designation: {
+      label: "Post",
+      placeholder: "e.g., Head Boy, Head Girl, Deputy Head Boy, Sports Captain",
+    },
     role: { label: "Class & Section", placeholder: "e.g., Class XII-A" },
     year: { label: "Session", placeholder: "e.g., 2026-27" },
     message: { label: "Message (optional)", placeholder: "A short line from the student" },
