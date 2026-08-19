@@ -90,7 +90,9 @@ export async function GET(request: NextRequest) {
       //   1. Current-year row (if a current year is flagged) beats other years.
       //   2. status='active' beats past statuses (passed/failed/terminated/exited).
       //   3. More recently updated row beats older (proxy for "most recent
-      //      enrollment activity"; the table doesn't carry created_at).
+      //      enrollment activity"). created_at exists as of migration 086, but
+      //      updated_at stays the tie-break: it tracks the last edit, which is
+      //      the better signal for "most recent enrollment activity".
       type Enrollment = NonNullable<typeof enrollments>[number];
       const sorted = (enrollments ?? []).slice().sort((a: Enrollment, b: Enrollment) => {
         const aYear = currentYearId && a.academic_year_id === currentYearId ? 0 : 1;
@@ -133,6 +135,13 @@ export async function GET(request: NextRequest) {
           class_id: enrollment?.class_id ?? null,
           stream_id: enrollment?.stream_id ?? null,
           enrollment_status: enrollment?.status ?? null,
+          // The representative enrollment may belong to a PAST year (a student
+          // with no current-year row). The client needs to know, because a
+          // past-year row is read-only — see the PATCH branch below.
+          enrollment_academic_year_id: enrollment?.academic_year_id ?? null,
+          enrollment_is_current_year: Boolean(
+            currentYearId && enrollment?.academic_year_id === currentYearId
+          ),
           class_name: cls?.name ?? null,
           class_section: cls?.section ?? null,
           has_transport: e?.has_transport ?? false,
@@ -406,21 +415,39 @@ export async function PATCH(request: NextRequest) {
     }
 
     // ── Enrollment (class / roll number / stream) ─────────────────────────────
-    // Roll numbers are unique per class among ACTIVE rows
-    // (student_enrollments_class_rollno_active_unique) and are auto-assigned
-    // densely 1..N, so a class change MUST NOT carry the old class's number
-    // across — the target class virtually always already has it. The edit form
-    // resends the student's current roll number with every save, so moving a
-    // student used to fail on that unique index and surface as a bare 500.
     //
-    // On a class change: an auto-assigned number is cleared to NULL and the
-    // AFTER UPDATE recompute trigger renumbers both the old and new class
-    // alphabetically. A manually pinned number is honoured, but pre-checked so
-    // a genuine clash reads as an actionable 400 instead of a constraint error.
+    // Two invariants govern this whole block.
+    //
+    // 1. Roll numbers are unique per class among ACTIVE rows
+    //    (student_enrollments_class_rollno_active_unique) and are auto-assigned
+    //    densely 1..N, so a class change MUST NOT carry the old class's number
+    //    across — the target class virtually always already has it. The edit
+    //    form resends the current roll number with every save, so moving a
+    //    student used to fail on that unique index as a bare 500. An
+    //    auto-assigned number is cleared to NULL and the AFTER UPDATE recompute
+    //    trigger renumbers both classes; a manually pinned number is honoured
+    //    but pre-checked so a clash reads as an actionable 409.
+    //
+    // 2. Past years are READ-ONLY. The GET above picks one "representative"
+    //    enrollment per student, and for a student with no current-year row
+    //    that is a PAST year's record. Writing class_id/academic_year_id onto
+    //    it would silently convert (say) their 2019-20 history into this year.
+    //    A cross-year class change is a NEW enrollment, categorically, never an
+    //    edit of the old one — so this resolves to an insert instead.
+
+    // Which row (if any) may this edit write to? null ⇒ insert a fresh one.
+    let enrollmentTargetId: string | null = enrollment_id ?? null;
+    let existingEnrollment: {
+      class_id: string;
+      academic_year_id: string;
+      roll_number: number | null;
+      roll_number_manual: boolean | null;
+    } | null = null;
+
     if (enrollment_id) {
       const { data: currentEnrollment, error: currentEnrollmentError } = await admin
         .from("student_enrollments")
-        .select("class_id, roll_number, roll_number_manual")
+        .select("class_id, academic_year_id, roll_number, roll_number_manual")
         .eq("id", enrollment_id)
         .maybeSingle();
 
@@ -431,6 +458,69 @@ export async function PATCH(request: NextRequest) {
           { status: 500 }
         );
       }
+      existingEnrollment = currentEnrollment ?? null;
+
+      const { data: currentYear } = await admin
+        .from("academic_years")
+        .select("id, name")
+        .eq("is_current", true)
+        .maybeSingle();
+
+      if (
+        existingEnrollment &&
+        currentYear &&
+        existingEnrollment.academic_year_id !== currentYear.id
+      ) {
+        // Does this edit touch the enrollment at all, or only profile fields?
+        const touchesEnrollment =
+          class_id !== undefined ||
+          roll_number !== undefined ||
+          roll_number_manual !== undefined;
+
+        if (!touchesEnrollment) {
+          // Profile-only edit. The profile already saved above; leave the
+          // past-year enrollment exactly as it is.
+          return NextResponse.json({ success: true });
+        }
+
+        // Which year does the requested class belong to?
+        let requestedYearId: string | null = null;
+        if (class_id) {
+          const { data: reqClass } = await admin
+            .from("classes")
+            .select("academic_year_id")
+            .eq("id", class_id)
+            .maybeSingle();
+          requestedYearId = reqClass?.academic_year_id ?? null;
+        }
+
+        if (class_id && requestedYearId === currentYear.id) {
+          // Moving the student into the CURRENT year — insert a new row and
+          // leave the past-year record intact.
+          enrollmentTargetId = null;
+          existingEnrollment = null;
+        } else {
+          const { data: rowYear } = await admin
+            .from("academic_years")
+            .select("name")
+            .eq("id", existingEnrollment.academic_year_id)
+            .maybeSingle();
+          return NextResponse.json(
+            {
+              error:
+                `Student details were saved, but the enrollment was not changed: ` +
+                `that record belongs to ${rowYear?.name ?? "a past session"}. ` +
+                `Past-year records are read-only — open the student's Academic ` +
+                `History to correct them.`,
+            },
+            { status: 409 }
+          );
+        }
+      }
+    }
+
+    if (enrollmentTargetId) {
+      const currentEnrollment = existingEnrollment;
 
       const classChanged = Boolean(
         class_id && currentEnrollment && class_id !== currentEnrollment.class_id
@@ -476,22 +566,25 @@ export async function PATCH(request: NextRequest) {
             { status: 400 }
           );
         }
+        // Only ever written when it matches what's already stored — the
+        // past-year guard above guarantees this row belongs to the current
+        // year, and a class from a different year never reaches here.
         enrollmentUpdate.academic_year_id = classRow.academic_year_id;
         // Stream follows the (possibly changed) class. When class_id isn't part
         // of this edit the stream stays as-is — it can only change with the class.
         enrollmentUpdate.stream_id = classRow.stream_id ?? null;
       }
 
-      // UNIQUE(student_id, class_id): a stale row for the target class (an
-      // earlier year, or a terminated/exited stint) blocks the move. Report it
-      // rather than letting the constraint fire.
+      // UNIQUE(student_id, academic_year_id) (migration 086): a row for this
+      // student in the target class's year blocks the move. Report it rather
+      // than letting the constraint fire.
       if (classChanged) {
         const { data: priorRow, error: priorRowError } = await admin
           .from("student_enrollments")
           .select("id, status, classes(name, section)")
           .eq("student_id", id)
-          .eq("class_id", class_id)
-          .neq("id", enrollment_id)
+          .eq("academic_year_id", enrollmentUpdate.academic_year_id as string)
+          .neq("id", enrollmentTargetId)
           .maybeSingle();
 
         if (priorRowError) {
@@ -507,13 +600,13 @@ export async function PATCH(request: NextRequest) {
             | null;
           const label = cls
             ? `${cls.name ?? ""}${cls.section ? ` ${cls.section}` : ""}`.trim()
-            : "that class";
+            : "another class";
           return NextResponse.json(
             {
               error:
-                `Student details saved, but the class was not changed: this student already has an ` +
-                `enrollment record for ${label} (status: ${priorRow.status}). ` +
-                `Remove that record before moving them back into the class.`,
+                `Student details saved, but the class was not changed: this student ` +
+                `already has an enrollment record for ${label} this session ` +
+                `(status: ${priorRow.status}). Remove that record first.`,
             },
             { status: 409 }
           );
@@ -529,7 +622,7 @@ export async function PATCH(request: NextRequest) {
           .eq("class_id", targetClassId)
           .eq("roll_number", finalRoll)
           .eq("status", "active")
-          .neq("id", enrollment_id)
+          .neq("id", enrollmentTargetId)
           .maybeSingle();
 
         if (clashError) {
@@ -558,7 +651,7 @@ export async function PATCH(request: NextRequest) {
         const { error: enrollErr } = await admin
           .from("student_enrollments")
           .update(enrollmentUpdate)
-          .eq("id", enrollment_id);
+          .eq("id", enrollmentTargetId);
 
         if (enrollErr) {
           console.error("Update enrollment error:", enrollErr);
@@ -566,11 +659,9 @@ export async function PATCH(request: NextRequest) {
         }
       }
     } else if (class_id) {
-      // No prior current-year enrollment surfaced — recover on edit. A stale
-      // enrollment for this (student_id, class_id) may still exist (same class
-      // from a prior status like terminated/exited, or dropped from the list
-      // GET due to PostgREST row caps), so reuse it if present to avoid
-      // tripping the UNIQUE(student_id, class_id) constraint.
+      // No writable current-year enrollment — create one. Reached either when
+      // the student has no enrollment at all, or when a past-year student is
+      // being moved into the current year (their history stays untouched).
       const { data: classRow, error: classLookupError } = await admin
         .from("classes")
         .select("academic_year_id, stream_id")
@@ -585,11 +676,14 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
+      // UNIQUE(student_id, academic_year_id) (migration 086) — reuse any row
+      // this student already has in that year rather than tripping it. This
+      // also covers a stale same-class row from a prior status.
       const { data: existing, error: existingLookupError } = await admin
         .from("student_enrollments")
         .select("id")
         .eq("student_id", id)
-        .eq("class_id", class_id)
+        .eq("academic_year_id", classRow.academic_year_id)
         .maybeSingle();
 
       if (existingLookupError) {
@@ -627,6 +721,7 @@ export async function PATCH(request: NextRequest) {
       }
 
       const payload = {
+        class_id,
         academic_year_id: classRow.academic_year_id,
         roll_number: rollForNewClass,
         roll_number_manual: manual,
@@ -642,7 +737,7 @@ export async function PATCH(request: NextRequest) {
             .eq("id", existing.id)
         : await admin
             .from("student_enrollments")
-            .insert({ student_id: id, class_id, ...payload });
+            .insert({ student_id: id, ...payload });
 
       if (enrollErr) {
         console.error("Recover enrollment error:", enrollErr);

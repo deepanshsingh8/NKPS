@@ -10,9 +10,10 @@ Branch: `feat/student-history-status-fees`
 - [ ] **BLOCKED ON USER** — apply 086 in Supabase Studio (no DB connection string in repo; no exec_sql RPC), then verify report-card enrollment lookup returns a row
 
 ## Phase 1 — Stop the past-year rewrite
-- [ ] GET `/api/students`: expose `enrollment_academic_year_id` + `enrollment_is_current_year`
-- [ ] PATCH `/api/students`: never rewrite `academic_year_id` on an existing row; branch by year
-- [ ] Recover branch: probe `(student_id, academic_year_id)` instead of `(student_id, class_id)`
+- [x] GET `/api/students`: expose `enrollment_academic_year_id` + `enrollment_is_current_year`
+- [x] PATCH `/api/students`: never rewrite `academic_year_id` on an existing row; branch by year
+- [x] Recover branch: probe `(student_id, academic_year_id)` instead of `(student_id, class_id)`
+- [x] Widen the same probe in `bulk` (upsert conflict target), `promote` (both branches), `revert-alumni`
 
 ## Phase 2 — Migration 087: status history
 - [ ] `student_status_history` table + indexes + RLS

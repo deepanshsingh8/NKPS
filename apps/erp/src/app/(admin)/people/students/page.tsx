@@ -104,6 +104,11 @@ interface StudentRow extends Student {
   class_id?: string | null;
   stream_id?: string | null;
   enrollment_status?: EnrollmentStatus | null;
+  // Which session the representative enrollment belongs to. A student with no
+  // current-year row surfaces a PAST year's record, which the API treats as
+  // read-only — see the past-year guard in api/students PATCH.
+  enrollment_academic_year_id?: string | null;
+  enrollment_is_current_year?: boolean;
   class_name?: string;
   class_section?: string;
   // Transport columns surfaced for the dashboard deep-link filter
