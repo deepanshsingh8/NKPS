@@ -67,6 +67,7 @@ import {
   Receipt,
   User,
   Info,
+  History,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -1975,6 +1976,18 @@ export default function AdminStudentsPage() {
               </div>
 
               <DialogFooter>
+                {/* This dialog stays the quick peek; the full per-session
+                    record lives on its own route. */}
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    detailStudent &&
+                    router.push(`/people/students/${detailStudent.id}`)
+                  }
+                >
+                  <History className="h-4 w-4 mr-2" />
+                  Full profile &amp; history
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => detailStudent && handleDownloadProfile(detailStudent)}

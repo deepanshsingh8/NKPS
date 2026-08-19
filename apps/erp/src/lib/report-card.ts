@@ -155,13 +155,16 @@ export async function getReportCardData(
     : null;
   const gradeBands = gradeScale?.bands ?? [];
 
-  // Current academic year — used for attendance window.
-  const { data: academicYear } = await supabase
+  // Academic year — used for the attendance window and the printed year
+  // label. Honours the requested year when one is given: hardcoding
+  // is_current meant a past-year report card counted THIS year's attendance
+  // and printed this year's name, both wrong.
+  const academicYearQuery = supabase
     .from("academic_years")
-    .select("id, name, start_date, end_date")
-    .eq("is_current", true)
-    .limit(1)
-    .maybeSingle();
+    .select("id, name, start_date, end_date");
+  const { data: academicYear } = academicYearId
+    ? await academicYearQuery.eq("id", academicYearId).limit(1).maybeSingle()
+    : await academicYearQuery.eq("is_current", true).limit(1).maybeSingle();
 
   let attendance: ReportCardAttendance | null = null;
   if (enrollment?.class_id) {

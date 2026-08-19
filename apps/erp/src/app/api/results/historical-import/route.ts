@@ -350,6 +350,62 @@ export async function POST(req: NextRequest) {
     if (c) classIdBySpec.set(sKey, c.id);
   }
 
+  // 0d. Materialize the enrollment rows.
+  //
+  // The importer used to create the past-year class, subjects and exam types
+  // but NOT an enrollment, so imported results hung off a class the student
+  // was never recorded as attending. Everything that joins through
+  // student_enrollments — report cards, green/white sheets, roll numbers, PTM
+  // reports, year-final compute — could not see the student in that class.
+  const enrollmentSeen = new Set<string>();
+  const enrollmentRows: Array<Record<string, unknown>> = [];
+  for (const r of resolvedRows) {
+    const classId = classIdBySpec.get(r.class_spec_key);
+    if (!classId || !r.student_id) continue;
+    // One student appears on many mark rows; a single upsert payload carrying
+    // the same conflict key twice errors with "ON CONFLICT DO UPDATE command
+    // cannot affect row a second time", so de-duplicate in JS first.
+    const dedupeKey = `${r.student_id}|${academicYearId}`;
+    if (enrollmentSeen.has(dedupeKey)) continue;
+    enrollmentSeen.add(dedupeKey);
+
+    const spec = classSpecByKey.get(r.class_spec_key);
+    const sid = spec?.stream_name
+      ? streamByName.get(spec.stream_name.toLowerCase()) ?? null
+      : null;
+
+    enrollmentRows.push({
+      student_id: r.student_id,
+      class_id: classId,
+      academic_year_id: academicYearId,
+      stream_id: sid,
+      // Never 'active': a past session must not compete with the live roster,
+      // and only active rows participate in roll-number recompute.
+      status: "passed",
+      roll_number: null,
+      source: "historical_import",
+      import_batch_id: batchId,
+    });
+  }
+
+  if (enrollmentRows.length > 0) {
+    // ignoreDuplicates is load-bearing: a re-run, or a student who genuinely
+    // has a real enrollment for that session, must never be downgraded to
+    // 'passed' or have their roll number wiped.
+    const { error: enrollErr } = await admin
+      .from("student_enrollments")
+      .upsert(enrollmentRows, {
+        onConflict: "student_id,academic_year_id",
+        ignoreDuplicates: true,
+      });
+    if (enrollErr) {
+      return NextResponse.json(
+        { error: `Failed to create enrollments: ${enrollErr.message}` },
+        { status: 500 }
+      );
+    }
+  }
+
   // 1. Ensure subjects exist for everything in this file.
   const distinctSubjects = new Set<string>();
   for (const r of resolvedRows) {
@@ -484,6 +540,7 @@ export async function POST(req: NextRequest) {
       total_rows: parsed.rows.length,
       ok_rows: okRows.length,
       error_rows: errorRows.length,
+      enrollments_created: enrollmentRows.length,
       results_to_create: resultsPayload.length,
       committed,
       skipped_existing: skippedExisting,

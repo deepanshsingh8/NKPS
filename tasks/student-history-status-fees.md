@@ -7,7 +7,7 @@ Branch: `feat/student-history-status-fees`
 - [x] `migration-086-enrollment-history-integrity.sql` — `created_at`, `source`, `import_batch_id`, `UNIQUE(student_id, academic_year_id)`
 - [x] Append 086 to `supabase-schema.sql`
 - [x] Stop swallowing errors: `report-card.ts`, `results/by-student/route.ts`, `final-result.ts`
-- [ ] **BLOCKED ON USER** — apply 086 in Supabase Studio (no DB connection string in repo; no exec_sql RPC), then verify report-card enrollment lookup returns a row
+- [x] Migrations 086 + 087 applied; report-card enrollment lookup verified returning a row
 
 ## Phase 1 — Stop the past-year rewrite
 - [x] GET `/api/students`: expose `enrollment_academic_year_id` + `enrollment_is_current_year`
@@ -35,11 +35,11 @@ Branch: `feat/student-history-status-fees`
 - [x] Cross-tab search guard rail; promote banner counts unfiltered
 
 ## Phase 5 — Academic history
-- [ ] `student-history.ts` + `/api/students/[id]/history`
-- [ ] `/people/students/[id]` page + `AcademicHistoryTimeline`
-- [ ] Bulk importer: year + status pickers, insert-only backfill mode
-- [ ] Results historical importer: create enrollment rows; revert deletes them
-- [ ] Portals pass `academic_year_id`; report-card attendance year scoping
+- [x] `student-history.ts` + `/api/students/[id]/history`
+- [x] `/people/students/[id]` page + `AcademicHistoryTimeline`
+- [x] Bulk importer: year + status pickers, insert-only backfill mode
+- [x] Results historical importer: create enrollment rows; revert deletes them
+- [x] Portals pass `academic_year_id`; report-card attendance year scoping
 
 ## Phase 6 — Fees
 - [ ] 6a group "All Structures" by class (Accordion, curriculum order)

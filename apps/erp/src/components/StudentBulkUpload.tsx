@@ -236,12 +236,38 @@ export function StudentBulkUpload({
   const [classSubjects, setClassSubjects] = useState<
     Map<string, { tokens: Set<string>; names: string[] }>
   >(new Map());
+  // Target session. Empty = the current year, i.e. today's behaviour.
+  // Choosing a past year switches the import into backfill mode.
+  const [academicYears, setAcademicYears] = useState<
+    { id: string; name: string; is_current: boolean }[]
+  >([]);
+  const [targetYearId, setTargetYearId] = useState("");
+  const [backfillStatus, setBackfillStatus] = useState("passed");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
 
   // Fetch existing classes (+ their subjects, for Subjects column preview
   // matching) when entering preview.
+  // Sessions for the target-year picker. Fetched once, on the upload step.
+  useEffect(() => {
+    if (step !== "upload") return;
+    const supabase = createClient();
+    (async () => {
+      const { data } = await supabase
+        .from("academic_years")
+        .select("id, name, is_current")
+        .order("start_date", { ascending: false });
+      setAcademicYears(data ?? []);
+    })();
+  }, [step]);
+
+  // Backfill mode is derived, never stored: it is simply "a session other
+  // than the live one was chosen".
+  const isBackfill = Boolean(
+    targetYearId && !academicYears.find((y) => y.id === targetYearId)?.is_current
+  );
+
   useEffect(() => {
     if (step !== "preview") return;
     const supabase = createClient();
@@ -510,6 +536,12 @@ export function StudentBulkUpload({
           body: JSON.stringify({
             provided_keys: mappedKeys,
             students: chunk.map(toPayloadRow),
+            ...(isBackfill
+              ? {
+                  academic_year_id: targetYearId,
+                  enrollment_status: backfillStatus,
+                }
+              : {}),
           }),
         });
         const data = await res.json();
@@ -673,6 +705,69 @@ export function StudentBulkUpload({
                 />
               </div>
             </div>
+
+            {/* Target session. Defaults to the current year, which is exactly
+                how this dialog behaved before backfill existed. */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Import into session</Label>
+                <select
+                  className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+                  value={targetYearId}
+                  onChange={(e) => setTargetYearId(e.target.value)}
+                >
+                  <option value="">Current session</option>
+                  {academicYears
+                    .filter((y) => !y.is_current)
+                    .map((y) => (
+                      <option key={y.id} value={y.id}>
+                        {y.name} (past session)
+                      </option>
+                    ))}
+                </select>
+              </div>
+              {isBackfill && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">
+                    Record these students as
+                  </Label>
+                  <select
+                    className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+                    value={backfillStatus}
+                    onChange={(e) => setBackfillStatus(e.target.value)}
+                  >
+                    <option value="passed">Passed</option>
+                    <option value="failed">Failed</option>
+                    <option value="exited">Exited</option>
+                    <option value="terminated">Terminated</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {isBackfill && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+                <p className="text-xs text-amber-800 font-medium mb-1">
+                  Backfill mode
+                </p>
+                <ul className="text-xs text-amber-700 space-y-0.5 list-disc pl-4">
+                  <li>
+                    Students who already exist are <strong>left untouched</strong> —
+                    an old sheet cannot overwrite current addresses or phone
+                    numbers. Only the past-session enrollment is added.
+                  </li>
+                  <li>
+                    Enrollments are recorded as{" "}
+                    <strong>{backfillStatus}</strong>, never active, so this
+                    cannot affect the live roster or current roll numbers.
+                  </li>
+                  <li>
+                    Missing classes are created inside that past session, not
+                    the current one. The Subjects column is ignored.
+                  </li>
+                </ul>
+              </div>
+            )}
 
             <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
               <p className="text-xs text-blue-700 font-medium mb-1">How it works</p>
