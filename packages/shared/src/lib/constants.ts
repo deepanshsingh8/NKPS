@@ -150,3 +150,40 @@ export const STAFF = {
 // future per-period attendance feature share one definition. Promote to a DB
 // config row if a school ever needs it variable per day.
 export const HALF_DAY_CUTOFF_PERIOD = 4;
+
+/**
+ * Curriculum order of class names, lowest to highest.
+ *
+ * Single source of truth for anywhere classes must be ordered or stepped
+ * through. It was previously copy-pasted into api/students/promote (where it
+ * drives the promotion ladder), api/students/bulk and the fee schedule grid —
+ * three copies that had to be edited together for the school to add a class.
+ *
+ * NOTE: sorting class names as text is wrong and looks right just often
+ * enough to be missed — "I" sorts before "Nursery", "X" before "XI" but after
+ * "VIII". Always order through this list.
+ */
+export const CLASS_ORDER = [
+  "Nursery",
+  "LKG",
+  "UKG",
+  "I",
+  "II",
+  "III",
+  "IV",
+  "V",
+  "VI",
+  "VII",
+  "VIII",
+  "IX",
+  "X",
+  "XI",
+  "XII",
+] as const;
+
+/** Position of a class name in curriculum order; unknown names sort last. */
+export function classSortIndex(name: string | null | undefined): number {
+  if (!name) return Number.MAX_SAFE_INTEGER;
+  const i = (CLASS_ORDER as readonly string[]).indexOf(name.trim());
+  return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+}

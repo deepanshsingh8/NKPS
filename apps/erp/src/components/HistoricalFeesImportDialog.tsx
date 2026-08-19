@@ -257,7 +257,17 @@ export function HistoricalFeesImportDialog({
               </select>
             </div>
             <div>
-              <Label htmlFor="hf-file" className="text-xs">XLSX file</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="hf-file" className="text-xs">XLSX file</Label>
+                {/* The layout this parser expects is a foreign one from the
+                    old software, so a sample beats any amount of prose. */}
+                <a
+                  href="/api/fees/historical-import/template"
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Download template
+                </a>
+              </div>
               <input
                 id="hf-file"
                 ref={fileRef}

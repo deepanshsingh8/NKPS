@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, Suspense } from "react";
+import { useEffect, useState, useCallback, useMemo, Suspense, Fragment } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
@@ -38,10 +38,12 @@ import {
 import { Card, CardContent } from "@nkps/shared/components/ui/card";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, FileSpreadsheet, ArrowLeft, ArrowRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, FileSpreadsheet, ArrowLeft, ArrowRight, ChevronDown, ChevronRight } from "lucide-react";
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import { downloadCSV } from "@/lib/csv-export";
 import { cn, formatClassName } from "@nkps/shared/lib/utils";
+import { classSortIndex } from "@nkps/shared/lib/constants";
+import { FeeScheduleImportDialog } from "@/components/FeeScheduleImportDialog";
 import {
   resolveEffectiveFeeStructures,
   resolveEffectiveFeeLines,
@@ -1063,6 +1065,57 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     columns: structureColumns,
   });
 
+  // ── "All Structures": grouped by class ──
+  // Flat, this table runs to 60-100+ rows (15 classes x 3-6 instalments, plus
+  // a set per stream for XI) with no visual break, so finding one class means
+  // scanning the lot. Collapsed groups make the common task -- "what does
+  // Class V pay?" -- one click.
+  //
+  // Ordered by CURRICULUM order, not the text sort the query returns: sorting
+  // class names as strings puts "I" before "Nursery" and "X" before "XI",
+  // which looks plausible enough to go unnoticed.
+  const groupedStructures = useMemo(() => {
+    const byClass = new Map<string, FeeStructure[]>();
+    for (const fs of structureTable.rows) {
+      const key = fs.class_name ?? "—";
+      const list = byClass.get(key) ?? [];
+      list.push(fs);
+      byClass.set(key, list);
+    }
+    return Array.from(byClass.entries())
+      .map(([className, rows]) => ({
+        className,
+        rows,
+        total: rows.reduce((sum, r) => sum + Number(r.amount ?? 0), 0),
+      }))
+      .sort(
+        (a, b) =>
+          classSortIndex(a.className) - classSortIndex(b.className) ||
+          a.className.localeCompare(b.className)
+      );
+  }, [structureTable.rows]);
+
+  // Collapsed by default — the point is to shorten the page.
+  const [expandedFeeClasses, setExpandedFeeClasses] = useState<Set<string>>(
+    new Set()
+  );
+  const toggleFeeClass = useCallback((className: string) => {
+    setExpandedFeeClasses((prev) => {
+      const next = new Set(prev);
+      if (next.has(className)) next.delete(className);
+      else next.add(className);
+      return next;
+    });
+  }, []);
+
+  // A column filter or search that narrows to one class should not leave the
+  // reader clicking it open: when only one group survives, expand it.
+  useEffect(() => {
+    if (groupedStructures.length === 1) {
+      setExpandedFeeClasses(new Set([groupedStructures[0].className]));
+    }
+  }, [groupedStructures]);
+
   const classStudentColumns = useMemo<TableColumns<RosterStudent>>(
     () => ({
       admission_no: {
@@ -1938,10 +1991,15 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
 
       {section === "academic" && (
         <Tabs defaultValue="schedule">
-          <TabsList>
-            <TabsTrigger value="schedule">Fee Schedule</TabsTrigger>
-            <TabsTrigger value="all">All Structures</TabsTrigger>
-          </TabsList>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <TabsList>
+              <TabsTrigger value="schedule">Fee Schedule</TabsTrigger>
+              <TabsTrigger value="all">All Structures</TabsTrigger>
+            </TabsList>
+            {/* Setting fifteen classes one grid at a time is a day's work at
+                the start of every session; this takes one sheet. */}
+            <FeeScheduleImportDialog onImported={fetchFeeStructures} />
+          </div>
 
           {/* The schedule grid is the primary editor: a row per instalment,
               laid out the way the school publishes its fees. The flat list
@@ -2017,71 +2075,106 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                             </TableCell>
                           </TableRow>
                         )}
-                        {structureTable.rows.map((fs) => (
-                          <TableRow key={fs.id}>
-                            <TableCell className="font-medium">
-                              {fs.class_name}
-                            </TableCell>
-                            <TableCell className="text-gray-600 dark:text-gray-300">
-                              {fs.stream_id ? streamById[fs.stream_id] ?? "—" : "All streams"}
-                            </TableCell>
-                            <TableCell>{fs.fee_type}</TableCell>
-                            <TableCell className="text-gray-600 dark:text-gray-300">
-                              {fs.instalment_name ?? "--"}
-                              {fs.month_label ? (
-                                <span className="block text-xs text-gray-400 dark:text-gray-500">
-                                  {fs.month_label}
-                                </span>
-                              ) : null}
-                            </TableCell>
-                            <TableCell>
-                              {new Intl.NumberFormat("en-IN", {
-                                style: "currency",
-                                currency: "INR",
-                                maximumFractionDigits: 0,
-                              }).format(fs.amount)}
-                            </TableCell>
-                            <TableCell className="capitalize">
-                              {fs.frequency.replace("_", " ")}
-                            </TableCell>
-                            <TableCell>
-                              {fs.due_date ?? "--"}
-                              {/* The grace date the late fee actually runs
-                                  from, when it differs from the due date. */}
-                              {fs.late_fee_start_date &&
-                              fs.late_fee_start_date !== fs.due_date ? (
-                                <span className="block text-xs text-gray-400 dark:text-gray-500">
-                                  late fee from {fs.late_fee_start_date}
-                                </span>
-                              ) : null}
-                            </TableCell>
-                            <TableCell className="text-gray-600 dark:text-gray-300">
-                              {fs.student_type === "new"
-                                ? "New Student"
-                                : fs.student_type === "existing"
-                                  ? "Old Student"
-                                  : "Both"}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <button
-                                  onClick={() => openEditStructure(fs)}
-                                  className="text-blue-500 hover:text-blue-700 p-1"
-                                  aria-label="Edit fee structure"
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteStructure(fs.id)}
-                                  className="text-red-500 hover:text-red-700 p-1"
-                                  aria-label="Delete fee structure"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {groupedStructures.map((group) => {
+                          const collapsed = !expandedFeeClasses.has(group.className);
+                          return (
+                            <Fragment key={group.className}>
+                              {/* Group header rendered as a row INSIDE the same
+                                  table, rather than wrapping each class in its
+                                  own Accordion + Table: one table keeps the
+                                  columns aligned across classes and keeps the
+                                  single set of sort/filter heads above working
+                                  for all of them. */}
+                              <TableRow
+                                className="cursor-pointer bg-gray-50/80 dark:bg-muted/40 hover:bg-gray-100 dark:hover:bg-muted/60"
+                                onClick={() => toggleFeeClass(group.className)}
+                              >
+                                <TableCell colSpan={8} className="font-medium">
+                                  <span className="inline-flex items-center gap-2">
+                                    {collapsed ? (
+                                      <ChevronRight className="h-4 w-4 text-gray-400" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                                    )}
+                                    Class {group.className}
+                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                                      {group.rows.length} row
+                                      {group.rows.length === 1 ? "" : "s"} ·{" "}
+                                      {inr(group.total)}
+                                    </span>
+                                  </span>
+                                </TableCell>
+                                <TableCell />
+                              </TableRow>
+                              {!collapsed &&
+                                group.rows.map((fs) => (
+                            <TableRow key={fs.id}>
+                              <TableCell className="font-medium pl-8">
+                                {fs.class_name}
+                              </TableCell>
+                              <TableCell className="text-gray-600 dark:text-gray-300">
+                                {fs.stream_id ? streamById[fs.stream_id] ?? "—" : "All streams"}
+                              </TableCell>
+                              <TableCell>{fs.fee_type}</TableCell>
+                              <TableCell className="text-gray-600 dark:text-gray-300">
+                                {fs.instalment_name ?? "--"}
+                                {fs.month_label ? (
+                                  <span className="block text-xs text-gray-400 dark:text-gray-500">
+                                    {fs.month_label}
+                                  </span>
+                                ) : null}
+                              </TableCell>
+                              <TableCell>
+                                {new Intl.NumberFormat("en-IN", {
+                                  style: "currency",
+                                  currency: "INR",
+                                  maximumFractionDigits: 0,
+                                }).format(fs.amount)}
+                              </TableCell>
+                              <TableCell className="capitalize">
+                                {fs.frequency.replace("_", " ")}
+                              </TableCell>
+                              <TableCell>
+                                {fs.due_date ?? "--"}
+                                {/* The grace date the late fee actually runs
+                                    from, when it differs from the due date. */}
+                                {fs.late_fee_start_date &&
+                                fs.late_fee_start_date !== fs.due_date ? (
+                                  <span className="block text-xs text-gray-400 dark:text-gray-500">
+                                    late fee from {fs.late_fee_start_date}
+                                  </span>
+                                ) : null}
+                              </TableCell>
+                              <TableCell className="text-gray-600 dark:text-gray-300">
+                                {fs.student_type === "new"
+                                  ? "New Student"
+                                  : fs.student_type === "existing"
+                                    ? "Old Student"
+                                    : "Both"}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    onClick={() => openEditStructure(fs)}
+                                    className="text-blue-500 hover:text-blue-700 p-1"
+                                    aria-label="Edit fee structure"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteStructure(fs.id)}
+                                    className="text-red-500 hover:text-red-700 p-1"
+                                    aria-label="Delete fee structure"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                                ))}
+                            </Fragment>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                     </>

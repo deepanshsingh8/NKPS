@@ -42,10 +42,10 @@ Branch: `feat/student-history-status-fees`
 - [x] Portals pass `academic_year_id`; report-card attendance year scoping
 
 ## Phase 6 — Fees
-- [ ] 6a group "All Structures" by class (Accordion, curriculum order)
-- [ ] 6b historical-import template endpoint + link
-- [ ] 6c fee structure bulk upload (template → preview → commit)
-- [ ] 6d per-student fee upload — needs schema decision, deferred
+- [x] 6a group "All Structures" by class (Accordion, curriculum order)
+- [x] 6b historical-import template endpoint + link
+- [x] 6c fee structure bulk upload (template → preview → commit)
+- [ ] 6d per-student fee upload — **needs a decision from the user**: there is no per-student fee table (dues are computed from the class schedule at runtime), so this needs a new override/concession table. What varies per student — a concession amount, a waiver %, or a wholly separate schedule?
 
 ## Phase 7 — Masters
 - [ ] Awaiting user details
