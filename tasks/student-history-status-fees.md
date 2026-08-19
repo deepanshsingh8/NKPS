@@ -1,0 +1,52 @@
+# Feature batch — student history, status tracking, fees (Aug 2026)
+
+Plan: `~/.claude/plans/few-features-are-required-typed-church.md`
+Branch: `feat/student-history-status-fees`
+
+## Phase 0 — Migration 086: enrollment integrity
+- [x] `migration-086-enrollment-history-integrity.sql` — `created_at`, `source`, `import_batch_id`, `UNIQUE(student_id, academic_year_id)`
+- [x] Append 086 to `supabase-schema.sql`
+- [x] Stop swallowing errors: `report-card.ts`, `results/by-student/route.ts`, `final-result.ts`
+- [ ] **BLOCKED ON USER** — apply 086 in Supabase Studio (no DB connection string in repo; no exec_sql RPC), then verify report-card enrollment lookup returns a row
+
+## Phase 1 — Stop the past-year rewrite
+- [ ] GET `/api/students`: expose `enrollment_academic_year_id` + `enrollment_is_current_year`
+- [ ] PATCH `/api/students`: never rewrite `academic_year_id` on an existing row; branch by year
+- [ ] Recover branch: probe `(student_id, academic_year_id)` instead of `(student_id, class_id)`
+
+## Phase 2 — Migration 087: status history
+- [ ] `student_status_history` table + indexes + RLS
+- [ ] Cache columns on `student_enrollments` (`status_reason`, `status_changed_at`, `status_changed_by`)
+- [ ] `change_enrollment_status()` RPC (atomic)
+- [ ] Append 087 to `supabase-schema.sql`
+
+## Phase 3 — Status API + confirm dialogs
+- [ ] `/api/students/status`: reason required for terminated/exited, actor capture, RPC call
+- [ ] Shared `Textarea` component
+- [ ] `StatusChangeDialog.tsx` (single + bulk)
+- [ ] Surface reason: status cell icon, detail dialog, history timeline
+
+## Phase 4 — Students page
+- [ ] 4a perf: `useMemo` filter, `useDeferredValue` search, pagination (50/page), single-pass counts
+- [ ] 4b tabs: Active/Passed/Failed/Exited/Terminated/Unassigned/Alumni/All
+- [ ] Alumni tab replaces the list dialog (keep revert dialog)
+- [ ] Cross-tab search guard rail; promote banner counts unfiltered
+
+## Phase 5 — Academic history
+- [ ] `student-history.ts` + `/api/students/[id]/history`
+- [ ] `/people/students/[id]` page + `AcademicHistoryTimeline`
+- [ ] Bulk importer: year + status pickers, insert-only backfill mode
+- [ ] Results historical importer: create enrollment rows; revert deletes them
+- [ ] Portals pass `academic_year_id`; report-card attendance year scoping
+
+## Phase 6 — Fees
+- [ ] 6a group "All Structures" by class (Accordion, curriculum order)
+- [ ] 6b historical-import template endpoint + link
+- [ ] 6c fee structure bulk upload (template → preview → commit)
+- [ ] 6d per-student fee upload — needs schema decision, deferred
+
+## Phase 7 — Masters
+- [ ] Awaiting user details
+
+## Review
+_To be filled in._

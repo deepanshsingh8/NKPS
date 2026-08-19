@@ -5463,3 +5463,48 @@ DROP POLICY IF EXISTS "Admins have full access to call_logs" ON call_logs;
 CREATE POLICY "Admins have full access to call_logs"
   ON call_logs FOR ALL
   USING (public.get_user_role() = 'admin');
+
+-- =============================================================================
+-- Migration 086 — enrollment history integrity
+-- (mirrored from scripts/migrations/erp/migration-086-enrollment-history-integrity.sql)
+-- =============================================================================
+-- `created_at` had never existed on this table, yet report-card.ts,
+-- results/by-student and final-result.ts all ORDER BY it and discard the
+-- error — so every enrollment lookup silently returned null, stripping class,
+-- roll number, grade scale and attendance from every report card and making
+-- computeFinalResult() return null for every student.
+--
+-- `source` / `import_batch_id` mirror results + fee_payments so a backfilled
+-- past-year enrollment is distinguishable and a whole batch stays revertible.
+--
+-- UNIQUE(student_id, academic_year_id) encodes the school's rule: one class
+-- per student per session. The pre-existing UNIQUE(student_id, class_id)
+-- cannot express this — `classes` are year-scoped, so it blocks the same
+-- class twice but permits two different classes within one year.
+
+ALTER TABLE student_enrollments
+  ADD COLUMN IF NOT EXISTS created_at timestamptz;
+
+UPDATE student_enrollments
+  SET created_at = COALESCE(updated_at, now())
+  WHERE created_at IS NULL;
+
+ALTER TABLE student_enrollments
+  ALTER COLUMN created_at SET DEFAULT now(),
+  ALTER COLUMN created_at SET NOT NULL;
+
+ALTER TABLE student_enrollments
+  ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'erp_native'
+    CHECK (source IN ('erp_native', 'historical_import', 'bulk_backfill')),
+  ADD COLUMN IF NOT EXISTS import_batch_id uuid;
+
+CREATE INDEX IF NOT EXISTS student_enrollments_import_batch_idx
+  ON student_enrollments(import_batch_id)
+  WHERE import_batch_id IS NOT NULL;
+
+ALTER TABLE student_enrollments
+  DROP CONSTRAINT IF EXISTS student_enrollments_student_year_unique;
+
+ALTER TABLE student_enrollments
+  ADD CONSTRAINT student_enrollments_student_year_unique
+  UNIQUE (student_id, academic_year_id);

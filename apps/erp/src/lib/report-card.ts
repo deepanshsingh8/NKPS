@@ -126,10 +126,24 @@ export async function getReportCardData(
   if (academicYearId) {
     enrollmentQuery = enrollmentQuery.eq("academic_year_id", academicYearId);
   }
-  const { data: enrollment } = await enrollmentQuery
+  // Order by enrollment_date first (the school-meaningful date), then
+  // created_at as the tie-break. NOTE: `created_at` only exists as of
+  // migration 086 — before it, this ordering silently failed with PostgREST
+  // 42703 and the discarded error meant `enrollment` came back null on EVERY
+  // report card, stripping class, roll number, grade scale and attendance.
+  // Never swallow this error again.
+  const { data: enrollment, error: enrollmentError } = await enrollmentQuery
+    .order("enrollment_date", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (enrollmentError) {
+    console.error(
+      `[getReportCardData] enrollment lookup failed for student ${studentId}:`,
+      enrollmentError
+    );
+  }
 
   // Resolve the grade scale for this student's class (falls back to the
   // default scholastic scale if no per-class override exists). Subject and
