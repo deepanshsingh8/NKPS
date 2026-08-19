@@ -45,10 +45,14 @@ Branch: `feat/student-history-status-fees`
 - [x] 6a group "All Structures" by class (Accordion, curriculum order)
 - [x] 6b historical-import template endpoint + link
 - [x] 6c fee structure bulk upload (template → preview → commit)
-- [ ] 6d per-student fee upload — **needs a decision from the user**: there is no per-student fee table (dues are computed from the class schedule at runtime), so this needs a new override/concession table. What varies per student — a concession amount, a waiver %, or a wholly separate schedule?
+- [x] 6d per-student concessions — no new table needed: a concession IS a waiver, so the bulk path reuses `validateWaiver`/`buildWaiverRow` and flows through dues, no-dues and receipts unchanged. Admin-only (editors keep the approval workflow).
 
 ## Phase 7 — Masters
-- [ ] Awaiting user details
+- [x] **Streams master** — table existed with no UI; only writers were the importers, so a typo made permanent junk. Full CRUD + usage counts + delete guard.
+- [x] Sidebar audit: surfaced 4 orphaned routes (timetable generate/import/templates, registrations)
+- [x] Closed the gating hole: 7 routes resolved to NO feature key, which lets any editor through
+- [x] Unified `SidebarShell` resolver with `featureKeyForPath` (they had drifted)
+- [ ] Broader Masters restructure — **awaiting user details** (which entities to promote, and whether to regroup the ~16 existing master screens under one nav parent)
 
 ## Review
 _To be filled in._

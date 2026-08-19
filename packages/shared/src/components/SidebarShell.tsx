@@ -6,7 +6,10 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import type { UserRole } from "@nkps/shared/types";
-import { FEATURE_CATALOG, type FeatureKey } from "@nkps/shared/lib/permissions";
+import {
+  featureKeyForPath,
+  type FeatureKey,
+} from "@nkps/shared/lib/permissions";
 import {
   ChevronLeft,
   ChevronDown,
@@ -69,19 +72,17 @@ type SidebarShellProps = {
 // a feature umbrella (e.g. /fees/academic, /fees/transport) aren't in the
 // catalog by themselves — we resolve those by longest-prefix match so the
 // whole tree is gated by a single feature key.
-const HREF_TO_FEATURE_KEY: Record<string, FeatureKey> = Object.fromEntries(
-  FEATURE_CATALOG.map((f) => [f.href, f.key])
-);
-const FEATURE_HREFS_DESC = [...FEATURE_CATALOG].sort(
-  (a, b) => b.href.length - a.href.length
-);
+// Delegates to featureKeyForPath rather than re-deriving the mapping here.
+// This used to be a second copy of the prefix-matching logic, which drifted:
+// routes that do not sit under their feature's href (streams, electives, the
+// timetable tools, the approval queues) resolved to a key in middleware but to
+// null here, so an editor holding the right grant could reach the page and
+// still not see it in the sidebar. One resolver, one answer.
+//
+// featureKeyForPath also returns null for admin-only paths, which is exactly
+// what the filter below wants: hidden from everyone who is not an admin.
 function resolveFeatureKey(href: string): FeatureKey | null {
-  const direct = HREF_TO_FEATURE_KEY[href];
-  if (direct) return direct;
-  for (const f of FEATURE_HREFS_DESC) {
-    if (href === f.href || href.startsWith(`${f.href}/`)) return f.key;
-  }
-  return null;
+  return featureKeyForPath(href);
 }
 
 export function SidebarShell({

@@ -28,6 +28,9 @@ import {
   GitPullRequestArrow,
   MapPin,
   ReceiptText,
+  Layers,
+  FileSpreadsheet,
+  UserPlus,
 } from "lucide-react";
 import {
   SidebarShell,
@@ -46,6 +49,7 @@ const erpItems: SidebarItem[] = [
     children: [
       { kind: "link", icon: Users, label: "Users", href: "/people/users" },
       { kind: "link", icon: UserCheck, label: "Students", href: "/people/students" },
+      { kind: "link", icon: UserPlus, label: "Registrations", href: "/registrations" },
       { kind: "link", icon: UserCog, label: "Staff", href: "/people/staff" },
     ],
   },
@@ -58,6 +62,7 @@ const erpItems: SidebarItem[] = [
       { kind: "link", icon: GraduationCap, label: "Classes", href: "/academics/classes" },
       { kind: "link", icon: BookOpen, label: "Subjects", href: "/academics/subjects" },
       { kind: "link", icon: BookOpen, label: "XI–XII Electives", href: "/academics/electives" },
+      { kind: "link", icon: Layers, label: "Streams", href: "/academics/streams" },
       { kind: "link", icon: CalendarDays, label: "Academic Years", href: "/academics/years" },
       { kind: "link", icon: Sparkles, label: "Non-Scholastic Classes", href: "/exams/non-scholastic-assessments" },
     ],
@@ -139,6 +144,11 @@ const erpItems: SidebarItem[] = [
       { kind: "link", icon: Clock, label: "Class Timetable", href: "/timetable" },
       { kind: "link", icon: UserCog, label: "Teacher Timetable", href: "/timetable/teachers" },
       { kind: "link", icon: RefreshCw, label: "Substitutions", href: "/timetable/substitutions" },
+      // Built, then unreachable: these three had no nav entry at all and could
+      // only be opened by typing the URL.
+      { kind: "link", icon: Sparkles, label: "Auto Generate", href: "/timetable/generate" },
+      { kind: "link", icon: FileSpreadsheet, label: "Import from Excel", href: "/timetable/import" },
+      { kind: "link", icon: FileText, label: "Period Templates", href: "/timetable/templates" },
     ],
   },
   { kind: "link", icon: Calendar, label: "Calendar", href: "/calendar" },

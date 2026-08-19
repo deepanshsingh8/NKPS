@@ -125,6 +125,33 @@ export function isAdminOnlyPath(pathname: string): boolean {
   );
 }
 
+// Routes that belong to a feature but do NOT sit under that feature's href,
+// so prefix matching alone would miss them.
+//
+// This matters more than it looks. An admin-area path with no feature key is
+// NOT closed: middleware redirects teachers, but lets staff/editors through
+// WITHOUT requiring any grant (see supabase/middleware.ts — the `else if`
+// branch deliberately allows staff on unmapped pages). So every route missing
+// from this map or from FEATURE_CATALOG is a page any editor can open
+// regardless of what they were granted.
+//
+// Longest prefix wins here too, so a more specific entry can override a
+// broader one.
+const PATH_FEATURE_OVERRIDES: ReadonlyArray<readonly [string, FeatureKey]> = [
+  // Master data behind classes: streams drive class setup, subject
+  // assignment and per-stream fee schedules.
+  ["/academics/streams", "classes"],
+  // Elective slots are subject configuration for XI–XII.
+  ["/academics/electives", "subjects"],
+  // Timetable tooling that lives outside /timetable's own href.
+  ["/timetable/templates", "timetable"],
+  ["/timetable/generate", "timetable"],
+  ["/timetable/import", "timetable"],
+  // Approval queues sit beside the feature whose data they change.
+  ["/fees/change-requests", "fees"],
+  ["/transport/changes", "transport"],
+];
+
 // Map an app-relative URL to its feature_key.
 // Returns null for the dashboard root (/), login (/login), and admin-only
 // paths (handled separately by isAdminOnlyPath). The caller is responsible
@@ -132,6 +159,14 @@ export function isAdminOnlyPath(pathname: string): boolean {
 export function featureKeyForPath(pathname: string): FeatureKey | null {
   if (pathname === "/" || pathname === "/login") return null;
   if (isAdminOnlyPath(pathname)) return null;
+
+  // Explicit overrides first, longest prefix wins.
+  const overrides = [...PATH_FEATURE_OVERRIDES].sort(
+    (a, b) => b[0].length - a[0].length
+  );
+  for (const [href, key] of overrides) {
+    if (pathname === href || pathname.startsWith(`${href}/`)) return key;
+  }
 
   // Match longest prefix first (some hrefs share roots like /exams/...).
   const sorted = [...FEATURE_CATALOG].sort((a, b) => b.href.length - a.href.length);
