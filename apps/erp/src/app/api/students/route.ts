@@ -393,15 +393,61 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Failed to update student" }, { status: 500 });
     }
 
-    // Update enrollment fields (roll_number, roll_number_manual, class_id, stream_id)
+    // ── Enrollment (class / roll number / stream) ─────────────────────────────
+    // Roll numbers are unique per class among ACTIVE rows
+    // (student_enrollments_class_rollno_active_unique) and are auto-assigned
+    // densely 1..N, so a class change MUST NOT carry the old class's number
+    // across — the target class virtually always already has it. The edit form
+    // resends the student's current roll number with every save, so moving a
+    // student used to fail on that unique index and surface as a bare 500.
+    //
+    // On a class change: an auto-assigned number is cleared to NULL and the
+    // AFTER UPDATE recompute trigger renumbers both the old and new class
+    // alphabetically. A manually pinned number is honoured, but pre-checked so
+    // a genuine clash reads as an actionable 400 instead of a constraint error.
     if (enrollment_id) {
+      const { data: currentEnrollment, error: currentEnrollmentError } = await admin
+        .from("student_enrollments")
+        .select("class_id, roll_number, roll_number_manual")
+        .eq("id", enrollment_id)
+        .maybeSingle();
+
+      if (currentEnrollmentError) {
+        console.error("Current enrollment lookup failed:", currentEnrollmentError);
+        return NextResponse.json(
+          { error: "Student updated but enrollment lookup failed" },
+          { status: 500 }
+        );
+      }
+
+      const classChanged = Boolean(
+        class_id && currentEnrollment && class_id !== currentEnrollment.class_id
+      );
+      const targetClassId = class_id || currentEnrollment?.class_id || null;
+      const wantsManual =
+        roll_number_manual === undefined
+          ? currentEnrollment?.roll_number_manual === true
+          : roll_number_manual === true;
+
       const enrollmentUpdate: Record<string, unknown> = {};
+
+      let desiredRoll: number | null | undefined;
       if (roll_number !== undefined) {
-        enrollmentUpdate.roll_number = roll_number ? parseInt(roll_number, 10) : null;
+        desiredRoll = roll_number ? parseInt(String(roll_number), 10) : null;
+      }
+      if (classChanged && !wantsManual) {
+        // Let the recompute trigger place the student in the new class.
+        desiredRoll = null;
+      }
+      if (desiredRoll !== undefined) {
+        enrollmentUpdate.roll_number = Number.isNaN(desiredRoll as number)
+          ? null
+          : desiredRoll;
       }
       if (roll_number_manual !== undefined) {
         enrollmentUpdate.roll_number_manual = roll_number_manual === true;
       }
+
       if (class_id) {
         enrollmentUpdate.class_id = class_id;
 
@@ -422,6 +468,78 @@ export async function PATCH(request: NextRequest) {
         // Stream follows the (possibly changed) class. When class_id isn't part
         // of this edit the stream stays as-is — it can only change with the class.
         enrollmentUpdate.stream_id = classRow.stream_id ?? null;
+      }
+
+      // UNIQUE(student_id, class_id): a stale row for the target class (an
+      // earlier year, or a terminated/exited stint) blocks the move. Report it
+      // rather than letting the constraint fire.
+      if (classChanged) {
+        const { data: priorRow, error: priorRowError } = await admin
+          .from("student_enrollments")
+          .select("id, status, classes(name, section)")
+          .eq("student_id", id)
+          .eq("class_id", class_id)
+          .neq("id", enrollment_id)
+          .maybeSingle();
+
+        if (priorRowError) {
+          console.error("Prior enrollment lookup failed:", priorRowError);
+          return NextResponse.json(
+            { error: "Student updated but enrollment lookup failed" },
+            { status: 500 }
+          );
+        }
+        if (priorRow) {
+          const cls = priorRow.classes as unknown as
+            | { name?: string; section?: string }
+            | null;
+          const label = cls
+            ? `${cls.name ?? ""}${cls.section ? ` ${cls.section}` : ""}`.trim()
+            : "that class";
+          return NextResponse.json(
+            {
+              error:
+                `Student details saved, but the class was not changed: this student already has an ` +
+                `enrollment record for ${label} (status: ${priorRow.status}). ` +
+                `Remove that record before moving them back into the class.`,
+            },
+            { status: 409 }
+          );
+        }
+      }
+
+      // Manual roll numbers: surface a clash as a readable message.
+      const finalRoll = enrollmentUpdate.roll_number as number | null | undefined;
+      if (typeof finalRoll === "number" && targetClassId) {
+        const { data: clash, error: clashError } = await admin
+          .from("student_enrollments")
+          .select("id, students(full_name)")
+          .eq("class_id", targetClassId)
+          .eq("roll_number", finalRoll)
+          .eq("status", "active")
+          .neq("id", enrollment_id)
+          .maybeSingle();
+
+        if (clashError) {
+          console.error("Roll number clash lookup failed:", clashError);
+          return NextResponse.json(
+            { error: "Student updated but enrollment lookup failed" },
+            { status: 500 }
+          );
+        }
+        if (clash) {
+          const holder = (clash.students as unknown as { full_name?: string } | null)
+            ?.full_name;
+          return NextResponse.json(
+            {
+              error:
+                `Student details saved, but the enrollment was not changed: roll number ${finalRoll} ` +
+                `is already taken${holder ? ` by ${holder}` : ""} in that class. ` +
+                `Pick a free number, or uncheck "Manual override" to auto-assign one.`,
+            },
+            { status: 409 }
+          );
+        }
       }
 
       if (Object.keys(enrollmentUpdate).length > 0) {
@@ -470,10 +588,36 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
+      // Same rule as above: only a manually pinned number is written into a
+      // fresh enrollment; otherwise the recompute trigger assigns one.
+      const manual = roll_number_manual === true;
+      const parsedRoll = manual && roll_number ? parseInt(String(roll_number), 10) : NaN;
+      const rollForNewClass = Number.isNaN(parsedRoll) ? null : parsedRoll;
+
+      if (rollForNewClass !== null) {
+        const { data: clash } = await admin
+          .from("student_enrollments")
+          .select("id")
+          .eq("class_id", class_id)
+          .eq("roll_number", rollForNewClass)
+          .eq("status", "active")
+          .maybeSingle();
+        if (clash && clash.id !== existing?.id) {
+          return NextResponse.json(
+            {
+              error:
+                `Student details saved, but the enrollment was not created: roll number ` +
+                `${rollForNewClass} is already taken in that class.`,
+            },
+            { status: 409 }
+          );
+        }
+      }
+
       const payload = {
         academic_year_id: classRow.academic_year_id,
-        roll_number: roll_number ? parseInt(roll_number, 10) : null,
-        roll_number_manual: roll_number_manual === true,
+        roll_number: rollForNewClass,
+        roll_number_manual: manual,
         // Stream follows the class, authoritatively (see the POST note).
         stream_id: classRow.stream_id ?? null,
         status: "active" as const,

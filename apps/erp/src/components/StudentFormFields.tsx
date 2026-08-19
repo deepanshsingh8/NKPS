@@ -130,7 +130,18 @@ export function StudentFormFields({
   const updateMeta = (
     key: "class_id" | "stream_id" | "roll_number",
     value: string
-  ) => setFormData((prev) => ({ ...prev, [key]: value }));
+  ) =>
+    setFormData((prev) => {
+      // A roll number belongs to a class: it is unique per class and
+      // auto-assigned 1..N there. Carrying it into a different class would
+      // collide with whoever already holds it, so switching class drops the
+      // number and returns the student to auto-assignment. The server clears
+      // it too, and the recompute trigger issues a fresh one.
+      if (key === "class_id" && value !== prev.class_id) {
+        return { ...prev, class_id: value, roll_number: "", roll_number_manual: false };
+      }
+      return { ...prev, [key]: value };
+    });
 
   const selectedFormClass = classes.find((c) => c.id === formData.class_id);
   const isHigherClass = selectedFormClass
