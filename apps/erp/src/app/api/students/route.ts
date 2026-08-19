@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         admin
           .from("student_enrollments")
           .select(
-            "student_id, roll_number, roll_number_manual, id, class_id, stream_id, status, academic_year_id, updated_at, has_transport, bus_stop_id, transport_direction, classes(name, section)"
+            "student_id, roll_number, roll_number_manual, id, class_id, stream_id, status, status_reason, status_changed_at, academic_year_id, updated_at, has_transport, bus_stop_id, transport_direction, classes(name, section)"
           )
           .range(0, 9999),
       ]);
@@ -125,6 +125,8 @@ export async function GET(request: NextRequest) {
               bus_stop_id?: string | null;
               transport_direction?: string | null;
               roll_number_manual?: boolean;
+              status_reason?: string | null;
+              status_changed_at?: string | null;
             })
           | undefined;
         return {
@@ -142,6 +144,10 @@ export async function GET(request: NextRequest) {
           enrollment_is_current_year: Boolean(
             currentYearId && enrollment?.academic_year_id === currentYearId
           ),
+          // Denormalised cache from migration 087 — lets the list show WHY a
+          // student is exited/terminated without a per-row history join.
+          status_reason: e?.status_reason ?? null,
+          status_changed_at: e?.status_changed_at ?? null,
           class_name: cls?.name ?? null,
           class_section: cls?.section ?? null,
           has_transport: e?.has_transport ?? false,
@@ -157,7 +163,7 @@ export async function GET(request: NextRequest) {
     const { data: enrollments, error: enrollError } = await admin
       .from("student_enrollments")
       .select(
-        "id, student_id, roll_number, roll_number_manual, class_id, stream_id, status, has_transport, bus_stop_id, transport_direction"
+        "id, student_id, roll_number, roll_number_manual, class_id, stream_id, status, status_reason, status_changed_at, has_transport, bus_stop_id, transport_direction"
       )
       .eq("class_id", classId);
 
@@ -214,6 +220,8 @@ export async function GET(request: NextRequest) {
             bus_stop_id?: string | null;
             transport_direction?: string | null;
             roll_number_manual?: boolean;
+            status_reason?: string | null;
+            status_changed_at?: string | null;
           })
         | undefined;
       return {
@@ -224,6 +232,8 @@ export async function GET(request: NextRequest) {
         class_id: enrollment?.class_id ?? null,
         stream_id: enrollment?.stream_id ?? null,
         enrollment_status: enrollment?.status ?? null,
+        status_reason: e?.status_reason ?? null,
+        status_changed_at: e?.status_changed_at ?? null,
         has_transport: e?.has_transport ?? false,
         bus_stop_id: e?.bus_stop_id ?? null,
         transport_direction: e?.transport_direction ?? null,

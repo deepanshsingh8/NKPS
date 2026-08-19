@@ -53,6 +53,7 @@ import {
   UserPlus,
   Receipt,
   User,
+  Info,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -76,6 +77,11 @@ import {
   indianNationalFromNationality,
 } from "@nkps/shared/lib/student-template";
 import { CreatePortalUsersDialog } from "@/components/CreatePortalUsersDialog";
+import {
+  StatusChangeDialog,
+  statusNeedsReason,
+  type StatusChangeRequest,
+} from "./_components/StatusChangeDialog";
 import { StudentCallActions } from "@/components/StudentCallActions";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
@@ -109,6 +115,9 @@ interface StudentRow extends Student {
   // read-only — see the past-year guard in api/students PATCH.
   enrollment_academic_year_id?: string | null;
   enrollment_is_current_year?: boolean;
+  // Latest recorded reason for the current status (migration 087 cache).
+  status_reason?: string | null;
+  status_changed_at?: string | null;
   class_name?: string;
   class_section?: string;
   // Transport columns surfaced for the dashboard deep-link filter
@@ -308,6 +317,7 @@ const StudentTableRow = memo(function StudentTableRow({
         {student.father_name || "—"}
       </TableCell>
       <TableCell onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1">
         {student.enrollment_id ? (
           <Select
             value={student.enrollment_status || "active"}
@@ -351,6 +361,20 @@ const StudentTableRow = memo(function StudentTableRow({
               : student.is_active ? "Active" : "Inactive"}
           </Badge>
         )}
+        {student.status_reason && (
+          <span
+            className="inline-flex"
+            aria-label="Reason for this status"
+            title={
+              student.status_changed_at
+                ? `${student.status_reason}\n— ${new Date(student.status_changed_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`
+                : student.status_reason
+            }
+          >
+            <Info className="h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-gray-500" />
+          </span>
+        )}
+        </div>
       </TableCell>
       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-end gap-1">
@@ -457,6 +481,9 @@ export default function AdminStudentsPage() {
     alumni_passing_year: string | null;
   }
   const [alumniDialogOpen, setAlumniDialogOpen] = useState(false);
+  // Pending Terminated/Exited change awaiting a reason.
+  const [statusRequest, setStatusRequest] =
+    useState<StatusChangeRequest | null>(null);
   const [alumniRows, setAlumniRows] = useState<AlumniRow[]>([]);
   const [alumniLoading, setAlumniLoading] = useState(false);
   const [alumniSearch, setAlumniSearch] = useState("");
@@ -970,22 +997,55 @@ export default function AdminStudentsPage() {
     }
   };
 
-  // Status update for a single student
-  const handleStatusChange = async (enrollmentId: string, status: EnrollmentStatus) => {
-    try {
-      const res = await adminFetch("/api/students/status", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          updates: [{ enrollment_id: enrollmentId, status }],
-        }),
-      });
+  // Applies a status change. `reason` is required by the API for
+  // terminated/exited; the dialog collects it before we get here.
+  const applyStatusChange = async (
+    updates: { enrollment_id: string; status: EnrollmentStatus }[],
+    reason?: string
+  ): Promise<boolean> => {
+    const res = await adminFetch("/api/students/status", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(reason ? { updates, reason } : { updates }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(
+        data.details?.fieldErrors
+          ? Object.values(
+              data.details.fieldErrors as Record<string, string[]>
+            )[0]?.[0] ?? data.error
+          : data.error || "Failed to update status"
+      );
+      return false;
+    }
+    return true;
+  };
 
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || "Failed to update status");
-        return;
-      }
+  // Status update for a single student. Terminated/Exited detour through the
+  // dialog so a reason is captured; everything else applies immediately.
+  const handleStatusChange = async (enrollmentId: string, status: EnrollmentStatus) => {
+    if (statusNeedsReason(status)) {
+      const student = students.find((s) => s.enrollment_id === enrollmentId);
+      if (!student) return;
+      // The row Select is controlled off enrollment_status, so cancelling the
+      // dialog reverts the displayed badge with no extra state.
+      setStatusRequest({
+        status,
+        student: {
+          id: student.id,
+          full_name: student.full_name,
+          enrollment_id: enrollmentId,
+        },
+      });
+      return;
+    }
+
+    try {
+      const ok = await applyStatusChange([
+        { enrollment_id: enrollmentId, status },
+      ]);
+      if (!ok) return;
 
       // Update locally for instant feedback
       setStudents((prev) =>
@@ -1001,39 +1061,39 @@ export default function AdminStudentsPage() {
     }
   };
 
+  // Resolves the current selection to enrollment ids, dropping students who
+  // have no enrollment row to change.
+  const selectedEnrollmentIds = useCallback((): string[] => {
+    return Array.from(selectedIds)
+      .map((studentId) => students.find((s) => s.id === studentId)?.enrollment_id)
+      .filter((id): id is string => Boolean(id));
+  }, [selectedIds, students]);
+
   // Bulk status update
   const handleBulkStatusUpdate = async () => {
     if (!bulkStatusValue || selectedIds.size === 0) return;
 
+    const status = bulkStatusValue as EnrollmentStatus;
+    const enrollmentIds = selectedEnrollmentIds();
+
+    if (enrollmentIds.length === 0) {
+      toast.error("No valid enrollments selected");
+      return;
+    }
+
+    if (statusNeedsReason(status)) {
+      setStatusRequest({ status, enrollmentIds });
+      return;
+    }
+
     setApplyingBulk(true);
     try {
-      const updates = Array.from(selectedIds)
-        .map((studentId) => {
-          const student = students.find((s) => s.id === studentId);
-          return student?.enrollment_id
-            ? { enrollment_id: student.enrollment_id, status: bulkStatusValue as EnrollmentStatus }
-            : null;
-        })
-        .filter(Boolean);
+      const ok = await applyStatusChange(
+        enrollmentIds.map((enrollment_id) => ({ enrollment_id, status }))
+      );
+      if (!ok) return;
 
-      if (updates.length === 0) {
-        toast.error("No valid enrollments selected");
-        return;
-      }
-
-      const res = await adminFetch("/api/students/status", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || "Failed to update statuses");
-        return;
-      }
-
-      toast.success(`Updated ${data.updated} student(s)`);
+      toast.success(`Updated ${enrollmentIds.length} student(s)`);
       setSelectedIds(new Set());
       setBulkStatusValue("");
       await fetchStudents();
@@ -1041,6 +1101,34 @@ export default function AdminStudentsPage() {
       toast.error("Failed to update statuses");
     } finally {
       setApplyingBulk(false);
+    }
+  };
+
+  // Confirm handler for the reason dialog — covers both single and bulk.
+  const handleStatusReasonConfirm = async (reason: string) => {
+    if (!statusRequest) return;
+    const { status, student, enrollmentIds } = statusRequest;
+    const ids = enrollmentIds ?? (student ? [student.enrollment_id] : []);
+    if (ids.length === 0) return;
+
+    try {
+      const ok = await applyStatusChange(
+        ids.map((enrollment_id) => ({ enrollment_id, status })),
+        reason
+      );
+      if (!ok) return;
+
+      toast.success(
+        ids.length === 1 ? "Status updated" : `Updated ${ids.length} student(s)`
+      );
+      setStatusRequest(null);
+      if (enrollmentIds) {
+        setSelectedIds(new Set());
+        setBulkStatusValue("");
+      }
+      await fetchStudents();
+    } catch {
+      toast.error("Failed to update status");
     }
   };
 
@@ -1579,6 +1667,19 @@ export default function AdminStudentsPage() {
                           ? "Active"
                           : "Inactive"}
                     </Badge>
+                    {detailStudent.status_reason && (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {detailStudent.status_reason}
+                        {detailStudent.status_changed_at && (
+                          <span className="block text-[11px] text-gray-400 dark:text-gray-500">
+                            {new Date(detailStudent.status_changed_at).toLocaleDateString(
+                              "en-IN",
+                              { day: "2-digit", month: "short", year: "numeric" }
+                            )}
+                          </span>
+                        )}
+                      </p>
+                    )}
                   </DetailField>
                 </div>
                 <ProfileDetailSection
@@ -2136,6 +2237,15 @@ export default function AdminStudentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Terminated / Exited reason capture (single + bulk) */}
+      <StatusChangeDialog
+        request={statusRequest}
+        onOpenChange={(open) => {
+          if (!open) setStatusRequest(null);
+        }}
+        onConfirm={handleStatusReasonConfirm}
+      />
 
       {/* Bulk Upload Dialog */}
       <StudentBulkUpload

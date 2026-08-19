@@ -16,16 +16,17 @@ Branch: `feat/student-history-status-fees`
 - [x] Widen the same probe in `bulk` (upsert conflict target), `promote` (both branches), `revert-alumni`
 
 ## Phase 2 — Migration 087: status history
-- [ ] `student_status_history` table + indexes + RLS
-- [ ] Cache columns on `student_enrollments` (`status_reason`, `status_changed_at`, `status_changed_by`)
-- [ ] `change_enrollment_status()` RPC (atomic)
-- [ ] Append 087 to `supabase-schema.sql`
+> Needs applying in Supabase Studio alongside 086 — the status route calls `change_enrollment_status()`.
+- [x] `student_status_history` table + indexes + RLS
+- [x] Cache columns on `student_enrollments` (`status_reason`, `status_changed_at`, `status_changed_by`)
+- [x] `change_enrollment_status()` RPC (atomic)
+- [x] Append 087 to `supabase-schema.sql`
 
 ## Phase 3 — Status API + confirm dialogs
-- [ ] `/api/students/status`: reason required for terminated/exited, actor capture, RPC call
-- [ ] Shared `Textarea` component
-- [ ] `StatusChangeDialog.tsx` (single + bulk)
-- [ ] Surface reason: status cell icon, detail dialog, history timeline
+- [x] `/api/students/status`: reason required for terminated/exited, actor capture, RPC call
+- [x] Shared `Textarea` component
+- [x] `StatusChangeDialog.tsx` (single + bulk)
+- [x] Surface reason: status cell icon + detail dialog (timeline lands with Phase 5)
 
 ## Phase 4 — Students page
 - [ ] 4a perf: `useMemo` filter, `useDeferredValue` search, pagination (50/page), single-pass counts
