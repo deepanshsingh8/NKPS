@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef, memo } from "react";
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  memo,
+  useDeferredValue,
+} from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
@@ -102,6 +110,11 @@ interface AcademicYear {
   name: string;
   is_current: boolean;
 }
+
+// Rows rendered per page. The table is unvirtualised and every row mounts a
+// portalled base-ui Select, so the fix for the input lag is to mount fewer
+// rows rather than to virtualise popovers.
+const PAGE_SIZE = 50;
 
 interface StudentRow extends Student {
   roll_number: number | null;
@@ -480,6 +493,7 @@ export default function AdminStudentsPage() {
     father_name: string | null;
     alumni_passing_year: string | null;
   }
+  const [page, setPage] = useState(1);
   const [alumniDialogOpen, setAlumniDialogOpen] = useState(false);
   // Pending Terminated/Exited change awaiting a reason.
   const [statusRequest, setStatusRequest] =
@@ -692,18 +706,28 @@ export default function AdminStudentsPage() {
 
   const auditFilterActive = auditHasTransport === "1";
 
-  const filteredStudents = students.filter((s) => {
-    if (search) {
-      const q = search.toLowerCase();
-      const matches =
-        s.full_name.toLowerCase().includes(q) ||
-        s.admission_no.toLowerCase().includes(q) ||
-        (s.father_name && s.father_name.toLowerCase().includes(q));
-      if (!matches) return false;
-    }
-    if (auditHasTransport === "1" && !s.has_transport) return false;
-    return true;
-  });
+  // Deferred so the input paints on the keystroke and the ~900-row table
+  // catches up a frame later, instead of the filter+re-render running
+  // synchronously inside the keypress.
+  const deferredSearch = useDeferredValue(search);
+
+  // MUST be memoised. useTableControls memoises its filter and sort passes on
+  // the identity of `rows`; a fresh array every render made both memos miss
+  // every time, so each keystroke re-filtered and re-sorted the whole list.
+  const filteredStudents = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    return students.filter((s) => {
+      if (q) {
+        const matches =
+          s.full_name.toLowerCase().includes(q) ||
+          s.admission_no.toLowerCase().includes(q) ||
+          (s.father_name && s.father_name.toLowerCase().includes(q));
+        if (!matches) return false;
+      }
+      if (auditHasTransport === "1" && !s.has_transport) return false;
+      return true;
+    });
+  }, [students, deferredSearch, auditHasTransport]);
 
   const clearAuditFilters = () => {
     setAuditHasTransport("");
@@ -754,7 +778,23 @@ export default function AdminStudentsPage() {
   const table = useTableControls({ rows: filteredStudents, columns });
   // Everything downstream of the header filters — selection, the count badge,
   // CSV export — works on what the user can actually see.
+  // `visibleStudents` is the full filtered + sorted set: select-all, the
+  // counts and the CSV export all operate on it. Only `pagedStudents` is
+  // rendered — mounting ~900 rows (each carrying a base-ui Select and
+  // Checkbox) is what made typing and backspacing stall.
   const visibleStudents = table.rows;
+
+  const pageCount = Math.max(1, Math.ceil(visibleStudents.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pagedStudents = useMemo(
+    () => visibleStudents.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [visibleStudents, safePage]
+  );
+
+  // Any change to what's being listed sends the reader back to page 1.
+  useEffect(() => {
+    setPage(1);
+  }, [deferredSearch, selectedClassId, auditHasTransport, table.activeFilterCount]);
 
   const resetForm = () => {
     setFormData(emptyStudentForm(selectedClassId));
@@ -1252,14 +1292,20 @@ export default function AdminStudentsPage() {
     }
   };
 
-  // Status counts for the currently loaded students
-  const statusCounts = students.reduce(
-    (acc, s) => {
-      const st = s.enrollment_status || "active";
-      acc[st] = (acc[st] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
+  // Status counts over the FULL loaded list, not the visible page — the
+  // promote gate depends on knowing every active student in the class, and a
+  // count taken from a filtered view would under-report and wrongly enable it.
+  const statusCounts = useMemo(
+    () =>
+      students.reduce(
+        (acc, s) => {
+          const st = s.enrollment_status || "active";
+          acc[st] = (acc[st] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>
+      ),
+    [students]
   );
 
   // Get current class info for promote dialog
@@ -1544,6 +1590,8 @@ export default function AdminStudentsPage() {
                       <Checkbox
                         checked={selectedIds.size === visibleStudents.length && visibleStudents.length > 0}
                         onCheckedChange={toggleSelectAll}
+                        aria-label={`Select all ${visibleStudents.length} filtered students`}
+                        title={`Select all ${visibleStudents.length} filtered students (not just this page)`}
                       />
                     </TableHead>
                     <SortFilterHead ctl={table} col="admission_no" />
@@ -1566,7 +1614,7 @@ export default function AdminStudentsPage() {
                       </TableCell>
                     </TableRow>
                   )}
-                  {visibleStudents.map((student) => (
+                  {pagedStudents.map((student) => (
                     <StudentTableRow
                       key={student.id}
                       student={student}
@@ -1579,6 +1627,40 @@ export default function AdminStudentsPage() {
                 </TableBody>
               </Table>
             </div>
+
+            {pageCount > 1 && (
+              <div className="flex items-center justify-between gap-3 px-1 py-3 text-sm">
+                <p className="text-gray-500 dark:text-gray-400">
+                  Showing{" "}
+                  <strong className="text-gray-700 dark:text-gray-200">
+                    {(safePage - 1) * PAGE_SIZE + 1}–
+                    {Math.min(safePage * PAGE_SIZE, visibleStudents.length)}
+                  </strong>{" "}
+                  of {visibleStudents.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={safePage <= 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Page {safePage} of {pageCount}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                    disabled={safePage >= pageCount}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -1597,7 +1679,7 @@ export default function AdminStudentsPage() {
               </div>
             </div>
           </DialogHeader>
-          {renderStudentForm(handleAddStudent, false)}
+          {addDialogOpen && renderStudentForm(handleAddStudent, false)}
         </DialogContent>
       </Dialog>
 
@@ -1615,7 +1697,7 @@ export default function AdminStudentsPage() {
               </div>
             </div>
           </DialogHeader>
-          {renderStudentForm(handleEditStudent, true)}
+          {editDialogOpen && renderStudentForm(handleEditStudent, true)}
         </DialogContent>
       </Dialog>
 

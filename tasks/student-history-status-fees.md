@@ -29,7 +29,7 @@ Branch: `feat/student-history-status-fees`
 - [x] Surface reason: status cell icon + detail dialog (timeline lands with Phase 5)
 
 ## Phase 4 — Students page
-- [ ] 4a perf: `useMemo` filter, `useDeferredValue` search, pagination (50/page), single-pass counts
+- [x] 4a perf: `useMemo` filter, `useDeferredValue` search, pagination (50/page), single-pass counts
 - [ ] 4b tabs: Active/Passed/Failed/Exited/Terminated/Unassigned/Alumni/All
 - [ ] Alumni tab replaces the list dialog (keep revert dialog)
 - [ ] Cross-tab search guard rail; promote banner counts unfiltered
