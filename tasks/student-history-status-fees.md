@@ -30,9 +30,9 @@ Branch: `feat/student-history-status-fees`
 
 ## Phase 4 — Students page
 - [x] 4a perf: `useMemo` filter, `useDeferredValue` search, pagination (50/page), single-pass counts
-- [ ] 4b tabs: Active/Passed/Failed/Exited/Terminated/Unassigned/Alumni/All
-- [ ] Alumni tab replaces the list dialog (keep revert dialog)
-- [ ] Cross-tab search guard rail; promote banner counts unfiltered
+- [x] 4b tabs: Active/Passed/Failed/Exited/Terminated/Unassigned/Alumni/All
+- [x] Alumni tab replaces the list dialog (keep revert dialog)
+- [x] Cross-tab search guard rail; promote banner counts unfiltered
 
 ## Phase 5 — Academic history
 - [ ] `student-history.ts` + `/api/students/[id]/history`

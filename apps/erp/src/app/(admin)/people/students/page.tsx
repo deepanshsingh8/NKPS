@@ -45,6 +45,11 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from "@nkps/shared/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Plus,
@@ -138,6 +143,32 @@ interface StudentRow extends Student {
   has_transport?: boolean | null;
   bus_stop_id?: string | null;
   transport_direction?: string | null;
+}
+
+// Lifecycle buckets for the list. "unassigned" is deliberately its own tab
+// rather than being folded into Active: those students have NO enrollment
+// row at all, and the status column used to label them "Active", which is
+// simply untrue. Their own tab turns "who still needs a class?" into one
+// click. "alumni" is server-backed (?scope=alumni) because the main listing
+// excludes is_alumni rows by design.
+const STUDENT_TABS = [
+  { key: "active", label: "Active" },
+  { key: "passed", label: "Passed" },
+  { key: "failed", label: "Failed" },
+  { key: "exited", label: "Exited" },
+  { key: "terminated", label: "Terminated" },
+  { key: "unassigned", label: "Unassigned" },
+  { key: "alumni", label: "Alumni" },
+  { key: "all", label: "All" },
+] as const;
+
+type StudentTabKey = (typeof STUDENT_TABS)[number]["key"];
+
+function matchesTab(s: StudentRow, tab: StudentTabKey): boolean {
+  if (tab === "all") return true;
+  if (tab === "unassigned") return !s.enrollment_id;
+  if (!s.enrollment_id) return false;
+  return (s.enrollment_status ?? "active") === tab;
 }
 
 const ENROLLMENT_STATUSES: EnrollmentStatus[] = [
@@ -453,6 +484,12 @@ export default function AdminStudentsPage() {
   // Filter state lives in the URL so back-navigation restores it (UX-1).
   const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
   const [search, setSearch] = useUrlState("q");
+  // Lifecycle tab. URL-backed so a tab is linkable and survives reload,
+  // the same treatment class_id already gets.
+  const [statusTab, setStatusTab] = useUrlState("status");
+  const activeTab = (
+    STUDENT_TABS.some((t) => t.key === statusTab) ? statusTab : "active"
+  ) as StudentTabKey;
   // Transport filter set by the dashboard's Transport tile. Stacks
   // multiplicatively with the existing class + name search so admins can
   // narrow further from the deep-linked starting point.
@@ -494,13 +531,11 @@ export default function AdminStudentsPage() {
     alumni_passing_year: string | null;
   }
   const [page, setPage] = useState(1);
-  const [alumniDialogOpen, setAlumniDialogOpen] = useState(false);
   // Pending Terminated/Exited change awaiting a reason.
   const [statusRequest, setStatusRequest] =
     useState<StatusChangeRequest | null>(null);
   const [alumniRows, setAlumniRows] = useState<AlumniRow[]>([]);
   const [alumniLoading, setAlumniLoading] = useState(false);
-  const [alumniSearch, setAlumniSearch] = useState("");
   const [revertDialog, setRevertDialog] = useState<{
     open: boolean;
     target: AlumniRow | null;
@@ -626,33 +661,36 @@ export default function AdminStudentsPage() {
     setSelectedIds(new Set()); // Clear selection on class change
   }, [selectedClassId, fetchStudents]);
 
-  // H16-C — fetch alumni when the dialog opens. Direct supabase query is
-  // fine here: alumni rows are flagged via is_alumni and excluded from the
-  // regular students endpoint (which filters out is_alumni rows).
+  // Alumni are excluded from the main listing by design (they accumulate a
+  // cohort per year and would swamp the working list), so the Alumni tab is
+  // its own server round trip. Goes through the API rather than a direct
+  // supabase query so authorisation matches every other read on this page.
   const fetchAlumni = useCallback(async () => {
     setAlumniLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("students")
-        .select("id, full_name, admission_no, father_name, alumni_passing_year")
-        .eq("is_alumni", true)
-        .order("alumni_passing_year", { ascending: false, nullsFirst: false })
-        .order("full_name", { ascending: true });
-      if (error) {
-        toast.error("Failed to load alumni");
+      const res = await adminFetch("/api/students?scope=alumni");
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to load alumni");
         setAlumniRows([]);
-      } else {
-        setAlumniRows((data as AlumniRow[]) ?? []);
+        return;
       }
+      setAlumniRows((data.data as AlumniRow[]) ?? []);
+    } catch {
+      toast.error("Failed to load alumni");
+      setAlumniRows([]);
     } finally {
       setAlumniLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
+  }, []);
 
+  // Lazy: only pay for it when the reader actually opens the tab.
   useEffect(() => {
-    if (alumniDialogOpen) fetchAlumni();
-  }, [alumniDialogOpen, fetchAlumni]);
+    if (activeTab === "alumni" && alumniRows.length === 0 && !alumniLoading) {
+      fetchAlumni();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const handleConfirmRevert = useCallback(async () => {
     if (!revertDialog.target) return;
@@ -714,7 +752,12 @@ export default function AdminStudentsPage() {
   // MUST be memoised. useTableControls memoises its filter and sort passes on
   // the identity of `rows`; a fresh array every render made both memos miss
   // every time, so each keystroke re-filtered and re-sorted the whole list.
-  const filteredStudents = useMemo(() => {
+  //
+  // Split in two so the tab filter is a separate cheap pass over an already
+  // stable array: switching tabs then doesn't redo the search scan, and
+  // `searchFiltered` doubles as the cross-tab count for the "no matches here,
+  // N elsewhere" hint below.
+  const searchFiltered = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
     return students.filter((s) => {
       if (q) {
@@ -728,6 +771,23 @@ export default function AdminStudentsPage() {
       return true;
     });
   }, [students, deferredSearch, auditHasTransport]);
+
+  const filteredStudents = useMemo(
+    () => searchFiltered.filter((s) => matchesTab(s, activeTab)),
+    [searchFiltered, activeTab]
+  );
+
+  // Per-tab counts in ONE pass over the search-filtered rows, so the badges
+  // track what the reader is actually looking at. (Alumni is server-backed,
+  // hence its own count.)
+  const tabCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: searchFiltered.length };
+    for (const s of searchFiltered) {
+      const key = s.enrollment_id ? (s.enrollment_status ?? "active") : "unassigned";
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }, [searchFiltered]);
 
   const clearAuditFilters = () => {
     setAuditHasTransport("");
@@ -770,9 +830,14 @@ export default function AdminStudentsPage() {
             (s.enrollment_id ? "active" : s.is_active ? "active" : "exited");
           return status.charAt(0).toUpperCase() + status.slice(1);
         },
+        // While a specific tab is active the tab IS the status filter; leaving
+        // the header filter live would give two competing controls for one
+        // thing, with the header able to empty a tab it can't explain. Only
+        // the All tab offers it.
+        filter: activeTab === "all" ? "select" : "none",
       },
     }),
-    []
+    [activeTab]
   );
 
   const table = useTableControls({ rows: filteredStudents, columns });
@@ -794,7 +859,7 @@ export default function AdminStudentsPage() {
   // Any change to what's being listed sends the reader back to page 1.
   useEffect(() => {
     setPage(1);
-  }, [deferredSearch, selectedClassId, auditHasTransport, table.activeFilterCount]);
+  }, [deferredSearch, selectedClassId, auditHasTransport, activeTab, table.activeFilterCount]);
 
   const resetForm = () => {
     setFormData(emptyStudentForm(selectedClassId));
@@ -1311,6 +1376,91 @@ export default function AdminStudentsPage() {
   // Get current class info for promote dialog
   const currentClass = classes.find((c) => c.id === selectedClassId);
 
+  // Alumni tab body. Replaces the old "Manage Alumni" dialog, which was a
+  // second, divergent way of listing students (its own fetch, its own search,
+  // its own columns). One list, one search box, one mental model.
+  const renderAlumniList = () => {
+    if (alumniLoading) {
+      return (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
+        </div>
+      );
+    }
+
+    const q = deferredSearch.trim().toLowerCase();
+    const rows = q
+      ? alumniRows.filter(
+          (r) =>
+            r.full_name.toLowerCase().includes(q) ||
+            r.admission_no.toLowerCase().includes(q) ||
+            (r.father_name ?? "").toLowerCase().includes(q) ||
+            (r.alumni_passing_year ?? "").toLowerCase().includes(q)
+        )
+      : alumniRows;
+
+    if (rows.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <GraduationCap className="h-12 w-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+          <p className="text-gray-500 dark:text-gray-400">
+            {alumniRows.length === 0
+              ? "No alumni records yet."
+              : "No alumni match your search."}
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead className="w-32">Admission</TableHead>
+              <TableHead>Father</TableHead>
+              <TableHead className="w-28">Passed</TableHead>
+              {isAdmin && <TableHead className="w-28 text-right">Actions</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell className="font-medium">{r.full_name}</TableCell>
+                <TableCell className="text-sm text-gray-500 dark:text-gray-400">
+                  {r.admission_no}
+                </TableCell>
+                <TableCell className="text-sm">{r.father_name ?? "—"}</TableCell>
+                <TableCell className="text-sm">
+                  {r.alumni_passing_year ?? "—"}
+                </TableCell>
+                {isAdmin && (
+                  <TableCell className="text-right">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setRevertForm({
+                          reason: "",
+                          reactivate_class_id: "",
+                          reactivate_academic_year_id: "",
+                        });
+                        setRevertDialog({ open: true, target: r });
+                      }}
+                    >
+                      Revert
+                    </Button>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
   // Student form used in both Add and Edit dialogs — the field sections
   // (General Profile / Enrolment Profile) live in StudentFormFields.
   const renderStudentForm = (
@@ -1403,9 +1553,10 @@ export default function AdminStudentsPage() {
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Excel
               </DropdownMenuItem>
-              {/* H16-C — alumni revert manager. Admin-only (revert endpoint). */}
+              {/* Alumni now live in their own tab; this is a shortcut to it.
+                  Admin-only, matching the admin-only revert endpoint. */}
               {isAdmin && (
-                <DropdownMenuItem onClick={() => setAlumniDialogOpen(true)}>
+                <DropdownMenuItem onClick={() => setStatusTab("alumni")}>
                   <GraduationCap className="h-4 w-4 mr-2" />
                   Manage Alumni
                 </DropdownMenuItem>
@@ -1563,17 +1714,56 @@ export default function AdminStudentsPage() {
           </div>
         )}
 
-        {loading ? (
+        <Tabs
+          value={activeTab}
+          onValueChange={(v: unknown) => v && setStatusTab(String(v))}
+          className="mb-3"
+        >
+          <TabsList variant="line" className="flex-wrap">
+            {STUDENT_TABS.map((t) => (
+              <TabsTrigger key={t.key} value={t.key}>
+                {t.label}
+                <span className="ml-1.5 text-[11px] text-muted-foreground">
+                  {t.key === "alumni"
+                    ? alumniLoading
+                      ? "…"
+                      : alumniRows.length
+                    : (tabCounts[t.key] ?? 0)}
+                </span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
+        {activeTab === "alumni" ? (
+          renderAlumniList()
+        ) : loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
           </div>
         ) : filteredStudents.length === 0 ? (
           <div className="text-center py-12">
             <Users className="h-12 w-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-            <p className="text-gray-500 dark:text-gray-400 mb-2">No students found.</p>
-            <p className="text-sm text-gray-400 dark:text-gray-500">
-              Upload an Excel file or add students individually.
+            <p className="text-gray-500 dark:text-gray-400 mb-2">
+              No students in {STUDENT_TABS.find((t) => t.key === activeTab)?.label}.
             </p>
+            {/* Without this, tabs turn "I searched and got nothing" into a
+                daily complaint — the match is usually one tab over. */}
+            {searchFiltered.length > 0 ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-1"
+                onClick={() => setStatusTab("all")}
+              >
+                {searchFiltered.length} match
+                {searchFiltered.length === 1 ? "es" : ""} in other statuses — view All
+              </Button>
+            ) : (
+              <p className="text-sm text-gray-400 dark:text-gray-500">
+                Upload an Excel file or add students individually.
+              </p>
+            )}
           </div>
         ) : (
           <>
@@ -2047,10 +2237,23 @@ export default function AdminStudentsPage() {
                 </div>
               </div>
 
+              {/* statusCounts is computed over the FULL loaded list, never the
+                  visible page — a count taken from a filtered view would
+                  under-report and wrongly enable promotion. */}
               {(statusCounts.active || 0) > 0 && (
                 <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 text-sm text-amber-700 dark:text-amber-400">
                   <strong>{statusCounts.active}</strong> student(s) still have &quot;active&quot; status.
                   Please mark all students as passed/failed/terminated/exited before promoting.
+                  <button
+                    type="button"
+                    className="ml-1 underline underline-offset-2 font-medium"
+                    onClick={() => {
+                      setPromoteDialogOpen(false);
+                      setStatusTab("active");
+                    }}
+                  >
+                    Show them
+                  </button>
                 </div>
               )}
 
@@ -2109,96 +2312,6 @@ export default function AdminStudentsPage() {
               </DialogFooter>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* H16-C · Alumni manager dialog */}
-      <Dialog open={alumniDialogOpen} onOpenChange={setAlumniDialogOpen}>
-        <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Manage Alumni</DialogTitle>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Revert a graduated student back to active status. Use this when
-              promotion was applied in error or when an alumnus is returning
-              for an additional year.
-            </p>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="relative">
-              <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <Input
-                value={alumniSearch}
-                onChange={(e) => setAlumniSearch(e.target.value)}
-                placeholder="Search by name, admission no, or year"
-                className="pl-9"
-              />
-            </div>
-            {alumniLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : alumniRows.length === 0 ? (
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-12">
-                No alumni records.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="w-32">Admission</TableHead>
-                    <TableHead>Father</TableHead>
-                    <TableHead className="w-28">Passed</TableHead>
-                    <TableHead className="w-28 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {alumniRows
-                    .filter((r) => {
-                      if (!alumniSearch) return true;
-                      const q = alumniSearch.toLowerCase();
-                      return (
-                        r.full_name.toLowerCase().includes(q) ||
-                        r.admission_no.toLowerCase().includes(q) ||
-                        (r.alumni_passing_year ?? "").toLowerCase().includes(q)
-                      );
-                    })
-                    .map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="font-medium">
-                          {r.full_name}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-500 dark:text-gray-400">
-                          {r.admission_no}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {r.father_name ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {r.alumni_passing_year ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setRevertForm({
-                                reason: "",
-                                reactivate_class_id: "",
-                                reactivate_academic_year_id: "",
-                              });
-                              setRevertDialog({ open: true, target: r });
-                            }}
-                          >
-                            Revert
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
         </DialogContent>
       </Dialog>
 

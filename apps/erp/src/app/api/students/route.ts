@@ -13,6 +13,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const classId = request.nextUrl.searchParams.get("class_id");
+    const scope = request.nextUrl.searchParams.get("scope");
+
+    // ?scope=alumni — the Alumni tab. Kept as its own server query because the
+    // main listing deliberately excludes is_alumni rows (they accumulate into
+    // the thousands, one cohort per year, and would swamp the working list).
+    if (scope === "alumni") {
+      const { data, error } = await admin
+        .from("students")
+        .select(
+          "id, full_name, admission_no, father_name, mother_name, phone, is_active, is_alumni, alumni_passing_year, alumni_academic_year_id"
+        )
+        .eq("is_alumni", true)
+        .order("alumni_passing_year", { ascending: false, nullsFirst: false })
+        .order("full_name", { ascending: true })
+        .range(0, 9999);
+
+      if (error) {
+        console.error("Fetch alumni error:", error);
+        return NextResponse.json(
+          { error: "Failed to fetch alumni" },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({ data: data ?? [] });
+    }
 
     if (!classId) {
       // Fetch all students with their enrollment/class info.
@@ -22,9 +47,9 @@ export async function GET(request: NextRequest) {
       // filtering on it silently hides those students from the listing — and
       // therefore from name/admission-no search, which runs client-side over
       // this list. Admins must be able to find a student regardless of status.
-      // Alumni (is_alumni=true) stay excluded; they have a dedicated dialog and
-      // number in the thousands. `IS NOT TRUE` keeps rows where is_alumni is
-      // false OR null (the column is nullable with a false default).
+      // Alumni (is_alumni=true) stay excluded; they have their own tab backed
+      // by ?scope=alumni above and number in the thousands. `IS NOT TRUE`
+      // keeps rows where is_alumni is false OR null (nullable, false default).
       //
       // .range(0, 9999) pushes past PostgREST's 1000-row default cap so the now
       // larger list (active + passed/failed + terminated/exited) isn't silently
