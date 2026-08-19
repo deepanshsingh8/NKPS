@@ -44,6 +44,8 @@ import { downloadCSV } from "@/lib/csv-export";
 import { cn, formatClassName } from "@nkps/shared/lib/utils";
 import { classSortIndex } from "@nkps/shared/lib/constants";
 import { FeeScheduleImportDialog } from "@/components/FeeScheduleImportDialog";
+import { StudentConcessionImportDialog } from "@/components/StudentConcessionImportDialog";
+import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import {
   resolveEffectiveFeeStructures,
   resolveEffectiveFeeLines,
@@ -626,6 +628,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       bus_stop?: { name: string } | null;
     })[]
   >([]);
+  const isAdmin = useIsAdmin();
   const [paymentsLoading, setPaymentsLoading] = useState(false);
 
   // Payments tab: class-driven roster picker. Pick a class → see students →
@@ -2194,6 +2197,18 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       {section === "payments" && (
         <div>
           <div className="flex items-center justify-end gap-2 flex-wrap">
+            {/* Admin-only: a bulk concession path for editors would bypass the
+                change-request approval their single-student waivers go through. */}
+            {isAdmin && (
+              <StudentConcessionImportDialog
+                onImported={() => {
+                  // Concessions span many students, so there is no global list
+                  // to refresh — but if one student is open, their balance has
+                  // just changed and should not go on showing the old figure.
+                  if (selectedStudent) selectStudent(selectedStudent);
+                }}
+              />
+            )}
             <HistoricalFeesImportDialog />
           </div>
 
