@@ -214,11 +214,27 @@ export async function GET(request: Request) {
         });
       }
 
-      // Legacy per-exam branch: attendance is computed via
-      // `academic_years.is_current` inside getReportCardData; passing an
-      // explicit academicYearId here would mis-filter attendance to a year
-      // that may not be the current one. Always pass null in legacy mode.
-      const data = await getReportCardData(supabase, studentId, null);
+      // Legacy per-exam branch. The exam type IS year-scoped
+      // (UNIQUE(name, academic_year_id)), so it alone determines the session
+      // this report card belongs to — derive the year from it rather than
+      // trusting a client parameter.
+      //
+      // This used to pass null, because getReportCardData hardcoded
+      // `academic_years.is_current` for the attendance window and a supplied
+      // year was therefore mis-applied. That is fixed, so a past-session
+      // report card now shows THAT session's attendance and year label
+      // instead of the current one's.
+      const { data: examYear } = await supabase
+        .from("exam_types")
+        .select("academic_year_id")
+        .eq("id", examTypeId)
+        .maybeSingle();
+
+      const data = await getReportCardData(
+        supabase,
+        studentId,
+        (examYear?.academic_year_id as string | null) ?? null
+      );
       if (!data) {
         return NextResponse.json({ error: "Student not found" }, { status: 404 });
       }

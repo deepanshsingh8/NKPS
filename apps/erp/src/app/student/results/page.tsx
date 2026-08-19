@@ -56,6 +56,12 @@ export default function StudentResultsPage() {
   const [exams, setExams] = useState<ExamGroup[]>([]);
   const [studentId, setStudentId] = useState<string>("");
   const [selectedExam, setSelectedExam] = useState<string>("");
+  // Past sessions. Empty selection = the current session, i.e. how this page
+  // behaved before multi-year results were reachable.
+  const [availableYears, setAvailableYears] = useState<
+    { id: string; name: string; is_current: boolean }[]
+  >([]);
+  const [selectedYear, setSelectedYear] = useState<string>("");
   const [studentName, setStudentName] = useState("");
   const [className, setClassName] = useState("");
   const [rollNumber, setRollNumber] = useState<number | null>(null);
@@ -94,7 +100,8 @@ export default function StudentResultsPage() {
 
       // Fetch report card via API using the students table ID
       const res = await fetch(
-        `/api/results/report-card?student_id=${sid}`
+        `/api/results/report-card?student_id=${sid}` +
+          (selectedYear ? `&academic_year_id=${selectedYear}` : "")
       );
 
       if (!res.ok) {
@@ -111,6 +118,7 @@ export default function StudentResultsPage() {
           : ""
       );
       setRollNumber(data.student?.roll_number ?? null);
+      setAvailableYears(data.available_years ?? []);
       setExams(data.exams ?? []);
       if (data.exams?.[0]?.exam_type_id) {
         setSelectedExam(data.exams[0].exam_type_id);
@@ -119,7 +127,7 @@ export default function StudentResultsPage() {
     }
 
     fetchResults();
-  }, []);
+  }, [selectedYear]);
 
   async function handleDownload() {
     if (!studentId || !selectedExam) {
@@ -208,6 +216,30 @@ export default function StudentResultsPage() {
               download your report card. Your results remain visible below.
             </p>
           </div>
+        </div>
+      )}
+
+      {availableYears.length > 1 && (
+        <div className="flex items-center gap-2">
+          <label
+            htmlFor="session-picker"
+            className="text-sm text-gray-500 dark:text-gray-400"
+          >
+            Session
+          </label>
+          <select
+            id="session-picker"
+            className="h-9 rounded-lg border border-input bg-transparent px-2 text-sm"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(e.target.value)}
+          >
+            {availableYears.map((y) => (
+              <option key={y.id} value={y.is_current ? "" : y.id}>
+                {y.name}
+                {y.is_current ? " (current)" : ""}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 

@@ -68,6 +68,11 @@ export default function ParentResultsPage() {
   const [selectedChild, setSelectedChild] = useState<string>("");
   const [exams, setExams] = useState<ExamGroup[]>([]);
   const [selectedExam, setSelectedExam] = useState<string>("");
+  // Past sessions for the selected child. Empty = current session.
+  const [availableYears, setAvailableYears] = useState<
+    { id: string; name: string; is_current: boolean }[]
+  >([]);
+  const [selectedYear, setSelectedYear] = useState<string>("");
   const [studentName, setStudentName] = useState("");
   const [className, setClassName] = useState("");
   const [rollNumber, setRollNumber] = useState<number | null>(null);
@@ -166,7 +171,8 @@ export default function ParentResultsPage() {
       setLoadingResults(true);
 
       const res = await fetch(
-        `/api/results/report-card?student_id=${selectedChild}`
+        `/api/results/report-card?student_id=${selectedChild}` +
+          (selectedYear ? `&academic_year_id=${selectedYear}` : "")
       );
 
       if (!res.ok) {
@@ -187,6 +193,7 @@ export default function ParentResultsPage() {
           : ""
       );
       setRollNumber(data.student?.roll_number ?? null);
+      setAvailableYears(data.available_years ?? []);
       const nextExams = data.exams ?? [];
       setExams(nextExams);
       setSelectedExam(nextExams[0]?.exam_type_id ?? "");
@@ -194,7 +201,7 @@ export default function ParentResultsPage() {
     }
 
     fetchResults();
-  }, [selectedChild]);
+  }, [selectedChild, selectedYear]);
 
   async function handleDownload() {
     if (!selectedChild || !selectedExam) {
@@ -259,7 +266,12 @@ export default function ParentResultsPage() {
               <Users className="h-4 w-4 text-gray-400" />
               <select
                 value={selectedChild}
-                onChange={(e) => setSelectedChild(e.target.value)}
+                onChange={(e) => {
+                  setSelectedChild(e.target.value);
+                  // Siblings have different enrolled sessions, so a year held
+                  // over from the previous child would be meaningless.
+                  setSelectedYear("");
+                }}
                 className="rounded-lg border border-gray-200 dark:border-border bg-white dark:bg-card px-3 py-2 text-sm text-navy-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gold-500"
               >
                 {children.map((child) => (
@@ -270,6 +282,22 @@ export default function ParentResultsPage() {
                 ))}
               </select>
             </div>
+          )}
+
+          {availableYears.length > 1 && (
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              aria-label="Academic session"
+              className="rounded-lg border border-gray-200 dark:border-border bg-white dark:bg-card px-3 py-2 text-sm text-navy-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gold-500"
+            >
+              {availableYears.map((y) => (
+                <option key={y.id} value={y.is_current ? "" : y.id}>
+                  {y.name}
+                  {y.is_current ? " (current)" : ""}
+                </option>
+              ))}
+            </select>
           )}
 
           <Button
