@@ -43,12 +43,20 @@ export async function GET(request: NextRequest) {
     .select("id")
     .eq("is_current", true)
     .maybeSingle();
-  const { data: enrollments } = await admin
+  const { data: enrollments, error: enrollmentsError } = await admin
     .from("student_enrollments")
     .select(
       "class_id, status, academic_year_id, created_at, classes(id, name, section, academic_year_id, streams:stream_id(name))"
     )
     .eq("student_id", studentId);
+  // `created_at` only exists as of migration 086; before it this select failed
+  // with PostgREST 42703 and the discarded error left `enrollments` null.
+  if (enrollmentsError) {
+    console.error(
+      `[results/by-student] enrollment lookup failed for student ${studentId}:`,
+      enrollmentsError
+    );
+  }
   type Enrollment = NonNullable<typeof enrollments>[number];
   const sorted = (enrollments ?? []).slice().sort((a: Enrollment, b: Enrollment) => {
     const aYear = currentYear && a.academic_year_id === currentYear.id ? 0 : 1;

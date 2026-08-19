@@ -498,13 +498,22 @@ export async function computeFinalResult(
   // (live preview, rank compute) where one-of-many is fine. The finalize
   // path wraps this with `buildYearFinalSnapshot`, which DOES throw on
   // multi-enrollment so the finalize loop can surface a per-student error.
-  const { data: enrollments } = await supabase
+  const { data: enrollments, error: enrollmentsError } = await supabase
     .from("student_enrollments")
     .select("class_id, created_at")
     .eq("student_id", student_id)
     .eq("academic_year_id", academic_year_id)
     .eq("status", "active")
     .order("created_at", { ascending: false });
+  // `created_at` only exists as of migration 086. Before it this query failed
+  // with PostgREST 42703 and the discarded error made this function return
+  // null for every student — silently emptying year-final compute. Log it.
+  if (enrollmentsError) {
+    console.error(
+      `[computeFinalResult] enrollment lookup failed for student ${student_id}:`,
+      enrollmentsError
+    );
+  }
   if (!enrollments || enrollments.length === 0) return null;
   if (enrollments.length > 1) {
     console.warn(

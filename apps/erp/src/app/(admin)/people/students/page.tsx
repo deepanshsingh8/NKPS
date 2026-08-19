@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef, memo } from "react";
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  memo,
+  useDeferredValue,
+} from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
@@ -37,6 +45,11 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from "@nkps/shared/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Plus,
@@ -53,6 +66,7 @@ import {
   UserPlus,
   Receipt,
   User,
+  Info,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -76,6 +90,11 @@ import {
   indianNationalFromNationality,
 } from "@nkps/shared/lib/student-template";
 import { CreatePortalUsersDialog } from "@/components/CreatePortalUsersDialog";
+import {
+  StatusChangeDialog,
+  statusNeedsReason,
+  type StatusChangeRequest,
+} from "./_components/StatusChangeDialog";
 import { StudentCallActions } from "@/components/StudentCallActions";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
@@ -97,6 +116,11 @@ interface AcademicYear {
   is_current: boolean;
 }
 
+// Rows rendered per page. The table is unvirtualised and every row mounts a
+// portalled base-ui Select, so the fix for the input lag is to mount fewer
+// rows rather than to virtualise popovers.
+const PAGE_SIZE = 50;
+
 interface StudentRow extends Student {
   roll_number: number | null;
   roll_number_manual?: boolean;
@@ -104,6 +128,14 @@ interface StudentRow extends Student {
   class_id?: string | null;
   stream_id?: string | null;
   enrollment_status?: EnrollmentStatus | null;
+  // Which session the representative enrollment belongs to. A student with no
+  // current-year row surfaces a PAST year's record, which the API treats as
+  // read-only — see the past-year guard in api/students PATCH.
+  enrollment_academic_year_id?: string | null;
+  enrollment_is_current_year?: boolean;
+  // Latest recorded reason for the current status (migration 087 cache).
+  status_reason?: string | null;
+  status_changed_at?: string | null;
   class_name?: string;
   class_section?: string;
   // Transport columns surfaced for the dashboard deep-link filter
@@ -111,6 +143,32 @@ interface StudentRow extends Student {
   has_transport?: boolean | null;
   bus_stop_id?: string | null;
   transport_direction?: string | null;
+}
+
+// Lifecycle buckets for the list. "unassigned" is deliberately its own tab
+// rather than being folded into Active: those students have NO enrollment
+// row at all, and the status column used to label them "Active", which is
+// simply untrue. Their own tab turns "who still needs a class?" into one
+// click. "alumni" is server-backed (?scope=alumni) because the main listing
+// excludes is_alumni rows by design.
+const STUDENT_TABS = [
+  { key: "active", label: "Active" },
+  { key: "passed", label: "Passed" },
+  { key: "failed", label: "Failed" },
+  { key: "exited", label: "Exited" },
+  { key: "terminated", label: "Terminated" },
+  { key: "unassigned", label: "Unassigned" },
+  { key: "alumni", label: "Alumni" },
+  { key: "all", label: "All" },
+] as const;
+
+type StudentTabKey = (typeof STUDENT_TABS)[number]["key"];
+
+function matchesTab(s: StudentRow, tab: StudentTabKey): boolean {
+  if (tab === "all") return true;
+  if (tab === "unassigned") return !s.enrollment_id;
+  if (!s.enrollment_id) return false;
+  return (s.enrollment_status ?? "active") === tab;
 }
 
 const ENROLLMENT_STATUSES: EnrollmentStatus[] = [
@@ -303,6 +361,7 @@ const StudentTableRow = memo(function StudentTableRow({
         {student.father_name || "—"}
       </TableCell>
       <TableCell onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1">
         {student.enrollment_id ? (
           <Select
             value={student.enrollment_status || "active"}
@@ -346,6 +405,20 @@ const StudentTableRow = memo(function StudentTableRow({
               : student.is_active ? "Active" : "Inactive"}
           </Badge>
         )}
+        {student.status_reason && (
+          <span
+            className="inline-flex"
+            aria-label="Reason for this status"
+            title={
+              student.status_changed_at
+                ? `${student.status_reason}\n— ${new Date(student.status_changed_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`
+                : student.status_reason
+            }
+          >
+            <Info className="h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-gray-500" />
+          </span>
+        )}
+        </div>
       </TableCell>
       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-end gap-1">
@@ -411,6 +484,12 @@ export default function AdminStudentsPage() {
   // Filter state lives in the URL so back-navigation restores it (UX-1).
   const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
   const [search, setSearch] = useUrlState("q");
+  // Lifecycle tab. URL-backed so a tab is linkable and survives reload,
+  // the same treatment class_id already gets.
+  const [statusTab, setStatusTab] = useUrlState("status");
+  const activeTab = (
+    STUDENT_TABS.some((t) => t.key === statusTab) ? statusTab : "active"
+  ) as StudentTabKey;
   // Transport filter set by the dashboard's Transport tile. Stacks
   // multiplicatively with the existing class + name search so admins can
   // narrow further from the deep-linked starting point.
@@ -451,10 +530,12 @@ export default function AdminStudentsPage() {
     father_name: string | null;
     alumni_passing_year: string | null;
   }
-  const [alumniDialogOpen, setAlumniDialogOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  // Pending Terminated/Exited change awaiting a reason.
+  const [statusRequest, setStatusRequest] =
+    useState<StatusChangeRequest | null>(null);
   const [alumniRows, setAlumniRows] = useState<AlumniRow[]>([]);
   const [alumniLoading, setAlumniLoading] = useState(false);
-  const [alumniSearch, setAlumniSearch] = useState("");
   const [revertDialog, setRevertDialog] = useState<{
     open: boolean;
     target: AlumniRow | null;
@@ -580,33 +661,36 @@ export default function AdminStudentsPage() {
     setSelectedIds(new Set()); // Clear selection on class change
   }, [selectedClassId, fetchStudents]);
 
-  // H16-C — fetch alumni when the dialog opens. Direct supabase query is
-  // fine here: alumni rows are flagged via is_alumni and excluded from the
-  // regular students endpoint (which filters out is_alumni rows).
+  // Alumni are excluded from the main listing by design (they accumulate a
+  // cohort per year and would swamp the working list), so the Alumni tab is
+  // its own server round trip. Goes through the API rather than a direct
+  // supabase query so authorisation matches every other read on this page.
   const fetchAlumni = useCallback(async () => {
     setAlumniLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("students")
-        .select("id, full_name, admission_no, father_name, alumni_passing_year")
-        .eq("is_alumni", true)
-        .order("alumni_passing_year", { ascending: false, nullsFirst: false })
-        .order("full_name", { ascending: true });
-      if (error) {
-        toast.error("Failed to load alumni");
+      const res = await adminFetch("/api/students?scope=alumni");
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to load alumni");
         setAlumniRows([]);
-      } else {
-        setAlumniRows((data as AlumniRow[]) ?? []);
+        return;
       }
+      setAlumniRows((data.data as AlumniRow[]) ?? []);
+    } catch {
+      toast.error("Failed to load alumni");
+      setAlumniRows([]);
     } finally {
       setAlumniLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
+  }, []);
 
+  // Lazy: only pay for it when the reader actually opens the tab.
   useEffect(() => {
-    if (alumniDialogOpen) fetchAlumni();
-  }, [alumniDialogOpen, fetchAlumni]);
+    if (activeTab === "alumni" && alumniRows.length === 0 && !alumniLoading) {
+      fetchAlumni();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const handleConfirmRevert = useCallback(async () => {
     if (!revertDialog.target) return;
@@ -660,18 +744,50 @@ export default function AdminStudentsPage() {
 
   const auditFilterActive = auditHasTransport === "1";
 
-  const filteredStudents = students.filter((s) => {
-    if (search) {
-      const q = search.toLowerCase();
-      const matches =
-        s.full_name.toLowerCase().includes(q) ||
-        s.admission_no.toLowerCase().includes(q) ||
-        (s.father_name && s.father_name.toLowerCase().includes(q));
-      if (!matches) return false;
+  // Deferred so the input paints on the keystroke and the ~900-row table
+  // catches up a frame later, instead of the filter+re-render running
+  // synchronously inside the keypress.
+  const deferredSearch = useDeferredValue(search);
+
+  // MUST be memoised. useTableControls memoises its filter and sort passes on
+  // the identity of `rows`; a fresh array every render made both memos miss
+  // every time, so each keystroke re-filtered and re-sorted the whole list.
+  //
+  // Split in two so the tab filter is a separate cheap pass over an already
+  // stable array: switching tabs then doesn't redo the search scan, and
+  // `searchFiltered` doubles as the cross-tab count for the "no matches here,
+  // N elsewhere" hint below.
+  const searchFiltered = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    return students.filter((s) => {
+      if (q) {
+        const matches =
+          s.full_name.toLowerCase().includes(q) ||
+          s.admission_no.toLowerCase().includes(q) ||
+          (s.father_name && s.father_name.toLowerCase().includes(q));
+        if (!matches) return false;
+      }
+      if (auditHasTransport === "1" && !s.has_transport) return false;
+      return true;
+    });
+  }, [students, deferredSearch, auditHasTransport]);
+
+  const filteredStudents = useMemo(
+    () => searchFiltered.filter((s) => matchesTab(s, activeTab)),
+    [searchFiltered, activeTab]
+  );
+
+  // Per-tab counts in ONE pass over the search-filtered rows, so the badges
+  // track what the reader is actually looking at. (Alumni is server-backed,
+  // hence its own count.)
+  const tabCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: searchFiltered.length };
+    for (const s of searchFiltered) {
+      const key = s.enrollment_id ? (s.enrollment_status ?? "active") : "unassigned";
+      counts[key] = (counts[key] ?? 0) + 1;
     }
-    if (auditHasTransport === "1" && !s.has_transport) return false;
-    return true;
-  });
+    return counts;
+  }, [searchFiltered]);
 
   const clearAuditFilters = () => {
     setAuditHasTransport("");
@@ -714,15 +830,36 @@ export default function AdminStudentsPage() {
             (s.enrollment_id ? "active" : s.is_active ? "active" : "exited");
           return status.charAt(0).toUpperCase() + status.slice(1);
         },
+        // While a specific tab is active the tab IS the status filter; leaving
+        // the header filter live would give two competing controls for one
+        // thing, with the header able to empty a tab it can't explain. Only
+        // the All tab offers it.
+        filter: activeTab === "all" ? "select" : "none",
       },
     }),
-    []
+    [activeTab]
   );
 
   const table = useTableControls({ rows: filteredStudents, columns });
   // Everything downstream of the header filters — selection, the count badge,
   // CSV export — works on what the user can actually see.
+  // `visibleStudents` is the full filtered + sorted set: select-all, the
+  // counts and the CSV export all operate on it. Only `pagedStudents` is
+  // rendered — mounting ~900 rows (each carrying a base-ui Select and
+  // Checkbox) is what made typing and backspacing stall.
   const visibleStudents = table.rows;
+
+  const pageCount = Math.max(1, Math.ceil(visibleStudents.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pagedStudents = useMemo(
+    () => visibleStudents.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [visibleStudents, safePage]
+  );
+
+  // Any change to what's being listed sends the reader back to page 1.
+  useEffect(() => {
+    setPage(1);
+  }, [deferredSearch, selectedClassId, auditHasTransport, activeTab, table.activeFilterCount]);
 
   const resetForm = () => {
     setFormData(emptyStudentForm(selectedClassId));
@@ -965,22 +1102,55 @@ export default function AdminStudentsPage() {
     }
   };
 
-  // Status update for a single student
-  const handleStatusChange = async (enrollmentId: string, status: EnrollmentStatus) => {
-    try {
-      const res = await adminFetch("/api/students/status", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          updates: [{ enrollment_id: enrollmentId, status }],
-        }),
-      });
+  // Applies a status change. `reason` is required by the API for
+  // terminated/exited; the dialog collects it before we get here.
+  const applyStatusChange = async (
+    updates: { enrollment_id: string; status: EnrollmentStatus }[],
+    reason?: string
+  ): Promise<boolean> => {
+    const res = await adminFetch("/api/students/status", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(reason ? { updates, reason } : { updates }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(
+        data.details?.fieldErrors
+          ? Object.values(
+              data.details.fieldErrors as Record<string, string[]>
+            )[0]?.[0] ?? data.error
+          : data.error || "Failed to update status"
+      );
+      return false;
+    }
+    return true;
+  };
 
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || "Failed to update status");
-        return;
-      }
+  // Status update for a single student. Terminated/Exited detour through the
+  // dialog so a reason is captured; everything else applies immediately.
+  const handleStatusChange = async (enrollmentId: string, status: EnrollmentStatus) => {
+    if (statusNeedsReason(status)) {
+      const student = students.find((s) => s.enrollment_id === enrollmentId);
+      if (!student) return;
+      // The row Select is controlled off enrollment_status, so cancelling the
+      // dialog reverts the displayed badge with no extra state.
+      setStatusRequest({
+        status,
+        student: {
+          id: student.id,
+          full_name: student.full_name,
+          enrollment_id: enrollmentId,
+        },
+      });
+      return;
+    }
+
+    try {
+      const ok = await applyStatusChange([
+        { enrollment_id: enrollmentId, status },
+      ]);
+      if (!ok) return;
 
       // Update locally for instant feedback
       setStudents((prev) =>
@@ -996,39 +1166,39 @@ export default function AdminStudentsPage() {
     }
   };
 
+  // Resolves the current selection to enrollment ids, dropping students who
+  // have no enrollment row to change.
+  const selectedEnrollmentIds = useCallback((): string[] => {
+    return Array.from(selectedIds)
+      .map((studentId) => students.find((s) => s.id === studentId)?.enrollment_id)
+      .filter((id): id is string => Boolean(id));
+  }, [selectedIds, students]);
+
   // Bulk status update
   const handleBulkStatusUpdate = async () => {
     if (!bulkStatusValue || selectedIds.size === 0) return;
 
+    const status = bulkStatusValue as EnrollmentStatus;
+    const enrollmentIds = selectedEnrollmentIds();
+
+    if (enrollmentIds.length === 0) {
+      toast.error("No valid enrollments selected");
+      return;
+    }
+
+    if (statusNeedsReason(status)) {
+      setStatusRequest({ status, enrollmentIds });
+      return;
+    }
+
     setApplyingBulk(true);
     try {
-      const updates = Array.from(selectedIds)
-        .map((studentId) => {
-          const student = students.find((s) => s.id === studentId);
-          return student?.enrollment_id
-            ? { enrollment_id: student.enrollment_id, status: bulkStatusValue as EnrollmentStatus }
-            : null;
-        })
-        .filter(Boolean);
+      const ok = await applyStatusChange(
+        enrollmentIds.map((enrollment_id) => ({ enrollment_id, status }))
+      );
+      if (!ok) return;
 
-      if (updates.length === 0) {
-        toast.error("No valid enrollments selected");
-        return;
-      }
-
-      const res = await adminFetch("/api/students/status", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || "Failed to update statuses");
-        return;
-      }
-
-      toast.success(`Updated ${data.updated} student(s)`);
+      toast.success(`Updated ${enrollmentIds.length} student(s)`);
       setSelectedIds(new Set());
       setBulkStatusValue("");
       await fetchStudents();
@@ -1036,6 +1206,34 @@ export default function AdminStudentsPage() {
       toast.error("Failed to update statuses");
     } finally {
       setApplyingBulk(false);
+    }
+  };
+
+  // Confirm handler for the reason dialog — covers both single and bulk.
+  const handleStatusReasonConfirm = async (reason: string) => {
+    if (!statusRequest) return;
+    const { status, student, enrollmentIds } = statusRequest;
+    const ids = enrollmentIds ?? (student ? [student.enrollment_id] : []);
+    if (ids.length === 0) return;
+
+    try {
+      const ok = await applyStatusChange(
+        ids.map((enrollment_id) => ({ enrollment_id, status })),
+        reason
+      );
+      if (!ok) return;
+
+      toast.success(
+        ids.length === 1 ? "Status updated" : `Updated ${ids.length} student(s)`
+      );
+      setStatusRequest(null);
+      if (enrollmentIds) {
+        setSelectedIds(new Set());
+        setBulkStatusValue("");
+      }
+      await fetchStudents();
+    } catch {
+      toast.error("Failed to update status");
     }
   };
 
@@ -1159,18 +1357,109 @@ export default function AdminStudentsPage() {
     }
   };
 
-  // Status counts for the currently loaded students
-  const statusCounts = students.reduce(
-    (acc, s) => {
-      const st = s.enrollment_status || "active";
-      acc[st] = (acc[st] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
+  // Status counts over the FULL loaded list, not the visible page — the
+  // promote gate depends on knowing every active student in the class, and a
+  // count taken from a filtered view would under-report and wrongly enable it.
+  const statusCounts = useMemo(
+    () =>
+      students.reduce(
+        (acc, s) => {
+          const st = s.enrollment_status || "active";
+          acc[st] = (acc[st] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>
+      ),
+    [students]
   );
 
   // Get current class info for promote dialog
   const currentClass = classes.find((c) => c.id === selectedClassId);
+
+  // Alumni tab body. Replaces the old "Manage Alumni" dialog, which was a
+  // second, divergent way of listing students (its own fetch, its own search,
+  // its own columns). One list, one search box, one mental model.
+  const renderAlumniList = () => {
+    if (alumniLoading) {
+      return (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
+        </div>
+      );
+    }
+
+    const q = deferredSearch.trim().toLowerCase();
+    const rows = q
+      ? alumniRows.filter(
+          (r) =>
+            r.full_name.toLowerCase().includes(q) ||
+            r.admission_no.toLowerCase().includes(q) ||
+            (r.father_name ?? "").toLowerCase().includes(q) ||
+            (r.alumni_passing_year ?? "").toLowerCase().includes(q)
+        )
+      : alumniRows;
+
+    if (rows.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <GraduationCap className="h-12 w-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+          <p className="text-gray-500 dark:text-gray-400">
+            {alumniRows.length === 0
+              ? "No alumni records yet."
+              : "No alumni match your search."}
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead className="w-32">Admission</TableHead>
+              <TableHead>Father</TableHead>
+              <TableHead className="w-28">Passed</TableHead>
+              {isAdmin && <TableHead className="w-28 text-right">Actions</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell className="font-medium">{r.full_name}</TableCell>
+                <TableCell className="text-sm text-gray-500 dark:text-gray-400">
+                  {r.admission_no}
+                </TableCell>
+                <TableCell className="text-sm">{r.father_name ?? "—"}</TableCell>
+                <TableCell className="text-sm">
+                  {r.alumni_passing_year ?? "—"}
+                </TableCell>
+                {isAdmin && (
+                  <TableCell className="text-right">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setRevertForm({
+                          reason: "",
+                          reactivate_class_id: "",
+                          reactivate_academic_year_id: "",
+                        });
+                        setRevertDialog({ open: true, target: r });
+                      }}
+                    >
+                      Revert
+                    </Button>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
 
   // Student form used in both Add and Edit dialogs — the field sections
   // (General Profile / Enrolment Profile) live in StudentFormFields.
@@ -1264,9 +1553,10 @@ export default function AdminStudentsPage() {
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Excel
               </DropdownMenuItem>
-              {/* H16-C — alumni revert manager. Admin-only (revert endpoint). */}
+              {/* Alumni now live in their own tab; this is a shortcut to it.
+                  Admin-only, matching the admin-only revert endpoint. */}
               {isAdmin && (
-                <DropdownMenuItem onClick={() => setAlumniDialogOpen(true)}>
+                <DropdownMenuItem onClick={() => setStatusTab("alumni")}>
                   <GraduationCap className="h-4 w-4 mr-2" />
                   Manage Alumni
                 </DropdownMenuItem>
@@ -1424,17 +1714,56 @@ export default function AdminStudentsPage() {
           </div>
         )}
 
-        {loading ? (
+        <Tabs
+          value={activeTab}
+          onValueChange={(v: unknown) => v && setStatusTab(String(v))}
+          className="mb-3"
+        >
+          <TabsList variant="line" className="flex-wrap">
+            {STUDENT_TABS.map((t) => (
+              <TabsTrigger key={t.key} value={t.key}>
+                {t.label}
+                <span className="ml-1.5 text-[11px] text-muted-foreground">
+                  {t.key === "alumni"
+                    ? alumniLoading
+                      ? "…"
+                      : alumniRows.length
+                    : (tabCounts[t.key] ?? 0)}
+                </span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
+        {activeTab === "alumni" ? (
+          renderAlumniList()
+        ) : loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
           </div>
         ) : filteredStudents.length === 0 ? (
           <div className="text-center py-12">
             <Users className="h-12 w-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-            <p className="text-gray-500 dark:text-gray-400 mb-2">No students found.</p>
-            <p className="text-sm text-gray-400 dark:text-gray-500">
-              Upload an Excel file or add students individually.
+            <p className="text-gray-500 dark:text-gray-400 mb-2">
+              No students in {STUDENT_TABS.find((t) => t.key === activeTab)?.label}.
             </p>
+            {/* Without this, tabs turn "I searched and got nothing" into a
+                daily complaint — the match is usually one tab over. */}
+            {searchFiltered.length > 0 ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-1"
+                onClick={() => setStatusTab("all")}
+              >
+                {searchFiltered.length} match
+                {searchFiltered.length === 1 ? "es" : ""} in other statuses — view All
+              </Button>
+            ) : (
+              <p className="text-sm text-gray-400 dark:text-gray-500">
+                Upload an Excel file or add students individually.
+              </p>
+            )}
           </div>
         ) : (
           <>
@@ -1451,6 +1780,8 @@ export default function AdminStudentsPage() {
                       <Checkbox
                         checked={selectedIds.size === visibleStudents.length && visibleStudents.length > 0}
                         onCheckedChange={toggleSelectAll}
+                        aria-label={`Select all ${visibleStudents.length} filtered students`}
+                        title={`Select all ${visibleStudents.length} filtered students (not just this page)`}
                       />
                     </TableHead>
                     <SortFilterHead ctl={table} col="admission_no" />
@@ -1473,7 +1804,7 @@ export default function AdminStudentsPage() {
                       </TableCell>
                     </TableRow>
                   )}
-                  {visibleStudents.map((student) => (
+                  {pagedStudents.map((student) => (
                     <StudentTableRow
                       key={student.id}
                       student={student}
@@ -1486,6 +1817,40 @@ export default function AdminStudentsPage() {
                 </TableBody>
               </Table>
             </div>
+
+            {pageCount > 1 && (
+              <div className="flex items-center justify-between gap-3 px-1 py-3 text-sm">
+                <p className="text-gray-500 dark:text-gray-400">
+                  Showing{" "}
+                  <strong className="text-gray-700 dark:text-gray-200">
+                    {(safePage - 1) * PAGE_SIZE + 1}–
+                    {Math.min(safePage * PAGE_SIZE, visibleStudents.length)}
+                  </strong>{" "}
+                  of {visibleStudents.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={safePage <= 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Page {safePage} of {pageCount}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                    disabled={safePage >= pageCount}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -1504,7 +1869,7 @@ export default function AdminStudentsPage() {
               </div>
             </div>
           </DialogHeader>
-          {renderStudentForm(handleAddStudent, false)}
+          {addDialogOpen && renderStudentForm(handleAddStudent, false)}
         </DialogContent>
       </Dialog>
 
@@ -1522,7 +1887,7 @@ export default function AdminStudentsPage() {
               </div>
             </div>
           </DialogHeader>
-          {renderStudentForm(handleEditStudent, true)}
+          {editDialogOpen && renderStudentForm(handleEditStudent, true)}
         </DialogContent>
       </Dialog>
 
@@ -1574,6 +1939,19 @@ export default function AdminStudentsPage() {
                           ? "Active"
                           : "Inactive"}
                     </Badge>
+                    {detailStudent.status_reason && (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {detailStudent.status_reason}
+                        {detailStudent.status_changed_at && (
+                          <span className="block text-[11px] text-gray-400 dark:text-gray-500">
+                            {new Date(detailStudent.status_changed_at).toLocaleDateString(
+                              "en-IN",
+                              { day: "2-digit", month: "short", year: "numeric" }
+                            )}
+                          </span>
+                        )}
+                      </p>
+                    )}
                   </DetailField>
                 </div>
                 <ProfileDetailSection
@@ -1859,10 +2237,23 @@ export default function AdminStudentsPage() {
                 </div>
               </div>
 
+              {/* statusCounts is computed over the FULL loaded list, never the
+                  visible page — a count taken from a filtered view would
+                  under-report and wrongly enable promotion. */}
               {(statusCounts.active || 0) > 0 && (
                 <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 text-sm text-amber-700 dark:text-amber-400">
                   <strong>{statusCounts.active}</strong> student(s) still have &quot;active&quot; status.
                   Please mark all students as passed/failed/terminated/exited before promoting.
+                  <button
+                    type="button"
+                    className="ml-1 underline underline-offset-2 font-medium"
+                    onClick={() => {
+                      setPromoteDialogOpen(false);
+                      setStatusTab("active");
+                    }}
+                  >
+                    Show them
+                  </button>
                 </div>
               )}
 
@@ -1921,96 +2312,6 @@ export default function AdminStudentsPage() {
               </DialogFooter>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* H16-C · Alumni manager dialog */}
-      <Dialog open={alumniDialogOpen} onOpenChange={setAlumniDialogOpen}>
-        <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Manage Alumni</DialogTitle>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Revert a graduated student back to active status. Use this when
-              promotion was applied in error or when an alumnus is returning
-              for an additional year.
-            </p>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="relative">
-              <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <Input
-                value={alumniSearch}
-                onChange={(e) => setAlumniSearch(e.target.value)}
-                placeholder="Search by name, admission no, or year"
-                className="pl-9"
-              />
-            </div>
-            {alumniLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : alumniRows.length === 0 ? (
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-12">
-                No alumni records.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="w-32">Admission</TableHead>
-                    <TableHead>Father</TableHead>
-                    <TableHead className="w-28">Passed</TableHead>
-                    <TableHead className="w-28 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {alumniRows
-                    .filter((r) => {
-                      if (!alumniSearch) return true;
-                      const q = alumniSearch.toLowerCase();
-                      return (
-                        r.full_name.toLowerCase().includes(q) ||
-                        r.admission_no.toLowerCase().includes(q) ||
-                        (r.alumni_passing_year ?? "").toLowerCase().includes(q)
-                      );
-                    })
-                    .map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="font-medium">
-                          {r.full_name}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-500 dark:text-gray-400">
-                          {r.admission_no}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {r.father_name ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {r.alumni_passing_year ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setRevertForm({
-                                reason: "",
-                                reactivate_class_id: "",
-                                reactivate_academic_year_id: "",
-                              });
-                              setRevertDialog({ open: true, target: r });
-                            }}
-                          >
-                            Revert
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
         </DialogContent>
       </Dialog>
 
@@ -2131,6 +2432,15 @@ export default function AdminStudentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Terminated / Exited reason capture (single + bulk) */}
+      <StatusChangeDialog
+        request={statusRequest}
+        onOpenChange={(open) => {
+          if (!open) setStatusRequest(null);
+        }}
+        onConfirm={handleStatusReasonConfirm}
+      />
 
       {/* Bulk Upload Dialog */}
       <StudentBulkUpload

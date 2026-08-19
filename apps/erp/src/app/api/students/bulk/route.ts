@@ -361,18 +361,26 @@ export async function POST(request: Request) {
         enrollmentStudents.push(p);
       }
 
-      // Bulk upsert enrollments
+      // Bulk upsert enrollments.
+      //
+      // Conflict target is (student_id, academic_year_id) — the constraint
+      // added in migration 086 — not (student_id, class_id). Re-importing a
+      // roster where a student has moved section must UPDATE their row for
+      // that year; keying on class_id would instead try to insert a second row
+      // for the same year and fail the new constraint with a raw 23505.
       if (enrollmentRecords.length > 0) {
         const { error: enrollError } = await admin
           .from("student_enrollments")
-          .upsert(enrollmentRecords, { onConflict: "student_id,class_id" });
+          .upsert(enrollmentRecords, { onConflict: "student_id,academic_year_id" });
 
         if (enrollError) {
           // Batch enrollment failed — fall back to one-at-a-time to identify which ones fail
           for (let j = 0; j < enrollmentRecords.length; j++) {
             const { error: singleError } = await admin
               .from("student_enrollments")
-              .upsert(enrollmentRecords[j], { onConflict: "student_id,class_id" });
+              .upsert(enrollmentRecords[j], {
+                onConflict: "student_id,academic_year_id",
+              });
 
             if (singleError) {
               console.error("[students.bulk.POST] enrollment upsert:", singleError);
