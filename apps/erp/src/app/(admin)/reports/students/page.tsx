@@ -39,8 +39,10 @@ import {
 import {
   REPORT_FIELDS,
   REPORT_GROUPS,
+  REPORT_FOCUSES,
   ALWAYS_FIELD_KEYS,
   SORTABLE_FIELDS,
+  isReportFocus,
   type ReportGroup,
 } from "@nkps/shared/lib/report-fields";
 import {
@@ -57,6 +59,16 @@ interface Option {
   id: string;
   name: string;
   section?: string | null;
+}
+
+/**
+ * A class chip. `stream_name` matters: XI and XII exist once per stream, so
+ * "XI - A" alone renders three identical, unpickable chips (Arts, Science,
+ * Commerce). formatClassName() appends the stream when there is one.
+ */
+interface ClassOption extends Option {
+  section: string;
+  stream_name: string | null;
 }
 
 interface Preset {
@@ -98,7 +110,7 @@ export default function StudentReportPage() {
   const supabase = useMemo(() => createClient(), []);
 
   const [years, setYears] = useState<Option[]>([]);
-  const [classes, setClasses] = useState<Option[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
   const [streams, setStreams] = useState<Option[]>([]);
   const [houses, setHouses] = useState<Option[]>([]);
   const [subjects, setSubjects] = useState<Option[]>([]);
@@ -108,15 +120,24 @@ export default function StudentReportPage() {
   // selection deliberately does not — a 100-key query string is unusable, and
   // saved presets (a later phase) are the real answer to reusing a selection.
   const [sessionId, setSessionId] = useUrlState("session");
+  // ?focus=fees|attendance|results — the Fee / Attendance / Result entry points
+  // on /reports. A starting selection, not a restriction: the picker stays
+  // fully open, so these are shortcuts into the one builder rather than three
+  // separate, weaker screens. It also means a single sheet can combine fee
+  // balance, attendance % and class, which siloed reports could never do.
+  const [focus] = useUrlState("focus");
 
-  const [filters, setFilters] = useState<ReportFiltersInput>(() =>
-    emptyReportFilters("")
+  const [filters, setFilters] = useState<ReportFiltersInput>(() => {
+    const base = emptyReportFilters("");
+    if (!isReportFocus(focus)) return base;
+    const f = REPORT_FOCUSES[focus];
+    return { ...base, sort_by: f.sort_by, sort_dir: f.sort_dir };
+  });
+  const [selected, setSelected] = useState<string[]>(() =>
+    isReportFocus(focus)
+      ? [...REPORT_FOCUSES[focus].fields]
+      : ["admission_no", "class_section", "father_name"]
   );
-  const [selected, setSelected] = useState<string[]>([
-    "admission_no",
-    "class_section",
-    "father_name",
-  ]);
   const [fieldSearch, setFieldSearch] = useState("");
   const [tab, setTab] = useState<(typeof FILTER_TABS)[number]["key"]>("basics");
 
@@ -172,11 +193,27 @@ export default function StudentReportPage() {
     (async () => {
       const { data } = await supabase
         .from("classes")
-        .select("id, name, section")
+        .select("id, name, section, sort_order, streams(name)")
         .eq("academic_year_id", sessionId)
         .order("sort_order");
       if (cancelled) return;
-      setClasses((data ?? []) as Option[]);
+      setClasses(
+        (data ?? []).map((c) => {
+          const row = c as unknown as {
+            id: string;
+            name: string;
+            section: string | null;
+            streams: { name: string } | { name: string }[] | null;
+          };
+          const rel = row.streams;
+          return {
+            id: row.id,
+            name: row.name,
+            section: row.section ?? "",
+            stream_name: (Array.isArray(rel) ? rel[0]?.name : rel?.name) ?? null,
+          };
+        })
+      );
       setFilters((f) => ({ ...f, session_id: sessionId, class_ids: [] }));
       setPreview(null);
     })();
@@ -185,6 +222,24 @@ export default function StudentReportPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  // Chips grouped by class name: "XI" then its three stream sections, rather
+  // than 30 undifferentiated pills in one wrap. Insertion order is preserved,
+  // and the query already sorts by sort_order, so classes stay in school order.
+  const classGroups = useMemo(() => {
+    const groups = new Map<string, ClassOption[]>();
+    for (const c of classes) {
+      const list = groups.get(c.name) ?? [];
+      list.push(c);
+      groups.set(c.name, list);
+    }
+    return [...groups.entries()].map(([name, items]) => ({ name, items }));
+  }, [classes]);
+
+  const selectedClassIds = useMemo(
+    () => new Set(filters.class_ids ?? []),
+    [filters.class_ids]
+  );
 
   // ── Presets ───────────────────────────────────────────────────────────────
   const loadPresets = useCallback(async () => {
@@ -450,10 +505,13 @@ export default function StudentReportPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-semibold text-navy-900">
-            Student Custom Report
+            {isReportFocus(focus) ? REPORT_FOCUSES[focus].label : "Student Custom Report"}
           </h1>
           <p className="text-sm text-muted-foreground">
             Pick the students, pick the columns, get a sheet.
+            {isReportFocus(focus)
+              ? " Started from a suggested column set — change anything you like."
+              : ""}
           </p>
         </div>
         <div className="erp-page-actions">
@@ -608,44 +666,116 @@ export default function StudentReportPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-xs">
-                    Classes{" "}
-                    <span className="text-muted-foreground">
-                      (none = all classes)
-                    </span>
-                  </Label>
-                  <div className="flex flex-wrap gap-1.5 rounded-md border p-2">
+                <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">
+                      Classes{" "}
+                      <span className="font-normal text-muted-foreground">
+                        {selectedClassIds.size === 0
+                          ? "— none selected, so all classes"
+                          : `— ${selectedClassIds.size} selected`}
+                      </span>
+                    </Label>
+                    {classes.length > 0 && (
+                      <div className="flex gap-3 text-xs">
+                        <button
+                          type="button"
+                          className="text-blue-600 hover:underline"
+                          onClick={() => set("class_ids", classes.map((c) => c.id))}
+                        >
+                          Select all
+                        </button>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-red-600"
+                          onClick={() => set("class_ids", [])}
+                          disabled={selectedClassIds.size === 0}
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1 rounded-md border p-2">
                     {classes.length === 0 && (
                       <span className="px-1 text-xs text-muted-foreground">
                         No classes in this session
                       </span>
                     )}
-                    {classes.map((c) => {
-                      const on = (filters.class_ids ?? []).includes(c.id);
+                    {classGroups.map((group) => {
+                      const allOn =
+                        group.items.length > 0 &&
+                        group.items.every((c) => selectedClassIds.has(c.id));
                       return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() =>
-                            set(
-                              "class_ids",
-                              on
-                                ? (filters.class_ids ?? []).filter((id) => id !== c.id)
-                                : [...(filters.class_ids ?? []), c.id]
-                            )
-                          }
-                          className={`rounded-full border px-2.5 py-1 text-xs transition ${
-                            on
-                              ? "border-blue-600 bg-blue-600 text-white"
-                              : "border-gray-300 bg-white hover:border-blue-400"
-                          }`}
+                        <div
+                          key={group.name}
+                          className="flex items-center gap-2 rounded px-1 py-0.5 hover:bg-gray-50"
                         >
-                          {formatClassName({
-                            name: c.name,
-                            section: c.section ?? "",
-                          })}
-                        </button>
+                          {/* Clicking the class name takes all its sections and
+                              streams at once — the common case for XI/XII. */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ids = group.items.map((c) => c.id);
+                              set(
+                                "class_ids",
+                                allOn
+                                  ? (filters.class_ids ?? []).filter(
+                                      (id) => !ids.includes(id)
+                                    )
+                                  : [
+                                      ...(filters.class_ids ?? []),
+                                      ...ids.filter((id) => !selectedClassIds.has(id)),
+                                    ]
+                              );
+                            }}
+                            className={`w-16 shrink-0 rounded px-1.5 py-1 text-left text-xs font-medium transition ${
+                              allOn
+                                ? "text-blue-700"
+                                : "text-gray-600 hover:text-blue-600"
+                            }`}
+                            title={`Select all of ${group.name}`}
+                          >
+                            {group.name}
+                          </button>
+                          <div className="flex flex-wrap gap-1.5">
+                            {group.items.map((c) => {
+                              const on = selectedClassIds.has(c.id);
+                              // formatClassName appends "(Science)" etc., which
+                              // is what makes the three XI-A rows distinct.
+                              const label = formatClassName({
+                                name: c.name,
+                                section: c.section,
+                                stream_name: c.stream_name,
+                              });
+                              return (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() =>
+                                    set(
+                                      "class_ids",
+                                      on
+                                        ? (filters.class_ids ?? []).filter(
+                                            (id) => id !== c.id
+                                          )
+                                        : [...(filters.class_ids ?? []), c.id]
+                                    )
+                                  }
+                                  className={`rounded-full border px-2.5 py-1 text-xs transition ${
+                                    on
+                                      ? "border-blue-600 bg-blue-600 text-white"
+                                      : "border-gray-300 bg-white hover:border-blue-400"
+                                  }`}
+                                >
+                                  {/* The class name is already the row label. */}
+                                  {label.replace(`${c.name} - `, "")}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -864,6 +994,51 @@ export default function StudentReportPage() {
                   </Select>
                 </div>
                 {triState("Transport", "has_transport")}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Fee Status</Label>
+                  <Select
+                    value={filters.fee_status ?? "all"}
+                    onValueChange={(v) =>
+                      set("fee_status", (v ?? "all") as "all" | "due" | "clear")
+                    }
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all" label="All">All</SelectItem>
+                      <SelectItem value="due" label="Has dues">
+                        Has dues
+                      </SelectItem>
+                      <SelectItem value="clear" label="Cleared">
+                        Cleared
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Balance for this session
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Attendance below (%)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    className="h-9"
+                    placeholder="e.g. 75"
+                    value={filters.attendance_below ?? ""}
+                    onChange={(e) =>
+                      set(
+                        "attendance_below",
+                        e.target.value === "" ? "" : Number(e.target.value)
+                      )
+                    }
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Students with nothing marked are excluded
+                  </p>
+                </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">New / Old</Label>
                   <Select

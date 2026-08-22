@@ -382,8 +382,14 @@ the registry means editing seven consumers twice.
 - [x] Export audit written to `export_events` (migration 091, from main) —
       the same table the admin-list downloads use, so report exports appear
       alongside them rather than in a separate console-only trail
-- [ ] Verify against real data: a historical session (e.g. 2023-24) returns
-      that session's class/roll, not today's — needs a logged-in admin
+- [x] Verified against real data via `scripts/_verify-report-live.mts`:
+      944 students in 2026-27, fee lines billed for all 944, filters partition
+      the cohort exactly (due + clear = all), and a name-only report leaks no
+      `aadhar_number`.
+- [ ] Session-scoping remains empirically UNPROVEN: the database has only one
+      session with enrollments (944 in 2026-27, 0 in 2025-26), so no student
+      exists with two enrollments under different classes. The check is written
+      and skips itself; re-run it once a second session is populated.
 
 ### Phase 4 — UI
 - [x] `/reports/students` — 4 filter tabs + grouped searchable field picker
@@ -411,8 +417,23 @@ the registry means editing seven consumers twice.
       from the preset, so a saved report works in any year.
 
 ### Phase 7 — Beyond students
-- [ ] Same engine, new registries: Fee Report, Attendance Report, Result Report
-- [ ] Extract the shared page shell once the second entity exists — not before
+- [x] Fee, Attendance and Result reports — built as **field groups + `?focus=`
+      entry points on the one engine**, not three separate registries.
+
+      The plan assumed three siloed reports. Building them that way would have
+      meant re-implementing session/class/status filtering three more times,
+      and would still not answer the question a school actually asks: "who is
+      behind on fees AND below 75% attendance?" One engine answers it in one
+      sheet. `/reports` and the sidebar expose them as four entry points, so
+      it reads as four reports to a user.
+- [x] Fee columns computed by reusing `lib/fees.ts` verbatim (batched, not
+      per-student) — same maths as the Dues screen, so the numbers cannot drift
+- [x] `fee_status` and `attendance_below` filters, which force their join to
+      run even when the column is not selected ("defaulters, name and class only")
+- [x] `scripts/_verify-report-live.mts` — runs the real engine against the real
+      database and asserts the invariants
+- [ ] Extract a shared page shell — still not warranted. One page serves all
+      four entry points; there is no second page to share with.
 
 ---
 
