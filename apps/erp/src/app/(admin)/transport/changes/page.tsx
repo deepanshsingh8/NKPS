@@ -484,7 +484,7 @@ export default function TransportChangesPage() {
             Review parent requests and record office-initiated transport changes.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="w-40">
             <Select
               value={statusFilter}

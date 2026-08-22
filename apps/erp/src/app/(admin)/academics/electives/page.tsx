@@ -632,7 +632,7 @@ export default function ElectivesPage() {
       {/* ─────────────── Header + class switcher ─────────────── */}
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-navy-900">
+          <div className="erp-page-icon">
             <GraduationCap className="h-4.5 w-4.5 text-gold-400" />
           </div>
           <div>

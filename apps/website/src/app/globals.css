@@ -229,6 +229,31 @@
     @apply bg-white dark:bg-card rounded-2xl border border-gray-200/80 dark:border-border shadow-sm overflow-hidden;
   }
 
+  /* Horizontal strip (tab bar, chip row, button group) that scrolls on a
+     narrow screen instead of wrapping into an overlapping second line or
+     dragging the whole page sideways. Children need `shrink-0`. */
+  .erp-scroll-x {
+    @apply max-w-full overflow-x-auto overscroll-x-contain;
+    scrollbar-width: none;
+  }
+  .erp-scroll-x::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Title-and-actions bar at the top of a page. Stacks on a phone: the action
+     cluster is several buttons wide and, kept on one line, it sets the page's
+     width and scrolls the whole layout sideways. */
+  .erp-page-bar {
+    @apply flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between;
+  }
+  .erp-page-actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+  /* Square badge beside a page title — never let flex squash it to a sliver. */
+  .erp-page-icon {
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-navy-900;
+  }
+
   .erp-section-title {
     @apply font-heading text-lg font-semibold text-navy-900 dark:text-white tracking-tight;
   }

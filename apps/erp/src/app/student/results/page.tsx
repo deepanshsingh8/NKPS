@@ -173,7 +173,7 @@ export default function StudentResultsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="erp-page-bar sm:items-start">
         <div>
           <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
             My Results
@@ -257,7 +257,7 @@ export default function StudentResultsPage() {
         </Card>
       ) : (
         <Tabs value={selectedExam} onValueChange={setSelectedExam}>
-          <TabsList variant="line" className="mb-4 flex-wrap">
+          <TabsList variant="line" className="mb-4">
             {exams.map((exam) => (
               <TabsTrigger key={exam.exam_type_id} value={exam.exam_type_id}>
                 {exam.exam_type_name}

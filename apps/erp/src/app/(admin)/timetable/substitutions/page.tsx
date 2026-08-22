@@ -218,7 +218,7 @@ export default function AdminSubstitutionsPage() {
         <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Substitutions
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="erp-page-actions">
           <div className="flex items-center gap-2">
             <Label htmlFor="sub-date" className="text-xs text-gray-500 dark:text-gray-400">
               Date

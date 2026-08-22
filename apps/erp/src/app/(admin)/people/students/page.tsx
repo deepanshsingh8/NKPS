@@ -1682,9 +1682,9 @@ export default function AdminStudentsPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="erp-page-bar">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-navy-900 flex items-center justify-center">
+          <div className="erp-page-icon">
             <Users className="h-4.5 w-4.5 text-gold-400" />
           </div>
           <div>
@@ -1692,7 +1692,7 @@ export default function AdminStudentsPage() {
             <p className="erp-page-subtitle">Manage student records and enrollments</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="erp-page-actions">
           <AcademicSessionPicker state={session} />
           <TableExportButton
             ctl={table}
@@ -1953,7 +1953,7 @@ export default function AdminStudentsPage() {
           onValueChange={(v: unknown) => v && setStatusTab(String(v))}
           className="mb-3"
         >
-          <TabsList variant="line" className="flex-wrap">
+          <TabsList variant="line">
             {STUDENT_TABS.map((t) => (
               <TabsTrigger key={t.key} value={t.key}>
                 {t.label}
