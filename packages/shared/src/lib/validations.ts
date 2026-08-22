@@ -1045,6 +1045,43 @@ const udiseProfileFields = {
   participates_competitions: yesNoField,
   distance_band: enumField("distance_band"),
   parent_highest_education: enumField("parent_highest_education"),
+  // ── Custom-report fields (migration 089) ──
+  // Identifiers stay `optionalText`, not length-checked: PEN/APAAR formats
+  // have changed between UDISE cycles, and a stricter rule here would reject
+  // whole bulk rows over a government reformat. Uniqueness is enforced in the
+  // database (partial unique indexes), which is where it belongs.
+  pen_number: optionalText,
+  apaar_number: optionalText,
+  cbse_registration_no: optionalText,
+  nic_number: optionalText,
+  father_salutation: enumField("father_salutation"),
+  mother_salutation: enumField("mother_salutation"),
+  district: optionalText,
+  state: optionalText,
+  place_of_birth: optionalText,
+  office_address: optionalText,
+  mother_office_address: optionalText,
+  mailing_address: optionalText,
+  sms_mobile_source: enumField("sms_mobile_source"),
+  caste: optionalText,
+  area_type: enumField("area_type"),
+  registration_no: optionalText,
+  registration_date: dateOptionalSchema,
+  form_no: optionalText,
+  admission_confirm_date: dateOptionalSchema,
+  counsellor_name: optionalText,
+  counsellor_remark: optionalText,
+  staff_reference: optionalText,
+  student_type: enumField("student_type"),
+  caution_money_receipt_no: optionalText,
+  caution_money_receipt_date: dateOptionalSchema,
+  caution_money_amount: numberField(0, 9_999_999),
+  // Bounds mirror the DB CHECK. The obtained ≤ maximum relationship is
+  // enforced in Postgres only: cross-field refinement here would fail the
+  // whole row on a sheet that fills one column and leaves the other blank.
+  previous_school_max_marks: numberField(0, 9_999),
+  previous_school_obtained_marks: numberField(0, 9_999),
+  previous_school_result: optionalText,
 };
 
 export const studentSchema = z.object({
