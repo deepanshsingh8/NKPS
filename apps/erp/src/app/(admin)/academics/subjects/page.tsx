@@ -75,6 +75,13 @@ interface AssignmentRow {
   student_count: number;
 }
 
+// ── What else in the system points at a stream ──
+interface StreamUsage {
+  classes: number;
+  subjects: number;
+  fee_structures: number;
+}
+
 // ── Stream with its subject details ──
 interface StreamWithSubjects extends Stream {
   subjects: {
@@ -134,15 +141,18 @@ export default function AdminSubjectsPage() {
 
   // ── Streams state ──
   const [streams, setStreams] = useState<StreamWithSubjects[]>([]);
+  const [streamUsage, setStreamUsage] = useState<Record<string, StreamUsage>>({});
   const [streamsLoading, setStreamsLoading] = useState(true);
   const [streamDialogOpen, setStreamDialogOpen] = useState(false);
   const [streamSubmitting, setStreamSubmitting] = useState(false);
   const [streamName, setStreamName] = useState("");
   const [streamCode, setStreamCode] = useState("");
+  const [streamSortOrder, setStreamSortOrder] = useState(0);
   const [editingStream, setEditingStream] = useState<StreamWithSubjects | null>(null);
   const [editStreamDialogOpen, setEditStreamDialogOpen] = useState(false);
   const [editStreamName, setEditStreamName] = useState("");
   const [editStreamCode, setEditStreamCode] = useState("");
+  const [editStreamSortOrder, setEditStreamSortOrder] = useState(0);
   // Manage stream subjects dialog
   const [manageStreamSubjectsOpen, setManageStreamSubjectsOpen] = useState(false);
   const [managingStream, setManagingStream] = useState<StreamWithSubjects | null>(null);
@@ -155,8 +165,8 @@ export default function AdminSubjectsPage() {
   const [quickSetupOpen, setQuickSetupOpen] = useState(false);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
 
-  // §6 Math Standard/Advanced review banner
-  const [mathReviewCount, setMathReviewCount] = useState(0);
+  // §6 Math Standard/Basic review banner — names the classes still to reassign
+  const [mathReviewClasses, setMathReviewClasses] = useState<string[]>([]);
 
   // ══════════════════════════════════════════════
   // Data Fetching
@@ -180,8 +190,16 @@ export default function AdminSubjectsPage() {
     setSubjectsLoading(false);
   }, [supabase]);
 
-  // §6: Look for any plain "Mathematics" subject still linked to classes IX–XII.
-  // We never auto-reassign; admin must split into Standard/Advanced manually.
+  // §6: Look for the generic "Mathematics" subject still linked to Class X.
+  //
+  // Class X is the only place the split applies — that is where CBSE splits
+  // Mathematics into Standard (041) and Basic (241) for the board exam. Class
+  // IX teaches one common Mathematics, and in XI–XII the pair is Mathematics
+  // (041) / Applied Mathematics (241), where plain "Mathematics" is the correct
+  // name. Flagging IX–XII, as this once did, marks correct rows as broken and
+  // leaves the banner permanently unclearable.
+  //
+  // We never auto-reassign; the admin picks Standard or Basic per class.
   const fetchMathReviewState = useCallback(async () => {
     const { data: plainMath } = await supabase
       .from("subjects")
@@ -190,19 +208,22 @@ export default function AdminSubjectsPage() {
       .limit(1)
       .maybeSingle();
     if (!plainMath?.id) {
-      setMathReviewCount(0);
+      setMathReviewClasses([]);
       return;
     }
     const { data: linked } = await supabase
       .from("class_subjects")
-      .select("id, classes!inner(name)")
+      .select("id, classes!inner(name, section)")
       .eq("subject_id", plainMath.id);
-    const seniorLinked = (linked ?? []).filter((row) => {
-      const classes = (row as unknown as { classes: { name: string } | { name: string }[] | null }).classes;
-      const className = Array.isArray(classes) ? classes[0]?.name ?? "" : classes?.name ?? "";
-      return ["IX", "X", "XI", "XII"].includes(className);
+    const names = (linked ?? []).flatMap((row) => {
+      const raw = (row as unknown as {
+        classes: { name: string; section: string | null } | { name: string; section: string | null }[] | null;
+      }).classes;
+      const cls = Array.isArray(raw) ? raw[0] : raw;
+      if (cls?.name !== "X") return [];
+      return [cls.section ? `${cls.name}-${cls.section}` : cls.name];
     });
-    setMathReviewCount(seniorLinked.length);
+    setMathReviewClasses(names.sort());
   }, [supabase]);
 
   const fetchAssignmentsData = useCallback(async () => {
@@ -302,10 +323,18 @@ export default function AdminSubjectsPage() {
 
     const streamsList = (streamsData as Stream[]) ?? [];
 
-    // Fetch stream_subjects with subject details
-    const { data: ssData } = await supabase
-      .from("stream_subjects")
-      .select("id, stream_id, subject_id, is_mandatory, subjects(name, code)");
+    // Stream subject links, plus everything else that points at a stream.
+    // The stream FK is ON DELETE SET NULL, so deleting a stream that classes
+    // or fee rows still reference would silently strand them — the counts have
+    // to be on screen before the delete button is.
+    const [{ data: ssData }, { data: classRows }, { data: feeRows }] =
+      await Promise.all([
+        supabase
+          .from("stream_subjects")
+          .select("id, stream_id, subject_id, is_mandatory, subjects(name, code)"),
+        supabase.from("classes").select("stream_id"),
+        supabase.from("fee_structures").select("stream_id"),
+      ]);
 
     const streamSubjectMap: Record<string, StreamWithSubjects["subjects"]> = {};
     if (ssData) {
@@ -329,7 +358,21 @@ export default function AdminSubjectsPage() {
       subjects: streamSubjectMap[s.id] ?? [],
     }));
 
+    const usage: Record<string, StreamUsage> = {};
+    const bump = (id: string | null, key: keyof StreamUsage) => {
+      if (!id) return;
+      usage[id] ??= { classes: 0, subjects: 0, fee_structures: 0 };
+      usage[id][key] += 1;
+    };
+    for (const c of (classRows ?? []) as Array<{ stream_id: string | null }>)
+      bump(c.stream_id, "classes");
+    for (const ss of (ssData ?? []) as unknown as Array<{ stream_id: string | null }>)
+      bump(ss.stream_id, "subjects");
+    for (const f of (feeRows ?? []) as Array<{ stream_id: string | null }>)
+      bump(f.stream_id, "fee_structures");
+
     setStreams(enrichedStreams);
+    setStreamUsage(usage);
     setStreamsLoading(false);
   }, [supabase]);
 
@@ -739,10 +782,25 @@ export default function AdminSubjectsPage() {
   // Stream CRUD
   // ══════════════════════════════════════════════
 
+  // Two streams sharing a name make every stream dropdown ambiguous, and the
+  // historical importers match on name — a duplicate would silently split one
+  // stream's data across two rows.
+  const duplicateStream = (name: string, ignoreId?: string) =>
+    streams.find(
+      (s) =>
+        s.id !== ignoreId && s.name.trim().toLowerCase() === name.toLowerCase()
+    );
+
   const handleCreateStream = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!streamName.trim()) {
+    const name = streamName.trim();
+    if (!name) {
       toast.error("Stream name is required");
+      return;
+    }
+    const clash = duplicateStream(name);
+    if (clash) {
+      toast.error(`A stream named "${clash.name}" already exists`);
       return;
     }
     setStreamSubmitting(true);
@@ -751,10 +809,10 @@ export default function AdminSubjectsPage() {
       action: "insert",
       table: "streams",
       data: {
-        name: streamName.trim(),
+        name,
         code: streamCode.trim() || null,
         is_active: true,
-        sort_order: streams.length + 1,
+        sort_order: Number(streamSortOrder) || 0,
       },
     });
 
@@ -765,6 +823,7 @@ export default function AdminSubjectsPage() {
       setStreamDialogOpen(false);
       setStreamName("");
       setStreamCode("");
+      setStreamSortOrder(0);
       await fetchStreams();
     }
     setStreamSubmitting(false);
@@ -774,14 +833,21 @@ export default function AdminSubjectsPage() {
     setEditingStream(stream);
     setEditStreamName(stream.name);
     setEditStreamCode(stream.code || "");
+    setEditStreamSortOrder(stream.sort_order ?? 0);
     setEditStreamDialogOpen(true);
   };
 
   const handleEditStream = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingStream) return;
-    if (!editStreamName.trim()) {
+    const name = editStreamName.trim();
+    if (!name) {
       toast.error("Stream name is required");
+      return;
+    }
+    const clash = duplicateStream(name, editingStream.id);
+    if (clash) {
+      toast.error(`A stream named "${clash.name}" already exists`);
       return;
     }
     setStreamSubmitting(true);
@@ -790,8 +856,9 @@ export default function AdminSubjectsPage() {
       action: "update",
       table: "streams",
       data: {
-        name: editStreamName.trim(),
+        name,
         code: editStreamCode.trim() || null,
+        sort_order: Number(editStreamSortOrder) || 0,
       },
       match: { column: "id", value: editingStream.id },
     });
@@ -1076,6 +1143,11 @@ export default function AdminSubjectsPage() {
             onClick={() => {
               setStreamName("");
               setStreamCode("");
+              setStreamSortOrder(
+                streams.length
+                  ? Math.max(...streams.map((s) => s.sort_order ?? 0)) + 1
+                  : 0
+              );
               setStreamDialogOpen(true);
             }}
             className="bg-navy-900 hover:bg-navy-800 text-white"
@@ -1132,14 +1204,14 @@ export default function AdminSubjectsPage() {
       {tab === "subjects" && (
         <div className="erp-table-container p-6">
           {/* §6 Math review banner */}
-          {mathReviewCount > 0 && (
+          {mathReviewClasses.length > 0 && (
             <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-              <strong>Action needed:</strong> {mathReviewCount} class–subject link
-              {mathReviewCount === 1 ? " is" : "s are"} still using the legacy{" "}
-              <span className="font-mono">Mathematics</span> subject for class IX–XII.
-              The CBSE structure now requires <em>Mathematics — Standard</em> or{" "}
-              <em>Mathematics — Advanced</em>. Please review and reassign in the
-              Assignments tab — these are not migrated automatically.
+              <strong>Action needed:</strong> {mathReviewClasses.join(", ")}{" "}
+              {mathReviewClasses.length === 1 ? "is" : "are"} still carrying the
+              generic <span className="font-mono">Mathematics</span> subject. From
+              Class X, CBSE splits it into Standard (041) and Basic (241) for the
+              board exam — reassign each class to the variant it offers, in the
+              Class Assignments tab. These are not migrated automatically.
             </div>
           )}
 
@@ -1622,6 +1694,18 @@ export default function AdminSubjectsPage() {
                         ))}
                       </div>
                     )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-2 border-t border-gray-100 dark:border-border text-xs text-gray-500 dark:text-gray-400">
+                    <span>
+                      {streamUsage[stream.id]?.classes ?? 0} class
+                      {(streamUsage[stream.id]?.classes ?? 0) === 1 ? "" : "es"}
+                    </span>
+                    <span>
+                      {streamUsage[stream.id]?.fee_structures ?? 0} fee row
+                      {(streamUsage[stream.id]?.fee_structures ?? 0) === 1 ? "" : "s"}
+                    </span>
+                    <span className="ml-auto">Order {stream.sort_order ?? 0}</span>
                   </div>
 
                   <div className="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-border">
@@ -2145,6 +2229,21 @@ export default function AdminSubjectsPage() {
                   placeholder="e.g. SCI"
                 />
               </div>
+              <div className="space-y-1">
+                <Label htmlFor="streamSortOrder" className="text-xs font-medium">
+                  Sort Order
+                </Label>
+                <Input
+                  id="streamSortOrder"
+                  type="number"
+                  className="h-9"
+                  value={streamSortOrder}
+                  onChange={(e) => setStreamSortOrder(Number(e.target.value))}
+                />
+                <p className="text-[11px] text-gray-400">
+                  Controls the order streams appear in dropdowns.
+                </p>
+              </div>
             </div>
 
             <DialogFooter>
@@ -2222,6 +2321,24 @@ export default function AdminSubjectsPage() {
                   onChange={(e) => setEditStreamCode(e.target.value)}
                   placeholder="e.g. SCI"
                 />
+              </div>
+              <div className="space-y-1">
+                <Label
+                  htmlFor="editStreamSortOrder"
+                  className="text-xs font-medium"
+                >
+                  Sort Order
+                </Label>
+                <Input
+                  id="editStreamSortOrder"
+                  type="number"
+                  className="h-9"
+                  value={editStreamSortOrder}
+                  onChange={(e) => setEditStreamSortOrder(Number(e.target.value))}
+                />
+                <p className="text-[11px] text-gray-400">
+                  Controls the order streams appear in dropdowns.
+                </p>
               </div>
             </div>
 

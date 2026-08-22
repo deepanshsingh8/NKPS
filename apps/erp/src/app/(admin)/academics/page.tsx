@@ -35,9 +35,9 @@ const tiles: AcademicsTile[] = [
     featureKey: "classes",
   },
   {
-    label: "Subjects",
+    label: "Subjects & Assignments",
     description:
-      "Maintain the subject master list. Mark subjects as active or elective; used across classes and results.",
+      "Subject master list, class–subject–teacher assignments, and the Science/Commerce/Humanities streams.",
     href: "/academics/subjects",
     icon: BookOpen,
     accentColor: "text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30",
