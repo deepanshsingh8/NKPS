@@ -1,6 +1,11 @@
--- migration-091-report-presets.sql
+-- migration-093-report-presets.sql
 --
 -- Saved column/filter selections for the Custom Report Builder.
+--
+-- Numbered 093, not 091: 091 was claimed by migration-091-export-events on
+-- main while this branch was in flight. 093 has never been used anywhere in
+-- this repo's history and is the number main's own plan file expects, so it
+-- leaves no permanent gap.
 --
 -- ── Why this exists ─────────────────────────────────────────────────────────
 -- The old ERP's report screen saved nothing: /CustomReport 404s, only

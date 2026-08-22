@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@nkps/shared/lib/utils";
+import type { ExportFormat } from "@nkps/shared/lib/table-export";
 import { TableHead } from "@nkps/shared/components/ui/table";
 
 // ---------------------------------------------------------------------------
@@ -38,6 +39,16 @@ export type FilterKind = "select" | "text" | "none";
 
 export type CellValue = string | number | boolean | null | undefined;
 
+/**
+ * How an exported cell should be typed in the output file. Anything but
+ * `"text"` means the raw value is written as a number/date rather than as the
+ * display string, so Excel can sum and sort the column.
+ *
+ * Defined by the export core so the table and the server-side export routes
+ * cannot drift on what the formats mean.
+ */
+export type { ExportFormat };
+
 export interface TableColumnDef<T> {
   /** Header text. Also the label in the filter panel. */
   label: string;
@@ -55,6 +66,30 @@ export interface TableColumnDef<T> {
   sortable?: boolean;
   /** Option-list text for blank values. Default `"—"`. */
   emptyLabel?: string;
+
+  // ── Export ───────────────────────────────────────────────────────────────
+  // The `columns` map doubles as the export column registry: `label` is the
+  // header and `value` reads the cell. These refine that for the file.
+
+  /** Header text in the exported file. Defaults to `label`. */
+  exportLabel?: string;
+  /**
+   * Unformatted source for the exported cell. When omitted and `exportFormat`
+   * is anything but `"text"`, falls back to `sortValue` — which throughout
+   * this codebase already holds exactly the raw number or ISO date that
+   * `value` formats for display. So most currency/date columns need only
+   * `exportFormat` adding, not a second accessor.
+   */
+  exportValue?: (row: T) => CellValue;
+  /** Defaults to `"text"`. */
+  exportFormat?: ExportFormat;
+  /**
+   * Offered in the export column picker but never rendered on screen, and not
+   * ticked by default — the page simply declares no `<SortFilterHead>` for it.
+   * For a handful of extra fields; a large per-domain field set belongs in the
+   * export button's `extraColumns` instead, derived from its own registry.
+   */
+  exportOnly?: boolean;
 }
 
 export type TableColumns<T> = Record<string, TableColumnDef<T>>;
@@ -85,24 +120,55 @@ export interface TableHeadControls {
   optionsFor: (key: string) => string[];
 }
 
+/** One human-readable active filter, for the export file's provenance line. */
+export interface FilterSummaryEntry {
+  label: string;
+  value: string;
+}
+
 export interface TableControls<T> extends TableHeadControls {
   /** Filtered, then sorted. */
   rows: T[];
   /** Number of columns with an active filter. */
   activeFilterCount: number;
   clearFilters: () => void;
+  /**
+   * The column map as given, echoed back so an export can use it as its
+   * column registry without the page passing it twice.
+   */
+  columns: TableColumns<T>;
+  /**
+   * Active COLUMN filters, in words.
+   *
+   * Deliberately NOT the whole filter story: this hook never sees the page's
+   * own controls (a search box, a tab, a class picker), and `rows` arrives
+   * with those already applied. Anything printing provenance — an export
+   * file's header above all — must concatenate the page's own context rather
+   * than treat this as complete, or it will claim a narrower filter than was
+   * actually used.
+   */
+  filterSummary: FilterSummaryEntry[];
 }
 
 const EMPTY_FILTER: ColumnFilter = { text: "", selected: [] };
 
 const DEFAULT_EMPTY_LABEL = "—";
 
+/** Ticked values listed in `filterSummary` before it collapses to "+N more". */
+const MAX_SUMMARY_VALUES = 5;
+
 function isBlank(v: CellValue): boolean {
   return v === null || v === undefined || v === "";
 }
 
-/** Display text for a cell value — the identity used by `select` filters. */
-function labelOf<T>(col: TableColumnDef<T>, row: T): string {
+/**
+ * Display text for a cell value — the identity used by `select` filters.
+ *
+ * Exported because the export core writes the same text into the file that
+ * the filter panel shows on screen — that equality is the feature's whole
+ * promise, so both sides must read the cell through one function.
+ */
+export function labelOf<T>(col: TableColumnDef<T>, row: T): string {
   const raw = col.value?.(row);
   if (isBlank(raw)) return col.emptyLabel ?? DEFAULT_EMPTY_LABEL;
   if (typeof raw === "boolean") return raw ? "Yes" : "No";
@@ -321,6 +387,26 @@ export function useTableControls<T>({
     [filters]
   );
 
+  const filterSummary = React.useMemo<FilterSummaryEntry[]>(() => {
+    const out: FilterSummaryEntry[] = [];
+    for (const [key, f] of Object.entries(filters)) {
+      if (!hasActiveFilter(f)) continue;
+      const label = columns[key]?.label ?? key;
+      const parts: string[] = [];
+      if (f.selected.length > 0) {
+        // Cap the list so one over-eager "Select all" can't push a
+        // thousand-character line into a PDF header.
+        const shown = f.selected.slice(0, MAX_SUMMARY_VALUES).join(", ");
+        const rest = f.selected.length - MAX_SUMMARY_VALUES;
+        parts.push(rest > 0 ? `${shown} +${rest} more` : shown);
+      }
+      const text = f.text.trim();
+      if (text) parts.push(`contains "${text}"`);
+      out.push({ label, value: parts.join(" · ") });
+    }
+    return out;
+  }, [filters, columns]);
+
   return {
     rows: sortedRows,
     sort,
@@ -333,6 +419,8 @@ export function useTableControls<T>({
     optionsFor,
     activeFilterCount,
     clearFilters,
+    columns,
+    filterSummary,
   };
 }
 

@@ -99,9 +99,9 @@ export const ROW_DEPENDENCIES: Record<string, DependencySpec[]> = {
   streams: [
     // Blocking — these FKs are ON DELETE SET NULL, so a delete does not fail,
     // it quietly strands every class, enrolment and fee row that pointed at
-    // the stream. /academics/streams warns about this client-side; the same
-    // stream is also deletable from the Streams tab of /academics/subjects,
-    // which is why the rule belongs here rather than on one page.
+    // the stream. The Streams tab of /academics/subjects shows its own usage
+    // counts, but they are only a summary of what that page can read under
+    // RLS — the rule that decides deletability belongs here, on the server.
     { table: "classes", column: "stream_id", label: "class", severity: "blocking" },
     {
       table: "student_enrollments",

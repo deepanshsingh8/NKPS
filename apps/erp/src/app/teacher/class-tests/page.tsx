@@ -30,6 +30,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import {
   Dialog,
   DialogClose,
@@ -772,11 +773,20 @@ export default function TeacherClassTestsPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <TableFilterSummary
-                  ctl={testTable}
-                  total={tests.length}
-                  shown={testTable.rows.length}
-                />
+                <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                  <TableFilterSummary
+                    ctl={testTable}
+                    total={tests.length}
+                    shown={testTable.rows.length}
+                    className="mb-0 mr-auto"
+            />
+                  <TableExportButton
+                    ctl={testTable}
+                    filename="class-tests"
+                    title="Class Tests"
+                    featureKey="class_tests"
+                  />
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>

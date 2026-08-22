@@ -26,6 +26,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { Card, CardContent } from "@nkps/shared/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, CalendarDays } from "lucide-react";
@@ -271,11 +272,15 @@ export default function AdminCalendarPage() {
         label: "Start Date",
         value: (e) => formatDate(e.start_date),
         sortValue: (e) => e.start_date,
+        // `sortValue` is already the raw ISO date, so this is all it takes for
+        // the exported column to be a real date Excel can sort and filter.
+        exportFormat: "date",
       },
       end_date: {
         label: "End Date",
         value: (e) => (e.end_date ? formatDate(e.end_date) : null),
         sortValue: (e) => e.end_date,
+        exportFormat: "date",
       },
       website: {
         label: "Website",
@@ -299,13 +304,34 @@ export default function AdminCalendarPage() {
         <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Calendar Management
         </h1>
-        <Button
-          className="bg-navy-900 hover:bg-navy-800 text-white"
-          onClick={() => setAddEventOpen(true)}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Event
-        </Button>
+        <div className="flex items-center gap-2">
+          <TableExportButton
+            ctl={table}
+            filename="calendar"
+            title="School Calendar"
+            featureKey="calendar"
+            // The event-type chips filter the query itself, so the table never
+            // sees them — without this the file would claim it holds every
+            // event when it holds one type.
+            context={
+              activeFilter === "all"
+                ? []
+                : [
+                    {
+                      label: "Type",
+                      value: EVENT_TYPE_LABELS[activeFilter] ?? activeFilter,
+                    },
+                  ]
+            }
+          />
+          <Button
+            className="bg-navy-900 hover:bg-navy-800 text-white"
+            onClick={() => setAddEventOpen(true)}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Event
+          </Button>
+        </div>
       </div>
 
       {/* Filter buttons */}

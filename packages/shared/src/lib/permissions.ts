@@ -67,7 +67,7 @@ export const FEATURE_CATALOG: readonly FeatureDef[] = [
   { key: "staff", label: "Staff", href: "/people/staff", group: "erp" },
   { key: "students", label: "Students", href: "/people/students", group: "erp" },
   { key: "classes", label: "Classes", href: "/academics/classes", group: "erp" },
-  { key: "subjects", label: "Subjects", href: "/academics/subjects", group: "erp" },
+  { key: "subjects", label: "Subjects & Assignments", href: "/academics/subjects", group: "erp" },
   { key: "academic_years", label: "Academic Years", href: "/academics/years", group: "erp" },
   { key: "exam_types", label: "Exam Types", href: "/exams/types", group: "erp" },
   { key: "exam_timetable", label: "Exam Timetable", href: "/exams/timetable", group: "erp" },
@@ -144,9 +144,6 @@ export function isAdminOnlyPath(pathname: string): boolean {
 // Longest prefix wins here too, so a more specific entry can override a
 // broader one.
 const PATH_FEATURE_OVERRIDES: ReadonlyArray<readonly [string, FeatureKey]> = [
-  // Master data behind classes: streams drive class setup, subject
-  // assignment and per-stream fee schedules.
-  ["/academics/streams", "classes"],
   // Houses are class-adjacent master data. Without this the path has no
   // feature key, and per the note above that means any editor can open it.
   ["/academics/houses", "classes"],

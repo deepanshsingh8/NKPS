@@ -20,10 +20,12 @@ import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@nkps/shared/components/ui/dialog";
+import { Textarea } from "@nkps/shared/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -52,22 +54,26 @@ import {
 } from "@nkps/shared/components/ui/tabs";
 import { toast } from "sonner";
 import {
-  Plus,
-  Upload,
-  Trash2,
-  Pencil,
-  Loader2,
-  Search,
-  Users,
-  GraduationCap,
   ArrowUpCircle,
-  Download,
+  CalendarClock,
   ChevronDown,
-  UserPlus,
-  Receipt,
-  User,
-  Info,
+  Download,
+  GraduationCap,
   History,
+  Info,
+  Loader2,
+  Lock,
+  LockOpen,
+  Pencil,
+  Plus,
+  Receipt,
+  Search,
+  ShieldAlert,
+  Trash2,
+  Upload,
+  User,
+  UserPlus,
+  Users,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -100,7 +106,15 @@ import { StudentCallActions } from "@/components/StudentCallActions";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { formatClassName } from "@nkps/shared/lib/utils";
-import { downloadCSV, STUDENT_CSV_COLUMNS } from "@/lib/csv-export";
+import {
+  downloadCSV,
+  STUDENT_CSV_COLUMNS,
+  studentExportColumns,
+} from "@/lib/csv-export";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
+import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
+import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
+import { MIN_CORRECTION_REASON } from "@/lib/historical-correction";
 import type { Student, Stream, EnrollmentStatus } from "@nkps/shared/types";
 
 interface ClassOption {
@@ -305,6 +319,7 @@ interface StudentRowActions {
   onInvite: (student: StudentRow) => void;
   onDelete: (student: StudentRow) => void;
   onStatusChange: (enrollmentId: string, status: EnrollmentStatus) => void;
+  onUnlock: (student: StudentRow) => void;
 }
 
 const StudentTableRow = memo(function StudentTableRow({
@@ -312,12 +327,18 @@ const StudentTableRow = memo(function StudentTableRow({
   selected,
   showClassColumn,
   isAdmin,
+  /** The session on screen has ended: its records are closed. */
+  sessionClosed,
+  /** ...unless this record was explicitly unlocked for correction. */
+  unlocked,
   actions,
 }: {
   student: StudentRow;
   selected: boolean;
   showClassColumn: boolean;
   isAdmin: boolean;
+  sessionClosed: boolean;
+  unlocked: boolean;
   actions: StudentRowActions;
 }) {
   return (
@@ -362,6 +383,23 @@ const StudentTableRow = memo(function StudentTableRow({
       )}
       <TableCell className="text-gray-600 dark:text-gray-300">
         {student.father_name || "—"}
+      </TableCell>
+      <TableCell className="text-gray-600 dark:text-gray-300">
+        {student.gender
+          ? student.gender.charAt(0).toUpperCase() + student.gender.slice(1)
+          : "—"}
+      </TableCell>
+      <TableCell className="text-gray-600 dark:text-gray-300">
+        {student.has_transport ? (
+          <Badge
+            variant="secondary"
+            className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400"
+          >
+            Bus
+          </Badge>
+        ) : (
+          "—"
+        )}
       </TableCell>
       <TableCell onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-1">
@@ -425,16 +463,45 @@ const StudentTableRow = memo(function StudentTableRow({
       </TableCell>
       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => actions.onEdit(student)}
-            aria-label="Edit student"
-            className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-            title="Edit student"
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
+          {sessionClosed && !unlocked ? (
+            // A closed session is read-only. The pencil is replaced rather
+            // than disabled so the reason is visible without hovering, and
+            // the lock is the affordance that explains what to do next.
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => actions.onUnlock(student)}
+              disabled={!isAdmin}
+              aria-label="Unlock this record for correction"
+              className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+              title={
+                isAdmin
+                  ? "This session is closed — unlock to correct this record"
+                  : "This session is closed. Only an admin can correct it."
+              }
+            >
+              <Lock className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => actions.onEdit(student)}
+              aria-label="Edit student"
+              className={
+                unlocked
+                  ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                  : "text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+              }
+              title={unlocked ? "Edit (correcting a closed session)" : "Edit student"}
+            >
+              {unlocked ? (
+                <LockOpen className="h-4 w-4" />
+              ) : (
+                <Pencil className="h-4 w-4" />
+              )}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -576,6 +643,22 @@ export default function AdminStudentsPage() {
   const supabase = createClient();
   const router = useRouter();
 
+  // Which academic session the list describes. Class, section, roll number
+  // and transport all live on the year-scoped enrollment, so without this
+  // the page silently shows a mix resolved by heuristic — fine to browse,
+  // wrong to download.
+  // Records unlocked for correction in this visit, and the reason each was
+  // unlocked for. Held in memory rather than persisted: an unlock is meant to
+  // cover one correction, not to leave a closed session editable in a tab
+  // somebody left open.
+  const [unlockedIds, setUnlockedIds] = useState<Map<string, string>>(new Map());
+  const [unlockTarget, setUnlockTarget] = useState<StudentRow | null>(null);
+  const [unlockReason, setUnlockReason] = useState("");
+
+  const session = useAcademicSession();
+
+  const sessionId = session.sessionId;
+
   const fetchClasses = useCallback(async () => {
     // Streams and the academic-year list don't depend on the current year, so
     // they're kicked off immediately and awaited later — only the classes
@@ -596,20 +679,15 @@ export default function AdminStudentsPage() {
       .eq("is_active", true)
       .order("sort_order");
 
-    // Fetch classes for the current academic year
-    const { data: years } = await supabase
-      .from("academic_years")
-      .select("id")
-      .eq("is_current", true)
-      .single();
-
+    // Classes belong to a session, so the picker drives this too — otherwise
+    // a past session's students would be filtered by this year's class list.
     let query = supabase
       .from("classes")
       .select("id, name, section, stream_id, streams(name)")
       .order("sort_order", { ascending: true });
 
-    if (years) {
-      query = query.eq("academic_year_id", years.id);
+    if (sessionId) {
+      query = query.eq("academic_year_id", sessionId);
     }
 
     const { data } = await query;
@@ -632,15 +710,21 @@ export default function AdminStudentsPage() {
     // "No house" rather than erroring.
     setHouses((houseRows as { id: string; name: string }[]) ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sessionId]);
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
 
     try {
+      // A session other than the current one takes the roster branch of the
+      // API, which hard-filters by year and includes students who have since
+      // left — the current-session view keeps the heuristic that lets an admin
+      // find any name regardless of state.
       const url = selectedClassId
         ? `/api/students?class_id=${selectedClassId}`
-        : `/api/students`;
+        : sessionId && !session.isCurrentSession
+          ? `/api/students?academic_year_id=${sessionId}`
+          : `/api/students`;
       const res = await adminFetch(url);
       const json = await res.json();
 
@@ -659,7 +743,7 @@ export default function AdminStudentsPage() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClassId]);
+  }, [selectedClassId, sessionId, session.isCurrentSession]);
 
   useEffect(() => {
     fetchClasses();
@@ -668,8 +752,13 @@ export default function AdminStudentsPage() {
   // Fetch all students on initial load, and re-fetch when class changes
   useEffect(() => {
     fetchStudents();
-    setSelectedIds(new Set()); // Clear selection on class change
-  }, [selectedClassId, fetchStudents]);
+    // Clear selection whenever the underlying list changes — ticked ids from
+    // one class or session mean nothing in another. Unlocks go too: one
+    // granted for 2022-23 must not still be standing after switching to
+    // 2023-24.
+    setSelectedIds(new Set());
+    setUnlockedIds(new Map());
+  }, [selectedClassId, sessionId, fetchStudents]);
 
   // Alumni are excluded from the main listing by design (they accumulate a
   // cohort per year and would swamp the working list), so the Alumni tab is
@@ -831,6 +920,20 @@ export default function AdminStudentsPage() {
         label: "Father's Name",
         value: (s) => s.father_name || null,
         filter: "text",
+      },
+      // Gender and transport are already in the row payload (`select("*")` on
+      // students, and the enrollment merge for transport), so surfacing them
+      // costs no extra query — and they are the two things the office most
+      // often needs to narrow by: "the girls in XI", "everyone on a bus".
+      gender: {
+        label: "Gender",
+        value: (s) =>
+          s.gender ? s.gender.charAt(0).toUpperCase() + s.gender.slice(1) : null,
+        emptyLabel: "Not recorded",
+      },
+      transport: {
+        label: "Transport",
+        value: (s) => Boolean(s.has_transport),
       },
       status: {
         label: "Status",
@@ -1044,6 +1147,12 @@ export default function AdminStudentsPage() {
           roll_number: formData.roll_number || undefined,
           roll_number_manual: formData.roll_number_manual,
           house_id: formData.house_id || null,
+          // Present only for a record the admin unlocked. The server re-checks
+          // the role and the reason — this is what permits the write and what
+          // gets recorded alongside it.
+          historical_correction: unlockedIds.has(editingStudent.id)
+            ? { reason: unlockedIds.get(editingStudent.id) }
+            : undefined,
           ...buildStudentPayload(formData),
         }),
       });
@@ -1056,7 +1165,20 @@ export default function AdminStudentsPage() {
       }
 
       setFormErrors({});
-      toast.success("Student updated successfully");
+      // An unlock covers the one correction it was opened for. Leaving it
+      // standing would turn a deliberate act into an ambient mode, which is
+      // exactly what the read-only default is there to avoid.
+      setUnlockedIds((prev) => {
+        if (!prev.has(editingStudent.id)) return prev;
+        const next = new Map(prev);
+        next.delete(editingStudent.id);
+        return next;
+      });
+      toast.success(
+        session.isPastSession
+          ? "Correction saved and recorded"
+          : "Student updated successfully"
+      );
       resetForm();
       setEditDialogOpen(false);
       await fetchStudents();
@@ -1311,6 +1433,10 @@ export default function AdminStudentsPage() {
       onInvite: (student) => openInviteDialog(student),
       onDelete: (student) => handleDelete(student),
       onStatusChange: (enrollmentId, status) => handleStatusChange(enrollmentId, status),
+      onUnlock: (student) => {
+        setUnlockReason("");
+        setUnlockTarget(student);
+      },
     };
   });
   const rowActions = useMemo<StudentRowActions>(
@@ -1323,6 +1449,7 @@ export default function AdminStudentsPage() {
       onDelete: (student) => rowHandlersRef.current?.onDelete(student),
       onStatusChange: (enrollmentId, status) =>
         rowHandlersRef.current?.onStatusChange(enrollmentId, status),
+      onUnlock: (student) => rowHandlersRef.current?.onUnlock(student),
     }),
     []
   );
@@ -1515,6 +1642,46 @@ export default function AdminStudentsPage() {
 
   return (
     <div className="space-y-6">
+      {session.isPastSession && (
+        // Loud on purpose. Everything on this page now describes a year that
+        // has ended — the counts, the class labels, the roll numbers — and an
+        // admin who forgets which session is selected will misread all of it.
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/40 dark:bg-amber-950/30">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="text-sm">
+            <p className="font-semibold text-amber-900 dark:text-amber-200">
+              Viewing the {session.session?.name ?? "selected"} session, which
+              has ended.
+            </p>
+            <p className="mt-0.5 text-amber-800 dark:text-amber-300">
+              Enrolment records for a closed session are read-only, and this
+              list includes students who have since left the school. To correct
+              a record, use the lock button on its row — an admin and a reason
+              are required, and the change is recorded.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {session.isFutureSession && (
+        // A different state entirely, and it must not read as a warning: this
+        // session is being built on purpose, and everything here is editable.
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-500/40 dark:bg-blue-950/30">
+          <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
+          <div className="text-sm">
+            <p className="font-semibold text-blue-900 dark:text-blue-200">
+              Viewing the {session.session?.name ?? "selected"} session, which
+              has not started yet.
+            </p>
+            <p className="mt-0.5 text-blue-800 dark:text-blue-300">
+              This list shows only students already enrolled for next session,
+              so it fills up as you assign classes. Records here are fully
+              editable.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-navy-900 flex items-center justify-center">
@@ -1526,6 +1693,56 @@ export default function AdminStudentsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <AcademicSessionPicker state={session} />
+          <TableExportButton
+            ctl={table}
+            filename="students"
+            title="Students"
+            featureKey="students"
+            extraColumns={studentExportColumns<StudentRow>()}
+            selected={visibleStudents.filter((s) => selectedIds.has(s.id))}
+            session={{
+              options: session.sessions.map((y) => ({
+                id: y.id,
+                name: y.name,
+                isCurrent: y.is_current,
+              })),
+              value: session.sessionId,
+            }}
+            serverRoute="/api/export/students"
+            // Student rows carry names, addresses and parent phone numbers.
+            // Every download of them is generated server-side so it can be
+            // logged and so contact fields can be withheld from non-admins —
+            // an audit log with client-side holes reads as complete when it
+            // is not.
+            alwaysServer
+            // The tab, class picker and search box filter these rows before
+            // the table ever sees them, so the file has to be told about them
+            // or it would claim a wider set than it holds.
+            context={[
+              {
+                label: "Tab",
+                value:
+                  STUDENT_TABS.find((t) => t.key === activeTab)?.label ?? "All",
+              },
+              ...(selectedClassId
+                ? [
+                    {
+                      label: "Class",
+                      value:
+                        classes.find((c) => c.id === selectedClassId)
+                          ? classLabel(
+                              classes.find((c) => c.id === selectedClassId)!
+                            )
+                          : "Selected class",
+                    },
+                  ]
+                : []),
+              ...(deferredSearch.trim()
+                ? [{ label: "Search", value: deferredSearch.trim() }]
+                : []),
+            ]}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger
               render={<Button variant="outline" className="gap-2" />}
@@ -1549,6 +1766,10 @@ export default function AdminStudentsPage() {
               <DropdownMenuItem
                 disabled={visibleStudents.length === 0}
                 onClick={() => {
+                  // Kept alongside the general export: these columns are the
+                  // bulk-upload template's own headers, so this file can be
+                  // fixed in Excel and re-uploaded. The Export dialog is for
+                  // reading, this is for round-tripping.
                   const rows = visibleStudents.map((s) => ({
                     ...s,
                     class_name: s.class_name ?? "",
@@ -1560,7 +1781,7 @@ export default function AdminStudentsPage() {
                 }}
               >
                 <Download className="h-4 w-4 mr-2" />
-                Download CSV
+                Download re-upload template
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setUploadDialogOpen(true)}>
                 <Upload className="h-4 w-4 mr-2" />
@@ -1802,6 +2023,8 @@ export default function AdminStudentsPage() {
                     {!selectedClassId && <SortFilterHead ctl={table} col="class" />}
                     {selectedClassId && <SortFilterHead ctl={table} col="roll_number" />}
                     <SortFilterHead ctl={table} col="father_name" />
+                    <SortFilterHead ctl={table} col="gender" />
+                    <SortFilterHead ctl={table} col="transport" />
                     <SortFilterHead ctl={table} col="status" />
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -1810,7 +2033,7 @@ export default function AdminStudentsPage() {
                   {visibleStudents.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={9}
                         className="py-10 text-center text-gray-500 dark:text-gray-400"
                       >
                         No students match the column filters.
@@ -1824,6 +2047,8 @@ export default function AdminStudentsPage() {
                       selected={selectedIds.has(student.id)}
                       showClassColumn={!selectedClassId}
                       isAdmin={!!isAdmin}
+                      sessionClosed={session.isPastSession}
+                      unlocked={unlockedIds.has(student.id)}
                       actions={rowActions}
                     />
                   ))}
@@ -2484,6 +2709,86 @@ export default function AdminStudentsPage() {
           .map((s) => ({ id: s.id, name: s.full_name, email: s.email, phone: s.phone }))}
         onComplete={fetchStudents}
       />
+
+      {/* Unlock a closed session's record for correction */}
+      <Dialog
+        open={!!unlockTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUnlockTarget(null);
+            setUnlockReason("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Correct a closed session</DialogTitle>
+            <DialogDescription>
+              {unlockTarget?.full_name} &middot;{" "}
+              {session.session?.name ?? "past session"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            This record belongs to a session that has ended. Changing it is
+            recorded permanently against your name, along with the reason you
+            give here, so write what a colleague reading it next year would need
+            to know.
+          </p>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="unlock-reason">Reason</Label>
+            <Textarea
+              id="unlock-reason"
+              value={unlockReason}
+              onChange={(e) => setUnlockReason(e.target.value)}
+              rows={3}
+              placeholder="e.g. Admitted to XI-B, not XI-A — original admission register confirms B."
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {unlockReason.trim().length < MIN_CORRECTION_REASON
+                ? `${MIN_CORRECTION_REASON - unlockReason.trim().length} more character${
+                    MIN_CORRECTION_REASON - unlockReason.trim().length === 1 ? "" : "s"
+                  } needed.`
+                : "The server records this exactly as written."}
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUnlockTarget(null);
+                setUnlockReason("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={unlockReason.trim().length < MIN_CORRECTION_REASON}
+              onClick={() => {
+                if (!unlockTarget) return;
+                const reason = unlockReason.trim();
+                setUnlockedIds((prev) => {
+                  const next = new Map(prev);
+                  next.set(unlockTarget.id, reason);
+                  return next;
+                });
+                const target = unlockTarget;
+                setUnlockTarget(null);
+                setUnlockReason("");
+                // Straight into the edit form: unlocking is a step towards a
+                // correction, never an end in itself.
+                openEditDialog(target);
+              }}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              <LockOpen className="h-4 w-4 mr-2" />
+              Unlock &amp; edit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

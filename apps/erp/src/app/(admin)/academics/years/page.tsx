@@ -27,14 +27,32 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, Star, CalendarDays } from "lucide-react";
-import { adminApi, fetchRowDependencies } from "@nkps/shared/lib/admin-api";
+import { adminApi, adminFetch, fetchRowDependencies } from "@nkps/shared/lib/admin-api";
 import { describeDependencies } from "@nkps/shared/lib/row-dependencies";
 import type { AcademicYear } from "@nkps/shared/types";
 
+/** Per-session headline numbers, keyed by academic_year_id. */
+type SessionStats = Record<
+  string,
+  {
+    students: number;
+    classes: number;
+    left: number;
+    collected: number | null;
+  }
+>;
+
 export default function AdminAcademicYearsPage() {
   const [years, setYears] = useState<AcademicYear[]>([]);
+  const [stats, setStats] = useState<SessionStats>({});
+  const [unattributedPayments, setUnattributedPayments] = useState(0);
+  // False for an editor without the `fees` grant: the column is then absent
+  // rather than shown full of dashes, which would read as "nothing collected".
+  const [showFees, setShowFees] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -217,6 +235,42 @@ export default function AdminAcademicYearsPage() {
     setSubmitting(false);
   };
 
+  // The archive numbers. Fetched separately from the year rows so a failure
+  // here leaves the page usable — the list of sessions is the point, the
+  // counts are the enrichment.
+  useEffect(() => {
+    let cancelled = false;
+    adminFetch("/api/academic-years/stats")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (cancelled || !json?.data) return;
+        const next: SessionStats = {};
+        for (const row of json.data as {
+          academic_year_id: string;
+          students: number;
+          classes: number;
+          left: number;
+          collected: number | null;
+        }[]) {
+          next[row.academic_year_id] = {
+            students: row.students,
+            classes: row.classes,
+            left: row.left,
+            collected: row.collected,
+          };
+        }
+        setStats(next);
+        setUnattributedPayments(json.unattributed_payments ?? 0);
+        setShowFees(Boolean(json.includes_fees));
+      })
+      .catch(() => {
+        // Non-fatal: the sessions still list, just without their numbers.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Header sort/filter accessors — mirror what the matching cell renders.
   const columns = useMemo<TableColumns<AcademicYear>>(
     () => ({
@@ -236,8 +290,49 @@ export default function AdminAcademicYearsPage() {
         value: (y) => (y.is_current ? "Current" : null),
         emptyLabel: "Past",
       },
+      // The archive figures. Sortable, so "which was our biggest intake?" is
+      // one click rather than a spreadsheet.
+      students: {
+        label: "Students",
+        value: (y) => stats[y.id]?.students ?? null,
+        sortValue: (y) => stats[y.id]?.students ?? -1,
+        exportFormat: "number",
+        emptyLabel: "—",
+      },
+      classes: {
+        label: "Classes",
+        value: (y) => stats[y.id]?.classes ?? null,
+        sortValue: (y) => stats[y.id]?.classes ?? -1,
+        exportFormat: "number",
+        emptyLabel: "—",
+      },
+      left: {
+        label: "Left",
+        value: (y) => stats[y.id]?.left ?? null,
+        sortValue: (y) => stats[y.id]?.left ?? -1,
+        exportFormat: "number",
+        emptyLabel: "—",
+      },
+      ...(showFees
+        ? {
+            collected: {
+              label: "Fees Collected",
+              value: (y: AcademicYear) =>
+                stats[y.id]?.collected == null
+                  ? null
+                  : new Intl.NumberFormat("en-IN", {
+                      style: "currency",
+                      currency: "INR",
+                      maximumFractionDigits: 0,
+                    }).format(stats[y.id].collected as number),
+              sortValue: (y: AcademicYear) => stats[y.id]?.collected ?? -1,
+              exportFormat: "currency" as const,
+              emptyLabel: "—",
+            },
+          }
+        : {}),
     }),
-    []
+    [stats, showFees]
   );
 
   const table = useTableControls({ rows: years, columns });
@@ -245,9 +340,25 @@ export default function AdminAcademicYearsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
-          Academic Years
-        </h1>
+        <div>
+          <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
+            Academic Sessions
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Every session the school has run, with its headline numbers. Open a
+            session name to work in that year&apos;s records.
+            {showFees && unattributedPayments > 0 && (
+              <>
+                {" "}
+                <span className="text-amber-700 dark:text-amber-400">
+                  {unattributedPayments} payment
+                  {unattributedPayments === 1 ? "" : "s"} carry no session and
+                  are excluded from the collected totals.
+                </span>
+              </>
+            )}
+          </p>
+        </div>
         <Button
           onClick={() => {
             resetForm();
@@ -271,11 +382,20 @@ export default function AdminAcademicYearsPage() {
           </p>
         ) : (
           <>
-          <TableFilterSummary
-            ctl={table}
-            total={years.length}
-            shown={table.rows.length}
-          />
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <TableFilterSummary
+              ctl={table}
+              total={years.length}
+              shown={table.rows.length}
+              className="mb-0 mr-auto"
+            />
+            <TableExportButton
+              ctl={table}
+              filename="academic-years"
+              title="Academic Years"
+              featureKey="academic_years"
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -283,20 +403,37 @@ export default function AdminAcademicYearsPage() {
                 <SortFilterHead ctl={table} col="start_date" />
                 <SortFilterHead ctl={table} col="end_date" />
                 <SortFilterHead ctl={table} col="status" />
+                <SortFilterHead ctl={table} col="students" align="right" />
+                <SortFilterHead ctl={table} col="classes" align="right" />
+                <SortFilterHead ctl={table} col="left" align="right" />
+                {showFees && (
+                  <SortFilterHead ctl={table} col="collected" align="right" />
+                )}
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {table.rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-10 text-center text-gray-500 dark:text-gray-400">
+                  <TableCell colSpan={showFees ? 9 : 8} className="py-10 text-center text-gray-500 dark:text-gray-400">
                     No years match the column filters.
                   </TableCell>
                 </TableRow>
               )}
               {table.rows.map((year) => (
                 <TableRow key={year.id}>
-                  <TableCell className="font-medium">{year.name}</TableCell>
+                  <TableCell className="font-medium">
+                    {/* The session name is the way into that session: the
+                        students list opens already scoped to it, which is what
+                        makes this an archive rather than a list of dates. */}
+                    <Link
+                      href={`/people/students?session=${year.id}`}
+                      className="text-blue-600 hover:underline dark:text-blue-400"
+                      title={`Open the ${year.name} student list`}
+                    >
+                      {year.name}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-gray-600 dark:text-gray-300">
                     {new Date(year.start_date).toLocaleDateString()}
                   </TableCell>
@@ -315,6 +452,34 @@ export default function AdminAcademicYearsPage() {
                       <span className="text-gray-400 dark:text-gray-500 text-sm">—</span>
                     )}
                   </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {stats[year.id]?.students ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-gray-600 dark:text-gray-300">
+                    {stats[year.id]?.classes ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {stats[year.id] === undefined ? (
+                      "—"
+                    ) : stats[year.id].left > 0 ? (
+                      <span className="text-amber-700 dark:text-amber-400">
+                        {stats[year.id].left}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 dark:text-gray-500">0</span>
+                    )}
+                  </TableCell>
+                  {showFees && (
+                    <TableCell className="text-right tabular-nums text-gray-600 dark:text-gray-300">
+                      {stats[year.id]?.collected == null
+                        ? "—"
+                        : new Intl.NumberFormat("en-IN", {
+                            style: "currency",
+                            currency: "INR",
+                            maximumFractionDigits: 0,
+                          }).format(stats[year.id].collected as number)}
+                    </TableCell>
+                  )}
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       {!year.is_current && (

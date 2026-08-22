@@ -29,7 +29,6 @@ import {
   MapPin,
   ReceiptText,
   Home,
-  Layers,
   FileSpreadsheet,
   UserPlus,
 } from "lucide-react";
@@ -61,9 +60,8 @@ const erpItems: SidebarItem[] = [
     landingHref: "/academics",
     children: [
       { kind: "link", icon: GraduationCap, label: "Classes", href: "/academics/classes" },
-      { kind: "link", icon: BookOpen, label: "Subjects", href: "/academics/subjects" },
+      { kind: "link", icon: BookOpen, label: "Subjects & Assignments", href: "/academics/subjects" },
       { kind: "link", icon: BookOpen, label: "XI–XII Electives", href: "/academics/electives" },
-      { kind: "link", icon: Layers, label: "Streams", href: "/academics/streams" },
       { kind: "link", icon: CalendarDays, label: "Academic Years", href: "/academics/years" },
       { kind: "link", icon: Home, label: "Houses", href: "/academics/houses" },
       { kind: "link", icon: Sparkles, label: "Non-Scholastic Classes", href: "/exams/non-scholastic-assessments" },

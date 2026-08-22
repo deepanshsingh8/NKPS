@@ -26,6 +26,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import {
   Select,
   SelectContent,
@@ -611,11 +612,20 @@ function ResultAcademicsTab({
         </h3>
         {classXResults.length > 0 ? (
           <>
-          <TableFilterSummary
-            ctl={classXTable}
-            total={classXResults.length}
-            shown={classXTable.rows.length}
-          />
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <TableFilterSummary
+              ctl={classXTable}
+              total={classXResults.length}
+              shown={classXTable.rows.length}
+              className="mb-0 mr-auto"
+            />
+            <TableExportButton
+              ctl={classXTable}
+              filename="class-x-results"
+              title="Class X Board Results"
+              featureKey="disclosure"
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -685,11 +695,20 @@ function ResultAcademicsTab({
         </h3>
         {classXIIResults.length > 0 ? (
           <>
-          <TableFilterSummary
-            ctl={classXIITable}
-            total={classXIIResults.length}
-            shown={classXIITable.rows.length}
-          />
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <TableFilterSummary
+              ctl={classXIITable}
+              total={classXIIResults.length}
+              shown={classXIITable.rows.length}
+              className="mb-0 mr-auto"
+            />
+            <TableExportButton
+              ctl={classXIITable}
+              filename="class-xii-results"
+              title="Class XII Board Results"
+              featureKey="disclosure"
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>

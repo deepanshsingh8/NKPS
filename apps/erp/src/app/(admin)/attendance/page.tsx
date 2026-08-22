@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { Badge } from "@nkps/shared/components/ui/badge";
+import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
+import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import { Input } from "@nkps/shared/components/ui/input";
 import {
   Card,
@@ -32,6 +34,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import {
   ClipboardCheck,
   Users,
@@ -85,11 +88,21 @@ export default function AdminAttendancePage() {
   const supabase = createClient();
 
   // Fetch all classes
+  const session = useAcademicSession();
+  const sessionId = session.sessionId;
+
   useEffect(() => {
     async function fetchClasses() {
       const { data } = await supabase
         .from("classes")
         .select("id, name, section, streams:stream_id(name)")
+        // Classes belong to a session. Without this the register offers this
+        // year's classes while showing a past year's dates, which is a class
+        // list that never had those students in it.
+        .eq(
+          "academic_year_id",
+          sessionId ?? "00000000-0000-0000-0000-000000000000"
+        )
         .order("sort_order");
 
       setClasses((data as unknown as ClassOption[]) ?? []);
@@ -98,7 +111,7 @@ export default function AdminAttendancePage() {
 
     fetchClasses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sessionId]);
 
   // Fetch today's summary stats
   useEffect(() => {
@@ -241,13 +254,16 @@ export default function AdminAttendancePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
-          Attendance Reports
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Overview of attendance across all classes.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
+            Attendance Reports
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            Overview of attendance across all classes.
+          </p>
+        </div>
+        <AcademicSessionPicker state={session} />
       </div>
 
       {/* Summary Cards */}
@@ -354,11 +370,20 @@ export default function AdminAttendancePage() {
             </p>
           ) : (
             <>
-            <TableFilterSummary
-              ctl={table}
-              total={classStats.length}
-              shown={table.rows.length}
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              <TableFilterSummary
+                ctl={table}
+                total={classStats.length}
+                shown={table.rows.length}
+                className="mb-0 mr-auto"
             />
+              <TableExportButton
+                ctl={table}
+                filename="attendance-summary"
+                title="Attendance Summary"
+                featureKey="attendance"
+              />
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>

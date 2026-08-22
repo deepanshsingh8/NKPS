@@ -238,7 +238,7 @@ used by `/api/students/[id]/export`). PDF uses `@react-pdf/renderer` with the
 existing `pdf_header_configs` / `pdf_footer_configs` so a printed report carries
 the school letterhead like every other printed artefact.
 
-### 3.6 Saved presets — `report_presets` (migration 088)
+### 3.6 Saved presets — `report_presets` (migration 093)
 
 The single biggest complaint about the old screen is re-ticking 111 checkboxes
 every time you want the same list. So:
@@ -266,7 +266,7 @@ Ship two seeded shared presets so the screen isn't empty on day one: *Contact
 Sheet* (Name, Class, Father, Father's Mobile, Mother's Mobile) and *UDISE
 Extract* (the UDISE+ mandated columns).
 
-Per the schema-mirrors-migrations rule, migration 088 must be appended to
+Per the schema-mirrors-migrations rule, migration 093 must be appended to
 `supabase-schema.sql` in the same commit.
 
 ### 3.7 UI — `/reports/students`
@@ -324,7 +324,9 @@ registry is what drives every downstream surface. Adding the columns *after*
 the registry means editing seven consumers twice.
 
 > Numbering: 088 was already taken by `migration-088-subject-delete-integrity`
-> on `origin/main`, so this work starts at 089.
+> on `origin/main`, so this work starts at 089. 091 and 092 then went to the
+> filtered-download branch (export_events, historical_corrections), so
+> `report_presets` is 093.
 
 - [x] Migration 089 — 29 student columns across four groups: government/board
       IDs (`pen_number`, `apaar_number`, `cbse_registration_no`, `nic_number`),
@@ -377,8 +379,9 @@ the registry means editing seven consumers twice.
       query string lands in access logs). **PDF still to do.**
 - [x] PII gate: sensitive fields stripped server-side for non-admins, and the
       count of withheld columns surfaced to the caller rather than silently dropped
-- [x] Export audit line (actor, session, format, field list, row count)
-- [ ] Promote the audit line to a table, modelled on `call_logs`
+- [x] Export audit written to `export_events` (migration 091, from main) —
+      the same table the admin-list downloads use, so report exports appear
+      alongside them rather than in a separate console-only trail
 - [ ] Verify against real data: a historical session (e.g. 2023-24) returns
       that session's class/roll, not today's — needs a logged-in admin
 
@@ -398,7 +401,8 @@ the registry means editing seven consumers twice.
       route 400s above 20, naming Excel as the alternative
 
 ### Phase 6 — Presets
-- [x] Migration 091 `report_presets` (+ mirrored into `supabase-schema.sql`)
+- [x] Migration 093 `report_presets` (+ mirrored into `supabase-schema.sql`).
+      Numbered 093, not 091 — 091 went to `export-events` on main mid-flight.
 - [x] `/api/reports/presets` CRUD — ownership and `is_shared` enforced in the
       route (the service-role client bypasses RLS, so the policies are the
       backstop, not the control)

@@ -12,7 +12,7 @@
  *  3. A `resolve` that throws on a sparse row — every join is nullable, and a
  *     student with no enrollment, house, stop or session is a normal row.
  *  4. Sort/always/sensitive invariants.
- *  5. A seeded preset in migration 091 naming a field key that does not exist.
+ *  5. A seeded preset in migration 093 naming a field key that does not exist.
  */
 
 import { readFileSync } from "node:fs";
@@ -165,20 +165,20 @@ const narrow = studentColumnsFor(minimal);
 if (narrow.includes("aadhar_number")) fail("minimal selection still projects aadhar_number");
 
 // ─── 5. Seeded preset field keys resolve ────────────────────────────────────
-// Migration 091 seeds two shared presets by field key. Unknown keys are
+// Migration 093 seeds two shared presets by field key. Unknown keys are
 // dropped silently on load, so a typo there costs a missing column with no
 // error anywhere — exactly the kind of thing only a check like this catches.
 const presetSql = readFileSync(
-  new URL("./migrations/erp/migration-091-report-presets.sql", import.meta.url),
+  new URL("./migrations/erp/migration-093-report-presets.sql", import.meta.url),
   "utf8"
 );
 const knownKeys = new Set(REPORT_FIELDS.map((f) => f.key));
 const seededKeys = [...presetSql.matchAll(/ARRAY\[([^\]]+)\]/g)].flatMap((m) =>
   [...m[1].matchAll(/'([a-z0-9_]+)'/g)].map((k) => k[1])
 );
-if (seededKeys.length === 0) fail("could not parse any field keys out of migration 091");
+if (seededKeys.length === 0) fail("could not parse any field keys out of migration 093");
 for (const key of seededKeys) {
-  if (!knownKeys.has(key)) fail(`migration 091 seeds unknown field key "${key}"`);
+  if (!knownKeys.has(key)) fail(`migration 093 seeds unknown field key "${key}"`);
 }
 
 // ─── Report ─────────────────────────────────────────────────────────────────

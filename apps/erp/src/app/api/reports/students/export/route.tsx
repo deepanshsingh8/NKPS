@@ -137,20 +137,45 @@ export async function POST(request: Request) {
 
   const { headers, body: cells } = toMatrix(result.rows, fields);
 
-  // Audit trail. One screen can export the entire student master, so who ran
-  // what, over how many rows, is worth a line in the log even before a
-  // dedicated table exists.
-  console.info(
-    "[reports.students.export]",
-    JSON.stringify({
-      actor: user.id,
-      admin: isAdmin,
-      session: result.session.name,
+  // Audit trail — the `export_events` table from migration 091, the same one
+  // the admin-list downloads write to. One screen can export the entire
+  // student master, so the record of who did it belongs beside those.
+  //
+  // Fire-and-forget on purpose: an audit write must never be able to fail the
+  // download it describes. A failure is logged and the file still goes out.
+  void createAdminClient()
+    .from("export_events")
+    .insert({
+      actor_id: user.id,
+      actor_role: isAdmin ? "admin" : "editor",
+      dataset: "students",
+      feature_key: "reports",
       format,
-      columns: fields.map((f) => f.key),
-      rows: result.total,
+      academic_year_id: result.session.id,
+      row_count: result.total,
+      column_count: fields.length,
+      fields: fields.map((f) => f.key),
+      // The flag worth alerting on: did this download carry PII? Only an admin
+      // can make it true, because the visibility filter strips those fields
+      // for everyone else before we get here.
+      sensitive: fields.some((f) => f.sensitive),
+      filter_summary: [
+        `Session: ${result.session.name}`,
+        result.classLabels.length ? `Classes: ${result.classLabels.join(", ")}` : null,
+        `Status: ${filters.statuses.join(", ")}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      filter_spec: filters,
+      source_app: "erp",
+      source_path: "/reports/students",
     })
-  );
+    .then(
+      () => undefined,
+      (error: unknown) => {
+        console.error("export_events insert failed:", error);
+      }
+    );
 
   const stamp = new Date().toISOString().slice(0, 10);
   const filename = `student-report-${result.session.name}-${stamp}`;

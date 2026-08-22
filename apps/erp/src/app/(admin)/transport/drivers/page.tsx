@@ -17,6 +17,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { toast } from "sonner";
 import { Loader2, Info, Bus as BusIcon } from "lucide-react";
 import type { Bus } from "@nkps/shared/types";
@@ -202,11 +203,20 @@ export default function TransportDriversPage() {
           </p>
         ) : (
           <>
-          <TableFilterSummary
-            ctl={table}
-            total={rows.length}
-            shown={table.rows.length}
-          />
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <TableFilterSummary
+              ctl={table}
+              total={rows.length}
+              shown={table.rows.length}
+              className="mb-0 mr-auto"
+            />
+            <TableExportButton
+              ctl={table}
+              filename="drivers"
+              title="Drivers"
+              featureKey="transport"
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
