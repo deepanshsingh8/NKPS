@@ -91,16 +91,6 @@ function toDate(value: ExportSourceValue): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export function formatExportDate(value: ExportSourceValue): string {
-  const date = toDate(value);
-  return date ? dateFormatter.format(date) : "";
-}
-
-export function formatExportDateTime(value: ExportSourceValue): string {
-  const date = toDate(value);
-  return date ? dateTimeFormatter.format(date) : "";
-}
-
 function toNumber(value: ExportSourceValue): number | null {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -118,7 +108,7 @@ function truncate(text: string): string {
 }
 
 /** Build one typed cell, degrading to text whenever the raw value is unusable. */
-export function buildExportCell<T>(column: ExportColumn<T>, row: T): ExportCell {
+function buildExportCell<T>(column: ExportColumn<T>, row: T): ExportCell {
   const text = truncate(column.text(row) ?? "");
   if (column.format === "text") return { kind: "text", text };
 

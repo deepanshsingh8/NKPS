@@ -15,8 +15,6 @@ import type { AcademicSessionState } from "@nkps/shared/lib/hooks/use-academic-s
 export interface AcademicSessionPickerProps {
   state: AcademicSessionState;
   className?: string;
-  /** Hidden entirely when the school has only ever had one session. */
-  hideWhenSingle?: boolean;
 }
 
 /**
@@ -30,7 +28,6 @@ export interface AcademicSessionPickerProps {
 export function AcademicSessionPicker({
   state,
   className,
-  hideWhenSingle = true,
 }: AcademicSessionPickerProps) {
   const { sessions, sessionId, setSessionId, isCurrentSession, loading } =
     state;
@@ -40,8 +37,8 @@ export function AcademicSessionPicker({
   // the one the reader is living in.
   const offCurrent = !!sessionId && !isCurrentSession;
 
-  if (loading) return null;
-  if (hideWhenSingle && sessions.length <= 1) return null;
+  // Nothing to choose between until the school has run more than one session.
+  if (loading || sessions.length <= 1) return null;
 
   const label = (s: { name: string; is_current: boolean }) =>
     s.is_current ? `${s.name} (current)` : s.name;

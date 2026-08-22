@@ -19,7 +19,7 @@ export const PDF_MAX_ROWS = 5000;
 export const PDF_MAX_COLUMNS = 24;
 export const PDF_MAX_BODY_BYTES = 4 * 1024 * 1024;
 
-export const filterSummaryEntrySchema = z.object({
+const filterSummaryEntrySchema = z.object({
   label: z.string().max(80),
   value: z.string().max(400),
 });

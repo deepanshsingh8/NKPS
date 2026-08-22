@@ -106,14 +106,13 @@ export interface TableExportButtonProps<T> {
   serverRoute?: string;
   /** Always go through `serverRoute`, even for the session on screen. */
   alwaysServer?: boolean;
-  formats?: readonly ExportFileFormat[];
   /** Audit metadata. Never used for authorization. */
   featureKey?: string;
   variant?: "default" | "outline" | "ghost" | "secondary";
   className?: string;
 }
 
-const ALL_FORMATS: ExportFileFormat[] = ["csv", "xlsx", "pdf"];
+const FORMATS: ExportFileFormat[] = ["csv", "xlsx", "pdf"];
 
 /** Let React paint the pending state before a big synchronous build blocks it. */
 function yieldToPaint(): Promise<void> {
@@ -130,13 +129,12 @@ export function TableExportButton<T>({
   session,
   serverRoute,
   alwaysServer = false,
-  formats = ALL_FORMATS,
   featureKey,
   variant = "outline",
   className,
 }: TableExportButtonProps<T>) {
   const [open, setOpen] = React.useState(false);
-  const [format, setFormat] = React.useState<ExportFileFormat>(formats[0] ?? "csv");
+  const [format, setFormat] = React.useState<ExportFileFormat>("csv");
   const [scope, setScope] = React.useState<"filtered" | "selected">("filtered");
   const [sessionId, setSessionId] = React.useState<string | null>(
     session?.value ?? null
@@ -341,7 +339,7 @@ export function TableExportButton<T>({
 
         <Field label="Format">
           <div className="flex flex-wrap gap-2">
-            {formats.map((f) => (
+            {FORMATS.map((f) => (
               <button
                 key={f}
                 type="button"

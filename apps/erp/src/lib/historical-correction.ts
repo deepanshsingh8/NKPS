@@ -67,7 +67,7 @@ export function parseHistoricalCorrection(
 type Snapshot = Record<string, unknown> | null;
 
 /** The columns that actually differ, so the log is readable without diffing. */
-export function changedColumns(before: Snapshot, after: Snapshot): string[] {
+function changedColumns(before: Snapshot, after: Snapshot): string[] {
   if (!after) return [];
   const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after)]);
   const changed: string[] = [];

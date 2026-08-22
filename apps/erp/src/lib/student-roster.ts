@@ -25,7 +25,7 @@ const ID_CHUNK = 200;
 /** PostgREST caps a response at 1000 rows unless an explicit range is given. */
 const ROW_CAP = 9999;
 
-export function chunkIds(ids: readonly string[]): string[][] {
+function chunkIds(ids: readonly string[]): string[][] {
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += ID_CHUNK) {
     chunks.push(ids.slice(i, i + ID_CHUNK));

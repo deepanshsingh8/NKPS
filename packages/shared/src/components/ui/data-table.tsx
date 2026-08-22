@@ -39,9 +39,6 @@ export type FilterKind = "select" | "text" | "none";
 
 export type CellValue = string | number | boolean | null | undefined;
 
-/** What a `multiValue` column's accessor may return in addition to `CellValue`. */
-export type MultiCellValue = CellValue | readonly string[];
-
 /**
  * How an exported cell should be typed in the output file. Anything but
  * `"text"` means the raw value is written as a number/date rather than as the
@@ -59,10 +56,8 @@ export interface TableColumnDef<T> {
    * Reads the value used for sorting and filtering. Booleans render as
    * Yes/No; null/undefined/"" become `emptyLabel` in the option list so
    * "not assigned yet" is selectable like any other value.
-   *
-   * With `multiValue`, may return a string array — see below.
    */
-  value?: (row: T) => MultiCellValue;
+  value?: (row: T) => CellValue;
   /** Overrides `value` for sorting only (e.g. sort a date column by epoch). */
   sortValue?: (row: T) => CellValue;
   /** Defaults to `"select"` when `value` is given, `"none"` otherwise. */
@@ -71,13 +66,6 @@ export interface TableColumnDef<T> {
   sortable?: boolean;
   /** Option-list text for blank values. Default `"—"`. */
   emptyLabel?: string;
-  /**
-   * `value` returns a list, and the row matches a `select` filter when it
-   * carries ANY of the ticked values. Without this a list would be compared as
-   * one joined string, so "has Mathematics" could only match students whose
-   * entire subject list is exactly "Mathematics".
-   */
-  multiValue?: boolean;
 
   // ── Export ───────────────────────────────────────────────────────────────
   // The `columns` map doubles as the export column registry: `label` is the
@@ -96,16 +84,12 @@ export interface TableColumnDef<T> {
   /** Defaults to `"text"`. */
   exportFormat?: ExportFormat;
   /**
-   * Offered in the export column picker but never rendered on screen — the
-   * page simply declares no `<SortFilterHead>` for it. For a handful of extra
-   * fields; a large per-domain field set belongs in the export button's
-   * `extraColumns` instead, derived from its own registry.
+   * Offered in the export column picker but never rendered on screen, and not
+   * ticked by default — the page simply declares no `<SortFilterHead>` for it.
+   * For a handful of extra fields; a large per-domain field set belongs in the
+   * export button's `extraColumns` instead, derived from its own registry.
    */
   exportOnly?: boolean;
-  /** Pre-ticked in the picker. Defaults to `!exportOnly`. */
-  exportDefault?: boolean;
-  /** Never exportable (action/icon columns are excluded anyway — no `value`). */
-  exportable?: false;
 }
 
 export type TableColumns<T> = Record<string, TableColumnDef<T>>;
@@ -173,31 +157,12 @@ const DEFAULT_EMPTY_LABEL = "—";
 /** Ticked values listed in `filterSummary` before it collapses to "+N more". */
 const MAX_SUMMARY_VALUES = 5;
 
-function isBlank(v: MultiCellValue): boolean {
-  if (Array.isArray(v)) return v.length === 0;
+function isBlank(v: CellValue): boolean {
   return v === null || v === undefined || v === "";
 }
 
-function scalarLabel(raw: CellValue): string {
-  if (typeof raw === "boolean") return raw ? "Yes" : "No";
-  return String(raw);
-}
-
 /**
- * Every filter identity a row carries in this column. One entry for an
- * ordinary column; one per item for a `multiValue` column. A `select` filter
- * matches when ANY of these is ticked, which is what makes "has Mathematics"
- * work on a list-valued column.
- */
-function labelsOf<T>(col: TableColumnDef<T>, row: T): string[] {
-  const raw = col.value?.(row);
-  if (isBlank(raw)) return [col.emptyLabel ?? DEFAULT_EMPTY_LABEL];
-  if (Array.isArray(raw)) return raw.map((v) => String(v));
-  return [scalarLabel(raw as CellValue)];
-}
-
-/**
- * Display text for a cell value. Lists join, so they read like the cell.
+ * Display text for a cell value — the identity used by `select` filters.
  *
  * Exported because the export core writes the same text into the file that
  * the filter panel shows on screen — that equality is the feature's whole
@@ -206,14 +171,13 @@ function labelsOf<T>(col: TableColumnDef<T>, row: T): string[] {
 export function labelOf<T>(col: TableColumnDef<T>, row: T): string {
   const raw = col.value?.(row);
   if (isBlank(raw)) return col.emptyLabel ?? DEFAULT_EMPTY_LABEL;
-  if (Array.isArray(raw)) return raw.join(", ");
-  return scalarLabel(raw as CellValue);
+  if (typeof raw === "boolean") return raw ? "Yes" : "No";
+  return String(raw);
 }
 
 function sortKeyOf<T>(col: TableColumnDef<T>, row: T): string | number | null {
   const raw = (col.sortValue ?? col.value)?.(row);
   if (isBlank(raw)) return null;
-  if (Array.isArray(raw)) return raw.join(", ");
   if (typeof raw === "boolean") return raw ? 1 : 0;
   return raw as string | number;
 }
@@ -326,19 +290,10 @@ export function useTableControls<T>({
         active.every(([key, f]) => {
           const col = columns[key];
           if (!col) return true;
-          // A row can carry several identities in one column (multiValue), and
-          // matching ANY of them is a match.
-          const labels = labelsOf(col, row);
-          if (
-            f.selected.length > 0 &&
-            !labels.some((l) => f.selected.includes(l))
-          ) {
-            return false;
-          }
+          const label = labelOf(col, row);
+          if (f.selected.length > 0 && !f.selected.includes(label)) return false;
           const q = f.text.trim().toLowerCase();
-          if (q && !labels.some((l) => l.toLowerCase().includes(q))) {
-            return false;
-          }
+          if (q && !label.toLowerCase().includes(q)) return false;
           return true;
         })
       );
@@ -367,9 +322,7 @@ export function useTableControls<T>({
       const col = columns[key];
       if (!col?.value) return [];
       const seen = new Set<string>();
-      for (const row of rowsPassing(rows, key)) {
-        for (const label of labelsOf(col, row)) seen.add(label);
-      }
+      for (const row of rowsPassing(rows, key)) seen.add(labelOf(col, row));
       // Also keep already-selected values visible even if the other filters
       // now exclude them — otherwise unchecking one is impossible.
       for (const v of filters[key]?.selected ?? []) seen.add(v);

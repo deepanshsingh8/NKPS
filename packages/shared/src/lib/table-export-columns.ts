@@ -11,10 +11,7 @@ import {
   type TableColumnDef,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
-import type {
-  ExportColumn,
-  ExportSourceValue,
-} from "@nkps/shared/lib/table-export";
+import type { ExportColumn } from "@nkps/shared/lib/table-export";
 
 export interface ResolveExportColumnsOptions {
   /** Restrict to these keys, in this order. Omit for every exportable column. */
@@ -24,7 +21,7 @@ export interface ResolveExportColumnsOptions {
 function isExportable<T>(column: TableColumnDef<T>): boolean {
   // No accessor means no data — action and icon columns are declared without
   // `value`, so they are excluded without anyone having to remember to.
-  return column.exportable !== false && typeof column.value === "function";
+  return typeof column.value === "function";
 }
 
 /** The keys a picker should offer, in the map's own (i.e. on-screen) order. */
@@ -38,11 +35,11 @@ export function exportableKeys<T>(columns: TableColumns<T>): string[] {
 export function defaultExportKeys<T>(columns: TableColumns<T>): string[] {
   return Object.entries(columns)
     .filter(([, column]) => isExportable(column))
-    .filter(([, column]) => column.exportDefault ?? !column.exportOnly)
+    .filter(([, column]) => !column.exportOnly)
     .map(([key]) => key);
 }
 
-export function toExportColumn<T>(
+function toExportColumn<T>(
   key: string,
   column: TableColumnDef<T>
 ): ExportColumn<T> {
@@ -63,12 +60,7 @@ export function toExportColumn<T>(
         : (row) => {
             const accessor = column.exportValue ?? column.sortValue;
             if (accessor) return accessor(row);
-            const value = column.value?.(row);
-            // A list-valued column has no meaningful number or date, so let
-            // the cell degrade to its display text rather than guess. The cast
-            // is needed because `Array.isArray` does not narrow a `readonly`
-            // array out of the union.
-            return Array.isArray(value) ? undefined : (value as ExportSourceValue);
+            return column.value?.(row);
           },
   };
 }
