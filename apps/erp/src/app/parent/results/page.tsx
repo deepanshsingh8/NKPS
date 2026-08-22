@@ -355,7 +355,7 @@ export default function ParentResultsPage() {
         </Card>
       ) : (
         <Tabs value={selectedExam} onValueChange={setSelectedExam}>
-          <TabsList variant="line" className="mb-4 flex-wrap">
+          <TabsList variant="line" className="mb-4">
             {exams.map((exam) => (
               <TabsTrigger key={exam.exam_type_id} value={exam.exam_type_id}>
                 {exam.exam_type_name}

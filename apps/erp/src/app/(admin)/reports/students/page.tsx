@@ -514,7 +514,7 @@ export default function StudentReportPage() {
               : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="erp-page-actions">
           <Button onClick={runPreview} disabled={running || loadingMasters}>
             {running ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -634,7 +634,7 @@ export default function StudentReportPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         {/* ── Filters ── */}
-        <div className="rounded-lg border bg-white">
+        <div className="min-w-0 rounded-lg border bg-white">
           <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
             <TabsList className="w-full justify-start rounded-b-none border-b bg-transparent px-2">
               {FILTER_TABS.map((t) => (
@@ -1143,7 +1143,7 @@ export default function StudentReportPage() {
         </div>
 
         {/* ── Field picker ── */}
-        <div className="flex max-h-[70vh] flex-col rounded-lg border bg-white">
+        <div className="min-w-0 flex max-h-[70vh] flex-col rounded-lg border bg-white">
           <div className="space-y-2 border-b p-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Display / Print Fields</span>

@@ -781,7 +781,7 @@ export default function AdminStaffPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="erp-page-bar">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <UserCog className="h-6 w-6" />
@@ -791,7 +791,7 @@ export default function AdminStaffPage() {
             Add, edit, and manage school staff members and their profile photos
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="erp-page-actions">
           <DropdownMenu>
             <DropdownMenuTrigger
               render={<Button variant="outline" className="gap-2" />}

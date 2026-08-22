@@ -300,11 +300,11 @@ export default function AdminCalendarPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="erp-page-bar mb-6">
         <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Calendar Management
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="erp-page-actions">
           <TableExportButton
             ctl={table}
             filename="calendar"
