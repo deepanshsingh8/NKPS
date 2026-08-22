@@ -27,6 +27,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, Star, CalendarDays } from "lucide-react";
 import { adminApi } from "@nkps/shared/lib/admin-api";
@@ -246,11 +247,20 @@ export default function AdminAcademicYearsPage() {
           </p>
         ) : (
           <>
-          <TableFilterSummary
-            ctl={table}
-            total={years.length}
-            shown={table.rows.length}
-          />
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <TableFilterSummary
+              ctl={table}
+              total={years.length}
+              shown={table.rows.length}
+            className="mb-0 mr-auto"
+            />
+            <TableExportButton
+              ctl={table}
+              filename="academic-years"
+              title="Academic Years"
+              featureKey="academic_years"
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>

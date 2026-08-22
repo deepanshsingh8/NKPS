@@ -24,6 +24,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { toast } from "sonner";
 import { Plus, Download, Trash2, Loader2, Search, UserCheck, FileText, Upload } from "lucide-react";
 import { adminFetch, adminDelete } from "@nkps/shared/lib/admin-api";
@@ -410,11 +411,20 @@ export default function AdminTransferCertificatesPage() {
           </div>
         ) : (
           <>
-          <TableFilterSummary
-            ctl={table}
-            total={filtered.length}
-            shown={table.rows.length}
-          />
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <TableFilterSummary
+              ctl={table}
+              total={filtered.length}
+              shown={table.rows.length}
+            className="mb-0 mr-auto"
+            />
+            <TableExportButton
+              ctl={table}
+              filename="transfer-certificates"
+              title="Transfer Certificates"
+              featureKey="transfer_certificates"
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>

@@ -34,6 +34,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, Bus as BusIcon, Route, Search } from "lucide-react";
 import { adminApi } from "@nkps/shared/lib/admin-api";
@@ -387,11 +388,20 @@ export default function AdminBusesPage() {
           </p>
         ) : (
           <>
-          <TableFilterSummary
-            ctl={table}
-            total={buses.length}
-            shown={table.rows.length}
-          />
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <TableFilterSummary
+              ctl={table}
+              total={buses.length}
+              shown={table.rows.length}
+            className="mb-0 mr-auto"
+            />
+            <TableExportButton
+              ctl={table}
+              filename="buses"
+              title="Buses"
+              featureKey="transport"
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>

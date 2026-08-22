@@ -19,6 +19,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { Loader2, Users, Search } from "lucide-react";
 import { formatClassName } from "@nkps/shared/lib/utils";
 
@@ -234,11 +235,20 @@ export default function TeacherStudentsPage() {
                 </p>
               ) : (
                 <>
-                <TableFilterSummary
-                  ctl={table}
-                  total={filteredStudents.length}
-                  shown={table.rows.length}
-                />
+                <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                  <TableFilterSummary
+                    ctl={table}
+                    total={filteredStudents.length}
+                    shown={table.rows.length}
+                  className="mb-0 mr-auto"
+            />
+                  <TableExportButton
+                    ctl={table}
+                    filename="my-students"
+                    title="My Students"
+                    featureKey="students"
+                  />
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>

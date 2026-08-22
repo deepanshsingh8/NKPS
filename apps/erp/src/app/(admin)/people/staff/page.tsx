@@ -35,6 +35,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import { toast } from "sonner";
 import {
@@ -46,7 +47,6 @@ import {
   UserCog,
   Users,
   Upload,
-  Download,
   ChevronDown,
   UserPlus,
   UserCheck,
@@ -79,7 +79,6 @@ import {
   isTeachingStaffCategory,
 } from "@nkps/shared/lib/staff-roles";
 import type { StaffMember, StaffCategory } from "@nkps/shared/types";
-import { downloadCSV, STAFF_CSV_COLUMNS } from "@/lib/csv-export";
 
 const CATEGORY_OPTIONS: { value: StaffCategory; label: string }[] = [
   { value: "management", label: "Management" },
@@ -676,6 +675,51 @@ export default function AdminStaffPage() {
         label: "Category",
         value: (m) => getCategoryLabel(m.category),
       },
+      // Already in the payload — the table just never showed them, which made
+      // a three-column list of the entire staff harder to use than it needed
+      // to be, and left a contact sheet impossible to produce.
+      email: {
+        label: "Email",
+        value: (m) => m.email || null,
+        filter: "text",
+      },
+      phone: {
+        label: "Phone",
+        value: (m) => m.phone || null,
+        filter: "text",
+      },
+      is_active: {
+        label: "Active",
+        value: (m) => m.is_active,
+      },
+      date_of_birth: {
+        label: "Date of Birth",
+        value: (m) =>
+          m.date_of_birth
+            ? new Date(m.date_of_birth).toLocaleDateString("en-IN", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })
+            : null,
+        sortValue: (m) => m.date_of_birth,
+        exportFormat: "date",
+        // Offered in exports (a birthday list is a real request) without
+        // adding a ninth column to an already-wide table.
+        exportOnly: true,
+      },
+      qualifications: {
+        label: "Qualifications",
+        value: (m) => m.qualifications || null,
+        filter: "text",
+        exportOnly: true,
+      },
+      address: {
+        label: "Address",
+        value: (m) => m.address || null,
+        filter: "text",
+        exportOnly: true,
+      },
     }),
     []
   );
@@ -756,16 +800,6 @@ export default function AdminStaffPage() {
               <ChevronDown className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem
-                disabled={filtered.length === 0}
-                onClick={() => {
-                  downloadCSV(filtered, STAFF_CSV_COLUMNS, `staff-${new Date().toISOString().split("T")[0]}`);
-                  toast.success(`Downloaded ${filtered.length} staff members`);
-                }}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download CSV
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setBulkUploadOpen(true)}>
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Excel
@@ -879,11 +913,20 @@ export default function AdminStaffPage() {
         </div>
       ) : (
         <div>
-          <TableFilterSummary
-            ctl={table}
-            total={filtered.length}
-            shown={visible.length}
-          />
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <TableFilterSummary
+              ctl={table}
+              total={filtered.length}
+              shown={visible.length}
+            className="mb-0 mr-auto"
+            />
+            <TableExportButton
+              ctl={table}
+              filename="staff"
+              title="Staff"
+              featureKey="staff"
+            />
+          </div>
           <div className="border rounded-lg overflow-hidden">
           <Table>
             <TableHeader>
@@ -898,13 +941,16 @@ export default function AdminStaffPage() {
                 <SortFilterHead ctl={table} col="name" />
                 <SortFilterHead ctl={table} col="subject" />
                 <SortFilterHead ctl={table} col="category" />
+                <SortFilterHead ctl={table} col="email" />
+                <SortFilterHead ctl={table} col="phone" />
+                <SortFilterHead ctl={table} col="is_active" />
                 <TableHead className="w-24 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {visible.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-gray-500 dark:text-gray-400">
+                  <TableCell colSpan={9} className="py-10 text-center text-gray-500 dark:text-gray-400">
                     No staff match the column filters.
                   </TableCell>
                 </TableRow>
@@ -947,6 +993,19 @@ export default function AdminStaffPage() {
                     >
                       {getCategoryLabel(member.category)}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-gray-500">
+                    {member.email || "—"}
+                  </TableCell>
+                  <TableCell className="text-gray-500">
+                    {member.phone || "—"}
+                  </TableCell>
+                  <TableCell>
+                    {member.is_active ? (
+                      "Yes"
+                    ) : (
+                      <span className="text-gray-400">No</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">

@@ -46,6 +46,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@nkps/shared/components/ui/tabs";
 import { FileDropZone } from "@nkps/shared/components/FileDropZone";
 import { ImageCropper } from "@nkps/shared/components/ImageCropper";
@@ -381,12 +382,20 @@ export default function AdminArticlesPage() {
         </div>
       ) : (
         <div className="bg-white dark:bg-card rounded-2xl border border-gray-200 dark:border-border overflow-hidden">
-          <TableFilterSummary
-            ctl={table}
-            total={filtered.length}
-            shown={table.rows.length}
-            className="px-4 pt-4"
-          />
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <TableFilterSummary
+              ctl={table}
+              total={filtered.length}
+              shown={table.rows.length}
+              className="px-4 pt-4 mb-0 mr-auto"
+            />
+            <TableExportButton
+              ctl={table}
+              filename="articles"
+              title="Articles"
+              featureKey="articles"
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>

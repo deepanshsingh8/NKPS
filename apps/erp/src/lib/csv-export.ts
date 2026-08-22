@@ -1,5 +1,13 @@
 /**
- * CSV Export utility for downloading data as CSV files.
+ * The bulk-upload round-trip export.
+ *
+ * Superseded for general use by the Export dialog
+ * (`@nkps/shared/components/ui/table-export-button`), which offers CSV, Excel
+ * and PDF with a column picker on every list. What remains here is the one
+ * thing that dialog deliberately does NOT do: emit the exact column headers
+ * the student bulk importer expects, so a file can be downloaded, corrected in
+ * Excel and uploaded straight back. That is a data-entry tool, not a report,
+ * and its columns are fixed by the importer rather than chosen by the reader.
  */
 
 import {
@@ -86,17 +94,6 @@ export const STUDENT_CSV_COLUMNS: CsvColumn[] = [
   { key: "enrollment_status", header: "Status" },
 ];
 
-/** Staff CSV columns matching the bulk upload format */
-export const STAFF_CSV_COLUMNS = [
-  { key: "name", header: "Name" },
-  { key: "subject", header: "Subject/Designation" },
-  { key: "category", header: "Category" },
-  { key: "email", header: "Email" },
-  { key: "phone", header: "Phone" },
-  { key: "date_of_birth", header: "Date of Birth" },
-  { key: "address", header: "Address" },
-  { key: "qualifications", header: "Qualifications" },
-];
 
 /**
  * The full student template as export-only table columns.

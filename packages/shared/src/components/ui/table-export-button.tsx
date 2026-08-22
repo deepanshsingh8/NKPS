@@ -106,6 +106,15 @@ export interface TableExportButtonProps<T> {
   serverRoute?: string;
   /** Always go through `serverRoute`, even for the session on screen. */
   alwaysServer?: boolean;
+  /**
+   * Machine-readable filter for the server to rebuild the row set from.
+   *
+   * Only consulted when the browser cannot supply the rows itself — i.e. a
+   * session it never loaded. For the session on screen the dialog sends the
+   * row ids instead, which is a stronger guarantee than restating filters:
+   * the file then contains exactly the rows the admin was looking at.
+   */
+  serverFilter?: Record<string, unknown>;
   formats?: readonly ExportFileFormat[];
   /** Audit metadata. Never used for authorization. */
   featureKey?: string;
@@ -130,6 +139,7 @@ export function TableExportButton<T>({
   session,
   serverRoute,
   alwaysServer = false,
+  serverFilter,
   formats = ALL_FORMATS,
   featureKey,
   variant = "outline",
@@ -249,6 +259,16 @@ export function TableExportButton<T>({
   }
 
   async function runServerExport() {
+    // Name the rows outright whenever the browser has them. Restating the
+    // filters instead would leave the file's contents depending on the server
+    // reaching the same conclusion as the table — and the two would drift the
+    // first time a page gained a filter the route did not know about.
+    const ids = sessionChanged
+      ? undefined
+      : selectedRows
+          .map((row) => (row as { id?: string }).id)
+          .filter((id): id is string => typeof id === "string");
+
     const response = await adminFetch(serverRoute as string, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -259,11 +279,9 @@ export function TableExportButton<T>({
         title,
         filename: resolvedName,
         filterSummary: summary,
-        // Ticked rows are named explicitly; the server re-queries the rest.
-        row_ids:
-          scope === "selected"
-            ? (selected ?? []).map((row) => (row as { id?: string }).id).filter(Boolean)
-            : undefined,
+        row_ids: ids && ids.length > 0 ? ids : undefined,
+        // Only meaningful for a session the browser never loaded.
+        filter: sessionChanged ? serverFilter : undefined,
       }),
     });
     if (!response.ok) {

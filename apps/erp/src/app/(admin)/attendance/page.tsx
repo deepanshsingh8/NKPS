@@ -32,6 +32,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import {
   ClipboardCheck,
   Users,
@@ -354,11 +355,20 @@ export default function AdminAttendancePage() {
             </p>
           ) : (
             <>
-            <TableFilterSummary
-              ctl={table}
-              total={classStats.length}
-              shown={table.rows.length}
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              <TableFilterSummary
+                ctl={table}
+                total={classStats.length}
+                shown={table.rows.length}
+              className="mb-0 mr-auto"
             />
+              <TableExportButton
+                ctl={table}
+                filename="attendance-summary"
+                title="Attendance Summary"
+                featureKey="attendance"
+              />
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>

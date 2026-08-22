@@ -5704,6 +5704,20 @@ WHERE se.status <> 'active'
 -- the server-side export routes on the service-role client; admin-read-only,
 -- append-only.
 
+-- ── What actually writes here ──────────────────────────────────────────────
+-- Today: 'students' (the one dataset the server can answer better than the
+-- browser — past sessions include students who have since left, and the
+-- subject filter needs a two-hop join the list payload does not carry) and
+-- 'table_pdf' (every PDF, from any list, since rendering is server-side).
+--
+-- The other dataset values are reserved. They are listed now so that moving a
+-- dataset server-side later is a route change rather than a CHECK-constraint
+-- migration — but note that moving one only makes sense when the server can
+-- supply something the page cannot. Where the browser already holds every row
+-- (staff, users), a server route could withhold nothing and would log an act
+-- the page can perform anyway, which is the "complete-looking but hollow"
+-- outcome this table is meant to avoid.
+
 CREATE TABLE IF NOT EXISTS export_events (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_id         uuid REFERENCES profiles(id) ON DELETE SET NULL,

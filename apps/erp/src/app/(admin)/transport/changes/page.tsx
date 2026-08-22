@@ -34,6 +34,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { toast } from "sonner";
 import {
   Plus,
@@ -527,11 +528,20 @@ export default function TransportChangesPage() {
           </p>
         ) : (
           <>
-          <TableFilterSummary
-            ctl={table}
-            total={filteredChanges.length}
-            shown={table.rows.length}
-          />
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <TableFilterSummary
+              ctl={table}
+              total={filteredChanges.length}
+              shown={table.rows.length}
+            className="mb-0 mr-auto"
+            />
+            <TableExportButton
+              ctl={table}
+              filename="transport-change-requests"
+              title="Transport Change Requests"
+              featureKey="transport"
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>

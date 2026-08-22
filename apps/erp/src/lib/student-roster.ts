@@ -230,3 +230,189 @@ export async function fetchSessionRoster(
       String(a.full_name ?? "").localeCompare(String(b.full_name ?? ""))
     );
 }
+
+// ── Subjects ────────────────────────────────────────────────────────────────
+
+export interface StudentSubjects {
+  /** Subject names per student, sorted, for display. */
+  namesByStudent: Map<string, string[]>;
+  /** Subject ids per student, for filtering. */
+  idsByStudent: Map<string, Set<string>>;
+}
+
+/**
+ * Which subjects each student in these classes is taking.
+ *
+ * Two hops — `student_subjects → class_subjects → subjects` — and both the
+ * direction and the guard matter:
+ *
+ *  - Narrowed by `class_id` (bounded, ~40 a year), never by `student_id`,
+ *    which would be hundreds of UUIDs and silently overrun the URL.
+ *  - `student_subjects` carries NO academic year: it links a student to a
+ *    `class_subjects` row and nothing else. So a link is only counted when its
+ *    class matches the class the student is actually enrolled in for this
+ *    session — otherwise a student who took Maths in class IX would answer
+ *    "class XI students taking Maths". The same guard exists in the
+ *    single-student export at api/students/[id]/export.
+ */
+export async function fetchStudentSubjects(
+  admin: SupabaseClient,
+  classIds: readonly string[],
+  enrolledClassByStudent: Map<string, string | null>
+): Promise<StudentSubjects> {
+  const empty: StudentSubjects = {
+    namesByStudent: new Map(),
+    idsByStudent: new Map(),
+  };
+  if (classIds.length === 0) return empty;
+
+  const { data: classSubjects, error } = await admin
+    .from("class_subjects")
+    .select("id, class_id, subject_id, subjects(name)")
+    .in("class_id", [...classIds])
+    .range(0, ROW_CAP);
+  if (error) throw new Error(`class_subjects lookup failed: ${error.message}`);
+
+  const rows = (classSubjects ?? []) as {
+    id: string;
+    class_id: string;
+    subject_id: string;
+    subjects: { name: string } | { name: string }[] | null;
+  }[];
+  if (rows.length === 0) return empty;
+
+  const byClassSubjectId = new Map(
+    rows.map((row) => {
+      const subject = Array.isArray(row.subjects) ? row.subjects[0] : row.subjects;
+      return [
+        row.id,
+        {
+          class_id: row.class_id,
+          subject_id: row.subject_id,
+          name: subject?.name ?? "",
+        },
+      ];
+    })
+  );
+
+  const links = await selectByIds<{ student_id: string; class_subject_id: string }>(
+    admin,
+    "student_subjects",
+    "class_subject_id",
+    [...byClassSubjectId.keys()],
+    "student_id, class_subject_id"
+  );
+
+  const namesByStudent = new Map<string, string[]>();
+  const idsByStudent = new Map<string, Set<string>>();
+
+  for (const link of links) {
+    const cs = byClassSubjectId.get(link.class_subject_id);
+    if (!cs) continue;
+    // The year guard described above.
+    if (enrolledClassByStudent.get(link.student_id) !== cs.class_id) continue;
+
+    if (!namesByStudent.has(link.student_id)) {
+      namesByStudent.set(link.student_id, []);
+      idsByStudent.set(link.student_id, new Set());
+    }
+    if (cs.name) namesByStudent.get(link.student_id)!.push(cs.name);
+    idsByStudent.get(link.student_id)!.add(cs.subject_id);
+  }
+
+  for (const names of namesByStudent.values()) {
+    names.sort((a, b) => a.localeCompare(b));
+  }
+
+  return { namesByStudent, idsByStudent };
+}
+
+/**
+ * Exactly these students, annotated with their enrollment for this session.
+ *
+ * Starts from `students`, not from `student_enrollments`, and that is the
+ * whole point: a student with no enrollment row — the list's "Unassigned" tab,
+ * every newly admitted child before a class is assigned — has no enrollment to
+ * be found by, so a roster-first query would silently drop them from an export
+ * the admin explicitly asked for. They come back here with empty class and
+ * roll fields, which is the truth about them.
+ *
+ * Used whenever the caller already knows which rows it wants (the export
+ * dialog names them), so that the file matches the table exactly rather than
+ * depending on the server re-deriving the same set.
+ */
+export async function fetchRosterByStudentIds(
+  admin: SupabaseClient,
+  {
+    academicYearId,
+    studentIds,
+    studentColumns = "*",
+  }: {
+    academicYearId: string;
+    studentIds: readonly string[];
+    studentColumns?: string;
+  }
+): Promise<SessionRosterRow[]> {
+  if (studentIds.length === 0) return [];
+
+  const [students, enrollments, classes] = await Promise.all([
+    selectByIds<Record<string, unknown>>(
+      admin,
+      "students",
+      "id",
+      studentIds,
+      studentColumns
+    ),
+    selectByIds<RosterEnrollment>(
+      admin,
+      "student_enrollments",
+      "student_id",
+      studentIds,
+      ENROLLMENT_COLUMNS
+    ),
+    fetchSessionClasses(admin, academicYearId),
+  ]);
+
+  const classById = new Map(classes.map((c) => [c.id, c]));
+
+  // Only this session's enrollments count; a student may hold several across
+  // years, and picking any of them would reintroduce the mixed-session bug.
+  const byStudent = new Map<string, RosterEnrollment>();
+  for (const enrollment of enrollments) {
+    if (enrollment.academic_year_id !== academicYearId) continue;
+    const held = byStudent.get(enrollment.student_id);
+    if (!held || (held.status !== "active" && enrollment.status === "active")) {
+      byStudent.set(enrollment.student_id, enrollment);
+    }
+  }
+
+  return students
+    .map((student): SessionRosterRow => {
+      const enrollment = byStudent.get(student.id as string);
+      const cls = enrollment?.class_id
+        ? (classById.get(enrollment.class_id) ?? null)
+        : null;
+      return {
+        ...student,
+        id: student.id as string,
+        enrollment_id: enrollment?.id ?? null,
+        class_id: enrollment?.class_id ?? null,
+        class_name: cls?.name ?? null,
+        class_section: cls?.section ?? null,
+        stream_id: enrollment?.stream_id ?? null,
+        roll_number: enrollment?.roll_number ?? null,
+        roll_number_manual: enrollment?.roll_number_manual ?? false,
+        enrollment_status: enrollment?.status ?? null,
+        enrollment_academic_year_id: academicYearId,
+        status_reason: enrollment?.status_reason ?? null,
+        status_changed_at: enrollment?.status_changed_at ?? null,
+        has_transport: enrollment?.has_transport ?? false,
+        bus_stop_id: enrollment?.bus_stop_id ?? null,
+        bus_id: enrollment?.bus_id ?? null,
+        transport_direction: enrollment?.transport_direction ?? null,
+      };
+    })
+    .sort((a, b) =>
+      String(a.full_name ?? "").localeCompare(String(b.full_name ?? ""))
+    );
+}

@@ -30,6 +30,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import {
   Dialog,
   DialogClose,
@@ -864,11 +865,20 @@ export default function AdminPublishPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <TableFilterSummary
-              ctl={table}
-              total={rows.length}
-              shown={visibleRows.length}
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              <TableFilterSummary
+                ctl={table}
+                total={rows.length}
+                shown={visibleRows.length}
+              className="mb-0 mr-auto"
             />
+              <TableExportButton
+                ctl={table}
+                filename="result-publishing"
+                title="Result Publishing"
+                featureKey="publish_results"
+              />
+            </div>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
