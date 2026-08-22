@@ -416,7 +416,7 @@ export default function AdminTransferCertificatesPage() {
               ctl={table}
               total={filtered.length}
               shown={table.rows.length}
-            className="mb-0 mr-auto"
+              className="mb-0 mr-auto"
             />
             <TableExportButton
               ctl={table}

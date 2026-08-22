@@ -764,7 +764,7 @@ export default function StudentTransportAssignmentsPage() {
                 ctl={table}
                 total={filteredEnrollments.length}
                 shown={table.rows.length}
-              className="mb-0 mr-auto"
+                className="mb-0 mr-auto"
             />
               <TableExportButton
                 ctl={table}

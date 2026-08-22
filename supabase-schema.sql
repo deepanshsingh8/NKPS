@@ -5756,3 +5756,57 @@ DROP POLICY IF EXISTS "Admins read export_events" ON export_events;
 CREATE POLICY "Admins read export_events"
   ON export_events FOR SELECT
   USING (public.get_user_role() = 'admin');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- HISTORICAL CORRECTIONS (migration 089)
+-- (mirrored from scripts/migrations/erp/migration-089-historical-corrections.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Every edit made to a CLOSED academic session: who, which session, which row,
+-- which columns, the before/after snapshots and a required reason. A past
+-- session opens read-only in the admin UI and an edit requires an explicit
+-- unlock, which writes one row here. Admin-read, service-role-write,
+-- append-only.
+
+CREATE TABLE IF NOT EXISTS historical_corrections (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- SET NULL, not CASCADE: the record of a correction must outlive the account
+  -- that made it (migration 046 set this convention for the audit tables).
+  actor_id         uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  actor_role       text,
+  -- The session that was edited. This is the whole point of the table: it
+  -- distinguishes an ordinary edit from one reaching into a closed year.
+  academic_year_id uuid REFERENCES academic_years(id) ON DELETE SET NULL,
+  student_id       uuid REFERENCES students(id) ON DELETE SET NULL,
+  enrollment_id    uuid REFERENCES student_enrollments(id) ON DELETE SET NULL,
+  target_table     text NOT NULL,
+  target_id        uuid,
+  -- Only the columns that actually changed, so reading the log does not mean
+  -- diffing two fifty-column blobs by eye.
+  changed_columns  text[] NOT NULL DEFAULT '{}',
+  before_snapshot  jsonb,
+  after_snapshot   jsonb,
+  -- Required, and long enough to be a sentence rather than a shrug. The DB
+  -- enforces it because the reason is the only thing that makes this edit
+  -- reviewable later, and a UI-only check is a suggestion.
+  reason           text NOT NULL CHECK (length(btrim(reason)) >= 10),
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_historical_corrections_year
+  ON historical_corrections(academic_year_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_historical_corrections_student
+  ON historical_corrections(student_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_historical_corrections_actor
+  ON historical_corrections(actor_id, created_at DESC);
+
+ALTER TABLE historical_corrections ENABLE ROW LEVEL SECURITY;
+
+-- Admin-read only. Writes go exclusively through the service-role client in the
+-- correction path, so no INSERT/UPDATE/DELETE policy is granted to any role —
+-- same posture as student_status_history (087) and export_events (088). An
+-- audit row that the actor it describes could edit would be worthless.
+DROP POLICY IF EXISTS "Admins read historical_corrections" ON historical_corrections;
+CREATE POLICY "Admins read historical_corrections"
+  ON historical_corrections FOR SELECT
+  USING (public.get_user_role() = 'admin');

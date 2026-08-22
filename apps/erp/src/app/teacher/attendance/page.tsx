@@ -370,7 +370,7 @@ export default function TeacherAttendancePage() {
                 ctl={table}
                 total={students.length}
                 shown={table.rows.length}
-              className="mb-0 mr-auto"
+                className="mb-0 mr-auto"
             />
               <TableExportButton
                 ctl={table}

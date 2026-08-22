@@ -757,7 +757,7 @@ export default function AdminClassTestsPage() {
                     ctl={testTable}
                     total={tests.length}
                     shown={testTable.rows.length}
-                  className="mb-0 mr-auto"
+                    className="mb-0 mr-auto"
             />
                   <TableExportButton
                     ctl={testTable}

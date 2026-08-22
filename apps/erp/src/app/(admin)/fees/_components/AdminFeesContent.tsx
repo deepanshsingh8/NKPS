@@ -2085,7 +2085,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                         ctl={structureTable}
                         total={feeStructures.length}
                         shown={structureTable.rows.length}
-                      className="mb-0 mr-auto"
+                        className="mb-0 mr-auto"
             />
                       <TableExportButton
                         ctl={structureTable}
@@ -2429,7 +2429,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                         ctl={paymentTable}
                         total={studentPayments.length}
                         shown={paymentTable.rows.length}
-                      className="mb-0 mr-auto"
+                        className="mb-0 mr-auto"
             />
                       <TableExportButton
                         ctl={paymentTable}
@@ -2571,7 +2571,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                       ctl={classStudentTable}
                       total={filteredClassStudents.length}
                       shown={classStudentTable.rows.length}
-                    className="mb-0 mr-auto"
+                      className="mb-0 mr-auto"
             />
                     <TableExportButton
                       ctl={classStudentTable}

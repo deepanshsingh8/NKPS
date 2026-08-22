@@ -1564,7 +1564,7 @@ export default function AdminGalleryPage() {
                     ctl={eventTable}
                     total={events.length}
                     shown={eventTable.rows.length}
-                  className="mb-0 mr-auto"
+                    className="mb-0 mr-auto"
             />
                   <TableExportButton
                     ctl={eventTable}

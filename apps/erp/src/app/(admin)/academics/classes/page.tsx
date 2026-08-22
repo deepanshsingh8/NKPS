@@ -338,7 +338,7 @@ export default function AdminClassesPage() {
               ctl={table}
               total={classes.length}
               shown={table.rows.length}
-            className="mb-0 mr-auto"
+              className="mb-0 mr-auto"
             />
             <TableExportButton
               ctl={table}

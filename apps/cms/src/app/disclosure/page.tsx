@@ -617,7 +617,7 @@ function ResultAcademicsTab({
               ctl={classXTable}
               total={classXResults.length}
               shown={classXTable.rows.length}
-            className="mb-0 mr-auto"
+              className="mb-0 mr-auto"
             />
             <TableExportButton
               ctl={classXTable}
@@ -700,7 +700,7 @@ function ResultAcademicsTab({
               ctl={classXIITable}
               total={classXIIResults.length}
               shown={classXIITable.rows.length}
-            className="mb-0 mr-auto"
+              className="mb-0 mr-auto"
             />
             <TableExportButton
               ctl={classXIITable}

@@ -594,7 +594,7 @@ export default function AdminUsersPage() {
                     ctl={profileTable}
                     total={filteredProfiles.length}
                     shown={profileTable.rows.length}
-                  className="mb-0 mr-auto"
+                    className="mb-0 mr-auto"
             />
                   <TableExportButton
                     ctl={profileTable}
@@ -769,7 +769,7 @@ export default function AdminUsersPage() {
                         ctl={requestTable}
                         total={filteredRequests.length}
                         shown={requestTable.rows.length}
-                      className="mb-0 mr-auto"
+                        className="mb-0 mr-auto"
             />
                       <TableExportButton
                         ctl={requestTable}

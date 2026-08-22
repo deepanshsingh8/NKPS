@@ -240,7 +240,7 @@ export default function TeacherStudentsPage() {
                     ctl={table}
                     total={filteredStudents.length}
                     shown={table.rows.length}
-                  className="mb-0 mr-auto"
+                    className="mb-0 mr-auto"
             />
                   <TableExportButton
                     ctl={table}

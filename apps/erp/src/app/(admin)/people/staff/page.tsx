@@ -918,7 +918,7 @@ export default function AdminStaffPage() {
               ctl={table}
               total={filtered.length}
               shown={visible.length}
-            className="mb-0 mr-auto"
+              className="mb-0 mr-auto"
             />
             <TableExportButton
               ctl={table}

@@ -208,7 +208,7 @@ export default function TransportDriversPage() {
               ctl={table}
               total={rows.length}
               shown={table.rows.length}
-            className="mb-0 mr-auto"
+              className="mb-0 mr-auto"
             />
             <TableExportButton
               ctl={table}

@@ -25,6 +25,8 @@ import {
   TableRow,
 } from "@nkps/shared/components/ui/table";
 import { Badge } from "@nkps/shared/components/ui/badge";
+import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
+import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import { BarChart3, TrendingUp, Users, Award, Pencil } from "lucide-react";
 import Link from "next/link";
 import { formatClassName } from "@nkps/shared/lib/utils";
@@ -79,16 +81,22 @@ export default function AdminResultsPage() {
   const [loadingData, setLoadingData] = useState(false);
 
   // Fetch classes and exam types
-  useEffect(() => {
+const session = useAcademicSession();
+  const sessionId = session.sessionId;
+
+    useEffect(() => {
     async function fetchInitial() {
       const supabase = createClient();
 
       // Current academic year
-      const { data: currentYear } = await supabase
-        .from("academic_years")
-        .select("id")
-        .eq("is_current", true)
-        .single();
+      // Classes and exam types are both year-scoped, so the results screen
+      // follows the session picker — that is what makes a previous year's
+      // marks reachable at all.
+      let yearQuery = supabase.from("academic_years").select("id");
+      yearQuery = sessionId
+        ? yearQuery.eq("id", sessionId)
+        : yearQuery.eq("is_current", true);
+      const { data: currentYear } = await yearQuery.maybeSingle();
 
       if (currentYear) {
         const { data: classesData } = await supabase
@@ -112,7 +120,7 @@ export default function AdminResultsPage() {
     }
 
     fetchInitial();
-  }, []);
+  }, [sessionId]);
 
   // Load the grade scale (override → default scholastic) for the selected
   // class so admin dashboards grade the same way report cards do.
@@ -329,6 +337,7 @@ export default function AdminResultsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <AcademicSessionPicker state={session} />
           <HistoricalResultsImportDialog />
           <Link
             href={

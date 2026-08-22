@@ -1150,7 +1150,7 @@ export default function AdminSubjectsPage() {
                 ctl={subjectTable}
                 total={categorySubjects.length}
                 shown={subjectTable.rows.length}
-              className="mb-0 mr-auto"
+                className="mb-0 mr-auto"
             />
               <TableExportButton
                 ctl={subjectTable}
@@ -1421,7 +1421,7 @@ export default function AdminSubjectsPage() {
                         ctl={assignmentTable}
                         total={filteredAssignments.length}
                         shown={assignmentTable.rows.length}
-                      className="mb-0 mr-auto"
+                        className="mb-0 mr-auto"
             />
                       <TableExportButton
                         ctl={assignmentTable}

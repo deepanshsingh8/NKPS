@@ -533,7 +533,7 @@ export default function TransportChangesPage() {
               ctl={table}
               total={filteredChanges.length}
               shown={table.rows.length}
-            className="mb-0 mr-auto"
+              className="mb-0 mr-auto"
             />
             <TableExportButton
               ctl={table}

@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
+import {
+  verifyAdminOrEditor,
+  verifyAdminOrEditorWithUser,
+} from "@nkps/shared/lib/verify-admin";
 import { studentSchema } from "@nkps/shared/lib/validations";
 import {
   buildStudentRecord,
   studentsInsertKeys,
 } from "@nkps/shared/lib/student-template";
 import { fetchSessionRoster } from "@/lib/student-roster";
+import {
+  logHistoricalCorrection,
+  parseHistoricalCorrection,
+} from "@/lib/historical-correction";
 
 export async function GET(request: NextRequest) {
   try {
@@ -407,15 +414,52 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const admin = await verifyAdminOrEditor("students");
-    if (!admin) {
+    // WithUser, because correcting a closed session is admin-only and has to
+    // be attributed — an audit row with no actor is not an audit row.
+    const caller = await verifyAdminOrEditorWithUser("students");
+    if (!caller) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const { admin } = caller;
 
     const body = await request.json();
     // stream_id is derived from the class, never trusted from the client (see
     // the POST note) — a client-sent stream_id lands in `fields` and zod strips it.
-    const { id, enrollment_id, roll_number, roll_number_manual, class_id, ...fields } = body;
+    const {
+      id,
+      enrollment_id,
+      roll_number,
+      roll_number_manual,
+      class_id,
+      historical_correction,
+      ...fields
+    } = body;
+
+    // Present only when the reader explicitly unlocked a closed session.
+    const correctionCheck = parseHistoricalCorrection(
+      historical_correction,
+      caller.role
+    );
+    if (!correctionCheck.ok) {
+      return NextResponse.json(
+        { error: correctionCheck.error },
+        { status: correctionCheck.status }
+      );
+    }
+    const correction = correctionCheck.correction;
+
+    // Which session is being corrected — read from the enrollment the client
+    // is looking at, so the log says "2022-23" rather than leaving the reviewer
+    // to infer it from a timestamp.
+    let correctionYearId: string | null = null;
+    if (correction && enrollment_id) {
+      const { data: correctionEnrollment } = await admin
+        .from("student_enrollments")
+        .select("academic_year_id")
+        .eq("id", enrollment_id)
+        .maybeSingle();
+      correctionYearId = correctionEnrollment?.academic_year_id ?? null;
+    }
 
     if (!id) {
       return NextResponse.json({ error: "Student id required" }, { status: 400 });
@@ -478,6 +522,37 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Failed to update student" }, { status: 500 });
     }
 
+    // A profile field belongs to the student, not to a session, so this edit
+    // was never blocked by the closed-session guard. It is logged anyway when
+    // the reader reached it through an unlock: from where they were standing
+    // they were correcting a historical record, and a log that omits half of
+    // what they did during the unlock is worse than useless for review.
+    if (correction) {
+      const logged = await logHistoricalCorrection(admin, {
+        actorId: caller.user.id,
+        actorRole: caller.role,
+        academicYearId: correctionYearId,
+        studentId: id,
+        enrollmentId: enrollment_id ?? null,
+        targetTable: "students",
+        targetId: id,
+        before: (current as Record<string, unknown> | null) ?? null,
+        after: updateRecord as Record<string, unknown>,
+        reason: correction.reason,
+      });
+      if (!logged.ok) {
+        return NextResponse.json(
+          {
+            error:
+              "The change was applied but could not be recorded in the " +
+              "correction log. Tell an administrator before making further " +
+              "changes to this session.",
+          },
+          { status: 500 }
+        );
+      }
+    }
+
     // ── Enrollment (class / roll number / stream) ─────────────────────────────
     //
     // Two invariants govern this whole block.
@@ -526,7 +601,7 @@ export async function PATCH(request: NextRequest) {
 
       const { data: currentYear } = await admin
         .from("academic_years")
-        .select("id, name")
+        .select("id, name, start_date")
         .eq("is_current", true)
         .maybeSingle();
 
@@ -543,26 +618,46 @@ export async function PATCH(request: NextRequest) {
 
         if (!touchesEnrollment) {
           // Profile-only edit. The profile already saved above; leave the
-          // past-year enrollment exactly as it is.
+          // past-year enrollment exactly as it is. (A student's name and date
+          // of birth are properties of the student, not of a session, so this
+          // is not a historical correction even when made from a past-session
+          // view — it changes that student everywhere, as it should.)
           return NextResponse.json({ success: true });
         }
 
-        // Which year does the requested class belong to?
-        let requestedYearId: string | null = null;
+        // Which session does the requested class belong to?
+        let requestedYear: { id: string; start_date: string } | null = null;
         if (class_id) {
           const { data: reqClass } = await admin
             .from("classes")
-            .select("academic_year_id")
+            .select("academic_year_id, academic_years:academic_year_id(id, start_date)")
             .eq("id", class_id)
             .maybeSingle();
-          requestedYearId = reqClass?.academic_year_id ?? null;
+          const rel = reqClass?.academic_years as
+            | { id: string; start_date: string }
+            | { id: string; start_date: string }[]
+            | null
+            | undefined;
+          requestedYear = Array.isArray(rel) ? (rel[0] ?? null) : (rel ?? null);
         }
 
-        if (class_id && requestedYearId === currentYear.id) {
-          // Moving the student into the CURRENT year — insert a new row and
-          // leave the past-year record intact.
+        // Current OR future. A school allocates next April's classes in
+        // January, so the coming session has to be buildable before it is
+        // flagged current — and either way this is a NEW enrollment, never an
+        // edit of the old one, so the past record stays intact.
+        const requestedIsCurrentOrFuture =
+          !!requestedYear &&
+          (requestedYear.id === currentYear.id ||
+            (!!currentYear.start_date &&
+              requestedYear.start_date >= currentYear.start_date));
+
+        if (class_id && requestedIsCurrentOrFuture) {
           enrollmentTargetId = null;
           existingEnrollment = null;
+        } else if (correction) {
+          // Unlocked: the edit is allowed to land on the closed session's own
+          // row, and is logged below with the reason that unlocked it.
+          enrollmentTargetId = enrollment_id;
         } else {
           const { data: rowYear } = await admin
             .from("academic_years")
@@ -573,9 +668,10 @@ export async function PATCH(request: NextRequest) {
             {
               error:
                 `Student details were saved, but the enrollment was not changed: ` +
-                `that record belongs to ${rowYear?.name ?? "a past session"}. ` +
-                `Past-year records are read-only — open the student's Academic ` +
-                `History to correct them.`,
+                `that record belongs to ${rowYear?.name ?? "a past session"}, ` +
+                `which is closed. Use "Unlock for correction" on the student ` +
+                `row to change a closed session — an admin and a reason are ` +
+                `required, and the change is recorded.`,
             },
             { status: 409 }
           );
@@ -720,6 +816,37 @@ export async function PATCH(request: NextRequest) {
         if (enrollErr) {
           console.error("Update enrollment error:", enrollErr);
           return NextResponse.json({ error: "Student updated but enrollment change failed" }, { status: 500 });
+        }
+
+        // A correction reaching into a closed session is recorded before the
+        // caller is told it succeeded, and a failure to record it is reported
+        // as a failure: an unlogged rewrite of a closed year is precisely what
+        // the unlock exists to prevent, so "edited but not logged" is not an
+        // acceptable outcome to hide.
+        if (correction && currentEnrollment) {
+          const logged = await logHistoricalCorrection(admin, {
+            actorId: caller.user.id,
+            actorRole: caller.role,
+            academicYearId: currentEnrollment.academic_year_id,
+            studentId: id,
+            enrollmentId: enrollmentTargetId,
+            targetTable: "student_enrollments",
+            targetId: enrollmentTargetId,
+            before: currentEnrollment as unknown as Record<string, unknown>,
+            after: enrollmentUpdate,
+            reason: correction.reason,
+          });
+          if (!logged.ok) {
+            return NextResponse.json(
+              {
+                error:
+                  "The change was applied but could not be recorded in the " +
+                  "correction log. Tell an administrator before making further " +
+                  "changes to this session.",
+              },
+              { status: 500 }
+            );
+          }
         }
       }
     } else if (class_id) {

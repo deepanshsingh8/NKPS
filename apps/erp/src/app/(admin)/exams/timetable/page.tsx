@@ -436,7 +436,7 @@ export default function TimetablePage() {
                   ctl={table}
                   total={schedules.length}
                   shown={table.rows.length}
-                className="mb-0 mr-auto"
+                  className="mb-0 mr-auto"
             />
                 <TableExportButton
                   ctl={table}
