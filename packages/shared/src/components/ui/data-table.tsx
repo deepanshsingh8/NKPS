@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@nkps/shared/lib/utils";
+import type { ExportFormat } from "@nkps/shared/lib/table-export";
 import { TableHead } from "@nkps/shared/components/ui/table";
 
 // ---------------------------------------------------------------------------
@@ -38,6 +39,19 @@ export type FilterKind = "select" | "text" | "none";
 
 export type CellValue = string | number | boolean | null | undefined;
 
+/** What a `multiValue` column's accessor may return in addition to `CellValue`. */
+export type MultiCellValue = CellValue | readonly string[];
+
+/**
+ * How an exported cell should be typed in the output file. Anything but
+ * `"text"` means the raw value is written as a number/date rather than as the
+ * display string, so Excel can sum and sort the column.
+ *
+ * Defined by the export core so the table and the server-side export routes
+ * cannot drift on what the formats mean.
+ */
+export type { ExportFormat };
+
 export interface TableColumnDef<T> {
   /** Header text. Also the label in the filter panel. */
   label: string;
@@ -45,8 +59,10 @@ export interface TableColumnDef<T> {
    * Reads the value used for sorting and filtering. Booleans render as
    * Yes/No; null/undefined/"" become `emptyLabel` in the option list so
    * "not assigned yet" is selectable like any other value.
+   *
+   * With `multiValue`, may return a string array — see below.
    */
-  value?: (row: T) => CellValue;
+  value?: (row: T) => MultiCellValue;
   /** Overrides `value` for sorting only (e.g. sort a date column by epoch). */
   sortValue?: (row: T) => CellValue;
   /** Defaults to `"select"` when `value` is given, `"none"` otherwise. */
@@ -55,6 +71,41 @@ export interface TableColumnDef<T> {
   sortable?: boolean;
   /** Option-list text for blank values. Default `"—"`. */
   emptyLabel?: string;
+  /**
+   * `value` returns a list, and the row matches a `select` filter when it
+   * carries ANY of the ticked values. Without this a list would be compared as
+   * one joined string, so "has Mathematics" could only match students whose
+   * entire subject list is exactly "Mathematics".
+   */
+  multiValue?: boolean;
+
+  // ── Export ───────────────────────────────────────────────────────────────
+  // The `columns` map doubles as the export column registry: `label` is the
+  // header and `value` reads the cell. These refine that for the file.
+
+  /** Header text in the exported file. Defaults to `label`. */
+  exportLabel?: string;
+  /**
+   * Unformatted source for the exported cell. When omitted and `exportFormat`
+   * is anything but `"text"`, falls back to `sortValue` — which throughout
+   * this codebase already holds exactly the raw number or ISO date that
+   * `value` formats for display. So most currency/date columns need only
+   * `exportFormat` adding, not a second accessor.
+   */
+  exportValue?: (row: T) => CellValue;
+  /** Defaults to `"text"`. */
+  exportFormat?: ExportFormat;
+  /**
+   * Offered in the export column picker but never rendered on screen — the
+   * page simply declares no `<SortFilterHead>` for it. For a handful of extra
+   * fields; a large per-domain field set belongs in the export button's
+   * `extraColumns` instead, derived from its own registry.
+   */
+  exportOnly?: boolean;
+  /** Pre-ticked in the picker. Defaults to `!exportOnly`. */
+  exportDefault?: boolean;
+  /** Never exportable (action/icon columns are excluded anyway — no `value`). */
+  exportable?: false;
 }
 
 export type TableColumns<T> = Record<string, TableColumnDef<T>>;
@@ -85,33 +136,84 @@ export interface TableHeadControls {
   optionsFor: (key: string) => string[];
 }
 
+/** One human-readable active filter, for the export file's provenance line. */
+export interface FilterSummaryEntry {
+  label: string;
+  value: string;
+}
+
 export interface TableControls<T> extends TableHeadControls {
   /** Filtered, then sorted. */
   rows: T[];
   /** Number of columns with an active filter. */
   activeFilterCount: number;
   clearFilters: () => void;
+  /**
+   * The column map as given, echoed back so an export can use it as its
+   * column registry without the page passing it twice.
+   */
+  columns: TableColumns<T>;
+  /**
+   * Active COLUMN filters, in words.
+   *
+   * Deliberately NOT the whole filter story: this hook never sees the page's
+   * own controls (a search box, a tab, a class picker), and `rows` arrives
+   * with those already applied. Anything printing provenance — an export
+   * file's header above all — must concatenate the page's own context rather
+   * than treat this as complete, or it will claim a narrower filter than was
+   * actually used.
+   */
+  filterSummary: FilterSummaryEntry[];
 }
 
 const EMPTY_FILTER: ColumnFilter = { text: "", selected: [] };
 
 const DEFAULT_EMPTY_LABEL = "—";
 
-function isBlank(v: CellValue): boolean {
+/** Ticked values listed in `filterSummary` before it collapses to "+N more". */
+const MAX_SUMMARY_VALUES = 5;
+
+function isBlank(v: MultiCellValue): boolean {
+  if (Array.isArray(v)) return v.length === 0;
   return v === null || v === undefined || v === "";
 }
 
-/** Display text for a cell value — the identity used by `select` filters. */
-function labelOf<T>(col: TableColumnDef<T>, row: T): string {
-  const raw = col.value?.(row);
-  if (isBlank(raw)) return col.emptyLabel ?? DEFAULT_EMPTY_LABEL;
+function scalarLabel(raw: CellValue): string {
   if (typeof raw === "boolean") return raw ? "Yes" : "No";
   return String(raw);
+}
+
+/**
+ * Every filter identity a row carries in this column. One entry for an
+ * ordinary column; one per item for a `multiValue` column. A `select` filter
+ * matches when ANY of these is ticked, which is what makes "has Mathematics"
+ * work on a list-valued column.
+ */
+function labelsOf<T>(col: TableColumnDef<T>, row: T): string[] {
+  const raw = col.value?.(row);
+  if (isBlank(raw)) return [col.emptyLabel ?? DEFAULT_EMPTY_LABEL];
+  if (Array.isArray(raw)) return raw.map((v) => String(v));
+  return [scalarLabel(raw as CellValue)];
+}
+
+/**
+ * Display text for a cell value. Lists join, so they read like the cell.
+ *
+ * Exported because the export core writes the same text into the file that
+ * the filter panel shows on screen — that equality is the feature's whole
+ * promise, so both sides must read the cell through one function.
+ */
+export function labelOf<T>(col: TableColumnDef<T>, row: T): string {
+  const raw = col.value?.(row);
+  if (isBlank(raw)) return col.emptyLabel ?? DEFAULT_EMPTY_LABEL;
+  if (Array.isArray(raw)) return raw.join(", ");
+  return scalarLabel(raw as CellValue);
 }
 
 function sortKeyOf<T>(col: TableColumnDef<T>, row: T): string | number | null {
   const raw = (col.sortValue ?? col.value)?.(row);
   if (isBlank(raw)) return null;
+  if (Array.isArray(raw)) return raw.join(", ");
   if (typeof raw === "boolean") return raw ? 1 : 0;
   return raw as string | number;
 }
@@ -224,10 +326,19 @@ export function useTableControls<T>({
         active.every(([key, f]) => {
           const col = columns[key];
           if (!col) return true;
-          const label = labelOf(col, row);
-          if (f.selected.length > 0 && !f.selected.includes(label)) return false;
+          // A row can carry several identities in one column (multiValue), and
+          // matching ANY of them is a match.
+          const labels = labelsOf(col, row);
+          if (
+            f.selected.length > 0 &&
+            !labels.some((l) => f.selected.includes(l))
+          ) {
+            return false;
+          }
           const q = f.text.trim().toLowerCase();
-          if (q && !label.toLowerCase().includes(q)) return false;
+          if (q && !labels.some((l) => l.toLowerCase().includes(q))) {
+            return false;
+          }
           return true;
         })
       );
@@ -256,7 +367,9 @@ export function useTableControls<T>({
       const col = columns[key];
       if (!col?.value) return [];
       const seen = new Set<string>();
-      for (const row of rowsPassing(rows, key)) seen.add(labelOf(col, row));
+      for (const row of rowsPassing(rows, key)) {
+        for (const label of labelsOf(col, row)) seen.add(label);
+      }
       // Also keep already-selected values visible even if the other filters
       // now exclude them — otherwise unchecking one is impossible.
       for (const v of filters[key]?.selected ?? []) seen.add(v);
@@ -321,6 +434,26 @@ export function useTableControls<T>({
     [filters]
   );
 
+  const filterSummary = React.useMemo<FilterSummaryEntry[]>(() => {
+    const out: FilterSummaryEntry[] = [];
+    for (const [key, f] of Object.entries(filters)) {
+      if (!hasActiveFilter(f)) continue;
+      const label = columns[key]?.label ?? key;
+      const parts: string[] = [];
+      if (f.selected.length > 0) {
+        // Cap the list so one over-eager "Select all" can't push a
+        // thousand-character line into a PDF header.
+        const shown = f.selected.slice(0, MAX_SUMMARY_VALUES).join(", ");
+        const rest = f.selected.length - MAX_SUMMARY_VALUES;
+        parts.push(rest > 0 ? `${shown} +${rest} more` : shown);
+      }
+      const text = f.text.trim();
+      if (text) parts.push(`contains "${text}"`);
+      out.push({ label, value: parts.join(" · ") });
+    }
+    return out;
+  }, [filters, columns]);
+
   return {
     rows: sortedRows,
     sort,
@@ -333,6 +466,8 @@ export function useTableControls<T>({
     optionsFor,
     activeFilterCount,
     clearFilters,
+    columns,
+    filterSummary,
   };
 }
 

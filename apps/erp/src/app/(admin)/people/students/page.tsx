@@ -100,7 +100,14 @@ import { StudentCallActions } from "@/components/StudentCallActions";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { formatClassName } from "@nkps/shared/lib/utils";
-import { downloadCSV, STUDENT_CSV_COLUMNS } from "@/lib/csv-export";
+import {
+  downloadCSV,
+  STUDENT_CSV_COLUMNS,
+  studentExportColumns,
+} from "@/lib/csv-export";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
+import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
+import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import type { Student, Stream, EnrollmentStatus } from "@nkps/shared/types";
 
 interface ClassOption {
@@ -361,6 +368,23 @@ const StudentTableRow = memo(function StudentTableRow({
       <TableCell className="text-gray-600 dark:text-gray-300">
         {student.father_name || "—"}
       </TableCell>
+      <TableCell className="text-gray-600 dark:text-gray-300">
+        {student.gender
+          ? student.gender.charAt(0).toUpperCase() + student.gender.slice(1)
+          : "—"}
+      </TableCell>
+      <TableCell className="text-gray-600 dark:text-gray-300">
+        {student.has_transport ? (
+          <Badge
+            variant="secondary"
+            className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400"
+          >
+            Bus
+          </Badge>
+        ) : (
+          "—"
+        )}
+      </TableCell>
       <TableCell onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-1">
         {student.enrollment_id ? (
@@ -573,6 +597,14 @@ export default function AdminStudentsPage() {
   const supabase = createClient();
   const router = useRouter();
 
+  // Which academic session the list describes. Class, section, roll number
+  // and transport all live on the year-scoped enrollment, so without this
+  // the page silently shows a mix resolved by heuristic — fine to browse,
+  // wrong to download.
+  const session = useAcademicSession();
+
+  const sessionId = session.sessionId;
+
   const fetchClasses = useCallback(async () => {
     // Streams and the academic-year list don't depend on the current year, so
     // they're kicked off immediately and awaited later — only the classes
@@ -588,20 +620,15 @@ export default function AdminStudentsPage() {
       .select("id, name, is_current")
       .order("name", { ascending: false });
 
-    // Fetch classes for the current academic year
-    const { data: years } = await supabase
-      .from("academic_years")
-      .select("id")
-      .eq("is_current", true)
-      .single();
-
+    // Classes belong to a session, so the picker drives this too — otherwise
+    // a past session's students would be filtered by this year's class list.
     let query = supabase
       .from("classes")
       .select("id, name, section, stream_id, streams(name)")
       .order("sort_order", { ascending: true });
 
-    if (years) {
-      query = query.eq("academic_year_id", years.id);
+    if (sessionId) {
+      query = query.eq("academic_year_id", sessionId);
     }
 
     const { data } = await query;
@@ -623,15 +650,21 @@ export default function AdminStudentsPage() {
     setStreams((streamsData as Stream[]) ?? []);
     setAcademicYears((allYears as AcademicYear[]) ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sessionId]);
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
 
     try {
+      // A session other than the current one takes the roster branch of the
+      // API, which hard-filters by year and includes students who have since
+      // left — the current-session view keeps the heuristic that lets an admin
+      // find any name regardless of state.
       const url = selectedClassId
         ? `/api/students?class_id=${selectedClassId}`
-        : `/api/students`;
+        : sessionId && session.isPastSession
+          ? `/api/students?academic_year_id=${sessionId}`
+          : `/api/students`;
       const res = await adminFetch(url);
       const json = await res.json();
 
@@ -650,7 +683,7 @@ export default function AdminStudentsPage() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClassId]);
+  }, [selectedClassId, sessionId, session.isPastSession]);
 
   useEffect(() => {
     fetchClasses();
@@ -659,8 +692,10 @@ export default function AdminStudentsPage() {
   // Fetch all students on initial load, and re-fetch when class changes
   useEffect(() => {
     fetchStudents();
-    setSelectedIds(new Set()); // Clear selection on class change
-  }, [selectedClassId, fetchStudents]);
+    // Clear selection whenever the underlying list changes — ticked ids from
+    // one class or session mean nothing in another.
+    setSelectedIds(new Set());
+  }, [selectedClassId, sessionId, fetchStudents]);
 
   // Alumni are excluded from the main listing by design (they accumulate a
   // cohort per year and would swamp the working list), so the Alumni tab is
@@ -822,6 +857,20 @@ export default function AdminStudentsPage() {
         label: "Father's Name",
         value: (s) => s.father_name || null,
         filter: "text",
+      },
+      // Gender and transport are already in the row payload (`select("*")` on
+      // students, and the enrollment merge for transport), so surfacing them
+      // costs no extra query — and they are the two things the office most
+      // often needs to narrow by: "the girls in XI", "everyone on a bus".
+      gender: {
+        label: "Gender",
+        value: (s) =>
+          s.gender ? s.gender.charAt(0).toUpperCase() + s.gender.slice(1) : null,
+        emptyLabel: "Not recorded",
+      },
+      transport: {
+        label: "Transport",
+        value: (s) => Boolean(s.has_transport),
       },
       status: {
         label: "Status",
@@ -1514,6 +1563,56 @@ export default function AdminStudentsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <AcademicSessionPicker state={session} />
+          <TableExportButton
+            ctl={table}
+            filename="students"
+            title="Students"
+            featureKey="students"
+            extraColumns={studentExportColumns<StudentRow>()}
+            selected={visibleStudents.filter((s) => selectedIds.has(s.id))}
+            session={{
+              options: session.sessions.map((y) => ({
+                id: y.id,
+                name: y.name,
+                isCurrent: y.is_current,
+              })),
+              value: session.sessionId,
+            }}
+            serverRoute="/api/export/students"
+            // Student rows carry names, addresses and parent phone numbers.
+            // Every download of them is generated server-side so it can be
+            // logged and so contact fields can be withheld from non-admins —
+            // an audit log with client-side holes reads as complete when it
+            // is not.
+            alwaysServer
+            // The tab, class picker and search box filter these rows before
+            // the table ever sees them, so the file has to be told about them
+            // or it would claim a wider set than it holds.
+            context={[
+              {
+                label: "Tab",
+                value:
+                  STUDENT_TABS.find((t) => t.key === activeTab)?.label ?? "All",
+              },
+              ...(selectedClassId
+                ? [
+                    {
+                      label: "Class",
+                      value:
+                        classes.find((c) => c.id === selectedClassId)
+                          ? classLabel(
+                              classes.find((c) => c.id === selectedClassId)!
+                            )
+                          : "Selected class",
+                    },
+                  ]
+                : []),
+              ...(deferredSearch.trim()
+                ? [{ label: "Search", value: deferredSearch.trim() }]
+                : []),
+            ]}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger
               render={<Button variant="outline" className="gap-2" />}
@@ -1537,6 +1636,10 @@ export default function AdminStudentsPage() {
               <DropdownMenuItem
                 disabled={visibleStudents.length === 0}
                 onClick={() => {
+                  // Kept alongside the general export: these columns are the
+                  // bulk-upload template's own headers, so this file can be
+                  // fixed in Excel and re-uploaded. The Export dialog is for
+                  // reading, this is for round-tripping.
                   const rows = visibleStudents.map((s) => ({
                     ...s,
                     class_name: s.class_name ?? "",
@@ -1548,7 +1651,7 @@ export default function AdminStudentsPage() {
                 }}
               >
                 <Download className="h-4 w-4 mr-2" />
-                Download CSV
+                Download re-upload template
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setUploadDialogOpen(true)}>
                 <Upload className="h-4 w-4 mr-2" />
@@ -1790,6 +1893,8 @@ export default function AdminStudentsPage() {
                     {!selectedClassId && <SortFilterHead ctl={table} col="class" />}
                     {selectedClassId && <SortFilterHead ctl={table} col="roll_number" />}
                     <SortFilterHead ctl={table} col="father_name" />
+                    <SortFilterHead ctl={table} col="gender" />
+                    <SortFilterHead ctl={table} col="transport" />
                     <SortFilterHead ctl={table} col="status" />
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -1798,7 +1903,7 @@ export default function AdminStudentsPage() {
                   {visibleStudents.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={9}
                         className="py-10 text-center text-gray-500 dark:text-gray-400"
                       >
                         No students match the column filters.

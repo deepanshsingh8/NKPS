@@ -5,6 +5,7 @@ import {
   buildStudentRecord,
   studentsInsertKeys,
 } from "@nkps/shared/lib/student-template";
+import { fetchSessionRoster } from "@/lib/student-roster";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
     }
     const classId = request.nextUrl.searchParams.get("class_id");
     const scope = request.nextUrl.searchParams.get("scope");
+    const academicYearId = request.nextUrl.searchParams.get("academic_year_id");
 
     // ?scope=alumni — the Alumni tab. Kept as its own server query because the
     // main listing deliberately excludes is_alumni rows (they accumulate into
@@ -37,6 +39,33 @@ export async function GET(request: NextRequest) {
         );
       }
       return NextResponse.json({ data: data ?? [] });
+    }
+
+    // ?academic_year_id=… — the session view. A distinct query rather than a
+    // filter on the default one, because "who was enrolled in 2024-25" has
+    // different rules: it hard-filters by year (no representative-enrollment
+    // heuristic) and it must INCLUDE alumni, whom the working list excludes.
+    // Leaving them out would silently drop everyone who has since left, which
+    // for a past session is most of the interesting cases.
+    if (!classId && academicYearId) {
+      const [roster, currentYearRes] = await Promise.all([
+        fetchSessionRoster(admin, { academicYearId }),
+        admin
+          .from("academic_years")
+          .select("id")
+          .eq("is_current", true)
+          .maybeSingle(),
+      ]);
+      // Selecting the current session from the picker must not make the page
+      // read-only — only a genuinely past year is frozen, matching the
+      // past-year guard in the PATCH branch below.
+      const isCurrentYear = currentYearRes.data?.id === academicYearId;
+      return NextResponse.json({
+        data: roster.map((row) => ({
+          ...row,
+          enrollment_is_current_year: isCurrentYear,
+        })),
+      });
     }
 
     if (!classId) {

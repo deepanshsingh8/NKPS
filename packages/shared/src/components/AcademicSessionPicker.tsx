@@ -1,0 +1,78 @@
+"use client";
+
+import { CalendarRange } from "lucide-react";
+
+import { cn } from "@nkps/shared/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@nkps/shared/components/ui/select";
+import type { AcademicSessionState } from "@nkps/shared/lib/hooks/use-academic-session";
+
+export interface AcademicSessionPickerProps {
+  state: AcademicSessionState;
+  className?: string;
+  /** Hidden entirely when the school has only ever had one session. */
+  hideWhenSingle?: boolean;
+}
+
+/**
+ * Session selector for the year-scoped list pages.
+ *
+ * Viewing a past session is a deliberately visible state: the trigger is
+ * tinted amber when the selection is not the current session, because
+ * everything on the page — counts, class labels, dues — then describes a year
+ * that has ended, and an admin who forgets that will misread the screen.
+ */
+export function AcademicSessionPicker({
+  state,
+  className,
+  hideWhenSingle = true,
+}: AcademicSessionPickerProps) {
+  const { sessions, sessionId, setSessionId, isPastSession, loading } = state;
+
+  if (loading) return null;
+  if (hideWhenSingle && sessions.length <= 1) return null;
+
+  const label = (s: { name: string; is_current: boolean }) =>
+    s.is_current ? `${s.name} (current)` : s.name;
+
+  return (
+    <div className={cn("flex items-center gap-2", className)}>
+      <CalendarRange
+        className={cn(
+          "h-4 w-4 shrink-0",
+          isPastSession
+            ? "text-amber-600 dark:text-amber-400"
+            : "text-gray-400 dark:text-gray-500"
+        )}
+      />
+      <Select
+        value={sessionId ?? ""}
+        items={sessions.map((s) => ({ value: s.id, label: label(s) }))}
+        onValueChange={(value) => setSessionId((value as string) || "")}
+      >
+        <SelectTrigger
+          aria-label="Academic session"
+          className={cn(
+            "h-9 w-[11rem]",
+            isPastSession &&
+              "border-amber-400 text-amber-800 dark:border-amber-500/60 dark:text-amber-300"
+          )}
+        >
+          <SelectValue placeholder="Session" />
+        </SelectTrigger>
+        <SelectContent>
+          {sessions.map((s) => (
+            <SelectItem key={s.id} value={s.id} label={label(s)}>
+              {label(s)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}

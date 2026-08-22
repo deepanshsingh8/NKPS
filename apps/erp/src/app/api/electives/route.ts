@@ -14,9 +14,15 @@ import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
  * fall under `subjects` — checked individually).
  */
 
-export async function GET() {
+export async function GET(request: Request) {
   const admin = await verifyAdminOrEditor("students");
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // An explicit ?academic_year_id= lets the page's session picker show a past
+  // year's elective picks; without one we fall back to the current year.
+  const requestedYearId = new URL(request.url).searchParams.get(
+    "academic_year_id"
+  );
 
   // 1) Slot options with subject details
   const { data: optionsData } = await admin
@@ -26,12 +32,14 @@ export async function GET() {
     .order("slot")
     .order("sort_order");
 
-  // 2) Current academic year + XI/XII enrollments with stream
-  const { data: yearRow } = await admin
-    .from("academic_years")
-    .select("id")
-    .eq("is_current", true)
-    .maybeSingle();
+  // 2) Academic year + XI/XII enrollments with stream
+  const { data: yearRow } = requestedYearId
+    ? { data: { id: requestedYearId } }
+    : await admin
+        .from("academic_years")
+        .select("id")
+        .eq("is_current", true)
+        .maybeSingle();
 
   const yearId = yearRow?.id ?? null;
 

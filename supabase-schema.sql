@@ -5693,3 +5693,52 @@ WHERE se.status <> 'active'
   AND NOT EXISTS (
     SELECT 1 FROM student_status_history h WHERE h.enrollment_id = se.id
   );
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- EXPORT AUDIT (migration 088)
+-- (mirrored from scripts/migrations/erp/migration-088-export-events.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Who downloaded which admin list, in what format, how many rows, under which
+-- filters, and whether contact/identity fields were included. Written only by
+-- the server-side export routes on the service-role client; admin-read-only,
+-- append-only.
+
+CREATE TABLE IF NOT EXISTS export_events (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id         uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  actor_role       text,
+  dataset          text NOT NULL CHECK (dataset IN (
+                     'students', 'staff', 'fees_dues', 'transport_assignments',
+                     'users', 'registrations', 'table_pdf')),
+  feature_key      text,
+  format           text NOT NULL CHECK (format IN ('csv', 'xlsx', 'pdf')),
+  academic_year_id uuid REFERENCES academic_years(id) ON DELETE SET NULL,
+  row_count        integer NOT NULL DEFAULT 0,
+  column_count     integer NOT NULL DEFAULT 0,
+  fields           text[] NOT NULL DEFAULT '{}',
+  sensitive        boolean NOT NULL DEFAULT false,
+  filter_summary   text,
+  filter_spec      jsonb,
+  source_app       text CHECK (source_app IN ('erp', 'cms')),
+  source_path      text,
+  -- text, not inet: a malformed X-Forwarded-For must not be able to fail the
+  -- download this row describes.
+  client_ip        text,
+  user_agent       text,
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_export_events_actor
+  ON export_events(actor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_export_events_dataset
+  ON export_events(dataset, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_export_events_sensitive
+  ON export_events(created_at DESC) WHERE sensitive;
+
+ALTER TABLE export_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins read export_events" ON export_events;
+CREATE POLICY "Admins read export_events"
+  ON export_events FOR SELECT
+  USING (public.get_user_role() = 'admin');
