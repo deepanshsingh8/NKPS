@@ -40,6 +40,9 @@ export interface StudentFormState {
   stream_id: string;
   roll_number: string;
   roll_number_manual: boolean;
+  /** Enrollment-side, like class and roll: a student's house is per-session
+   *  (migration 090), so it is not a `students` column and not in `fields`. */
+  house_id: string;
   /** Registry student-column keys (+ indian_national), all as display strings:
    *  booleans "YES"/"NO"/"", enums as stored values, numbers as strings. */
   fields: Record<string, string>;
@@ -58,6 +61,7 @@ export function emptyStudentForm(classId = ""): StudentFormState {
     stream_id: "",
     roll_number: "",
     roll_number_manual: false,
+    house_id: "",
     fields,
   };
 }
@@ -68,6 +72,7 @@ export function studentToForm(
     stream_id?: string | null;
     roll_number?: number | null;
     roll_number_manual?: boolean;
+    house_id?: string | null;
   },
   fallbackClassId = ""
 ): StudentFormState {
@@ -91,6 +96,7 @@ export function studentToForm(
     stream_id: studentRow.stream_id || "",
     roll_number: studentRow.roll_number?.toString() ?? "",
     roll_number_manual: studentRow.roll_number_manual ?? false,
+    house_id: studentRow.house_id || "",
     fields,
   };
 }
@@ -257,6 +263,9 @@ interface StudentFormFieldsProps {
   setFormData: React.Dispatch<React.SetStateAction<StudentFormState>>;
   classes: StudentFormClassOption[];
   streams: Stream[];
+  /** House master. Empty until migration 090 is applied, in which case the
+   *  control renders with only "No house" rather than breaking the form. */
+  houses?: { id: string; name: string }[];
   /** Server-side validation errors, keyed by field key (zod fieldErrors).
    *  Highlighted inline under the offending inputs. */
   errors?: Record<string, string[]>;
@@ -267,6 +276,7 @@ export function StudentFormFields({
   setFormData,
   classes,
   streams,
+  houses = [],
   errors,
 }: StudentFormFieldsProps) {
   const [openSections, setOpenSections] = useState<{ general: boolean; enrolment: boolean }>({
@@ -563,6 +573,33 @@ export function StudentFormFields({
                   </p>
                 </div>
               </div>
+            </div>
+            <div>
+              <Label htmlFor="house_id" className="text-xs font-medium">House</Label>
+              <Select
+                value={formData.house_id || "none"}
+                onValueChange={(v) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    house_id: !v || v === "none" ? "" : v,
+                  }))
+                }
+              >
+                <SelectTrigger id="house_id" className="h-9 mt-1">
+                  <SelectValue placeholder="No house" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" label="No house">No house</SelectItem>
+                  {houses.map((h) => (
+                    <SelectItem key={h.id} value={h.id} label={h.name}>
+                      {h.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                Recorded per session, like class and roll number
+              </p>
             </div>
             {renderField("is_rte")}
             {renderField("medium_of_instruction")}

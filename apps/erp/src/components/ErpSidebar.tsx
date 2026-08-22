@@ -28,6 +28,7 @@ import {
   GitPullRequestArrow,
   MapPin,
   ReceiptText,
+  Home,
   FileSpreadsheet,
   UserPlus,
 } from "lucide-react";
@@ -62,6 +63,7 @@ const erpItems: SidebarItem[] = [
       { kind: "link", icon: BookOpen, label: "Subjects & Assignments", href: "/academics/subjects" },
       { kind: "link", icon: BookOpen, label: "XI–XII Electives", href: "/academics/electives" },
       { kind: "link", icon: CalendarDays, label: "Academic Years", href: "/academics/years" },
+      { kind: "link", icon: Home, label: "Houses", href: "/academics/houses" },
       { kind: "link", icon: Sparkles, label: "Non-Scholastic Classes", href: "/exams/non-scholastic-assessments" },
     ],
   },
@@ -147,6 +149,15 @@ const erpItems: SidebarItem[] = [
       { kind: "link", icon: Sparkles, label: "Auto Generate", href: "/timetable/generate" },
       { kind: "link", icon: FileSpreadsheet, label: "Import from Excel", href: "/timetable/import" },
       { kind: "link", icon: FileText, label: "Period Templates", href: "/timetable/templates" },
+    ],
+  },
+  {
+    kind: "group",
+    icon: BarChart3,
+    label: "Reports",
+    landingHref: "/reports",
+    children: [
+      { kind: "link", icon: UserCheck, label: "Student Report", href: "/reports/students" },
     ],
   },
   { kind: "link", icon: Calendar, label: "Calendar", href: "/calendar" },

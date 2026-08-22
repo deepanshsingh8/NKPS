@@ -43,7 +43,8 @@ export type FeatureKey =
   | "ptm_notes"
   | "ptm_format"
   | "supplementary_exams"
-  | "teacher_substitutions";
+  | "teacher_substitutions"
+  | "reports";
 
 export type FeatureGroup = "cms" | "erp";
 
@@ -87,6 +88,11 @@ export const FEATURE_CATALOG: readonly FeatureDef[] = [
   { key: "ptm_format", label: "PTM Format", href: "/exams/ptm-format", group: "erp" },
   { key: "supplementary_exams", label: "Supplementary Exams", href: "/exams/supplementary", group: "erp" },
   { key: "teacher_substitutions", label: "Substitutions", href: "/timetable/substitutions", group: "erp" },
+  // Strictly stronger than `students`: one screen can export every column
+  // of the student master. Sensitive columns are stripped server-side for
+  // non-admins (see report-fields.ts `sensitive`), so the grant is safe to
+  // offer — but review the field list before widening it.
+  { key: "reports", label: "Reports", href: "/reports", group: "erp" },
 ] as const;
 
 export const FEATURE_KEYS: readonly FeatureKey[] = FEATURE_CATALOG.map((f) => f.key);
@@ -138,6 +144,9 @@ export function isAdminOnlyPath(pathname: string): boolean {
 // Longest prefix wins here too, so a more specific entry can override a
 // broader one.
 const PATH_FEATURE_OVERRIDES: ReadonlyArray<readonly [string, FeatureKey]> = [
+  // Houses are class-adjacent master data. Without this the path has no
+  // feature key, and per the note above that means any editor can open it.
+  ["/academics/houses", "classes"],
   // Elective slots are subject configuration for XI–XII.
   ["/academics/electives", "subjects"],
   // Timetable tooling that lives outside /timetable's own href.
