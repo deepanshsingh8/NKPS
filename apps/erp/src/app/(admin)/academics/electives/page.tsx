@@ -4,7 +4,10 @@
  * §5 Class XI/XII Elective Slot Manager.
  * Two sections:
  *  1. Slot options — admin-editable list of subjects shown in each elective slot.
- *  2. Per-student picks — for each XI/XII student, two dropdowns (Elective 5, Elective 6).
+ *     XI and XII have SEPARATE lists, chosen with the class tabs; a subject
+ *     offered to both is one row naming both, not a duplicate per class.
+ *  2. Per-student picks — for each XI/XII student, two dropdowns (Elective 5,
+ *     Elective 6), each showing only the options offered to that student's class.
  *
  * Backed by /api/electives, /api/electives/options, /api/electives/students.
  */
@@ -36,7 +39,14 @@ import {
 import { Badge } from "@nkps/shared/components/ui/badge";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
+import {
+  ELECTIVE_CLASSES,
+  normaliseElectiveClasses,
+  optionAppliesTo,
+  type ElectiveClass,
+} from "@nkps/shared/lib/electives";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+import { cn } from "@nkps/shared/lib/utils";
 import { toast } from "sonner";
 
 interface SlotOption {
@@ -45,6 +55,9 @@ interface SlotOption {
   subject_id: string;
   label: string | null;
   sort_order: number;
+  // NULL/absent on rows written before the lists were split — treated as
+  // "both" by normaliseElectiveClasses so nothing silently disappears.
+  applies_to_classes: string[] | null;
   subjects: {
     id: string;
     name: string;
@@ -95,6 +108,7 @@ export default function ElectivesPage() {
   const [picks, setPicks] = useState<Pick[]>([]);
   const [allSubjects, setAllSubjects] = useState<SubjectLite[]>([]);
 
+  const [classTab, setClassTab] = useState<ElectiveClass>("XI");
   const [newSubjectIdBySlot, setNewSubjectIdBySlot] = useState<Record<number, string>>({});
   const [savingStudent, setSavingStudent] = useState<string | null>(null);
 
@@ -121,15 +135,43 @@ export default function ElectivesPage() {
     refresh();
   }, [refresh]);
 
-  const optionsBySlot = useMemo(() => {
-    const map = new Map<number, SlotOption[]>();
+  // Options bucketed by class, then by slot. Built once per fetch rather than
+  // per rendered cell — the student table reads it for every row. Both the
+  // admin list (active tab) and each student's dropdown (their own class) read
+  // from this, so the curated list and the assignable list cannot drift.
+  const optionsByClassSlot = useMemo(() => {
+    const byClass = new Map<string, Map<number, SlotOption[]>>();
+    for (const cls of ELECTIVE_CLASSES) byClass.set(cls, new Map());
     for (const o of options) {
-      const arr = map.get(o.slot) ?? [];
-      arr.push(o);
-      map.set(o.slot, arr);
+      for (const cls of ELECTIVE_CLASSES) {
+        if (!optionAppliesTo(o.applies_to_classes, cls)) continue;
+        const bySlot = byClass.get(cls)!;
+        const arr = bySlot.get(o.slot) ?? [];
+        arr.push(o);
+        bySlot.set(o.slot, arr);
+      }
     }
-    return map;
+    return byClass;
   }, [options]);
+
+  const optionsFor = useCallback(
+    (cls: string, slot: number) =>
+      optionsByClassSlot.get(cls)?.get(slot) ?? [],
+    [optionsByClassSlot]
+  );
+
+  // How many options each class has, for the tab counters.
+  const countByClass = useMemo(() => {
+    const counts = {} as Record<ElectiveClass, number>;
+    for (const cls of ELECTIVE_CLASSES) {
+      let total = 0;
+      for (const arr of optionsByClassSlot.get(cls)?.values() ?? []) {
+        total += arr.length;
+      }
+      counts[cls] = total;
+    }
+    return counts;
+  }, [optionsByClassSlot]);
 
   const pickFor = useCallback(
     (studentId: string, slot: number) =>
@@ -168,6 +210,9 @@ export default function ElectivesPage() {
 
   const table = useTableControls({ rows: students, columns });
 
+  // Adds to the class currently selected in the tabs. If the subject is
+  // already offered in this slot to the OTHER class, the server widens that
+  // single row rather than creating a duplicate.
   const handleAddOption = async (slot: number) => {
     const subjectId = newSubjectIdBySlot[slot];
     if (!subjectId) {
@@ -177,7 +222,11 @@ export default function ElectivesPage() {
     const res = await adminFetch("/api/electives/options", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slot, subject_id: subjectId }),
+      body: JSON.stringify({
+        slot,
+        subject_id: subjectId,
+        applies_to_classes: [classTab],
+      }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -188,10 +237,24 @@ export default function ElectivesPage() {
     await refresh();
   };
 
-  const handleRemoveOption = async (id: string) => {
-    if (!confirm("Remove this option? Students who already picked it will keep their selection until you change it.")) return;
-    const res = await adminFetch(`/api/electives/options?id=${encodeURIComponent(id)}`, {
-      method: "DELETE",
+  // Removing from the XI list must not empty the XII list. If the option is
+  // shared, narrow it to the other class; only when this tab holds its last
+  // class does the row go.
+  const handleRemoveOption = async (option: SlotOption) => {
+    const current = normaliseElectiveClasses(option.applies_to_classes);
+    const remaining = current.filter((c) => c !== classTab);
+    const name = option.subjects?.name ?? "this subject";
+
+    const message =
+      remaining.length > 0
+        ? `Remove ${name} from the class ${classTab} list? It stays available to ${remaining.join(" & ")}.`
+        : `Remove ${name} from Elective ${option.slot} entirely? Students who already picked it keep their selection until you change it.`;
+    if (!confirm(message)) return;
+
+    const res = await adminFetch("/api/electives/options", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: option.id, applies_to_classes: remaining }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -251,20 +314,54 @@ export default function ElectivesPage() {
 
       {/* ─────────────── Slot options manager ─────────────── */}
       <section className="erp-table-container p-6">
-        <h2 className="font-heading text-lg font-semibold mb-4">
-          Slot options
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 className="font-heading text-lg font-semibold">Slot options</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              XI and XII have separate lists. A subject added to both shows in
+              both tabs and is stored once — removing it here only takes it off
+              the class {classTab} list.
+            </p>
+          </div>
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-muted rounded-xl p-1">
+            {ELECTIVE_CLASSES.map((cls) => (
+              <button
+                key={cls}
+                onClick={() => setClassTab(cls)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200",
+                  classTab === cls
+                    ? "bg-white dark:bg-card text-navy-900 dark:text-white shadow-sm"
+                    : "text-gray-500 dark:text-gray-400 hover:text-navy-900 dark:hover:text-white"
+                )}
+              >
+                Class {cls}
+                <span className="text-xs text-gray-400">{countByClass[cls]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {SLOTS.map((slot) => {
-            const slotOptions = optionsBySlot.get(slot) ?? [];
+            const slotOptions = optionsFor(classTab, slot);
             return (
               <div key={slot} className="rounded-xl border border-gray-200 p-4 dark:border-border">
-                <h3 className="text-sm font-semibold mb-3">Elective {slot}</h3>
+                <h3 className="text-sm font-semibold mb-3">
+                  Elective {slot}
+                  <span className="ml-1.5 text-xs font-normal text-gray-400">
+                    class {classTab}
+                  </span>
+                </h3>
                 <ul className="space-y-1.5 mb-3">
                   {slotOptions.length === 0 && (
-                    <li className="text-xs text-gray-400 italic">No options yet.</li>
+                    <li className="text-xs text-gray-400 italic">
+                      No options for class {classTab} yet.
+                    </li>
                   )}
-                  {slotOptions.map((o) => (
+                  {slotOptions.map((o) => {
+                    const shared =
+                      normaliseElectiveClasses(o.applies_to_classes).length > 1;
+                    return (
                     <li
                       key={o.id}
                       className="flex items-center justify-between gap-2 rounded-md bg-gray-50 dark:bg-muted px-2.5 py-1.5"
@@ -274,20 +371,35 @@ export default function ElectivesPage() {
                         {o.subjects?.code && (
                           <span className="text-xs text-gray-400 ml-1">({o.subjects.code})</span>
                         )}
+                        {shared && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-1.5 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 text-[10px]"
+                          >
+                            XI &amp; XII
+                          </Badge>
+                        )}
                       </span>
                       <button
-                        onClick={() => handleRemoveOption(o.id)}
-                        title="Remove option"
+                        onClick={() => handleRemoveOption(o)}
+                        title={
+                          shared
+                            ? `Remove from the class ${classTab} list`
+                            : "Remove option"
+                        }
                         className="text-gray-400 hover:text-red-500"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
                 <div className="flex gap-2 items-end">
                   <div className="flex-1">
-                    <Label className="text-[11px] text-gray-500">Add subject</Label>
+                    <Label className="text-[11px] text-gray-500">
+                      Add subject to class {classTab}
+                    </Label>
                     <Select
                       value={newSubjectIdBySlot[slot] ?? ""}
                       onValueChange={(v) => setNewSubjectIdBySlot((s) => ({ ...s, [slot]: v ?? "" }))}
@@ -383,7 +495,9 @@ export default function ElectivesPage() {
                     )}
                   </TableCell>
                   {SLOTS.map((slot) => {
-                    const slotOptions = optionsBySlot.get(slot) ?? [];
+                    // Scoped to this student's class, not the tab above — the
+                    // table lists XI and XII together.
+                    const slotOptions = optionsFor(cls?.name ?? "", slot);
                     const current = pickFor(s.student_id, slot);
                     const saving = savingStudent === `${s.student_id}:${slot}`;
                     return (
@@ -395,7 +509,15 @@ export default function ElectivesPage() {
                             disabled={saving}
                           >
                             <SelectTrigger className="h-8 text-xs min-w-[180px]">
-                              <SelectValue placeholder={saving ? "Saving…" : "Not picked"} />
+                              <SelectValue
+                                placeholder={
+                                  saving
+                                    ? "Saving…"
+                                    : slotOptions.length === 0
+                                      ? `No class ${cls?.name ?? "—"} options`
+                                      : "Not picked"
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
                               {slotOptions.map((o) => (
@@ -403,6 +525,24 @@ export default function ElectivesPage() {
                                   {o.subjects?.name ?? "Unknown"}
                                 </SelectItem>
                               ))}
+                              {/* A pick made before the lists were split can
+                                  fall outside this class's options. Keep it
+                                  listed so the cell shows a name instead of a
+                                  raw id, and flag it for the admin. */}
+                              {current &&
+                                !slotOptions.some(
+                                  (o) => o.subject_id === current.subject_id
+                                ) && (
+                                  <SelectItem
+                                    value={current.subject_id}
+                                    label={`${current.subject_name} (not offered to ${cls?.name ?? "this class"})`}
+                                  >
+                                    {current.subject_name}
+                                    <span className="ml-1 text-[10px] text-amber-600">
+                                      not offered to {cls?.name ?? "this class"}
+                                    </span>
+                                  </SelectItem>
+                                )}
                             </SelectContent>
                           </Select>
                           {current && !saving && (
