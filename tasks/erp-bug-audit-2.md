@@ -104,11 +104,13 @@ Round 1 doc: `tasks/erp-bug-audit.md` (all 87 items closed).
   - The `fee_structures!inner(academic_year_id)` join is INNER. If a fee structure was deleted but payments still reference it (FK has no CASCADE), those payments vanish from dues.
   - Fix: left-join, or query payments by `student_id` and filter year client-side.
 
-- [~] **H12. Duplicate migration prefixes (`027-*`, `031-*`)** — accepted as-is 2026-04-26
-  - Renaming applied migration files would break deploy pipelines that track by filename. The schema mirror (`supabase-schema.sql`) is authoritative for fresh installs; the duplicates are documented in `migration-043-db-hygiene-2.sql` header. Acceptable risk.
-  - Files: `scripts/migration-027-profile-fk-set-null.sql` + `migration-027-ptm-formats.sql`; `migration-031-db-hygiene.sql` + `migration-031-teacher-substitutions.sql`
-  - Nondeterministic ordering on fresh installs. The `031-teacher-substitutions` header even says "Migration 030" — the filename disagrees with its own docs.
-  - Fix: renumber the second of each collision to a fresh free slot (e.g. `028a-` or push subsequent files up by one).
+- [x] **H12. Duplicate migration prefixes (`027-*`, `031-*`)** — partially fixed 2026-08-22 (was: accepted as-is 2026-04-26)
+  - Original call (2026-04-26): renaming applied migration files would break deploy pipelines that track by filename. The schema mirror (`supabase-schema.sql`) is authoritative for fresh installs; the duplicates are documented in `migration-043-db-hygiene-2.sql` header. Acceptable risk.
+  - **Revisited 2026-08-22.** That reasoning was conditional on a filename-tracking deploy pipeline, and this repo has none — migrations are applied by hand in Supabase Studio (see `scripts/_apply-migration-094.mjs` and the per-migration "run this in Supabase Studio" steps in the plan docs). The two collisions were also not equivalent:
+    - `027-*` — `base/migration-027-profile-fk-set-null.sql` + `erp/migration-027-ptm-formats.sql` live in **different folders**, so the README's "interleave by number across folders" rule still orders them. **Left as-is.**
+    - `031-*` — `erp/migration-031-db-hygiene.sql` + `erp/migration-031-teacher-substitutions.sql` were in the **same folder**, so ascending order genuinely could not resolve them. **Fixed:** teacher-substitutions renumbered to `erp/migration-094-teacher-substitutions.sql` (next free slot; 093 is reserved for `report_presets` by `tasks/custom-report-builder.md`). `031` still means db-hygiene, which is what migration 043 and the C-/M-/L- entries in `tasks/erp-bug-audit.md` already cite.
+  - The `031-teacher-substitutions` header saying "Migration 030" is also resolved — the file now reads `Migration 094` and carries a NUMBERING HISTORY note.
+  - Environments that already applied the file as `031` need no action; only the header changed and the migration is idempotent.
 
 - [x] **H13. `academic_years.is_current` lacks a partial-unique** — fixed 2026-04-26
   - Migration 043 adds `academic_years_one_current` partial unique. Pre-flight DO block normalizes existing dual-current rows by keeping the most-recently-created flag and clearing the rest.

@@ -27,9 +27,11 @@ The schema work is small because `timetable_periods` already exists with `(class
 
 ---
 
-## Data model (migration-030-teacher-substitutions.sql)
+## Data model (migration-094-teacher-substitutions.sql)
 
 > Migration 028 (`supplementary`) and 029 (`roll-number-auto`) already exist; next free number is 030.
+> **Superseded:** shipped as 031 (030 was taken by `timetable-teacher-unique`), which
+> collided with `031-db-hygiene.sql`. Renumbered to **094** on 2026-08-22.
 
 
 ### `teacher_absences`
@@ -229,7 +231,7 @@ Reuse existing `"timetable"` key for the teacher-timetable view page (it's a rea
 
 ## Implementation order
 
-- [x] 1. **Migration + schema mirror** — `migration-031-teacher-substitutions.sql` + append to `supabase-schema.sql`. Verify RLS. (Renumbered from 030 to avoid collision with an existing `migration-030-timetable-teacher-unique.sql`. Tables exist with all expected columns; CHECK + UNIQUE constraints verified empirically.)
+- [x] 1. **Migration + schema mirror** — `migration-094-teacher-substitutions.sql` + append to `supabase-schema.sql`. Verify RLS. (Renumbered 030 -> 031 to avoid collision with an existing `migration-030-timetable-teacher-unique.sql`, then 031 -> 094 on 2026-08-22 because 031 also collided with `migration-031-db-hygiene.sql` in the same folder. Tables exist with all expected columns; CHECK + UNIQUE constraints verified empirically.)
 - [x] 2. **Permissions wiring** — add `teacher_substitutions` key to `src/lib/permissions.ts` (do this early so middleware/sidebar auto-pick it up as we add pages).
 - [x] 3. **API: teacher-timetable GET** — unblocks the teacher-centric view. Single-table read with joins.
 - [x] 4. **UI: Teacher weekly grid page** (`/admin/timetable/teachers`). Ship read-only first.
@@ -270,7 +272,7 @@ Reuse existing `"timetable"` key for the teacher-timetable view page (it's a rea
 **Shipped:** all 13 implementation steps. `npm run build` passes (✓ Compiled successfully). The 8 new routes (2 pages + 6 API endpoints) are in the build manifest. Lint shows the same setState-in-effect warnings as the rest of the codebase — codebase-consistent, no new categories of violation.
 
 **Files added/changed:**
-- `scripts/migration-031-teacher-substitutions.sql` — `teacher_absences` + `substitutions` tables, indexes, triggers, RLS. Renumbered from 030 to avoid collision with the existing `migration-030-timetable-teacher-unique.sql`.
+- `scripts/migrations/erp/migration-094-teacher-substitutions.sql` — `teacher_absences` + `substitutions` tables, indexes, triggers, RLS. Renumbered 030 -> 031 (collision with `migration-030-timetable-teacher-unique.sql`), then 031 -> 094 on 2026-08-22 (collision with `migration-031-db-hygiene.sql`). Helper: `scripts/_apply-migration-094.mjs`.
 - `supabase-schema.sql` — appended the same DDL (per the schema-mirrors-migrations rule).
 - `src/lib/permissions.ts` — added `teacher_substitutions` feature key + catalog entry.
 - `src/lib/constants.ts` — added `HALF_DAY_CUTOFF_PERIOD = 4`.

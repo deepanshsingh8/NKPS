@@ -1,4 +1,4 @@
--- Migration 030: Teacher absences + substitutions.
+-- Migration 094: Teacher absences + substitutions.
 --
 -- Planning layer on top of the existing `timetable_periods` table (which
 -- already models the regular weekly schedule). Two new tables:
@@ -20,6 +20,14 @@
 -- end_time) without us having to re-encode it in the substitutions row.
 --
 -- Idempotent: safe to re-run.
+--
+-- NUMBERING HISTORY: originally authored as 030, shipped as
+-- `migration-031-teacher-substitutions.sql` (bumped because 030 was taken
+-- by timetable-teacher-unique), which collided with `031-db-hygiene.sql`.
+-- Renumbered to 094 on 2026-08-22 to break the duplicate prefix. 031 stays
+-- with db-hygiene, which downstream docs and migration 043 already cite as
+-- "Migration 031". Environments that applied this as 031 need no action --
+-- the file is unchanged apart from this header and re-running is safe.
 
 -- ─── 1. teacher_absences ────────────────────────────────────────────────────
 
