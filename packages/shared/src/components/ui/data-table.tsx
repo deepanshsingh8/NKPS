@@ -536,8 +536,10 @@ export function SortFilterHead({
     >
       <div
         ref={triggerRef}
+        // `min-w-0` so a header narrowed by a column drag truncates its label
+        // instead of shoving the filter button out of the cell.
         className={cn(
-          "flex items-center gap-1",
+          "flex min-w-0 items-center gap-1",
           align === "right" && "justify-end",
           align === "center" && "justify-center"
         )}
@@ -547,9 +549,9 @@ export function SortFilterHead({
             type="button"
             onClick={() => ctl.toggleSort(col)}
             title={`Sort by ${meta.label}`}
-            className="group inline-flex items-center gap-1 rounded text-inherit uppercase tracking-wider hover:text-navy-900 dark:hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="group inline-flex min-w-0 items-center gap-1 rounded text-inherit uppercase tracking-wider hover:text-navy-900 dark:hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
-            <span>{label}</span>
+            <span className="truncate">{label}</span>
             {sorted === "asc" ? (
               <ArrowUpAZ className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
             ) : sorted === "desc" ? (
@@ -561,7 +563,7 @@ export function SortFilterHead({
             )}
           </button>
         ) : (
-          <span>{label}</span>
+          <span className="truncate">{label}</span>
         )}
 
         {meta.filter !== "none" && (
