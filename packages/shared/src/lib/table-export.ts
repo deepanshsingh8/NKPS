@@ -231,8 +231,15 @@ export function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Written as an escape, not a literal character: a bare BOM is invisible in an
+ * editor and a formatter that strips it would break Excel's encoding detection
+ * with nothing in the diff to show for it.
+ */
+export const UTF8_BOM = "\uFEFF";
+
 export function csvBlob(csv: string): Blob {
   // The BOM is what makes Excel read the file as UTF-8 rather than the
   // system codepage; without it Hindi names and the ₹ sign arrive as mojibake.
-  return new Blob(["﻿", csv], { type: "text/csv;charset=utf-8;" });
+  return new Blob([UTF8_BOM, csv], { type: "text/csv;charset=utf-8;" });
 }

@@ -93,9 +93,11 @@ export async function buildXlsxBytes<T>(
     e: { r: matrix.length, c: Math.max(0, headers.length - 1) },
   });
   sheet["!cols"] = columnWidths(headers, matrixToText(matrix)).map((wch) => ({ wch }));
-  // Freeze the header and turn on Excel's own filter dropdowns, so the file
-  // stays as sortable and filterable as the table it came from.
-  sheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+  // Excel's own filter dropdowns, so the file stays as sortable and filterable
+  // as the table it came from. (Freeze panes are deliberately not set: this
+  // build of SheetJS silently ignores `!freeze` on write — verified by
+  // inspecting the emitted sheet XML — so setting it would be dead config
+  // that reads as a working feature.)
   if (matrix.length > 0) {
     sheet["!autofilter"] = {
       ref: XLSX.utils.encode_range({

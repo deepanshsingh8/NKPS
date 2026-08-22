@@ -106,15 +106,6 @@ export interface TableExportButtonProps<T> {
   serverRoute?: string;
   /** Always go through `serverRoute`, even for the session on screen. */
   alwaysServer?: boolean;
-  /**
-   * Machine-readable filter for the server to rebuild the row set from.
-   *
-   * Only consulted when the browser cannot supply the rows itself — i.e. a
-   * session it never loaded. For the session on screen the dialog sends the
-   * row ids instead, which is a stronger guarantee than restating filters:
-   * the file then contains exactly the rows the admin was looking at.
-   */
-  serverFilter?: Record<string, unknown>;
   formats?: readonly ExportFileFormat[];
   /** Audit metadata. Never used for authorization. */
   featureKey?: string;
@@ -139,7 +130,6 @@ export function TableExportButton<T>({
   session,
   serverRoute,
   alwaysServer = false,
-  serverFilter,
   formats = ALL_FORMATS,
   featureKey,
   variant = "outline",
@@ -176,13 +166,19 @@ export function TableExportButton<T>({
     [scope, selected, ctl.rows]
   );
 
-  const summary = React.useMemo<FilterSummaryEntry[]>(
-    () => [...(context ?? []), ...ctl.filterSummary],
-    [context, ctl.filterSummary]
-  );
-
   const sessionChanged =
     !!session && sessionId !== null && sessionId !== session.value;
+
+  const summary = React.useMemo<FilterSummaryEntry[]>(
+    () =>
+      // Switching to a session the browser never loaded rebuilds the whole of
+      // it on the server; this page's filters were never applied to it. So the
+      // summary is dropped rather than carried — it feeds the filename and the
+      // PDF's provenance line, and a document claiming a filter that did not
+      // run is worse than one claiming none.
+      sessionChanged ? [] : [...(context ?? []), ...ctl.filterSummary],
+    [sessionChanged, context, ctl.filterSummary]
+  );
   const needsServer = alwaysServer || sessionChanged;
   const serverUnavailable = needsServer && !serverRoute;
 
@@ -198,15 +194,15 @@ export function TableExportButton<T>({
       ? `PDF holds at most ${PDF_MAX_ROWS.toLocaleString("en-IN")} rows — this is ${rowCount.toLocaleString("en-IN")}. Narrow the filter, or export to Excel.`
       : null;
 
+  const sessionLabel = session?.options.find((o) => o.id === sessionId)?.name;
+
   const resolvedName = React.useMemo(
     () =>
       exportFilename(filename, [
-        ...(session && sessionId
-          ? [session.options.find((o) => o.id === sessionId)?.name ?? ""]
-          : []),
+        ...(sessionLabel ? [sessionLabel] : []),
         ...summary.map((s) => `${s.label} ${s.value}`),
       ]),
-    [filename, session, sessionId, summary]
+    [filename, sessionLabel, summary]
   );
 
   const toggleKey = (key: string) =>
@@ -231,13 +227,12 @@ export function TableExportButton<T>({
       return rowCount;
     }
 
-    const sessionName = session?.options.find((o) => o.id === sessionId)?.name;
     const response = await adminFetch(TABLE_PDF_ROUTE, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title,
-        subtitle: sessionName ? `Academic session ${sessionName}` : undefined,
+        subtitle: sessionLabel ? `Academic session ${sessionLabel}` : undefined,
         filterSummary: summary,
         headers,
         aligns: exportAligns(exportColumns),
@@ -280,8 +275,6 @@ export function TableExportButton<T>({
         filename: resolvedName,
         filterSummary: summary,
         row_ids: ids && ids.length > 0 ? ids : undefined,
-        // Only meaningful for a session the browser never loaded.
-        filter: sessionChanged ? serverFilter : undefined,
       }),
     });
     if (!response.ok) {
@@ -396,15 +389,17 @@ export function TableExportButton<T>({
               </SelectContent>
             </Select>
             {sessionChanged && (
-              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                A session other than the one on screen is rebuilt on the server,
-                so the file may include students who have since left.
+              <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">
+                Exports the whole {sessionLabel ?? "selected"} session, rebuilt
+                on the server — the filters on this page do not apply to it, and
+                it includes anyone who has since left. To filter another session,
+                switch to it at the top of the page instead.
               </p>
             )}
           </Field>
         )}
 
-        {selected && selected.length > 0 && (
+        {selected && selected.length > 0 && !sessionChanged && (
           <Field label="Rows">
             <div className="flex flex-col gap-1.5">
               <Radio

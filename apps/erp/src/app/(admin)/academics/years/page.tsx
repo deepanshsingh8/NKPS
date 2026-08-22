@@ -41,7 +41,7 @@ type SessionStats = Record<
     students: number;
     classes: number;
     left: number;
-    collected: number;
+    collected: number | null;
   }
 >;
 
@@ -49,6 +49,9 @@ export default function AdminAcademicYearsPage() {
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [stats, setStats] = useState<SessionStats>({});
   const [unattributedPayments, setUnattributedPayments] = useState(0);
+  // False for an editor without the `fees` grant: the column is then absent
+  // rather than shown full of dashes, which would read as "nothing collected".
+  const [showFees, setShowFees] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -222,7 +225,7 @@ export default function AdminAcademicYearsPage() {
           students: number;
           classes: number;
           left: number;
-          collected: number;
+          collected: number | null;
         }[]) {
           next[row.academic_year_id] = {
             students: row.students,
@@ -233,6 +236,7 @@ export default function AdminAcademicYearsPage() {
         }
         setStats(next);
         setUnattributedPayments(json.unattributed_payments ?? 0);
+        setShowFees(Boolean(json.includes_fees));
       })
       .catch(() => {
         // Non-fatal: the sessions still list, just without their numbers.
@@ -284,22 +288,26 @@ export default function AdminAcademicYearsPage() {
         exportFormat: "number",
         emptyLabel: "—",
       },
-      collected: {
-        label: "Fees Collected",
-        value: (y) =>
-          stats[y.id] === undefined
-            ? null
-            : new Intl.NumberFormat("en-IN", {
-                style: "currency",
-                currency: "INR",
-                maximumFractionDigits: 0,
-              }).format(stats[y.id].collected),
-        sortValue: (y) => stats[y.id]?.collected ?? -1,
-        exportFormat: "currency",
-        emptyLabel: "—",
-      },
+      ...(showFees
+        ? {
+            collected: {
+              label: "Fees Collected",
+              value: (y: AcademicYear) =>
+                stats[y.id]?.collected == null
+                  ? null
+                  : new Intl.NumberFormat("en-IN", {
+                      style: "currency",
+                      currency: "INR",
+                      maximumFractionDigits: 0,
+                    }).format(stats[y.id].collected as number),
+              sortValue: (y: AcademicYear) => stats[y.id]?.collected ?? -1,
+              exportFormat: "currency" as const,
+              emptyLabel: "—",
+            },
+          }
+        : {}),
     }),
-    [stats]
+    [stats, showFees]
   );
 
   const table = useTableControls({ rows: years, columns });
@@ -314,7 +322,7 @@ export default function AdminAcademicYearsPage() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Every session the school has run, with its headline numbers. Open a
             session name to work in that year&apos;s records.
-            {unattributedPayments > 0 && (
+            {showFees && unattributedPayments > 0 && (
               <>
                 {" "}
                 <span className="text-amber-700 dark:text-amber-400">
@@ -373,14 +381,16 @@ export default function AdminAcademicYearsPage() {
                 <SortFilterHead ctl={table} col="students" align="right" />
                 <SortFilterHead ctl={table} col="classes" align="right" />
                 <SortFilterHead ctl={table} col="left" align="right" />
-                <SortFilterHead ctl={table} col="collected" align="right" />
+                {showFees && (
+                  <SortFilterHead ctl={table} col="collected" align="right" />
+                )}
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {table.rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-10 text-center text-gray-500 dark:text-gray-400">
+                  <TableCell colSpan={showFees ? 9 : 8} className="py-10 text-center text-gray-500 dark:text-gray-400">
                     No years match the column filters.
                   </TableCell>
                 </TableRow>
@@ -434,15 +444,17 @@ export default function AdminAcademicYearsPage() {
                       <span className="text-gray-400 dark:text-gray-500">0</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums text-gray-600 dark:text-gray-300">
-                    {stats[year.id] === undefined
-                      ? "—"
-                      : new Intl.NumberFormat("en-IN", {
-                          style: "currency",
-                          currency: "INR",
-                          maximumFractionDigits: 0,
-                        }).format(stats[year.id].collected)}
-                  </TableCell>
+                  {showFees && (
+                    <TableCell className="text-right tabular-nums text-gray-600 dark:text-gray-300">
+                      {stats[year.id]?.collected == null
+                        ? "—"
+                        : new Intl.NumberFormat("en-IN", {
+                            style: "currency",
+                            currency: "INR",
+                            maximumFractionDigits: 0,
+                          }).format(stats[year.id].collected as number)}
+                    </TableCell>
+                  )}
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       {!year.is_current && (

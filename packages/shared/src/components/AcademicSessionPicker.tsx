@@ -22,17 +22,23 @@ export interface AcademicSessionPickerProps {
 /**
  * Session selector for the year-scoped list pages.
  *
- * Viewing a past session is a deliberately visible state: the trigger is
- * tinted amber when the selection is not the current session, because
- * everything on the page — counts, class labels, dues — then describes a year
- * that has ended, and an admin who forgets that will misread the screen.
+ * Viewing another session is a deliberately visible state: the trigger is
+ * tinted amber when the selection is not the running session, because
+ * everything on the page — counts, class labels, dues — then describes a
+ * different year, and an admin who forgets that will misread the screen.
  */
 export function AcademicSessionPicker({
   state,
   className,
   hideWhenSingle = true,
 }: AcademicSessionPickerProps) {
-  const { sessions, sessionId, setSessionId, isPastSession, loading } = state;
+  const { sessions, sessionId, setSessionId, isCurrentSession, loading } =
+    state;
+
+  // Tinted whenever the selection is not the running session — past or
+  // future — because in both cases the page describes a year other than
+  // the one the reader is living in.
+  const offCurrent = !!sessionId && !isCurrentSession;
 
   if (loading) return null;
   if (hideWhenSingle && sessions.length <= 1) return null;
@@ -45,7 +51,7 @@ export function AcademicSessionPicker({
       <CalendarRange
         className={cn(
           "h-4 w-4 shrink-0",
-          isPastSession
+          offCurrent
             ? "text-amber-600 dark:text-amber-400"
             : "text-gray-400 dark:text-gray-500"
         )}
@@ -59,7 +65,7 @@ export function AcademicSessionPicker({
           aria-label="Academic session"
           className={cn(
             "h-9 w-[11rem]",
-            isPastSession &&
+            offCurrent &&
               "border-amber-400 text-amber-800 dark:border-amber-500/60 dark:text-amber-300"
           )}
         >

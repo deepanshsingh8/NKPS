@@ -605,6 +605,27 @@ export async function PATCH(request: NextRequest) {
         .eq("is_current", true)
         .maybeSingle();
 
+      // Only a session that has ALREADY FINISHED is closed. A future one is
+      // being prepared on purpose and must stay directly editable — otherwise
+      // fixing next year's roll number would need a "correction" to a year
+      // that has not happened.
+      let enrollmentYearIsPast = false;
+      if (
+        existingEnrollment &&
+        currentYear &&
+        existingEnrollment.academic_year_id !== currentYear.id
+      ) {
+        const { data: enrollmentYear } = await admin
+          .from("academic_years")
+          .select("start_date")
+          .eq("id", existingEnrollment.academic_year_id)
+          .maybeSingle();
+        enrollmentYearIsPast =
+          !!enrollmentYear?.start_date &&
+          !!currentYear.start_date &&
+          enrollmentYear.start_date < currentYear.start_date;
+      }
+
       if (
         existingEnrollment &&
         currentYear &&
@@ -651,9 +672,21 @@ export async function PATCH(request: NextRequest) {
             (!!currentYear.start_date &&
               requestedYear.start_date >= currentYear.start_date));
 
-        if (class_id && requestedIsCurrentOrFuture) {
+        // Moving between sessions is a NEW enrollment, categorically — never an
+        // edit of the old one — so the record being left behind stays intact.
+        // This holds in both directions: past → current, and one future
+        // session → another.
+        const movingToAnotherSession =
+          !!requestedYear &&
+          requestedYear.id !== existingEnrollment.academic_year_id;
+
+        if (movingToAnotherSession && requestedIsCurrentOrFuture) {
           enrollmentTargetId = null;
           existingEnrollment = null;
+        } else if (!enrollmentYearIsPast) {
+          // A session that has not started yet, being prepared: its own row is
+          // directly editable, which is the entire point of building it early.
+          enrollmentTargetId = enrollment_id;
         } else if (correction) {
           // Unlocked: the edit is allowed to land on the closed session's own
           // row, and is logged below with the reason that unlocked it.
@@ -726,9 +759,9 @@ export async function PATCH(request: NextRequest) {
             { status: 400 }
           );
         }
-        // Only ever written when it matches what's already stored — the
-        // past-year guard above guarantees this row belongs to the current
-        // year, and a class from a different year never reaches here.
+        // Safe to write: the branch above sends any move BETWEEN sessions
+        // down the insert path, so a class from a different session never
+        // reaches here and this only ever restates the row's own year.
         enrollmentUpdate.academic_year_id = classRow.academic_year_id;
         // Stream follows the (possibly changed) class. When class_id isn't part
         // of this edit the stream stays as-is — it can only change with the class.

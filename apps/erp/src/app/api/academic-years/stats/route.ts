@@ -9,7 +9,7 @@
 // history would otherwise cost twenty-four round trips to render one table.
 
 import { NextResponse } from "next/server";
-import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
+import { getCallerAccess } from "@nkps/shared/lib/verify-admin";
 
 export const runtime = "nodejs";
 
@@ -25,17 +25,24 @@ export interface AcademicYearStats {
   classes: number;
   /** Enrollments closed as exited or terminated — the mid-year attrition. */
   left: number;
-  /** Sum of amount_paid, less refunds. */
-  collected: number;
+  /** Sum of amount_paid, less refunds. Omitted without the `fees` grant. */
+  collected: number | null;
   /** True when some payments in this session carry no year and are excluded. */
   collected_partial: boolean;
 }
 
 export async function GET() {
-  const admin = await verifyAdminOrEditor("academic_years");
-  if (!admin) {
+  const caller = await getCallerAccess();
+  if (!caller || (!caller.isAdmin && !caller.permissions.has("academic_years"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const { admin } = caller;
+
+  // Money is behind its own grant. Reading the sessions list is not a reason
+  // to learn what the school collected in each of them, so the totals are
+  // withheld from an editor who holds `academic_years` but not `fees` — and
+  // withheld here rather than hidden in the UI.
+  const canSeeFees = caller.isAdmin || caller.permissions.has("fees");
 
   try {
     const [enrollmentsRes, classesRes, paymentsRes] = await Promise.all([
@@ -44,11 +51,13 @@ export async function GET() {
         .select("academic_year_id, status")
         .range(0, ROW_CAP),
       admin.from("classes").select("academic_year_id").range(0, ROW_CAP),
-      admin
-        .from("fee_payments")
-        .select("academic_year_id, amount_paid, refund_amount, status")
-        .in("status", COLLECTED_STATUSES)
-        .range(0, ROW_CAP),
+      canSeeFees
+        ? admin
+            .from("fee_payments")
+            .select("academic_year_id, amount_paid, refund_amount, status")
+            .in("status", COLLECTED_STATUSES)
+            .range(0, ROW_CAP)
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
     for (const [label, res] of [
@@ -74,7 +83,7 @@ export async function GET() {
           students: 0,
           classes: 0,
           left: 0,
-          collected: 0,
+          collected: canSeeFees ? 0 : null,
           collected_partial: false,
         };
         stats.set(id, row);
@@ -114,12 +123,13 @@ export async function GET() {
         continue;
       }
       const row = ensure(p.academic_year_id);
-      row.collected += (p.amount_paid ?? 0) - (p.refund_amount ?? 0);
+      row.collected = (row.collected ?? 0) + (p.amount_paid ?? 0) - (p.refund_amount ?? 0);
     }
 
     return NextResponse.json({
       data: [...stats.values()],
       unattributed_payments: unattributed,
+      includes_fees: canSeeFees,
     });
   } catch (error) {
     console.error("Session stats failed:", error);

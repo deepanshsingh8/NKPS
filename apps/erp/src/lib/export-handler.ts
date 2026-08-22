@@ -24,6 +24,7 @@ import {
   exportAligns,
   matrixToText,
   toCsv,
+  UTF8_BOM,
   type ExportColumn,
   type ExportFileFormat,
 } from "@nkps/shared/lib/table-export";
@@ -177,7 +178,7 @@ export async function runExport<T>({
   if (request.format === "csv") {
     // The BOM is what makes Excel read it as UTF-8; without it the ₹ sign and
     // any Hindi name arrive as mojibake.
-    body = new TextEncoder().encode("﻿" + toCsv(headers, matrix));
+    body = new TextEncoder().encode(UTF8_BOM + toCsv(headers, matrix));
     contentType = "text/csv; charset=utf-8";
   } else if (request.format === "xlsx") {
     body = await buildXlsxBytes(columns, matrix, { sheetName: request.title });

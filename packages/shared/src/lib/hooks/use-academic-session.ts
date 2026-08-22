@@ -33,8 +33,19 @@ export interface AcademicSessionState {
   setSessionId: (id: string) => void;
   session: AcademicSessionOption | null;
   currentSessionId: string | null;
-  /** True while the selection is something other than the current session. */
+  /** The selection IS the running session. */
+  isCurrentSession: boolean;
+  /**
+   * The selected session has already finished. Its records are history: the
+   * UI shows them read-only and warns that they describe a year that ended.
+   */
   isPastSession: boolean;
+  /**
+   * The selected session has not started yet — next year, being set up in
+   * advance. Fully editable, and emphatically NOT read-only: preparing it is
+   * the entire reason for selecting it.
+   */
+  isFutureSession: boolean;
   loading: boolean;
 }
 
@@ -90,13 +101,35 @@ export function useAcademicSession(): AcademicSessionState {
     [sessions, sessionId]
   );
 
+  // Past and future are NOT the same thing, and conflating them into
+  // "not current" gets both wrong: a future session would be labelled as
+  // ended and locked against the very edits it exists to receive.
+  // Ordered by start_date, which is what the server compares too.
+  const currentSession = useMemo(
+    () => sessions.find((s) => s.id === currentSessionId) ?? null,
+    [sessions, currentSessionId]
+  );
+  const isCurrentSession = !!sessionId && sessionId === currentSessionId;
+  const isPastSession =
+    !!session &&
+    !!currentSession &&
+    !isCurrentSession &&
+    session.start_date < currentSession.start_date;
+  const isFutureSession =
+    !!session &&
+    !!currentSession &&
+    !isCurrentSession &&
+    session.start_date > currentSession.start_date;
+
   return {
     sessions,
     sessionId,
     setSessionId,
     session,
     currentSessionId,
-    isPastSession: !!sessionId && sessionId !== currentSessionId,
+    isCurrentSession,
+    isPastSession,
+    isFutureSession,
     loading,
   };
 }

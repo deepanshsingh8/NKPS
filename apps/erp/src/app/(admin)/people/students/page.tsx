@@ -55,6 +55,7 @@ import {
 import { toast } from "sonner";
 import {
   ArrowUpCircle,
+  CalendarClock,
   ChevronDown,
   Download,
   GraduationCap,
@@ -712,7 +713,7 @@ export default function AdminStudentsPage() {
       // find any name regardless of state.
       const url = selectedClassId
         ? `/api/students?class_id=${selectedClassId}`
-        : sessionId && session.isPastSession
+        : sessionId && !session.isCurrentSession
           ? `/api/students?academic_year_id=${sessionId}`
           : `/api/students`;
       const res = await adminFetch(url);
@@ -733,7 +734,7 @@ export default function AdminStudentsPage() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClassId, sessionId, session.isPastSession]);
+  }, [selectedClassId, sessionId, session.isCurrentSession]);
 
   useEffect(() => {
     fetchClasses();
@@ -1645,6 +1646,25 @@ export default function AdminStudentsPage() {
               list includes students who have since left the school. To correct
               a record, use the lock button on its row — an admin and a reason
               are required, and the change is recorded.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {session.isFutureSession && (
+        // A different state entirely, and it must not read as a warning: this
+        // session is being built on purpose, and everything here is editable.
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-500/40 dark:bg-blue-950/30">
+          <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
+          <div className="text-sm">
+            <p className="font-semibold text-blue-900 dark:text-blue-200">
+              Viewing the {session.session?.name ?? "selected"} session, which
+              has not started yet.
+            </p>
+            <p className="mt-0.5 text-blue-800 dark:text-blue-300">
+              This list shows only students already enrolled for next session,
+              so it fills up as you assign classes. Records here are fully
+              editable.
             </p>
           </div>
         </div>
