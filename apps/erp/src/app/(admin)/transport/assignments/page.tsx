@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@nkps/shared/components/ui/dialog";
 import {
@@ -44,6 +45,7 @@ import {
   Bus as BusIcon,
   Search,
   Pencil,
+  Trash2,
   X,
   Sparkles,
   TriangleAlert,
@@ -252,6 +254,10 @@ export default function StudentTransportAssignmentsPage() {
   const [editing, setEditing] = useState<EnrollmentRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [quickAssigning, setQuickAssigning] = useState<string | null>(null);
+
+  // Remove-assignment confirmation
+  const [removing, setRemoving] = useState<EnrollmentRow | null>(null);
+  const [removeSubmitting, setRemoveSubmitting] = useState(false);
 
   const [hasTransport, setHasTransport] = useState(false);
   const [busStopId, setBusStopId] = useState<string>("");
@@ -599,6 +605,47 @@ export default function StudentTransportAssignmentsPage() {
     setQuickAssigning(null);
   };
 
+  // Take a student off transport entirely.
+  //
+  // There is no assignment row to delete — an assignment IS these six columns
+  // on the enrollment — so removal clears them together. That matters for the
+  // DB checks: `student_enrollments_bus_stop_required` forbids has_transport
+  // with no stop, and `chk_one_side_fee_override` forbids a one-side direction
+  // with no override, so a partial clear would be rejected.
+  //
+  // Every downstream count is derived from these columns rather than stored,
+  // so the seat comes back on the bus and the transport line leaves the
+  // student's dues the moment this lands — nothing else to update.
+  const handleRemove = async () => {
+    if (!removing) return;
+    setRemoveSubmitting(true);
+
+    const result = await adminApi({
+      action: "update",
+      table: "student_enrollments",
+      data: {
+        has_transport: false,
+        bus_stop_id: null,
+        bus_id: null,
+        transport_direction: "both",
+        transport_fee_override: null,
+        pickup_address: null,
+      },
+      match: { column: "id", value: removing.id },
+    });
+
+    if (!result.success) {
+      toast.error(result.error || "Failed to remove transport assignment");
+    } else {
+      toast.success(
+        `${removing.students?.full_name ?? "Student"} removed from transport`
+      );
+      setRemoving(null);
+      await fetchData();
+    }
+    setRemoveSubmitting(false);
+  };
+
   const validate = (): boolean => {
     const next: { stop?: string; override?: string } = {};
     if (hasTransport) {
@@ -784,7 +831,7 @@ export default function StudentTransportAssignmentsPage() {
                   <SortFilterHead ctl={table} col="bus" />
                   <SortFilterHead ctl={table} col="direction" />
                   <SortFilterHead ctl={table} col="status" />
-                  <TableHead className="text-right">Edit</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -870,15 +917,32 @@ export default function StudentTransportAssignmentsPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => openEdit(row)}
-                          aria-label="Edit transport assignment"
-                          className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => openEdit(row)}
+                            aria-label="Edit transport assignment"
+                            className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          {/* Nothing to remove from a student who is not on
+                              transport — the button would be a no-op that
+                              still asked for a confirmation. */}
+                          {row.has_transport && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => setRemoving(row)}
+                              aria-label="Remove transport assignment"
+                              title="Remove from transport"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -1126,6 +1190,115 @@ export default function StudentTransportAssignmentsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Assignment Confirmation */}
+      <Dialog
+        open={!!removing}
+        onOpenChange={(open) => !open && setRemoving(null)}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10">
+                <Trash2 className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <DialogTitle>Remove from transport</DialogTitle>
+                <DialogDescription>
+                  {removing?.students?.full_name ?? "This student"}
+                  {removing?.students?.admission_no
+                    ? ` (${removing.students.admission_no})`
+                    : ""}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {removing && (
+            <div className="space-y-4">
+              <dl className="rounded-xl border border-gray-200 bg-gray-50/70 p-3 text-sm dark:border-border dark:bg-muted/40">
+                <div className="flex justify-between gap-4 py-0.5">
+                  <dt className="text-gray-500 dark:text-gray-400">Stop</dt>
+                  <dd className="text-right font-medium text-navy-900 dark:text-white">
+                    {(removing.bus_stop_id &&
+                      stopById.get(removing.bus_stop_id)?.name) ||
+                      "—"}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4 py-0.5">
+                  <dt className="text-gray-500 dark:text-gray-400">Bus</dt>
+                  <dd className="text-right font-medium text-navy-900 dark:text-white">
+                    {(removing.bus_id && busById.get(removing.bus_id)?.bus_number) ||
+                      "Not assigned"}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4 py-0.5">
+                  <dt className="text-gray-500 dark:text-gray-400">
+                    Transport fee
+                  </dt>
+                  <dd className="text-right font-medium text-navy-900 dark:text-white">
+                    {formatRupee(feeOf(removing))}
+                  </dd>
+                </div>
+              </dl>
+
+              {/* The transport charge is derived from these columns, not
+                  stored as ledger rows, so clearing them drops the charge for
+                  the whole year — including months already ridden. Payments
+                  already receipted are untouched. Worth saying plainly: it is
+                  the difference between "stop billing them" and "write off
+                  what they owe", and the office cannot see it otherwise. */}
+              <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="space-y-1">
+                  <p>
+                    The stop, bus and direction are cleared and the seat is
+                    freed on{" "}
+                    {(removing.bus_id &&
+                      busById.get(removing.bus_id)?.bus_number) ||
+                      "the bus"}
+                    .
+                  </p>
+                  <p>
+                    Transport fees are calculated from this assignment, so any{" "}
+                    <span className="font-semibold">unpaid</span> transport
+                    charge for {activeYear?.name ?? "this year"} also
+                    disappears from their dues. Transport payments already
+                    recorded are kept.
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Their enrolment, class and every other fee stay exactly as they
+                are. To put them back on transport later, use Edit.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRemoving(null)}
+              disabled={removeSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleRemove}
+              disabled={removeSubmitting}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {removeSubmitting && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              Remove from transport
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
