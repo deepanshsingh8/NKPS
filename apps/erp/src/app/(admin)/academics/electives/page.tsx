@@ -54,8 +54,10 @@ import {
   X,
 } from "lucide-react";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
+import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import {
   ELECTIVE_CLASSES,
+  isElectiveClass,
   normaliseElectiveClasses,
   optionAppliesTo,
   type ElectiveClass,
@@ -184,7 +186,15 @@ export default function ElectivesPage() {
   const [picks, setPicks] = useState<Pick[]>([]);
   const [allSubjects, setAllSubjects] = useState<SubjectLite[]>([]);
 
-  const [classTab, setClassTab] = useState<ElectiveClass>("XI");
+  // Which class the whole page is scoped to, mirrored into ?class= so the view
+  // is bookmarkable and survives back-navigation — the same useUrlState hook
+  // the fees, results and result-master screens use. It writes through
+  // history.replaceState rather than the router, so switching class does not
+  // re-run the route or refetch. An unrecognised ?class= falls back to XI.
+  const [classParam, setClassParam] = useUrlState("class", ELECTIVE_CLASSES[0]);
+  const classTab: ElectiveClass = isElectiveClass(classParam)
+    ? classParam
+    : ELECTIVE_CLASSES[0];
   // null = follow the default for this class (open when it has no options yet,
   // so the admin is not staring at a table of empty dropdowns with no
   // explanation); true/false once they have chosen for themselves.
@@ -230,13 +240,16 @@ export default function ElectivesPage() {
 
   // Switching class resets anything scoped to the old one — a selection or a
   // filter carried across would act on students no longer on screen.
-  const switchClass = useCallback((cls: ElectiveClass) => {
-    setClassTab(cls);
-    setSelectedIds(new Set());
-    setIncompleteOnly(false);
-    setBulkSubjectId("");
-    setOptionsOpenOverride(null);
-  }, []);
+  const switchClass = useCallback(
+    (cls: ElectiveClass) => {
+      setClassParam(cls);
+      setSelectedIds(new Set());
+      setIncompleteOnly(false);
+      setBulkSubjectId("");
+      setOptionsOpenOverride(null);
+    },
+    [setClassParam]
+  );
 
   // ── Options, bucketed by class then slot ──
   // Built once per fetch rather than per rendered cell; the student table
