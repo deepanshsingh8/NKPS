@@ -354,9 +354,12 @@ the registry means editing seven consumers twice.
 > separate feature, not part of this one.
 
 ### Phase 2 — Shared foundations
-- [ ] `packages/shared/src/lib/report-fields.ts` — registry, built off `STUDENT_TEMPLATE_FIELDS` + joined/derived/blank fields
+- [x] `packages/shared/src/lib/report-fields.ts` — 116 fields (old ERP had 111),
+      built off `STUDENT_TEMPLATE_FIELDS` + joined/derived/blank fields
+- [x] `scripts/_verify-report-fields.mts` — duplicate keys, `columns[]` validity,
+      `resolve()` totality over a sparse row, sort/always/sensitive invariants.
+      Caught `day_scholar` projecting off the wrong table on its first run.
 - [ ] `packages/shared/src/lib/report-filters.ts` — zod filter schema + defaults
-- [ ] Unit tests: every `ReportField.key` unique; every `columns[]` entry exists on its source table; `resolve()` total over a null-heavy fixture row
 
 ### Phase 3 — Query + API
 - [ ] `apps/erp/src/lib/report-query.ts` — builds the session-scoped enrollment-driven query, projecting only needed columns
