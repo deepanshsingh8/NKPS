@@ -549,7 +549,10 @@ CREATE INDEX IF NOT EXISTS fee_payments_import_batch_idx
 CREATE TABLE timetable_periods (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   class_id uuid REFERENCES classes(id) ON DELETE CASCADE NOT NULL,
-  subject_id uuid REFERENCES subjects(id),
+  -- CASCADE matches every other FK into subjects(id). Left as the default
+  -- NO ACTION it blocked subject deletion outright (migration 088). Break
+  -- periods carry subject_id NULL and are unaffected.
+  subject_id uuid REFERENCES subjects(id) ON DELETE CASCADE,
   teacher_id uuid REFERENCES teachers(id),
   day_of_week integer NOT NULL CHECK (day_of_week BETWEEN 1 AND 6),
   period_number integer NOT NULL,

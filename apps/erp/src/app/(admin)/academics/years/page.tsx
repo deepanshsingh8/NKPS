@@ -29,7 +29,8 @@ import {
 } from "@nkps/shared/components/ui/data-table";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, Star, CalendarDays } from "lucide-react";
-import { adminApi } from "@nkps/shared/lib/admin-api";
+import { adminApi, fetchRowDependencies } from "@nkps/shared/lib/admin-api";
+import { describeDependencies } from "@nkps/shared/lib/row-dependencies";
 import type { AcademicYear } from "@nkps/shared/types";
 
 export default function AdminAcademicYearsPage() {
@@ -127,7 +128,7 @@ export default function AdminAcademicYearsPage() {
     });
 
     if (!result.success) {
-      toast.error("Failed to set as current");
+      toast.error(result.error || "Failed to set as current");
       return;
     }
 
@@ -135,18 +136,42 @@ export default function AdminAcademicYearsPage() {
     await fetchYears();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this academic year? This may affect associated classes."))
+  // A year is the spine of every record filed under it, and most of those FKs
+  // have no ON DELETE action at all — the delete used to just fail with
+  // "Failed to delete academic year" and no reason. Name the reason.
+  const handleDelete = async (year: AcademicYear) => {
+    if (year.is_current) {
+      toast.error(
+        `${year.name} is the current academic year. Make another year current before deleting this one.`
+      );
+      return;
+    }
+
+    const deps = await fetchRowDependencies("academic_years", year.id);
+    if (deps && deps.blockingTotal > 0) {
+      toast.error(
+        `${year.name} still has ${describeDependencies(deps.blocking)} filed under it. A year that has been used cannot be deleted — it is the historical record.`,
+        { duration: 10000 }
+      );
+      return;
+    }
+
+    const willRemove = deps ? describeDependencies(deps.cascade) : "";
+    if (
+      !confirm(
+        `Delete the academic year "${year.name}"?${willRemove ? `\n\nThis also removes ${willRemove}.` : ""}\n\nThis cannot be undone.`
+      )
+    )
       return;
 
     const result = await adminApi({
       action: "delete",
       table: "academic_years",
-      match: { column: "id", value: id },
+      match: { column: "id", value: year.id },
     });
 
     if (!result.success) {
-      toast.error("Failed to delete academic year");
+      toast.error(result.error || "Failed to delete academic year", { duration: 10000 });
       return;
     }
 
@@ -316,7 +341,7 @@ export default function AdminAcademicYearsPage() {
                         variant="ghost"
                         size="icon-sm"
                         aria-label="Delete academic year"
-                        onClick={() => handleDelete(year.id)}
+                        onClick={() => handleDelete(year)}
                         className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                       >
                         <Trash2 className="h-4 w-4" />
