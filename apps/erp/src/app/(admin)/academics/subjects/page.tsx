@@ -34,6 +34,9 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
+import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
+import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import { toast } from "sonner";
 import {
   Plus,
@@ -226,14 +229,20 @@ export default function AdminSubjectsPage() {
     setMathReviewClasses(names.sort());
   }, [supabase]);
 
-  const fetchAssignmentsData = useCallback(async () => {
-    const { data: currentYear } = await supabase
-      .from("academic_years")
-      .select("id")
-      .eq("is_current", true)
-      .single();
+  const session = useAcademicSession();
+  const sessionId = session.sessionId;
 
-    const yearId = currentYear?.id ?? "00000000-0000-0000-0000-000000000000";
+  const fetchAssignmentsData = useCallback(async () => {
+    // Classes and subject assignments are both year-scoped, so this follows
+    // the session picker rather than being pinned to the is_current flag.
+    let yearQuery = supabase.from("academic_years").select("id");
+    yearQuery = sessionId
+      ? yearQuery.eq("id", sessionId)
+      : yearQuery.eq("is_current", true);
+    const { data: currentYear } = await yearQuery.maybeSingle();
+
+    const yearId = (currentYear?.id as string | undefined) ??
+      "00000000-0000-0000-0000-000000000000";
 
     const [classesRes, subjectsRes, teachersRes] = await Promise.all([
       supabase
@@ -307,7 +316,7 @@ export default function AdminSubjectsPage() {
 
     setAssignments(rows);
     setAssignmentsLoading(false);
-  }, [supabase]);
+  }, [supabase, sessionId]);
 
   const fetchStreams = useCallback(async () => {
     const { data: streamsData, error } = await supabase
@@ -1087,12 +1096,15 @@ export default function AdminSubjectsPage() {
             <BookOpen className="h-4.5 w-4.5 text-gold-400" />
           </div>
           <div>
-            <h1 className="erp-page-title">Subjects & Assignments</h1>
+            <h1 className="erp-page-title">Subjects &amp; Assignments</h1>
             <p className="erp-page-subtitle">
               Manage subjects, class assignments, and academic streams
             </p>
           </div>
         </div>
+        {/* Only the assignments tab is year-scoped — the subject catalogue
+            itself is not — so the picker appears with it. */}
+        {tab !== "subjects" && <AcademicSessionPicker state={session} />}
         {tab === "subjects" && (
           <div className="flex items-center gap-2">
             <Button
@@ -1246,11 +1258,20 @@ export default function AdminSubjectsPage() {
             </p>
           ) : (
             <>
-            <TableFilterSummary
-              ctl={subjectTable}
-              total={categorySubjects.length}
-              shown={subjectTable.rows.length}
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              <TableFilterSummary
+                ctl={subjectTable}
+                total={categorySubjects.length}
+                shown={subjectTable.rows.length}
+                className="mb-0 mr-auto"
             />
+              <TableExportButton
+                ctl={subjectTable}
+                filename="subjects"
+                title="Subjects"
+                featureKey="subjects"
+              />
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1509,11 +1530,20 @@ export default function AdminSubjectsPage() {
                 ) : (
                   <div className="overflow-x-auto">
                     <>
-                    <TableFilterSummary
-                      ctl={assignmentTable}
-                      total={filteredAssignments.length}
-                      shown={assignmentTable.rows.length}
-                    />
+                    <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                      <TableFilterSummary
+                        ctl={assignmentTable}
+                        total={filteredAssignments.length}
+                        shown={assignmentTable.rows.length}
+                        className="mb-0 mr-auto"
+            />
+                      <TableExportButton
+                        ctl={assignmentTable}
+                        filename="subject-assignments"
+                        title="Subject Assignments"
+                        featureKey="subjects"
+                      />
+                    </div>
                     <Table>
                       <TableHeader>
                         <TableRow>

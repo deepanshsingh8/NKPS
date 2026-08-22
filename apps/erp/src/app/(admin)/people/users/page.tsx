@@ -35,6 +35,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@nkps/shared/components/ui/tabs";
 import { LinkHealthPanel } from "@/components/admin/LinkHealthPanel";
 import { toast } from "sonner";
@@ -588,11 +589,19 @@ export default function AdminUsersPage() {
                 </p>
               ) : (
                 <>
-                <TableFilterSummary
-                  ctl={profileTable}
-                  total={filteredProfiles.length}
-                  shown={profileTable.rows.length}
-                />
+                <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                  <TableFilterSummary
+                    ctl={profileTable}
+                    total={filteredProfiles.length}
+                    shown={profileTable.rows.length}
+                    className="mb-0 mr-auto"
+            />
+                  <TableExportButton
+                    ctl={profileTable}
+                    filename="user-accounts"
+                    title="User Accounts"
+                  />
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -755,11 +764,19 @@ export default function AdminUsersPage() {
                     </p>
                   ) : (
                     <>
-                    <TableFilterSummary
-                      ctl={requestTable}
-                      total={filteredRequests.length}
-                      shown={requestTable.rows.length}
-                    />
+                    <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                      <TableFilterSummary
+                        ctl={requestTable}
+                        total={filteredRequests.length}
+                        shown={requestTable.rows.length}
+                        className="mb-0 mr-auto"
+            />
+                      <TableExportButton
+                        ctl={requestTable}
+                        filename="registration-requests"
+                        title="Registration Requests"
+                      />
+                    </div>
                     <Table>
                       <TableHeader>
                         <TableRow>

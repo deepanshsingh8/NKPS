@@ -30,6 +30,9 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
+import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
+import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import {
   Dialog,
   DialogClose,
@@ -135,15 +138,19 @@ export default function AdminClassTestsPage() {
   const [loadingEntry, setLoadingEntry] = useState(false);
   const [savingMarks, setSavingMarks] = useState(false);
 
-  // Bootstrap: all classes + active-year exam types + all subjects per class.
+  const session = useAcademicSession();
+  const sessionId = session.sessionId;
+
+  // Bootstrap: all classes + session exam types + all subjects per class.
+  // Classes are year-scoped, so this follows the session picker.
   useEffect(() => {
     async function bootstrap() {
       const supabase = createClient();
-      const { data: currentYear } = await supabase
-        .from("academic_years")
-        .select("id")
-        .eq("is_current", true)
-        .maybeSingle();
+      let yearQuery = supabase.from("academic_years").select("id");
+      yearQuery = sessionId
+        ? yearQuery.eq("id", sessionId)
+        : yearQuery.eq("is_current", true);
+      const { data: currentYear } = await yearQuery.maybeSingle();
 
       if (currentYear?.id) {
         const { data: cls } = await supabase
@@ -169,7 +176,7 @@ export default function AdminClassTestsPage() {
       setLoading(false);
     }
     bootstrap();
-  }, []);
+  }, [sessionId]);
 
   // Grade bands for the selected class.
   useEffect(() => {
@@ -633,14 +640,17 @@ export default function AdminClassTestsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
-          Class Tests
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Oversight of class-wise unit tests and formative assessments across
-          all subjects.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
+            Class Tests
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            Oversight of class-wise unit tests and formative assessments across
+            all subjects.
+          </p>
+        </div>
+        <AcademicSessionPicker state={session} />
       </div>
 
       <Card className="bg-white dark:bg-card rounded-2xl">
@@ -742,11 +752,20 @@ export default function AdminClassTestsPage() {
             ) : (
               <div className="overflow-x-auto">
                 <>
-                <TableFilterSummary
-                  ctl={testTable}
-                  total={tests.length}
-                  shown={testTable.rows.length}
-                />
+                <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                  <TableFilterSummary
+                    ctl={testTable}
+                    total={tests.length}
+                    shown={testTable.rows.length}
+                    className="mb-0 mr-auto"
+            />
+                  <TableExportButton
+                    ctl={testTable}
+                    filename="class-tests"
+                    title="Class Tests"
+                    featureKey="class_tests"
+                  />
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>

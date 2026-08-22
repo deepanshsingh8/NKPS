@@ -41,6 +41,9 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
+import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
+import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Check,
@@ -215,10 +218,19 @@ export default function ElectivesPage() {
   // `background` keeps the table on screen while re-reading after a write.
   // Without it, changing one dropdown swapped the entire page for the loading
   // skeleton — unusable when working down a class list.
+  // Elective picks belong to a session — a student's XI choices are not
+  // their XII ones — so which session is on screen decides what this shows.
+  const session = useAcademicSession();
+  const sessionId = session.sessionId;
+
   const refresh = useCallback(async (background = false) => {
     if (!background) setLoading(true);
     const [eRes, sRes] = await Promise.all([
-      adminFetch("/api/electives"),
+      adminFetch(
+        sessionId
+          ? `/api/electives?academic_year_id=${sessionId}`
+          : "/api/electives"
+      ),
       supabase.from("subjects").select("id, name, code").eq("is_active", true).order("name"),
     ]);
     if (!eRes.ok) {
@@ -232,7 +244,7 @@ export default function ElectivesPage() {
     setPicks(data.picks ?? []);
     setAllSubjects((sRes.data as SubjectLite[]) ?? []);
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, sessionId]);
 
   useEffect(() => {
     refresh();
@@ -348,7 +360,12 @@ export default function ElectivesPage() {
   }, [students]);
 
   // Header sort/filter accessors — mirror what the matching cell renders.
-  // The elective slot columns hold live <Select> pickers, so they stay plain.
+  //
+  // The elective slot columns hold live <Select> pickers, but they are still
+  // declared here: the picker is the *editor*, the accessor is the value, and
+  // without an accessor the page could not answer "who picked Biology?" at
+  // all — which is the question this page exists to support and the one it
+  // could not answer before.
   const columns = useMemo<TableColumns<StudentRow>>(
     () => ({
       admission_no: {
@@ -369,8 +386,21 @@ export default function ElectivesPage() {
         label: "Stream",
         value: (s) => pickOne(s.streams)?.name ?? null,
       },
+      ...Object.fromEntries(
+        SLOTS.map((slot) => [
+          `elective_${slot}`,
+          {
+            label: `Elective ${slot}`,
+            value: (s: StudentRow) =>
+              picks.find(
+                (p) => p.student_id === s.student_id && p.elective_slot === slot
+              )?.subject_name ?? null,
+            emptyLabel: "Not picked",
+          },
+        ])
+      ),
     }),
-    []
+    [picks]
   );
 
   const table = useTableControls({ rows: visibleStudents, columns });
@@ -614,6 +644,9 @@ export default function ElectivesPage() {
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+        <AcademicSessionPicker state={session} />
+
         <div
           role="group"
           aria-label="Show electives for class"
@@ -642,6 +675,7 @@ export default function ElectivesPage() {
               </span>
             </button>
           ))}
+        </div>
         </div>
       </header>
 
@@ -925,11 +959,20 @@ export default function ElectivesPage() {
               </div>
             )}
 
-            <TableFilterSummary
-              ctl={table}
-              total={visibleStudents.length}
-              shown={table.rows.length}
-            />
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              <TableFilterSummary
+                ctl={table}
+                total={visibleStudents.length}
+                shown={table.rows.length}
+                className="mb-0 mr-auto"
+              />
+              <TableExportButton
+                ctl={table}
+                filename="electives"
+                title="Elective Choices"
+                featureKey="subjects"
+              />
+            </div>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -950,7 +993,11 @@ export default function ElectivesPage() {
                     <SortFilterHead ctl={table} col="section" />
                     <SortFilterHead ctl={table} col="stream" />
                     {SLOTS.map((slot) => (
-                      <TableHead key={slot}>Elective {slot}</TableHead>
+                      <SortFilterHead
+                        key={slot}
+                        ctl={table}
+                        col={`elective_${slot}`}
+                      />
                     ))}
                   </TableRow>
                 </TableHeader>

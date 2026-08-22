@@ -33,6 +33,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { toast } from "sonner";
 import {
   ClipboardCheck,
@@ -364,11 +365,20 @@ export default function TeacherAttendancePage() {
 
             {/* Header sorting/filtering only changes what's on screen — the
                 submit handler still posts every student in `students`. */}
-            <TableFilterSummary
-              ctl={table}
-              total={students.length}
-              shown={table.rows.length}
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              <TableFilterSummary
+                ctl={table}
+                total={students.length}
+                shown={table.rows.length}
+                className="mb-0 mr-auto"
             />
+              <TableExportButton
+                ctl={table}
+                filename="class-attendance"
+                title="Class Attendance"
+                featureKey="attendance"
+              />
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>

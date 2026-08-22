@@ -30,6 +30,9 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
+import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
+import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import {
   Dialog,
   DialogClose,
@@ -131,14 +134,18 @@ export default function AdminPublishPage() {
   }>({ open: false, scope: "bulk", studentIds: [] });
   const [unpublishReason, setUnpublishReason] = useState("");
 
-  useEffect(() => {
+const session = useAcademicSession();
+  const sessionId = session.sessionId;
+
+    useEffect(() => {
     async function bootstrap() {
       const supabase = createClient();
-      const { data: currentYear } = await supabase
-        .from("academic_years")
-        .select("id")
-        .eq("is_current", true)
-        .maybeSingle();
+      // Exam types belong to a session, so publishing follows the picker.
+      let yearQuery = supabase.from("academic_years").select("id");
+      yearQuery = sessionId
+        ? yearQuery.eq("id", sessionId)
+        : yearQuery.eq("is_current", true);
+      const { data: currentYear } = await yearQuery.maybeSingle();
       if (currentYear?.id) {
         const [{ data: cls }, { data: ets }] = await Promise.all([
           supabase
@@ -160,7 +167,7 @@ export default function AdminPublishPage() {
       setLoading(false);
     }
     bootstrap();
-  }, []);
+  }, [sessionId]);
 
   const fetchData = useCallback(async () => {
     if (!selectedClassId || !selectedExamTypeId) {
@@ -544,14 +551,17 @@ export default function AdminPublishPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
-          Publish &amp; Finalize
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Two-stage publish: flip online visibility first, then snapshot the
-          official marksheet PDF.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
+            Publish &amp; Finalize
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            Two-stage publish: flip online visibility first, then snapshot the
+            official marksheet PDF.
+          </p>
+        </div>
+        <AcademicSessionPicker state={session} />
       </div>
 
       <Card className="bg-white dark:bg-card rounded-2xl">
@@ -864,11 +874,20 @@ export default function AdminPublishPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <TableFilterSummary
-              ctl={table}
-              total={rows.length}
-              shown={visibleRows.length}
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              <TableFilterSummary
+                ctl={table}
+                total={rows.length}
+                shown={visibleRows.length}
+                className="mb-0 mr-auto"
             />
+              <TableExportButton
+                ctl={table}
+                filename="result-publishing"
+                title="Result Publishing"
+                featureKey="publish_results"
+              />
+            </div>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>

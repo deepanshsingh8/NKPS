@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { Button } from "@nkps/shared/components/ui/button";
+import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import {
@@ -202,7 +203,12 @@ export default function AdminExamTypesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [selectedYearId, setSelectedYearId] = useState<string>("");
+  // This page's year dropdown IS the shared session selector: backing it with
+  // the same URL-held state means a session chosen here is the session every
+  // other admin page shows, instead of two controls that quietly disagree.
+  const session = useAcademicSession();
+  const selectedYearId = session.sessionId ?? "";
+  const setSelectedYearId = session.setSessionId;
   const [selectedLevel, setSelectedLevel] = useState<ExamClassLevel>("all");
 
   const [formData, setFormData] = useState({
@@ -232,11 +238,6 @@ export default function AdminExamTypesPage() {
     const years = (ayRes.data as AcademicYear[]) ?? [];
     setExamTypes(exams);
     setAcademicYears(years);
-
-    setSelectedYearId((prev) => {
-      if (prev && years.some((y) => y.id === prev)) return prev;
-      return years.find((y) => y.is_current)?.id ?? years[0]?.id ?? "";
-    });
 
     setLoading(false);
   }, [supabase]);

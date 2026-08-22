@@ -28,6 +28,7 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import { toast } from "sonner";
 import {
@@ -1173,12 +1174,20 @@ export default function AdminGalleryPage() {
             </div>
           ) : viewMode === "list" ? (
             <div className="erp-table-container overflow-hidden">
-              <TableFilterSummary
-                ctl={imageTable}
-                total={images.length}
-                shown={imageTable.rows.length}
-                className="px-4 pt-4"
-              />
+              <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                <TableFilterSummary
+                  ctl={imageTable}
+                  total={images.length}
+                  shown={imageTable.rows.length}
+                  className="px-4 pt-4 mb-0 mr-auto"
+                />
+                <TableExportButton
+                  ctl={imageTable}
+                  filename="gallery-images"
+                  title="Gallery Images"
+                  featureKey="gallery"
+                />
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1550,11 +1559,20 @@ export default function AdminGalleryPage() {
                 </div>
               ) : (
                 <>
-                <TableFilterSummary
-                  ctl={eventTable}
-                  total={events.length}
-                  shown={eventTable.rows.length}
-                />
+                <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                  <TableFilterSummary
+                    ctl={eventTable}
+                    total={events.length}
+                    shown={eventTable.rows.length}
+                    className="mb-0 mr-auto"
+            />
+                  <TableExportButton
+                    ctl={eventTable}
+                    filename="gallery-events"
+                    title="Gallery Events"
+                    featureKey="gallery"
+                  />
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>

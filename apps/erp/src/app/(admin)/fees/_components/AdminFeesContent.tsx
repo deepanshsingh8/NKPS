@@ -29,6 +29,9 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
+import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
+import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import {
   Tabs,
   TabsContent,
@@ -38,9 +41,8 @@ import {
 import { Card, CardContent } from "@nkps/shared/components/ui/card";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, FileSpreadsheet, ArrowLeft, ArrowRight, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, ArrowLeft, ArrowRight, ChevronDown, ChevronRight } from "lucide-react";
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
-import { downloadCSV } from "@/lib/csv-export";
 import { cn, formatClassName } from "@nkps/shared/lib/utils";
 import { classSortIndex } from "@nkps/shared/lib/constants";
 import { FeeScheduleImportDialog } from "@/components/FeeScheduleImportDialog";
@@ -297,11 +299,15 @@ function DuesTable({
   rows,
   emptyMessage,
   showClass,
+  exportName,
+  exportTitle,
 }: {
   rows: DuesRow[];
   emptyMessage: string;
   /** Off when a single class is selected — the column would repeat one value. */
   showClass: boolean;
+  exportName: string;
+  exportTitle: string;
 }) {
   const columns = useMemo<TableColumns<DuesRow>>(
     () => ({
@@ -325,27 +331,48 @@ function DuesTable({
         label: "Transport",
         value: (r) => (r.has_transport ? "Yes" : "No"),
       },
+      // `sortValue` already holds the raw rupee amount for each of these, so
+      // `exportFormat` is all it takes for the exported column to be a number
+      // Excel can total — rather than the "₹1,23,456" text it shows on screen.
       expected: {
         label: "Annual Fee",
         value: (r) => inr(r.expected),
         sortValue: (r) => r.expected,
+        exportFormat: "currency",
       },
       billed_to_date: {
         label: "Due Till Date",
         value: (r) => inr(r.billed_to_date),
         sortValue: (r) => r.billed_to_date,
+        exportFormat: "currency",
       },
-      paid: { label: "Paid", value: (r) => inr(r.paid), sortValue: (r) => r.paid },
+      paid: {
+        label: "Paid",
+        value: (r) => inr(r.paid),
+        sortValue: (r) => r.paid,
+        exportFormat: "currency",
+      },
       late_fee: {
         label: "Late Fee",
         value: (r) => (r.late_fee > 0 ? inr(r.late_fee) : null),
         sortValue: (r) => r.late_fee,
         emptyLabel: "None",
+        exportFormat: "currency",
       },
       dues: {
         label: "Dues",
         value: (r) => (r.dues > 0 ? inr(r.dues) : "Nil"),
         sortValue: (r) => r.dues,
+        exportFormat: "currency",
+      },
+      // Replaces the three separate "export all / with dues / cleared"
+      // buttons: as a column it filters the table on screen as well, and it
+      // cannot disagree with what gets downloaded — the old buttons each used
+      // a different row set, so two of them exported something other than what
+      // the reader was looking at.
+      dues_bucket: {
+        label: "Dues Status",
+        value: (r) => (r.dues > 0 ? "Has dues" : "Cleared"),
       },
     }),
     []
@@ -363,11 +390,20 @@ function DuesTable({
 
   return (
     <>
-      <TableFilterSummary
-        ctl={table}
-        total={rows.length}
-        shown={table.rows.length}
-      />
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+        <TableFilterSummary
+          ctl={table}
+          total={rows.length}
+          shown={table.rows.length}
+          className="mb-0 mr-auto"
+        />
+        <TableExportButton
+          ctl={table}
+          filename={exportName}
+          title={exportTitle}
+          featureKey="fees"
+        />
+      </div>
       <Table>
         <TableHeader>
           <TableRow>
@@ -381,13 +417,14 @@ function DuesTable({
             <SortFilterHead ctl={table} col="paid" align="right" />
             <SortFilterHead ctl={table} col="late_fee" align="right" />
             <SortFilterHead ctl={table} col="dues" align="right" />
+            <SortFilterHead ctl={table} col="dues_bucket" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {table.rows.length === 0 && (
             <TableRow>
               <TableCell
-                colSpan={showClass ? 10 : 9}
+                colSpan={showClass ? 11 : 10}
                 className="py-10 text-center text-gray-500 dark:text-gray-400"
               >
                 No students match the column filters.
@@ -439,6 +476,17 @@ function DuesTable({
                 ) : (
                   <span className="text-green-600">Nil</span>
                 )}
+              </TableCell>
+              <TableCell>
+                <span
+                  className={
+                    r.dues > 0
+                      ? "text-red-600 dark:text-red-400"
+                      : "text-green-700 dark:text-green-400"
+                  }
+                >
+                  {r.dues > 0 ? "Has dues" : "Cleared"}
+                </span>
               </TableCell>
             </TableRow>
           ))}
@@ -687,26 +735,32 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   // Academic year. The date range is needed as well as the id: a student
   // counts as "new" (and so owes the admission fee) when their admission date
   // falls inside the year being billed.
+  const session = useAcademicSession();
+  const sessionId = session.sessionId;
+
   const [academicYearId, setAcademicYearId] = useState("");
   const [academicYearRange, setAcademicYearRange] = useState<{
     start_date: string | null;
     end_date: string | null;
   } | null>(null);
 
+  // Every fee query on this page keys off `academicYearId` — structures,
+  // payments, stop fees, the dues calculation and its late-fee window — so
+  // pointing this one lookup at the session picker makes the whole register
+  // session-aware, rather than permanently pinned to whichever year carries
+  // the is_current flag.
   const fetchAcademicYear = useCallback(async () => {
-    const { data } = await supabase
-      .from("academic_years")
-      .select("id, start_date, end_date")
-      .eq("is_current", true)
-      .single();
+    let query = supabase.from("academic_years").select("id, start_date, end_date");
+    query = sessionId ? query.eq("id", sessionId) : query.eq("is_current", true);
+    const { data } = await query.maybeSingle();
     if (data) {
-      setAcademicYearId(data.id);
+      setAcademicYearId(data.id as string);
       setAcademicYearRange({
         start_date: (data.start_date as string | null) ?? null,
         end_date: (data.end_date as string | null) ?? null,
       });
     }
-  }, [supabase]);
+  }, [supabase, sessionId]);
 
   const fetchStreams = useCallback(async () => {
     const { data } = await supabase
@@ -1406,34 +1460,6 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     return { withDues, clear, totalDues };
   }, [filteredDuesRows]);
 
-  const exportDues = (subset: "all" | "dues" | "clear") => {
-    const src =
-      subset === "dues"
-        ? duesSummary.withDues
-        : subset === "clear"
-          ? duesSummary.clear
-          : duesRows;
-    if (src.length === 0) {
-      toast.error("Nothing to export");
-      return;
-    }
-    downloadCSV(
-      src,
-      [
-        { key: "admission_no", header: "Admission No" },
-        { key: "full_name", header: "Name" },
-        { key: "father_name", header: "Father" },
-        { key: "class_label", header: "Class" },
-        { key: "has_transport", header: "Transport" },
-        { key: "expected", header: "Annual Fee (INR)" },
-        { key: "billed_to_date", header: "Due Till Date (INR)" },
-        { key: "paid", header: "Paid (INR)" },
-        { key: "late_fee", header: "Late Fee (INR)" },
-        { key: "dues", header: "Dues (INR)" },
-      ],
-      `${subset === "clear" ? "no-dues" : subset === "dues" ? "dues" : "fees-report"}-${new Date().toISOString().split("T")[0]}`
-    );
-  };
 
   // New vs returning student, for schedule rows restricted by audience —
   // the admission/registration fee bills only this year's intake.
@@ -1983,13 +2009,16 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
-          {sectionTitle}
-        </h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {sectionSubtitle}
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
+            {sectionTitle}
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {sectionSubtitle}
+          </p>
+        </div>
+        <AcademicSessionPicker state={session} />
       </div>
 
       {section === "academic" && (
@@ -2051,11 +2080,20 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     </p>
                   ) : (
                     <>
-                    <TableFilterSummary
-                      ctl={structureTable}
-                      total={feeStructures.length}
-                      shown={structureTable.rows.length}
-                    />
+                    <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                      <TableFilterSummary
+                        ctl={structureTable}
+                        total={feeStructures.length}
+                        shown={structureTable.rows.length}
+                        className="mb-0 mr-auto"
+            />
+                      <TableExportButton
+                        ctl={structureTable}
+                        filename="fee-structures"
+                        title="Fee Structures"
+                        featureKey="fees"
+                      />
+                    </div>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -2386,11 +2424,20 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     </p>
                   ) : (
                     <>
-                    <TableFilterSummary
-                      ctl={paymentTable}
-                      total={studentPayments.length}
-                      shown={paymentTable.rows.length}
-                    />
+                    <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                      <TableFilterSummary
+                        ctl={paymentTable}
+                        total={studentPayments.length}
+                        shown={paymentTable.rows.length}
+                        className="mb-0 mr-auto"
+            />
+                      <TableExportButton
+                        ctl={paymentTable}
+                        filename="fee-payments"
+                        title="Fee Payments"
+                        featureKey="fees"
+                      />
+                    </div>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -2519,11 +2566,20 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                   </div>
                 ) : (
                   <>
-                  <TableFilterSummary
-                    ctl={classStudentTable}
-                    total={filteredClassStudents.length}
-                    shown={classStudentTable.rows.length}
-                  />
+                  <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                    <TableFilterSummary
+                      ctl={classStudentTable}
+                      total={filteredClassStudents.length}
+                      shown={classStudentTable.rows.length}
+                      className="mb-0 mr-auto"
+            />
+                    <TableExportButton
+                      ctl={classStudentTable}
+                      filename="class-fee-status"
+                      title="Class Fee Status"
+                      featureKey="fees"
+                    />
+                  </div>
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -2650,24 +2706,6 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     <Badge className="bg-green-100 text-green-700 border-green-200">
                       Clear: {duesSummary.clear.length}
                     </Badge>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => exportDues("dues")}
-                      disabled={duesSummary.withDues.length === 0}
-                    >
-                      <FileSpreadsheet className="h-4 w-4 mr-1" />
-                      Export Dues
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => exportDues("clear")}
-                      disabled={duesSummary.clear.length === 0}
-                    >
-                      <FileSpreadsheet className="h-4 w-4 mr-1" />
-                      Export No-Dues
-                    </Button>
                   </div>
                 )}
               </div>
@@ -2704,6 +2742,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                             key === "dues-list"
                               ? duesSummary.withDues
                               : duesSummary.clear
+                          }
+                          exportName={
+                            key === "dues-list" ? "fee-dues" : "fee-no-dues"
+                          }
+                          exportTitle={
+                            key === "dues-list"
+                              ? "Outstanding Fees"
+                              : "Students With No Dues"
                           }
                           showClass={!duesClassId}
                           emptyMessage={

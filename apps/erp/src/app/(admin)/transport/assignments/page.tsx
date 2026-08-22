@@ -34,6 +34,9 @@ import {
   useTableControls,
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
+import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
+import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
+import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { toast } from "sonner";
 import {
@@ -72,6 +75,12 @@ interface EnrollmentRow {
   id: string;
   student_id: string;
   class_id: string;
+  /**
+   * Enrollment status. A bus seat held by a student who left last term still
+   * looks live on this page without it, so the transport office cannot tell
+   * a real assignment from a stale one.
+   */
+  status: string | null;
   has_transport: boolean;
   bus_stop_id: string | null;
   bus_id: string | null;
@@ -252,6 +261,11 @@ export default function StudentTransportAssignmentsPage() {
   const [pickupAddress, setPickupAddress] = useState<string>("");
   const [errors, setErrors] = useState<{ stop?: string; override?: string }>({});
 
+  // Stop assignments and stop fees are both year-scoped, so which session is
+  // on screen decides what this page means.
+  const session = useAcademicSession();
+  const sessionId = session.sessionId;
+
   // -------------------------------------------------------------------------
   // Data loading
   // -------------------------------------------------------------------------
@@ -266,7 +280,11 @@ export default function StudentTransportAssignmentsPage() {
     // the full story. The fleet tables are world-readable, so they stay here
     // and load in parallel with that request.
     const [assignmentsRes, stopsRes, busesRes, routeRes] = await Promise.all([
-      adminFetch("/api/transport/assignments"),
+      adminFetch(
+        sessionId
+          ? `/api/transport/assignments?academic_year_id=${sessionId}`
+          : "/api/transport/assignments"
+      ),
       supabase
         .from("bus_stops")
         .select("*")
@@ -305,9 +323,11 @@ export default function StudentTransportAssignmentsPage() {
   };
 
   useEffect(() => {
+    // Re-runs when the session changes; `sessionId` is null only until the
+    // year list has loaded, and the API falls back to the current year then.
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sessionId]);
 
   // -------------------------------------------------------------------------
   // Derived lookups
@@ -418,6 +438,24 @@ export default function StudentTransportAssignmentsPage() {
         label: "Direction",
         value: (r) =>
           r.has_transport ? directionLabel(r.transport_direction) : null,
+      },
+      status: {
+        label: "Status",
+        value: (r) =>
+          r.status ? r.status.charAt(0).toUpperCase() + r.status.slice(1) : null,
+      },
+      pickup_address: {
+        label: "Pickup Address",
+        value: (r) => r.pickup_address || null,
+        filter: "text",
+        // Useful on a route sheet, too long for the on-screen grid.
+        exportOnly: true,
+      },
+      admission_no: {
+        label: "Admission No",
+        value: (r) => r.students?.admission_no ?? null,
+        filter: "text",
+        exportOnly: true,
       },
     }),
     [stopById, busById, feeOf]
@@ -644,6 +682,9 @@ export default function StudentTransportAssignmentsPage() {
             </span>
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <AcademicSessionPicker state={session} />
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center mb-4">
@@ -718,11 +759,20 @@ export default function StudentTransportAssignmentsPage() {
                 {preset.note}
               </p>
             )}
-            <TableFilterSummary
-              ctl={table}
-              total={filteredEnrollments.length}
-              shown={table.rows.length}
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              <TableFilterSummary
+                ctl={table}
+                total={filteredEnrollments.length}
+                shown={table.rows.length}
+                className="mb-0 mr-auto"
             />
+              <TableExportButton
+                ctl={table}
+                filename="transport-assignments"
+                title="Transport Assignments"
+                featureKey="transport"
+              />
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -733,6 +783,7 @@ export default function StudentTransportAssignmentsPage() {
                   <SortFilterHead ctl={table} col="fee" />
                   <SortFilterHead ctl={table} col="bus" />
                   <SortFilterHead ctl={table} col="direction" />
+                  <SortFilterHead ctl={table} col="status" />
                   <TableHead className="text-right">Edit</TableHead>
                 </TableRow>
               </TableHeader>
@@ -740,7 +791,7 @@ export default function StudentTransportAssignmentsPage() {
                 {table.rows.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       className="py-10 text-center text-gray-500 dark:text-gray-400"
                     >
                       No students match the column filters.
@@ -801,6 +852,22 @@ export default function StudentTransportAssignmentsPage() {
                         {row.has_transport
                           ? directionLabel(row.transport_direction)
                           : "—"}
+                      </TableCell>
+                      <TableCell className="text-gray-600 dark:text-gray-300">
+                        {row.status ? (
+                          <span
+                            className={
+                              row.status === "active"
+                                ? "text-gray-600 dark:text-gray-300"
+                                : "text-amber-700 dark:text-amber-400"
+                            }
+                          >
+                            {row.status.charAt(0).toUpperCase() +
+                              row.status.slice(1)}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button

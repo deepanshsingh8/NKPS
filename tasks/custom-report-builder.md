@@ -238,7 +238,7 @@ used by `/api/students/[id]/export`). PDF uses `@react-pdf/renderer` with the
 existing `pdf_header_configs` / `pdf_footer_configs` so a printed report carries
 the school letterhead like every other printed artefact.
 
-### 3.6 Saved presets — `report_presets` (migration 088)
+### 3.6 Saved presets — `report_presets` (migration 093)
 
 The single biggest complaint about the old screen is re-ticking 111 checkboxes
 every time you want the same list. So:
@@ -266,7 +266,7 @@ Ship two seeded shared presets so the screen isn't empty on day one: *Contact
 Sheet* (Name, Class, Father, Father's Mobile, Mother's Mobile) and *UDISE
 Extract* (the UDISE+ mandated columns).
 
-Per the schema-mirrors-migrations rule, migration 088 must be appended to
+Per the schema-mirrors-migrations rule, migration 093 must be appended to
 `supabase-schema.sql` in the same commit.
 
 ### 3.7 UI — `/reports/students`
@@ -322,7 +322,9 @@ registry is what drives every downstream surface. Adding the columns *after*
 the registry means editing seven consumers twice.
 
 > Numbering: 088 was already taken by `migration-088-subject-delete-integrity`
-> on `origin/main`, so this work starts at 089.
+> on `origin/main`, so this work starts at 089. 091 and 092 then went to the
+> filtered-download branch (export_events, historical_corrections), so
+> `report_presets` is 093.
 
 - [x] Migration 089 — 29 student columns across four groups: government/board
       IDs (`pen_number`, `apaar_number`, `cbse_registration_no`, `nic_number`),
@@ -380,7 +382,7 @@ the registry means editing seven consumers twice.
 - [ ] Guard rail: warn above ~12 columns, hard-cap what PDF will attempt
 
 ### Phase 6 — Presets
-- [ ] Migration 091 `report_presets` (+ mirror into `supabase-schema.sql`)
+- [ ] Migration 093 `report_presets` (+ mirror into `supabase-schema.sql`)
 - [ ] `/api/reports/presets` CRUD, ownership + `is_shared` enforced server-side
 - [ ] Save / load / rename / delete in the UI; seed the two shared presets
 

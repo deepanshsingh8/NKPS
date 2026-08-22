@@ -5868,3 +5868,120 @@ VALUES
   ('Green House',  'GRN', '#16A34A', 3),
   ('Yellow House', 'YEL', '#CA8A04', 4)
 ON CONFLICT DO NOTHING;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- EXPORT AUDIT (migration 091)
+-- (mirrored from scripts/migrations/erp/migration-091-export-events.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Who downloaded which admin list, in what format, how many rows, under which
+-- filters, and whether contact/identity fields were included. Written only by
+-- the server-side export routes on the service-role client; admin-read-only,
+-- append-only.
+
+-- ── What actually writes here ──────────────────────────────────────────────
+-- Today: 'students' (the one dataset the server can answer better than the
+-- browser — past sessions include students who have since left, and the
+-- subject filter needs a two-hop join the list payload does not carry) and
+-- 'table_pdf' (every PDF, from any list, since rendering is server-side).
+--
+-- The other dataset values are reserved. They are listed now so that moving a
+-- dataset server-side later is a route change rather than a CHECK-constraint
+-- migration — but note that moving one only makes sense when the server can
+-- supply something the page cannot. Where the browser already holds every row
+-- (staff, users), a server route could withhold nothing and would log an act
+-- the page can perform anyway, which is the "complete-looking but hollow"
+-- outcome this table is meant to avoid.
+
+CREATE TABLE IF NOT EXISTS export_events (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id         uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  actor_role       text,
+  dataset          text NOT NULL CHECK (dataset IN (
+                     'students', 'staff', 'fees_dues', 'transport_assignments',
+                     'users', 'registrations', 'table_pdf')),
+  feature_key      text,
+  format           text NOT NULL CHECK (format IN ('csv', 'xlsx', 'pdf')),
+  academic_year_id uuid REFERENCES academic_years(id) ON DELETE SET NULL,
+  row_count        integer NOT NULL DEFAULT 0,
+  column_count     integer NOT NULL DEFAULT 0,
+  fields           text[] NOT NULL DEFAULT '{}',
+  sensitive        boolean NOT NULL DEFAULT false,
+  filter_summary   text,
+  filter_spec      jsonb,
+  source_app       text CHECK (source_app IN ('erp', 'cms')),
+  source_path      text,
+  -- text, not inet: a malformed X-Forwarded-For must not be able to fail the
+  -- download this row describes.
+  client_ip        text,
+  user_agent       text,
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_export_events_actor
+  ON export_events(actor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_export_events_dataset
+  ON export_events(dataset, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_export_events_sensitive
+  ON export_events(created_at DESC) WHERE sensitive;
+
+ALTER TABLE export_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins read export_events" ON export_events;
+CREATE POLICY "Admins read export_events"
+  ON export_events FOR SELECT
+  USING (public.get_user_role() = 'admin');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- HISTORICAL CORRECTIONS (migration 092)
+-- (mirrored from scripts/migrations/erp/migration-092-historical-corrections.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Every edit made to a CLOSED academic session: who, which session, which row,
+-- which columns, the before/after snapshots and a required reason. A past
+-- session opens read-only in the admin UI and an edit requires an explicit
+-- unlock, which writes one row here. Admin-read, service-role-write,
+-- append-only.
+
+CREATE TABLE IF NOT EXISTS historical_corrections (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- SET NULL, not CASCADE: the record of a correction must outlive the account
+  -- that made it (migration 046 set this convention for the audit tables).
+  actor_id         uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  actor_role       text,
+  -- The session that was edited. This is the whole point of the table: it
+  -- distinguishes an ordinary edit from one reaching into a closed year.
+  academic_year_id uuid REFERENCES academic_years(id) ON DELETE SET NULL,
+  student_id       uuid REFERENCES students(id) ON DELETE SET NULL,
+  enrollment_id    uuid REFERENCES student_enrollments(id) ON DELETE SET NULL,
+  target_table     text NOT NULL,
+  target_id        uuid,
+  -- Only the columns that actually changed, so reading the log does not mean
+  -- diffing two fifty-column blobs by eye.
+  changed_columns  text[] NOT NULL DEFAULT '{}',
+  before_snapshot  jsonb,
+  after_snapshot   jsonb,
+  -- Required, and long enough to be a sentence rather than a shrug. The DB
+  -- enforces it because the reason is the only thing that makes this edit
+  -- reviewable later, and a UI-only check is a suggestion.
+  reason           text NOT NULL CHECK (length(btrim(reason)) >= 10),
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_historical_corrections_year
+  ON historical_corrections(academic_year_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_historical_corrections_student
+  ON historical_corrections(student_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_historical_corrections_actor
+  ON historical_corrections(actor_id, created_at DESC);
+
+ALTER TABLE historical_corrections ENABLE ROW LEVEL SECURITY;
+
+-- Admin-read only. Writes go exclusively through the service-role client in the
+-- correction path, so no INSERT/UPDATE/DELETE policy is granted to any role —
+-- same posture as student_status_history (087) and export_events (091). An
+-- audit row that the actor it describes could edit would be worthless.
+DROP POLICY IF EXISTS "Admins read historical_corrections" ON historical_corrections;
+CREATE POLICY "Admins read historical_corrections"
+  ON historical_corrections FOR SELECT
+  USING (public.get_user_role() = 'admin');

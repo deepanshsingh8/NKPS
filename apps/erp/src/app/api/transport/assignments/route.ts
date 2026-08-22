@@ -21,12 +21,18 @@ import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
  * world-readable by policy and stay on the client, where they load in parallel
  * with this request.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const admin = await verifyAdminOrEditor("transport");
     if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // An explicit ?academic_year_id= overrides the active-year rule below, so
+    // the page's session picker can show a past year's assignments.
+    const requestedYearId = new URL(request.url).searchParams.get(
+      "academic_year_id"
+    );
 
     // Active year: prefer is_current, else newest by name — same rule the page
     // applied client-side, kept here so the fallback survives a year switch
@@ -45,7 +51,11 @@ export async function GET() {
     }
 
     const years = yearsData ?? [];
-    const year = years.find((y) => y.is_current) ?? years[0] ?? null;
+    const year =
+      (requestedYearId ? years.find((y) => y.id === requestedYearId) : null) ??
+      years.find((y) => y.is_current) ??
+      years[0] ??
+      null;
 
     if (!year) {
       return NextResponse.json({ year: null, enrollments: [], fees: [] });
@@ -57,7 +67,7 @@ export async function GET() {
       admin
         .from("student_enrollments")
         .select(
-          "id, student_id, class_id, has_transport, bus_stop_id, bus_id, transport_direction, transport_fee_override, pickup_address, students(full_name, admission_no), classes(name, section, streams(name))"
+          "id, student_id, class_id, status, has_transport, bus_stop_id, bus_id, transport_direction, transport_fee_override, pickup_address, students(full_name, admission_no), classes(name, section, streams(name))"
         )
         .eq("academic_year_id", year.id)
         .range(0, 9999),

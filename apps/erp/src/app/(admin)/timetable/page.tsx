@@ -5,6 +5,8 @@ import Link from "next/link";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { Button } from "@nkps/shared/components/ui/button";
+import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
+import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import {
@@ -98,13 +100,20 @@ export default function AdminTimetablePage() {
     room: "",
   });
 
-  useEffect(() => {
+const session = useAcademicSession();
+  const sessionId = session.sessionId;
+
+    useEffect(() => {
     async function fetchData() {
-      const { data: currentYear } = await supabase
+      // Period templates and teacher assignments are year-scoped, so the
+      // grid follows the session picker.
+      let yearQuery = supabase
         .from("academic_years")
-        .select("id, name, start_date, end_date")
-        .eq("is_current", true)
-        .single();
+        .select("id, name, start_date, end_date");
+      yearQuery = sessionId
+        ? yearQuery.eq("id", sessionId)
+        : yearQuery.eq("is_current", true);
+      const { data: currentYear } = await yearQuery.maybeSingle();
 
       if (currentYear) {
         setAcademicYear(currentYear as AcademicYearInfo);
@@ -139,7 +148,7 @@ export default function AdminTimetablePage() {
 
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sessionId]);
 
   const fetchPeriods = useCallback(async () => {
     if (!selectedClassId) {
@@ -312,7 +321,8 @@ export default function AdminTimetablePage() {
         <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Timetable
         </h1>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          <AcademicSessionPicker state={session} />
           <Link
             href="/timetable/templates"
             className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 dark:border-border px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-muted"
