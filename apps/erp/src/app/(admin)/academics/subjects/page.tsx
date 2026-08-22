@@ -50,7 +50,8 @@ import {
   Sparkles,
   Upload,
 } from "lucide-react";
-import { adminApi } from "@nkps/shared/lib/admin-api";
+import { adminApi, fetchRowDependencies } from "@nkps/shared/lib/admin-api";
+import { describeDependencies } from "@nkps/shared/lib/row-dependencies";
 import { cn, formatClassName } from "@nkps/shared/lib/utils";
 import QuickSetupWizard from "@/components/QuickSetupWizard";
 import { SubjectBulkUpload } from "@/components/SubjectBulkUpload";
@@ -108,6 +109,7 @@ export default function AdminSubjectsPage() {
   const [category, setCategory] = useState<"languages" | "academic" | "co_curricular" | "">("");
   const [isElective, setIsElective] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [deletingSubjectId, setDeletingSubjectId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editCode, setEditCode] = useState("");
   const [editNickname, setEditNickname] = useState("");
@@ -178,6 +180,9 @@ export default function AdminSubjectsPage() {
 
     if (error) {
       toast.error("Failed to fetch subjects");
+      // Still clear the flag — leaving it set renders a spinner forever with
+      // no way back except a reload.
+      setSubjectsLoading(false);
       return;
     }
 
@@ -486,7 +491,7 @@ export default function AdminSubjectsPage() {
     });
 
     if (!result.success) {
-      toast.error("Failed to update subject");
+      toast.error(result.error || "Failed to update subject");
       return;
     }
 
@@ -497,23 +502,46 @@ export default function AdminSubjectsPage() {
     await fetchAssignmentsData();
   };
 
-  const handleDeleteSubject = async (id: string) => {
-    if (!confirm("Delete this subject? This will also remove all class assignments for this subject.")) return;
+  // Deleting a subject fans out through ten foreign keys, so the admin sees
+  // what it costs before confirming rather than a bare failure afterwards.
+  // The proxy enforces the same rule server-side — this is only the message.
+  const handleDeleteSubject = async (subject: Subject) => {
+    setDeletingSubjectId(subject.id);
+    const deps = await fetchRowDependencies("subjects", subject.id);
+    setDeletingSubjectId(null);
 
+    if (deps && deps.blockingTotal > 0) {
+      toast.error(
+        `"${subject.name}" has ${describeDependencies(deps.blocking)} recorded against it. Deleting it would erase them — deactivate the subject instead.`,
+        { duration: 10000 }
+      );
+      return;
+    }
+
+    const willRemove = deps ? describeDependencies(deps.cascade) : "";
+    const consequence = willRemove
+      ? `This also removes ${willRemove}.`
+      : "This also removes its class assignments, stream links and timetable periods.";
+    if (!confirm(`Delete the subject "${subject.name}"?\n\n${consequence}\n\nThis cannot be undone.`))
+      return;
+
+    setDeletingSubjectId(subject.id);
     const result = await adminApi({
       action: "delete",
       table: "subjects",
-      match: { column: "id", value: id },
+      match: { column: "id", value: subject.id },
     });
+    setDeletingSubjectId(null);
 
     if (!result.success) {
-      toast.error("Failed to delete subject");
+      toast.error(result.error || "Failed to delete subject", { duration: 10000 });
       return;
     }
 
     toast.success("Subject deleted");
     await fetchSubjects();
     await fetchAssignmentsData();
+    await fetchStreams();
   };
 
   // ══════════════════════════════════════════════
@@ -574,7 +602,7 @@ export default function AdminSubjectsPage() {
     });
 
     if (!result.success) {
-      toast.error("Failed to remove");
+      toast.error(result.error || "Failed to remove the assignment");
       return;
     }
 
@@ -847,18 +875,22 @@ export default function AdminSubjectsPage() {
   };
 
   const handleDeleteStream = async (stream: StreamWithSubjects) => {
-    const u = streamUsage[stream.id];
-    const inUse =
-      (u?.classes ?? 0) + (u?.subjects ?? 0) + (u?.fee_structures ?? 0);
-    if (inUse > 0) {
+    // The FKs into streams are ON DELETE SET NULL, so this never fails loudly
+    // — it just blanks the stream on every class, enrolment and fee row that
+    // used it. Check first and say so.
+    const deps = await fetchRowDependencies("streams", stream.id);
+    if (deps && deps.blockingTotal > 0) {
       toast.error(
-        `"${stream.name}" is used by ${u.classes} class(es), ${u.subjects} subject link(s) and ${u.fee_structures} fee row(s). Deactivate it instead — deleting would strand those records.`
+        `"${stream.name}" is still used by ${describeDependencies(deps.blocking)}. Deactivate it instead — deleting would strand those records.`,
+        { duration: 10000 }
       );
       return;
     }
+
+    const willRemove = deps ? describeDependencies(deps.cascade) : "";
     if (
       !confirm(
-        `Delete stream "${stream.name}"? This cannot be undone.`
+        `Delete the stream "${stream.name}"?${willRemove ? `\n\nThis also removes ${willRemove}.` : ""}\n\nThis cannot be undone.`
       )
     )
       return;
@@ -870,7 +902,7 @@ export default function AdminSubjectsPage() {
     });
 
     if (!result.success) {
-      toast.error("Failed to delete stream");
+      toast.error(result.error || "Failed to delete stream", { duration: 10000 });
       return;
     }
 
@@ -887,7 +919,7 @@ export default function AdminSubjectsPage() {
     });
 
     if (!result.success) {
-      toast.error("Failed to update stream");
+      toast.error(result.error || "Failed to update stream");
       return;
     }
 
@@ -1309,7 +1341,8 @@ export default function AdminSubjectsPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          onClick={() => handleDeleteSubject(subject.id)}
+                          onClick={() => handleDeleteSubject(subject)}
+                          disabled={deletingSubjectId === subject.id}
                           aria-label="Delete subject"
                           className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                         >

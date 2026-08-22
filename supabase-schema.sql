@@ -549,7 +549,10 @@ CREATE INDEX IF NOT EXISTS fee_payments_import_batch_idx
 CREATE TABLE timetable_periods (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   class_id uuid REFERENCES classes(id) ON DELETE CASCADE NOT NULL,
-  subject_id uuid REFERENCES subjects(id),
+  -- CASCADE matches every other FK into subjects(id). Left as the default
+  -- NO ACTION it blocked subject deletion outright (migration 088). Break
+  -- periods carry subject_id NULL and are unaffected.
+  subject_id uuid REFERENCES subjects(id) ON DELETE CASCADE,
   teacher_id uuid REFERENCES teachers(id),
   day_of_week integer NOT NULL CHECK (day_of_week BETWEEN 1 AND 6),
   period_number integer NOT NULL,
@@ -5693,3 +5696,175 @@ WHERE se.status <> 'active'
   AND NOT EXISTS (
     SELECT 1 FROM student_status_history h WHERE h.enrollment_id = se.id
   );
+
+-- =============================================================================
+-- Migration 089 — student custom-report fields
+-- (mirrored from scripts/migrations/erp/migration-089-student-report-fields.sql)
+-- =============================================================================
+-- Columns needed for the Custom Report Builder to reach parity with the old
+-- ERP's 111-field student report: government/board identifiers, contact &
+-- identity extras, admissions-desk fields, previous-school marks. All flat on
+-- `students` because each is one printable value per student; the moment one
+-- needs workflow it earns its own table. House is deliberately NOT here — it
+-- is per-session, so it lives on student_enrollments (migration 090).
+
+ALTER TABLE students
+  -- Government / board identifiers (PEN + APAAR are UDISE+ mandated).
+  ADD COLUMN IF NOT EXISTS pen_number text,
+  ADD COLUMN IF NOT EXISTS apaar_number text,
+  ADD COLUMN IF NOT EXISTS cbse_registration_no text,
+  ADD COLUMN IF NOT EXISTS nic_number text,
+  -- Contact & identity extras.
+  ADD COLUMN IF NOT EXISTS father_salutation text,
+  ADD COLUMN IF NOT EXISTS mother_salutation text,
+  ADD COLUMN IF NOT EXISTS district text,
+  ADD COLUMN IF NOT EXISTS state text,
+  ADD COLUMN IF NOT EXISTS place_of_birth text,
+  ADD COLUMN IF NOT EXISTS office_address text,
+  ADD COLUMN IF NOT EXISTS mother_office_address text,
+  ADD COLUMN IF NOT EXISTS mailing_address text,
+  -- A pointer to whichever mobile column receives SMS, not a copy of it.
+  ADD COLUMN IF NOT EXISTS sms_mobile_source text,
+  -- Community name; distinct from `category`, the reservation bucket.
+  ADD COLUMN IF NOT EXISTS caste text,
+  ADD COLUMN IF NOT EXISTS area_type text,
+  -- Admissions desk — flat reporting columns, not an admissions CRM.
+  ADD COLUMN IF NOT EXISTS registration_no text,
+  ADD COLUMN IF NOT EXISTS registration_date date,
+  ADD COLUMN IF NOT EXISTS form_no text,
+  ADD COLUMN IF NOT EXISTS admission_confirm_date date,
+  ADD COLUMN IF NOT EXISTS counsellor_name text,
+  ADD COLUMN IF NOT EXISTS counsellor_remark text,
+  ADD COLUMN IF NOT EXISTS staff_reference text,
+  -- Manual override for the New/Old classification derived from admission_date.
+  ADD COLUMN IF NOT EXISTS student_type text,
+  ADD COLUMN IF NOT EXISTS caution_money_receipt_no text,
+  ADD COLUMN IF NOT EXISTS caution_money_receipt_date date,
+  ADD COLUMN IF NOT EXISTS caution_money_amount numeric(12, 2),
+  -- Previous-school marks; completes the group that stopped at board_percentage.
+  ADD COLUMN IF NOT EXISTS previous_school_max_marks numeric(7, 2),
+  ADD COLUMN IF NOT EXISTS previous_school_obtained_marks numeric(7, 2),
+  ADD COLUMN IF NOT EXISTS previous_school_result text;
+
+ALTER TABLE students DROP CONSTRAINT IF EXISTS chk_students_father_salutation;
+ALTER TABLE students ADD CONSTRAINT chk_students_father_salutation CHECK (
+  father_salutation IS NULL
+  OR father_salutation IN ('mr', 'shri', 'dr', 'prof', 'late', 'capt', 'col')
+);
+
+ALTER TABLE students DROP CONSTRAINT IF EXISTS chk_students_mother_salutation;
+ALTER TABLE students ADD CONSTRAINT chk_students_mother_salutation CHECK (
+  mother_salutation IS NULL
+  OR mother_salutation IN ('mrs', 'ms', 'smt', 'dr', 'prof', 'late')
+);
+
+ALTER TABLE students DROP CONSTRAINT IF EXISTS chk_students_sms_mobile_source;
+ALTER TABLE students ADD CONSTRAINT chk_students_sms_mobile_source CHECK (
+  sms_mobile_source IS NULL
+  OR sms_mobile_source IN ('student', 'father', 'mother', 'guardian')
+);
+
+ALTER TABLE students DROP CONSTRAINT IF EXISTS chk_students_area_type;
+ALTER TABLE students ADD CONSTRAINT chk_students_area_type CHECK (
+  area_type IS NULL OR area_type IN ('rural', 'urban')
+);
+
+ALTER TABLE students DROP CONSTRAINT IF EXISTS chk_students_student_type;
+ALTER TABLE students ADD CONSTRAINT chk_students_student_type CHECK (
+  student_type IS NULL OR student_type IN ('new', 'old', 'transfer')
+);
+
+ALTER TABLE students DROP CONSTRAINT IF EXISTS chk_students_previous_marks;
+ALTER TABLE students ADD CONSTRAINT chk_students_previous_marks CHECK (
+  (previous_school_max_marks IS NULL OR previous_school_max_marks >= 0)
+  AND (previous_school_obtained_marks IS NULL OR previous_school_obtained_marks >= 0)
+  AND (
+    previous_school_max_marks IS NULL
+    OR previous_school_obtained_marks IS NULL
+    OR previous_school_obtained_marks <= previous_school_max_marks
+  )
+);
+
+ALTER TABLE students DROP CONSTRAINT IF EXISTS chk_students_caution_money_amount;
+ALTER TABLE students ADD CONSTRAINT chk_students_caution_money_amount CHECK (
+  caution_money_amount IS NULL OR caution_money_amount >= 0
+);
+
+-- PEN and APAAR are national identifiers: a duplicate is always a data-entry
+-- error, and it surfaces years later as a rejected board return. Partial so
+-- the common NULL stays unconstrained and the index stays small.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_students_pen_number_unique
+  ON students (pen_number) WHERE pen_number IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_students_apaar_number_unique
+  ON students (apaar_number) WHERE apaar_number IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_students_form_no
+  ON students (form_no) WHERE form_no IS NOT NULL;
+
+-- =============================================================================
+-- Migration 090 — houses master + per-session assignment
+-- (mirrored from scripts/migrations/erp/migration-090-houses.sql)
+-- =============================================================================
+-- house_id sits on student_enrollments, not students: a student's house is
+-- per-session, so a students-level column would print today's house against a
+-- three-year-old cohort in any historical report. A master table rather than
+-- free text because the old ERP's free-text list holds nine rows for four
+-- houses (YELLOW / "Yellow House" / "Ble" / GREEN / …), which made every
+-- house-wise total untrustworthy.
+
+CREATE TABLE IF NOT EXISTS houses (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       text NOT NULL,
+  code       text,
+  colour     text,
+  sort_order integer NOT NULL DEFAULT 0,
+  is_active  boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Case-insensitive: the whole point is to stop "RED" and "Red House" coexisting.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_houses_name_unique
+  ON houses (lower(btrim(name)));
+
+ALTER TABLE houses DROP CONSTRAINT IF EXISTS chk_houses_colour;
+ALTER TABLE houses ADD CONSTRAINT chk_houses_colour CHECK (
+  colour IS NULL OR colour ~ '^#[0-9A-Fa-f]{6}$'
+);
+
+-- SET NULL, not CASCADE: deleting a house must never delete an enrollment.
+ALTER TABLE student_enrollments
+  ADD COLUMN IF NOT EXISTS house_id uuid REFERENCES houses(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_student_enrollments_house
+  ON student_enrollments (house_id) WHERE house_id IS NOT NULL;
+
+ALTER TABLE houses ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public can read houses" ON houses;
+CREATE POLICY "Public can read houses"
+  ON houses FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Admins can insert houses" ON houses;
+CREATE POLICY "Admins can insert houses"
+  ON houses FOR INSERT
+  WITH CHECK (public.get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Admins can update houses" ON houses;
+CREATE POLICY "Admins can update houses"
+  ON houses FOR UPDATE
+  USING (public.get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Admins can delete houses" ON houses;
+CREATE POLICY "Admins can delete houses"
+  ON houses FOR DELETE
+  USING (public.get_user_role() = 'admin');
+
+INSERT INTO houses (name, code, colour, sort_order)
+VALUES
+  ('Red House',    'RED', '#DC2626', 1),
+  ('Blue House',   'BLU', '#2563EB', 2),
+  ('Green House',  'GRN', '#16A34A', 3),
+  ('Yellow House', 'YEL', '#CA8A04', 4)
+ON CONFLICT DO NOTHING;

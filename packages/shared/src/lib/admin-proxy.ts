@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import type { FeatureKey } from "@nkps/shared/lib/permissions";
+import {
+  ROW_DEPENDENCIES,
+  countRowDependencies,
+  describeDependencies,
+} from "@nkps/shared/lib/row-dependencies";
 
 // Generic admin DB write proxy. Each app (apps/erp, apps/cms) mounts its own
 // /api/admin route as a thin wrapper that calls createAdminProxyHandler with
@@ -163,6 +168,33 @@ export function createAdminProxyHandler(config: AdminProxyConfig) {
               { status: 400 }
             );
           }
+
+          // Refuse deletes that would cascade academic records away. The FKs
+          // pointing at these master tables are mostly ON DELETE CASCADE, so
+          // without this gate removing a subject silently takes every mark
+          // recorded against it. Deactivate is the intended action there, and
+          // the message says so. Keyed on `id` because the dependency map is
+          // written in terms of the master row's primary key.
+          if (ROW_DEPENDENCIES[table] && match.column === "id") {
+            const report = await countRowDependencies(
+              admin,
+              table,
+              String(match.value)
+            );
+            if (report.blockingTotal > 0) {
+              return NextResponse.json(
+                {
+                  error: `Cannot delete: this record still has ${describeDependencies(
+                    report.blocking
+                  )} linked to it. Deactivate it instead, or remove those records first.`,
+                  code: "HAS_DEPENDENTS",
+                  dependencies: report,
+                },
+                { status: 409 }
+              );
+            }
+          }
+
           result = await query
             .delete()
             .eq(match.column, match.value);

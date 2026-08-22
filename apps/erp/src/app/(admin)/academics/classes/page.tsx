@@ -35,7 +35,9 @@ import {
 } from "@nkps/shared/components/ui/data-table";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Loader2, Layers, ListOrdered } from "lucide-react";
-import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
+import { adminApi, adminFetch, fetchRowDependencies } from "@nkps/shared/lib/admin-api";
+import { describeDependencies } from "@nkps/shared/lib/row-dependencies";
+import { formatClassName } from "@nkps/shared/lib/utils";
 import type { Class, AcademicYear, Teacher, Stream } from "@nkps/shared/types";
 
 type RollSortKey = "name" | "admission_no" | "previous_rank";
@@ -192,18 +194,35 @@ export default function AdminClassesPage() {
     setSubmitting(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this class? This will also remove associated enrollments."))
+  // Almost everything filed under a class — enrolments, attendance, results,
+  // datesheets, the timetable — is ON DELETE CASCADE, so an unguarded delete
+  // erases a cohort's whole year. Ask the server what is at stake first.
+  const handleDelete = async (cls: ClassWithRelations) => {
+    const label = formatClassName(cls);
+    const deps = await fetchRowDependencies("classes", cls.id);
+
+    if (deps && deps.blockingTotal > 0) {
+      toast.error(
+        `${label} still has ${describeDependencies(deps.blocking)}. Deleting it would erase them — move the students out first.`,
+        { duration: 10000 }
+      );
       return;
+    }
+
+    const willRemove = deps ? describeDependencies(deps.cascade) : "";
+    const consequence = willRemove
+      ? `This also removes ${willRemove}.`
+      : "This also removes its subject assignments and timetable.";
+    if (!confirm(`Delete ${label}?\n\n${consequence}\n\nThis cannot be undone.`)) return;
 
     const result = await adminApi({
       action: "delete",
       table: "classes",
-      match: { column: "id", value: id },
+      match: { column: "id", value: cls.id },
     });
 
     if (!result.success) {
-      toast.error("Failed to delete class");
+      toast.error(result.error || "Failed to delete class", { duration: 10000 });
       return;
     }
 
@@ -393,7 +412,7 @@ export default function AdminClassesPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        onClick={() => handleDelete(cls.id)}
+                        onClick={() => handleDelete(cls)}
                         aria-label="Delete class"
                         className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                       >
