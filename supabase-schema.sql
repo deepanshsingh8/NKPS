@@ -3926,7 +3926,8 @@ CREATE POLICY "Parents read supplementary_attempts for own children"
   USING (student_id IN (SELECT public.get_my_children_ids()));
 
 -- ============================================
--- TEACHER ABSENCES + SUBSTITUTIONS (migration 031)
+-- TEACHER ABSENCES + SUBSTITUTIONS (migration 094)
+-- (mirrored from scripts/migrations/erp/migration-094-teacher-substitutions.sql)
 -- ============================================
 -- Planning layer on top of timetable_periods. teacher_absences records who
 -- is absent on which date (with optional half_day flag). substitutions

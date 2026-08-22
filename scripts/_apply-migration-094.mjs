@@ -1,7 +1,7 @@
-// Apply migration-031-teacher-substitutions.sql via the Supabase Postgres
+// Apply migration-094-teacher-substitutions.sql via the Supabase Postgres
 // connection. Uses the service role key.
 //
-// Run with: node --env-file=.env.local scripts/_apply-migration-031.mjs
+// Run with: node --env-file=.env.local scripts/_apply-migration-094.mjs
 //
 // Idempotent — the migration uses CREATE TABLE IF NOT EXISTS, DROP/CREATE
 // triggers, and DROP/CREATE policies, so re-running is safe.
@@ -16,7 +16,7 @@ if (!url || !key) {
 }
 
 const sql = readFileSync(
-  new URL("./migrations/erp/migration-031-teacher-substitutions.sql", import.meta.url),
+  new URL("./migrations/erp/migration-094-teacher-substitutions.sql", import.meta.url),
   "utf8"
 );
 
@@ -32,12 +32,12 @@ const sql = readFileSync(
 // so this script just prints clear instructions.
 
 console.log("=".repeat(70));
-console.log("Migration 031: Teacher Absences + Substitutions");
+console.log("Migration 094: Teacher Absences + Substitutions");
 console.log("=".repeat(70));
 console.log("\nThe Supabase JS client cannot run arbitrary DDL. Apply this");
 console.log("migration via one of:");
 console.log("  1. Supabase Studio → SQL editor → paste contents of");
-console.log("     scripts/migrations/erp/migration-031-teacher-substitutions.sql");
+console.log("     scripts/migrations/erp/migration-094-teacher-substitutions.sql");
 console.log("  2. psql against the project's Postgres connection string.");
 console.log("\nVerifying current state of the two tables…\n");
 

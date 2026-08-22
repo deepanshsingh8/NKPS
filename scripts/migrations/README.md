@@ -22,10 +22,24 @@ scripts/migrations/
 
 Numeric prefixes are global across folders — they are the chronological order
 in which the migrations were originally written and applied to production.
-Two-digit prefix collisions (`027-*`, `031-*`, `044-*`) are intentional; both
-files in each pair were applied independently and are kept under their original
-names. See `migration-043-db-hygiene-2.sql` for the reasoning on why we did not
-renumber them.
+Prefix collisions across *different* folders (`027-*` in `base/` + `erp/`,
+`044-*` in `cms/` + `erp/`) are tolerated: both files in each pair were applied
+independently, and because they sit in different tiers the interleave rule below
+still gives an unambiguous order. See `migration-043-db-hygiene-2.sql` for the
+reasoning on why we did not renumber those.
+
+A collision *within* a single folder is not tolerated -- ascending numeric order
+cannot resolve it. The one such case, `031-db-hygiene` + `031-teacher-
+substitutions` (both in `erp/`), was fixed on 2026-08-22 by renumbering the
+substitutions file to `094-teacher-substitutions.sql`; `031` still means
+db-hygiene. Check for new same-folder collisions with:
+
+```bash
+for d in scripts/migrations/*/; do ls "$d"*.sql 2>/dev/null | sed 's/.*migration-\([0-9]*\)-.*/\1/' | sort | uniq -d | sed "s|^|${d}|"; done
+```
+
+(Per folder on purpose -- a plain glob over `*/*.sql` would also flag the
+tolerated cross-folder `027-*` and `044-*` pairs.)
 
 ## Apply order
 
