@@ -1,4 +1,4 @@
--- Migration 089 — historical_corrections (what was changed in a closed session,
+-- Migration 092 — historical_corrections (what was changed in a closed session,
 -- by whom, and why).
 --
 -- The admin lists gain an academic-session selector, and with it the ability to
@@ -18,7 +18,7 @@
 -- number, a misspelt name. Those would have to be stuffed into its free-text
 -- `reason` and become unqueryable.
 --
--- ── Why not export_events (088) ────────────────────────────────────────────
+-- ── Why not export_events (091) ────────────────────────────────────────────
 -- Different act. That records data leaving; this records data changing.
 --
 -- ── Why the snapshots are jsonb, not columns ───────────────────────────────
@@ -64,7 +64,7 @@ ALTER TABLE historical_corrections ENABLE ROW LEVEL SECURITY;
 
 -- Admin-read only. Writes go exclusively through the service-role client in the
 -- correction path, so no INSERT/UPDATE/DELETE policy is granted to any role —
--- same posture as student_status_history (087) and export_events (088). An
+-- same posture as student_status_history (087) and export_events (091). An
 -- audit row that the actor it describes could edit would be worthless.
 DROP POLICY IF EXISTS "Admins read historical_corrections" ON historical_corrections;
 CREATE POLICY "Admins read historical_corrections"

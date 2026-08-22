@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
-import { adminApi } from "@nkps/shared/lib/admin-api";
+import { adminApi, fetchRowDependencies } from "@nkps/shared/lib/admin-api";
+import { describeDependencies } from "@nkps/shared/lib/row-dependencies";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
@@ -166,15 +167,26 @@ export default function StreamsPage() {
   };
 
   const handleDelete = async (s: Stream) => {
-    const u = usage[s.id];
-    const inUse = (u?.classes ?? 0) + (u?.subjects ?? 0) + (u?.fee_structures ?? 0);
-    if (inUse > 0) {
+    // The "Used by" column above is a summary built from what this page reads
+    // under RLS; the delete rule comes from the server so that this screen and
+    // the Streams tab of /academics/subjects can never disagree about whether
+    // the same stream is deletable.
+    const deps = await fetchRowDependencies("streams", s.id);
+    if (deps && deps.blockingTotal > 0) {
       toast.error(
-        `"${s.name}" is used by ${u.classes} class(es), ${u.subjects} subject link(s) and ${u.fee_structures} fee row(s). Deactivate it instead — deleting would strand those records.`
+        `"${s.name}" is used by ${describeDependencies(deps.blocking)}. Deactivate it instead — deleting would strand those records.`,
+        { duration: 10000 }
       );
       return;
     }
-    if (!confirm(`Delete the stream "${s.name}"? This cannot be undone.`)) return;
+
+    const willRemove = deps ? describeDependencies(deps.cascade) : "";
+    if (
+      !confirm(
+        `Delete the stream "${s.name}"?${willRemove ? `\n\nThis also removes ${willRemove}.` : ""}\n\nThis cannot be undone.`
+      )
+    )
+      return;
 
     const res = await adminApi({
       action: "delete",
@@ -182,7 +194,7 @@ export default function StreamsPage() {
       match: { column: "id", value: s.id },
     });
     if (!res.success) {
-      toast.error(res.error ?? "Failed to delete stream");
+      toast.error(res.error ?? "Failed to delete stream", { duration: 10000 });
       return;
     }
     toast.success("Stream deleted");

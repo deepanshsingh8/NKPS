@@ -1,4 +1,4 @@
--- Migration 088 — export_events (who downloaded which list, and how much of it).
+-- Migration 091 — export_events (who downloaded which list, and how much of it).
 --
 -- The admin lists gain a filter-then-download action across every section:
 -- students, staff, fees, transport, users. One click on the students list now
