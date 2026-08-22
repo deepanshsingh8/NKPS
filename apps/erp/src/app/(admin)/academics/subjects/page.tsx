@@ -163,8 +163,8 @@ export default function AdminSubjectsPage() {
   const [quickSetupOpen, setQuickSetupOpen] = useState(false);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
 
-  // §6 Math Standard/Advanced review banner
-  const [mathReviewCount, setMathReviewCount] = useState(0);
+  // §6 Math Standard/Basic review banner — names the classes still to reassign
+  const [mathReviewClasses, setMathReviewClasses] = useState<string[]>([]);
 
   // ══════════════════════════════════════════════
   // Data Fetching
@@ -185,8 +185,16 @@ export default function AdminSubjectsPage() {
     setSubjectsLoading(false);
   }, [supabase]);
 
-  // §6: Look for any plain "Mathematics" subject still linked to classes IX–XII.
-  // We never auto-reassign; admin must split into Standard/Advanced manually.
+  // §6: Look for the generic "Mathematics" subject still linked to Class X.
+  //
+  // Class X is the only place the split applies — that is where CBSE splits
+  // Mathematics into Standard (041) and Basic (241) for the board exam. Class
+  // IX teaches one common Mathematics, and in XI–XII the pair is Mathematics
+  // (041) / Applied Mathematics (241), where plain "Mathematics" is the correct
+  // name. Flagging IX–XII, as this once did, marks correct rows as broken and
+  // leaves the banner permanently unclearable.
+  //
+  // We never auto-reassign; the admin picks Standard or Basic per class.
   const fetchMathReviewState = useCallback(async () => {
     const { data: plainMath } = await supabase
       .from("subjects")
@@ -195,19 +203,22 @@ export default function AdminSubjectsPage() {
       .limit(1)
       .maybeSingle();
     if (!plainMath?.id) {
-      setMathReviewCount(0);
+      setMathReviewClasses([]);
       return;
     }
     const { data: linked } = await supabase
       .from("class_subjects")
-      .select("id, classes!inner(name)")
+      .select("id, classes!inner(name, section)")
       .eq("subject_id", plainMath.id);
-    const seniorLinked = (linked ?? []).filter((row) => {
-      const classes = (row as unknown as { classes: { name: string } | { name: string }[] | null }).classes;
-      const className = Array.isArray(classes) ? classes[0]?.name ?? "" : classes?.name ?? "";
-      return ["IX", "X", "XI", "XII"].includes(className);
+    const names = (linked ?? []).flatMap((row) => {
+      const raw = (row as unknown as {
+        classes: { name: string; section: string | null } | { name: string; section: string | null }[] | null;
+      }).classes;
+      const cls = Array.isArray(raw) ? raw[0] : raw;
+      if (cls?.name !== "X") return [];
+      return [cls.section ? `${cls.name}-${cls.section}` : cls.name];
     });
-    setMathReviewCount(seniorLinked.length);
+    setMathReviewClasses(names.sort());
   }, [supabase]);
 
   const fetchAssignmentsData = useCallback(async () => {
@@ -1161,14 +1172,14 @@ export default function AdminSubjectsPage() {
       {tab === "subjects" && (
         <div className="erp-table-container p-6">
           {/* §6 Math review banner */}
-          {mathReviewCount > 0 && (
+          {mathReviewClasses.length > 0 && (
             <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-              <strong>Action needed:</strong> {mathReviewCount} class–subject link
-              {mathReviewCount === 1 ? " is" : "s are"} still using the legacy{" "}
-              <span className="font-mono">Mathematics</span> subject for class IX–XII.
-              The CBSE structure now requires <em>Mathematics — Standard</em> or{" "}
-              <em>Mathematics — Advanced</em>. Please review and reassign in the
-              Assignments tab — these are not migrated automatically.
+              <strong>Action needed:</strong> {mathReviewClasses.join(", ")}{" "}
+              {mathReviewClasses.length === 1 ? "is" : "are"} still carrying the
+              generic <span className="font-mono">Mathematics</span> subject. From
+              Class X, CBSE splits it into Standard (041) and Basic (241) for the
+              board exam — reassign each class to the variant it offers, in the
+              Class Assignments tab. These are not migrated automatically.
             </div>
           )}
 
