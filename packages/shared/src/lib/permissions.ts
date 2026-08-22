@@ -43,7 +43,8 @@ export type FeatureKey =
   | "ptm_notes"
   | "ptm_format"
   | "supplementary_exams"
-  | "teacher_substitutions";
+  | "teacher_substitutions"
+  | "reports";
 
 export type FeatureGroup = "cms" | "erp";
 
@@ -87,6 +88,11 @@ export const FEATURE_CATALOG: readonly FeatureDef[] = [
   { key: "ptm_format", label: "PTM Format", href: "/exams/ptm-format", group: "erp" },
   { key: "supplementary_exams", label: "Supplementary Exams", href: "/exams/supplementary", group: "erp" },
   { key: "teacher_substitutions", label: "Substitutions", href: "/timetable/substitutions", group: "erp" },
+  // Strictly stronger than `students`: one screen can export every column
+  // of the student master. Sensitive columns are stripped server-side for
+  // non-admins (see report-fields.ts `sensitive`), so the grant is safe to
+  // offer — but review the field list before widening it.
+  { key: "reports", label: "Reports", href: "/reports", group: "erp" },
 ] as const;
 
 export const FEATURE_KEYS: readonly FeatureKey[] = FEATURE_CATALOG.map((f) => f.key);

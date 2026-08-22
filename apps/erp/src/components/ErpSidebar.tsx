@@ -151,6 +151,15 @@ const erpItems: SidebarItem[] = [
       { kind: "link", icon: FileText, label: "Period Templates", href: "/timetable/templates" },
     ],
   },
+  {
+    kind: "group",
+    icon: BarChart3,
+    label: "Reports",
+    landingHref: "/reports",
+    children: [
+      { kind: "link", icon: UserCheck, label: "Student Report", href: "/reports/students" },
+    ],
+  },
   { kind: "link", icon: Calendar, label: "Calendar", href: "/calendar" },
   { kind: "link", icon: CheckSquare, label: "Attendance", href: "/attendance" },
 ];

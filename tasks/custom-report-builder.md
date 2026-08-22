@@ -359,20 +359,30 @@ the registry means editing seven consumers twice.
 - [x] `scripts/_verify-report-fields.mts` — duplicate keys, `columns[]` validity,
       `resolve()` totality over a sparse row, sort/always/sensitive invariants.
       Caught `day_scholar` projecting off the wrong table on its first run.
-- [ ] `packages/shared/src/lib/report-filters.ts` — zod filter schema + defaults
+- [x] `packages/shared/src/lib/report-filters.ts` — zod filter schema + defaults,
+      shared verbatim by the form and the API
 
 ### Phase 3 — Query + API
-- [ ] `apps/erp/src/lib/report-query.ts` — builds the session-scoped enrollment-driven query, projecting only needed columns
-- [ ] `POST /api/reports/students/run` — Bearer-gated preview, paginated
-- [ ] `GET /api/reports/students/export` — cookie-gated download; **csv + xlsx + pdf**
-- [ ] PII gate: strip sensitive fields server-side for non-admins (§6.3) — the field picker hiding them is UI only, not a control
-- [ ] Export audit log (who, filters, field list, row count), modelled on `call_logs`
-- [ ] Verify a historical session (e.g. 2023-24) returns that session's class/roll, not today's
+- [x] `apps/erp/src/lib/report-query.ts` — session-scoped, enrollment-driven,
+      projects only the selected fields' columns
+- [x] `POST /api/reports/students/run` — Bearer-gated preview, paginated
+- [x] `POST /api/reports/students/export` — cookie-gated download; csv + xlsx
+      (POST not GET: the field list does not fit a URL, and a name search in a
+      query string lands in access logs). **PDF still to do.**
+- [x] PII gate: sensitive fields stripped server-side for non-admins, and the
+      count of withheld columns surfaced to the caller rather than silently dropped
+- [x] Export audit line (actor, session, format, field list, row count)
+- [ ] Promote the audit line to a table, modelled on `call_logs`
+- [ ] Verify against real data: a historical session (e.g. 2023-24) returns
+      that session's class/roll, not today's — needs a logged-in admin
 
 ### Phase 4 — UI
-- [ ] `/reports/students/page.tsx` — 4 filter tabs + grouped searchable field picker + preview table
-- [ ] URL-backed state; shared `Select` wrapper; no raw UUIDs anywhere
-- [ ] Sidebar `Reports` group + `permissions.ts` entry + middleware gate check
+- [x] `/reports/students` — 4 filter tabs + grouped searchable field picker
+      (the fix for 111 unlabelled checkboxes) + preview table
+- [x] `/reports` index page
+- [x] Session in the URL; shared `Select` wrapper with labels; no raw UUIDs
+- [x] Sidebar `Reports` group (grouped, not a new top-level entry) +
+      `permissions.ts` `reports` key + middleware gate verified (307 → /login)
 
 ### Phase 5 — Print (in the first release)
 - [ ] `ReportPDF` in `apps/erp/src/components/pdf/`, landscape, auto column widths, `pdf_header_configs` / `pdf_footer_configs` letterhead
