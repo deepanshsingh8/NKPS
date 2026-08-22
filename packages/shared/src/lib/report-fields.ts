@@ -42,6 +42,9 @@ export type ReportSource =
   | "transport"
   | "session"
   | "subjects"
+  | "fees"
+  | "attendance"
+  | "results"
   | "derived"
   | "blank";
 
@@ -60,6 +63,9 @@ export const REPORT_GROUPS = [
   "Transport",
   "Previous School",
   "Admissions",
+  "Fees",
+  "Attendance",
+  "Results",
   "Academics",
   "Print",
 ] as const;
@@ -78,6 +84,37 @@ export interface ReportRow {
   session: { name: string; start_date: string; end_date: string } | null;
   /** Subject names for this student in this session, already ordered. */
   subjects: string[] | null;
+  /** Fee position for the session. Computed with the SAME pure functions the
+   *  Dues screen uses (lib/fees.ts), just fed from batched data — so these
+   *  numbers cannot drift from the ones there. */
+  fees: {
+    billed: number;
+    paid: number;
+    balance: number;
+    waived: number;
+    lastPaymentDate: string | null;
+    lastReceiptNo: string | null;
+    paymentCount: number;
+  } | null;
+  /** Attendance tallied over the session's date range. */
+  attendance: {
+    present: number;
+    absent: number;
+    late: number;
+    halfDay: number;
+    total: number;
+    /** Null when nothing was ever marked — a literal 0% would read as
+     *  "never attended once", which is a different and much worse claim. */
+    percent: number | null;
+  } | null;
+  /** Marks aggregated across every exam recorded for the session. */
+  results: {
+    obtained: number;
+    max: number;
+    percent: number | null;
+    subjectCount: number;
+    examCount: number;
+  } | null;
   /** 1-based position in the final, sorted result set. */
   serial: number;
 }
@@ -514,6 +551,218 @@ const EXTRA_FIELDS: ReportField[] = [
     resolve: (row) => text(row.enrollment?.transport_direction),
   },
 
+  // ── Fees ──
+  // Labelled "(Session)" deliberately. These answer "what was billed and paid
+  // for THIS academic year", because that is the only question a session-scoped
+  // report can answer coherently. The Dues screen answers a different one —
+  // what a family owes overall, right now, across every year — and the two
+  // figures will legitimately differ for a student with carried-over arrears.
+  // Unlabelled columns would invite someone to treat them as the same number.
+  //
+  // Money is `numeric` in Postgres, so these arrive as numbers already rounded
+  // by the maths in lib/fees.ts. They are NOT re-rounded or formatted here:
+  // a report that prints ₹ or thousands separators cannot be summed in Excel,
+  // which is the first thing anyone does with a fee sheet.
+  {
+    key: "fee_billed",
+    label: "Fees Billed (Session)",
+    group: "Fees",
+    source: "fees",
+    sortable: true,
+    numeric: true,
+    width: 12,
+    resolve: (row) => row.fees?.billed ?? null,
+  },
+  {
+    key: "fee_paid",
+    label: "Fees Paid (Session)",
+    group: "Fees",
+    source: "fees",
+    sortable: true,
+    numeric: true,
+    width: 12,
+    resolve: (row) => row.fees?.paid ?? null,
+  },
+  {
+    key: "fee_balance",
+    label: "Balance Due (Session)",
+    group: "Fees",
+    source: "fees",
+    sortable: true,
+    numeric: true,
+    width: 12,
+    resolve: (row) => row.fees?.balance ?? null,
+  },
+  {
+    key: "fee_waived",
+    label: "Concession",
+    group: "Fees",
+    source: "fees",
+    sortable: true,
+    numeric: true,
+    width: 12,
+    resolve: (row) => row.fees?.waived ?? null,
+  },
+  {
+    key: "fee_status",
+    label: "Fee Status",
+    group: "Fees",
+    source: "fees",
+    sortable: true,
+    width: 10,
+    // Sub-rupee remainders count as settled, matching the dues gate — a
+    // student must not read as "Due" over a rounding artefact.
+    resolve: (row) =>
+      row.fees === null ? null : row.fees.balance >= 1 ? "Due" : "Clear",
+  },
+  {
+    key: "fee_last_payment_date",
+    label: "Last Payment Date",
+    group: "Fees",
+    source: "fees",
+    sortable: true,
+    width: 16,
+    resolve: (row) => row.fees?.lastPaymentDate ?? null,
+  },
+  {
+    key: "fee_last_receipt_no",
+    label: "Last Receipt No",
+    group: "Fees",
+    source: "fees",
+    sortable: true,
+    width: 14,
+    resolve: (row) => row.fees?.lastReceiptNo ?? null,
+  },
+  {
+    key: "fee_payment_count",
+    label: "Payments",
+    group: "Fees",
+    source: "fees",
+    sortable: true,
+    numeric: true,
+    width: 9,
+    resolve: (row) => row.fees?.paymentCount ?? null,
+  },
+
+  // ── Attendance ──
+  {
+    key: "attendance_present",
+    label: "Days Present",
+    group: "Attendance",
+    source: "attendance",
+    sortable: true,
+    numeric: true,
+    width: 11,
+    resolve: (row) => row.attendance?.present ?? null,
+  },
+  {
+    key: "attendance_absent",
+    label: "Days Absent",
+    group: "Attendance",
+    source: "attendance",
+    sortable: true,
+    numeric: true,
+    width: 11,
+    resolve: (row) => row.attendance?.absent ?? null,
+  },
+  {
+    key: "attendance_late",
+    label: "Days Late",
+    group: "Attendance",
+    source: "attendance",
+    sortable: true,
+    numeric: true,
+    width: 10,
+    resolve: (row) => row.attendance?.late ?? null,
+  },
+  {
+    key: "attendance_half_day",
+    label: "Half Days",
+    group: "Attendance",
+    source: "attendance",
+    sortable: true,
+    numeric: true,
+    width: 10,
+    resolve: (row) => row.attendance?.halfDay ?? null,
+  },
+  {
+    key: "attendance_total",
+    label: "Days Marked",
+    group: "Attendance",
+    source: "attendance",
+    sortable: true,
+    numeric: true,
+    width: 11,
+    resolve: (row) => row.attendance?.total ?? null,
+  },
+  {
+    key: "attendance_percent",
+    label: "Attendance %",
+    group: "Attendance",
+    source: "attendance",
+    sortable: true,
+    numeric: true,
+    width: 12,
+    resolve: (row) => row.attendance?.percent ?? null,
+  },
+
+  // ── Results ──
+  // A whole-session aggregate across every exam recorded, which is what a
+  // list-style report can honestly show. The authoritative per-student
+  // outcome — pass/fail, grades, rank, supplementary — comes from
+  // computeFinalResult() and lives on the report card and green sheet, which
+  // is where anyone deciding a student's fate should be looking.
+  {
+    key: "result_obtained",
+    label: "Marks Obtained",
+    group: "Results",
+    source: "results",
+    sortable: true,
+    numeric: true,
+    width: 13,
+    resolve: (row) => row.results?.obtained ?? null,
+  },
+  {
+    key: "result_max",
+    label: "Maximum Marks",
+    group: "Results",
+    source: "results",
+    sortable: true,
+    numeric: true,
+    width: 13,
+    resolve: (row) => row.results?.max ?? null,
+  },
+  {
+    key: "result_percent",
+    label: "Percentage",
+    group: "Results",
+    source: "results",
+    sortable: true,
+    numeric: true,
+    width: 11,
+    resolve: (row) => row.results?.percent ?? null,
+  },
+  {
+    key: "result_subject_count",
+    label: "Subjects Graded",
+    group: "Results",
+    source: "results",
+    sortable: true,
+    numeric: true,
+    width: 13,
+    resolve: (row) => row.results?.subjectCount ?? null,
+  },
+  {
+    key: "result_exam_count",
+    label: "Exams Recorded",
+    group: "Results",
+    source: "results",
+    sortable: true,
+    numeric: true,
+    width: 13,
+    resolve: (row) => row.results?.examCount ?? null,
+  },
+
   // ── Print-only ──
   // Empty columns so a printed sheet has room to write in by hand. The old
   // ERP shipped exactly three and they are used constantly — attendance ticks
@@ -619,4 +868,69 @@ export function enrollmentColumnsFor(fields: readonly ReportField[]): string[] {
 /** True when the selection needs the per-student subject join at all. */
 export function needsSubjects(fields: readonly ReportField[]): boolean {
   return fields.some((f) => f.source === "subjects");
+}
+
+/**
+ * Which of the expensive optional joins this selection actually needs.
+ *
+ * Each of these costs extra queries and a per-student computation, so they are
+ * skipped entirely unless a selected field reads from them. A contact sheet
+ * must not pay for the fee maths.
+ */
+export function needsJoins(fields: readonly ReportField[]): {
+  subjects: boolean;
+  fees: boolean;
+  attendance: boolean;
+  results: boolean;
+} {
+  return {
+    subjects: fields.some((f) => f.source === "subjects"),
+    fees: fields.some((f) => f.source === "fees"),
+    attendance: fields.some((f) => f.source === "attendance"),
+    results: fields.some((f) => f.source === "results"),
+  };
+}
+
+/**
+ * Field keys that make up each themed report, used by the `?focus=` entry
+ * points on /reports. They are a starting selection, not a restriction — the
+ * picker stays fully open once the page loads, so "Fee Report" is a shortcut
+ * into the one builder rather than a separate, weaker screen.
+ */
+export const REPORT_FOCUSES = {
+  fees: {
+    label: "Fee Report",
+    fields: [
+      "admission_no", "class_section", "father_name", "father_mobile",
+      "fee_billed", "fee_paid", "fee_waived", "fee_balance", "fee_status",
+      "fee_last_payment_date",
+    ],
+    sort_by: "fee_balance",
+    sort_dir: "desc" as const,
+  },
+  attendance: {
+    label: "Attendance Report",
+    fields: [
+      "admission_no", "class_section", "roll_number",
+      "attendance_present", "attendance_absent", "attendance_total",
+      "attendance_percent",
+    ],
+    sort_by: "attendance_percent",
+    sort_dir: "asc" as const,
+  },
+  results: {
+    label: "Result Report",
+    fields: [
+      "admission_no", "class_section", "roll_number",
+      "result_obtained", "result_max", "result_percent", "result_subject_count",
+    ],
+    sort_by: "result_percent",
+    sort_dir: "desc" as const,
+  },
+} as const;
+
+export type ReportFocus = keyof typeof REPORT_FOCUSES;
+
+export function isReportFocus(v: unknown): v is ReportFocus {
+  return typeof v === "string" && v in REPORT_FOCUSES;
 }

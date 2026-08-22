@@ -158,6 +158,9 @@ const erpItems: SidebarItem[] = [
     landingHref: "/reports",
     children: [
       { kind: "link", icon: UserCheck, label: "Student Report", href: "/reports/students" },
+      { kind: "link", icon: ReceiptText, label: "Fee Report", href: "/reports/students?focus=fees" },
+      { kind: "link", icon: CheckSquare, label: "Attendance Report", href: "/reports/students?focus=attendance" },
+      { kind: "link", icon: BarChart3, label: "Result Report", href: "/reports/students?focus=results" },
     ],
   },
   { kind: "link", icon: Calendar, label: "Calendar", href: "/calendar" },
