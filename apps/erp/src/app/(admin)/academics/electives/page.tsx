@@ -194,7 +194,8 @@ export default function ElectivesPage() {
       method: "DELETE",
     });
     if (!res.ok) {
-      toast.error("Failed to remove");
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error || "Failed to remove option");
       return;
     }
     await refresh();
@@ -207,7 +208,10 @@ export default function ElectivesPage() {
         `/api/electives/students?student_id=${studentId}&slot=${slot}`,
         { method: "DELETE" }
       );
-      if (!res.ok) toast.error("Failed to clear pick");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Failed to clear pick");
+      }
     } else {
       const res = await adminFetch("/api/electives/students", {
         method: "POST",
