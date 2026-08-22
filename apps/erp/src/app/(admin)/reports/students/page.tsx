@@ -61,6 +61,16 @@ interface Option {
   section?: string | null;
 }
 
+/**
+ * A class chip. `stream_name` matters: XI and XII exist once per stream, so
+ * "XI - A" alone renders three identical, unpickable chips (Arts, Science,
+ * Commerce). formatClassName() appends the stream when there is one.
+ */
+interface ClassOption extends Option {
+  section: string;
+  stream_name: string | null;
+}
+
 interface Preset {
   id: string;
   name: string;
@@ -100,7 +110,7 @@ export default function StudentReportPage() {
   const supabase = useMemo(() => createClient(), []);
 
   const [years, setYears] = useState<Option[]>([]);
-  const [classes, setClasses] = useState<Option[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
   const [streams, setStreams] = useState<Option[]>([]);
   const [houses, setHouses] = useState<Option[]>([]);
   const [subjects, setSubjects] = useState<Option[]>([]);
@@ -183,11 +193,27 @@ export default function StudentReportPage() {
     (async () => {
       const { data } = await supabase
         .from("classes")
-        .select("id, name, section")
+        .select("id, name, section, sort_order, streams(name)")
         .eq("academic_year_id", sessionId)
         .order("sort_order");
       if (cancelled) return;
-      setClasses((data ?? []) as Option[]);
+      setClasses(
+        (data ?? []).map((c) => {
+          const row = c as unknown as {
+            id: string;
+            name: string;
+            section: string | null;
+            streams: { name: string } | { name: string }[] | null;
+          };
+          const rel = row.streams;
+          return {
+            id: row.id,
+            name: row.name,
+            section: row.section ?? "",
+            stream_name: (Array.isArray(rel) ? rel[0]?.name : rel?.name) ?? null,
+          };
+        })
+      );
       setFilters((f) => ({ ...f, session_id: sessionId, class_ids: [] }));
       setPreview(null);
     })();
@@ -196,6 +222,24 @@ export default function StudentReportPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  // Chips grouped by class name: "XI" then its three stream sections, rather
+  // than 30 undifferentiated pills in one wrap. Insertion order is preserved,
+  // and the query already sorts by sort_order, so classes stay in school order.
+  const classGroups = useMemo(() => {
+    const groups = new Map<string, ClassOption[]>();
+    for (const c of classes) {
+      const list = groups.get(c.name) ?? [];
+      list.push(c);
+      groups.set(c.name, list);
+    }
+    return [...groups.entries()].map(([name, items]) => ({ name, items }));
+  }, [classes]);
+
+  const selectedClassIds = useMemo(
+    () => new Set(filters.class_ids ?? []),
+    [filters.class_ids]
+  );
 
   // ── Presets ───────────────────────────────────────────────────────────────
   const loadPresets = useCallback(async () => {
@@ -622,44 +666,116 @@ export default function StudentReportPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-xs">
-                    Classes{" "}
-                    <span className="text-muted-foreground">
-                      (none = all classes)
-                    </span>
-                  </Label>
-                  <div className="flex flex-wrap gap-1.5 rounded-md border p-2">
+                <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">
+                      Classes{" "}
+                      <span className="font-normal text-muted-foreground">
+                        {selectedClassIds.size === 0
+                          ? "— none selected, so all classes"
+                          : `— ${selectedClassIds.size} selected`}
+                      </span>
+                    </Label>
+                    {classes.length > 0 && (
+                      <div className="flex gap-3 text-xs">
+                        <button
+                          type="button"
+                          className="text-blue-600 hover:underline"
+                          onClick={() => set("class_ids", classes.map((c) => c.id))}
+                        >
+                          Select all
+                        </button>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-red-600"
+                          onClick={() => set("class_ids", [])}
+                          disabled={selectedClassIds.size === 0}
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1 rounded-md border p-2">
                     {classes.length === 0 && (
                       <span className="px-1 text-xs text-muted-foreground">
                         No classes in this session
                       </span>
                     )}
-                    {classes.map((c) => {
-                      const on = (filters.class_ids ?? []).includes(c.id);
+                    {classGroups.map((group) => {
+                      const allOn =
+                        group.items.length > 0 &&
+                        group.items.every((c) => selectedClassIds.has(c.id));
                       return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() =>
-                            set(
-                              "class_ids",
-                              on
-                                ? (filters.class_ids ?? []).filter((id) => id !== c.id)
-                                : [...(filters.class_ids ?? []), c.id]
-                            )
-                          }
-                          className={`rounded-full border px-2.5 py-1 text-xs transition ${
-                            on
-                              ? "border-blue-600 bg-blue-600 text-white"
-                              : "border-gray-300 bg-white hover:border-blue-400"
-                          }`}
+                        <div
+                          key={group.name}
+                          className="flex items-center gap-2 rounded px-1 py-0.5 hover:bg-gray-50"
                         >
-                          {formatClassName({
-                            name: c.name,
-                            section: c.section ?? "",
-                          })}
-                        </button>
+                          {/* Clicking the class name takes all its sections and
+                              streams at once — the common case for XI/XII. */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ids = group.items.map((c) => c.id);
+                              set(
+                                "class_ids",
+                                allOn
+                                  ? (filters.class_ids ?? []).filter(
+                                      (id) => !ids.includes(id)
+                                    )
+                                  : [
+                                      ...(filters.class_ids ?? []),
+                                      ...ids.filter((id) => !selectedClassIds.has(id)),
+                                    ]
+                              );
+                            }}
+                            className={`w-16 shrink-0 rounded px-1.5 py-1 text-left text-xs font-medium transition ${
+                              allOn
+                                ? "text-blue-700"
+                                : "text-gray-600 hover:text-blue-600"
+                            }`}
+                            title={`Select all of ${group.name}`}
+                          >
+                            {group.name}
+                          </button>
+                          <div className="flex flex-wrap gap-1.5">
+                            {group.items.map((c) => {
+                              const on = selectedClassIds.has(c.id);
+                              // formatClassName appends "(Science)" etc., which
+                              // is what makes the three XI-A rows distinct.
+                              const label = formatClassName({
+                                name: c.name,
+                                section: c.section,
+                                stream_name: c.stream_name,
+                              });
+                              return (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() =>
+                                    set(
+                                      "class_ids",
+                                      on
+                                        ? (filters.class_ids ?? []).filter(
+                                            (id) => id !== c.id
+                                          )
+                                        : [...(filters.class_ids ?? []), c.id]
+                                    )
+                                  }
+                                  className={`rounded-full border px-2.5 py-1 text-xs transition ${
+                                    on
+                                      ? "border-blue-600 bg-blue-600 text-white"
+                                      : "border-gray-300 bg-white hover:border-blue-400"
+                                  }`}
+                                >
+                                  {/* The class name is already the row label. */}
+                                  {label.replace(`${c.name} - `, "")}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
