@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
         admin
           .from("student_enrollments")
           .select(
-            "student_id, roll_number, roll_number_manual, id, class_id, stream_id, status, status_reason, status_changed_at, academic_year_id, updated_at, has_transport, bus_stop_id, transport_direction, classes(name, section)"
+            "student_id, roll_number, roll_number_manual, id, class_id, stream_id, house_id, status, status_reason, status_changed_at, academic_year_id, updated_at, has_transport, bus_stop_id, transport_direction, classes(name, section)"
           )
           .range(0, 9999),
       ]);
@@ -161,6 +161,7 @@ export async function GET(request: NextRequest) {
           enrollment_id: enrollment?.id ?? null,
           class_id: enrollment?.class_id ?? null,
           stream_id: enrollment?.stream_id ?? null,
+          house_id: enrollment?.house_id ?? null,
           enrollment_status: enrollment?.status ?? null,
           // The representative enrollment may belong to a PAST year (a student
           // with no current-year row). The client needs to know, because a
@@ -188,7 +189,7 @@ export async function GET(request: NextRequest) {
     const { data: enrollments, error: enrollError } = await admin
       .from("student_enrollments")
       .select(
-        "id, student_id, roll_number, roll_number_manual, class_id, stream_id, status, status_reason, status_changed_at, has_transport, bus_stop_id, transport_direction"
+        "id, student_id, roll_number, roll_number_manual, class_id, stream_id, house_id, status, status_reason, status_changed_at, has_transport, bus_stop_id, transport_direction"
       )
       .eq("class_id", classId);
 
@@ -256,6 +257,7 @@ export async function GET(request: NextRequest) {
         enrollment_id: enrollment?.id ?? null,
         class_id: enrollment?.class_id ?? null,
         stream_id: enrollment?.stream_id ?? null,
+        house_id: enrollment?.house_id ?? null,
         enrollment_status: enrollment?.status ?? null,
         status_reason: e?.status_reason ?? null,
         status_changed_at: e?.status_changed_at ?? null,
@@ -288,7 +290,7 @@ export async function POST(request: NextRequest) {
     // stream_id; lower classes have none). We derive it from the class below so
     // the enrollment can never hold a stream that contradicts the class. Any
     // client-sent stream_id falls into studentFields and is stripped by zod.
-    const { class_id, roll_number, roll_number_manual, ...studentFields } = body;
+    const { class_id, roll_number, roll_number_manual, house_id, ...studentFields } = body;
 
     const result = studentSchema.safeParse(studentFields);
     if (!result.success) {
@@ -351,6 +353,9 @@ export async function POST(request: NextRequest) {
           roll_number_manual: roll_number_manual === true,
           // Stream follows the class, authoritatively (see destructure note).
           stream_id: classRow.stream_id ?? null,
+          // House is per-session and caller-chosen, unlike stream: a student
+          // can be in any house regardless of which class they sit in.
+          house_id: house_id || null,
         });
 
       if (enrollError) {
@@ -386,7 +391,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     // stream_id is derived from the class, never trusted from the client (see
     // the POST note) — a client-sent stream_id lands in `fields` and zod strips it.
-    const { id, enrollment_id, roll_number, roll_number_manual, class_id, ...fields } = body;
+    const { id, enrollment_id, roll_number, roll_number_manual, class_id, house_id, ...fields } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Student id required" }, { status: 400 });
@@ -510,7 +515,8 @@ export async function PATCH(request: NextRequest) {
         const touchesEnrollment =
           class_id !== undefined ||
           roll_number !== undefined ||
-          roll_number_manual !== undefined;
+          roll_number_manual !== undefined ||
+          house_id !== undefined;
 
         if (!touchesEnrollment) {
           // Profile-only edit. The profile already saved above; leave the
@@ -583,6 +589,12 @@ export async function PATCH(request: NextRequest) {
       }
       if (roll_number_manual !== undefined) {
         enrollmentUpdate.roll_number_manual = roll_number_manual === true;
+      }
+      // Only when the key is present: an edit that never touched the house
+      // control must not clear a house someone set elsewhere. Blank means
+      // "no house", which is a legitimate value.
+      if (house_id !== undefined) {
+        enrollmentUpdate.house_id = house_id || null;
       }
 
       if (class_id) {

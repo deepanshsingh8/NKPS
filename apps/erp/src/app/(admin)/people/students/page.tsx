@@ -128,6 +128,8 @@ interface StudentRow extends Student {
   enrollment_id: string | null;
   class_id?: string | null;
   stream_id?: string | null;
+  /** Per-session house (migration 090). Lives on the enrollment, like class. */
+  house_id?: string | null;
   enrollment_status?: EnrollmentStatus | null;
   // Which session the representative enrollment belongs to. A student with no
   // current-year row surfaces a PAST year's record, which the API treats as
@@ -480,6 +482,7 @@ export default function AdminStudentsPage() {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [streams, setStreams] = useState<Stream[]>([]);
+  const [houses, setHouses] = useState<{ id: string; name: string }[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [loading, setLoading] = useState(true);
   // Filter state lives in the URL so back-navigation restores it (UX-1).
@@ -587,6 +590,11 @@ export default function AdminStudentsPage() {
       .from("academic_years")
       .select("id, name, is_current")
       .order("name", { ascending: false });
+    const housesPromise = supabase
+      .from("houses")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("sort_order");
 
     // Fetch classes for the current academic year
     const { data: years } = await supabase
@@ -616,12 +624,13 @@ export default function AdminStudentsPage() {
 
     // Streams (for higher-class enrolment) and the academic-year list (for
     // promotion) were requested above and are already in flight.
-    const [{ data: streamsData }, { data: allYears }] = await Promise.all([
-      streamsPromise,
-      allYearsPromise,
-    ]);
+    const [{ data: streamsData }, { data: allYears }, { data: houseRows }] =
+      await Promise.all([streamsPromise, allYearsPromise, housesPromise]);
     setStreams((streamsData as Stream[]) ?? []);
     setAcademicYears((allYears as AcademicYear[]) ?? []);
+    // Empty until migration 090 is applied; the form control degrades to
+    // "No house" rather than erroring.
+    setHouses((houseRows as { id: string; name: string }[]) ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -986,6 +995,7 @@ export default function AdminStudentsPage() {
           roll_number: formData.roll_number || undefined,
           roll_number_manual: formData.roll_number_manual,
           stream_id: formData.stream_id || undefined,
+          house_id: formData.house_id || null,
           ...buildStudentPayload(formData),
         }),
       });
@@ -1033,6 +1043,7 @@ export default function AdminStudentsPage() {
           stream_id: formData.stream_id,
           roll_number: formData.roll_number || undefined,
           roll_number_manual: formData.roll_number_manual,
+          house_id: formData.house_id || null,
           ...buildStudentPayload(formData),
         }),
       });
@@ -1474,6 +1485,7 @@ export default function AdminStudentsPage() {
         setFormData={setFormData}
         classes={classes}
         streams={streams}
+        houses={houses}
         errors={formErrors}
       />
 

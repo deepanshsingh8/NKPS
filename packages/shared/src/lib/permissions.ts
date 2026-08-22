@@ -147,6 +147,9 @@ const PATH_FEATURE_OVERRIDES: ReadonlyArray<readonly [string, FeatureKey]> = [
   // Master data behind classes: streams drive class setup, subject
   // assignment and per-stream fee schedules.
   ["/academics/streams", "classes"],
+  // Houses are class-adjacent master data. Without this the path has no
+  // feature key, and per the note above that means any editor can open it.
+  ["/academics/houses", "classes"],
   // Elective slots are subject configuration for XI–XII.
   ["/academics/electives", "subjects"],
   // Timetable tooling that lives outside /timetable's own href.

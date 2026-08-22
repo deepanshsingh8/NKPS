@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
+import { promises as fs } from "fs";
+import path from "path";
+import { renderToBuffer } from "@react-pdf/renderer";
 import { createClient } from "@nkps/shared/lib/supabase/server";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { contentDispositionAttachment, csvEscape } from "@nkps/shared/lib/utils";
@@ -13,8 +16,32 @@ import {
   applyFieldVisibility,
 } from "@nkps/shared/lib/report-fields";
 import { runStudentReport, toMatrix, ReportQueryError } from "@/lib/report-query";
+import { getPdfTemplate } from "@/lib/pdf-templates";
+import { ReportPDF } from "@/components/pdf/ReportPDF";
 
 export const runtime = "nodejs";
+
+/**
+ * Hard cap on PDF columns. Past this the landscape A4 grid gives each column
+ * under ~13mm and every value wraps to unreadable slivers. Excel has no such
+ * limit, so the error says so rather than silently producing a bad sheet.
+ */
+const PDF_MAX_COLUMNS = 20;
+
+let cachedLogo: Buffer | null = null;
+async function loadLogo(): Promise<Buffer | null> {
+  if (cachedLogo) return cachedLogo;
+  try {
+    cachedLogo = await fs.readFile(
+      path.join(process.cwd(), "public", "images", "logo.png")
+    );
+    return cachedLogo;
+  } catch {
+    // A missing logo must not fail the export — the header just renders
+    // without it.
+    return null;
+  }
+}
 
 /**
  * POST /api/reports/students/export?format=csv|xlsx
@@ -66,7 +93,7 @@ export async function POST(request: Request) {
   // ── Request ───────────────────────────────────────────────────────────────
   const format = (new URL(request.url).searchParams.get("format") ??
     "csv") as ReportExportFormat;
-  if (!REPORT_EXPORT_FORMATS.includes(format) || format === "pdf") {
+  if (!REPORT_EXPORT_FORMATS.includes(format)) {
     return NextResponse.json(
       { error: `Unsupported format: ${format}` },
       { status: 400 }
@@ -142,6 +169,73 @@ export async function POST(request: Request) {
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": contentDispositionAttachment(`${filename}.csv`),
         "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  if (format === "pdf") {
+    if (fields.length > PDF_MAX_COLUMNS) {
+      return NextResponse.json(
+        {
+          error:
+            `${fields.length} columns is too many to print legibly ` +
+            `(limit ${PDF_MAX_COLUMNS}). Narrow the selection, or export to Excel.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const { header, footer } = await getPdfTemplate(supabase, "student_report");
+    const logoData = await loadLogo();
+
+    // Describe the filters in words on the sheet itself. A printed list with
+    // no visible scope cannot be filed or checked later — the reader has no
+    // way to know which session or classes produced it.
+    const scope = [`Session ${result.session.name}`];
+    if (result.classLabels.length) {
+      scope.push(`Classes: ${result.classLabels.join(", ")}`);
+    }
+    scope.push(
+      filters.statuses.length === 1
+        ? `${filters.statuses[0]} students`
+        : `Status: ${filters.statuses.join(", ")}`
+    );
+
+    const buffer = await renderToBuffer(
+      <ReportPDF
+        school={{
+          name: header.school_name,
+          address_line: header.address_line,
+          affiliation: header.affiliation,
+          affiliation_number: header.affiliation_number,
+        }}
+        title="Student Custom Report"
+        subtitle={scope.join("  ·  ")}
+        columns={fields.map((f) => ({
+          label: f.label,
+          width: f.width ?? 14,
+          numeric: f.numeric ?? false,
+          blank: f.source === "blank",
+        }))}
+        rows={cells}
+        logoData={logoData ?? undefined}
+        generatedOn={new Date().toLocaleString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+        footerNote={footer.disclaimer_text}
+      />
+    );
+
+    return new NextResponse(new Uint8Array(buffer), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": contentDispositionAttachment(`${filename}.pdf`),
+        "Cache-Control": "private, no-store",
       },
     });
   }

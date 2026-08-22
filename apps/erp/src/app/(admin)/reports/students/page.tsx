@@ -28,9 +28,12 @@ import { toast } from "sonner";
 import {
   Download,
   FileSpreadsheet,
+  FileText,
   Loader2,
   Play,
+  Save,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import {
@@ -43,6 +46,7 @@ import {
 import {
   ENROLLMENT_STATUSES,
   emptyReportFilters,
+  type ReportExportFormat,
   type ReportFiltersInput,
   type TriState,
 } from "@nkps/shared/lib/report-filters";
@@ -53,6 +57,16 @@ interface Option {
   id: string;
   name: string;
   section?: string | null;
+}
+
+interface Preset {
+  id: string;
+  name: string;
+  filters: Record<string, unknown>;
+  fields: string[];
+  is_shared: boolean;
+  can_edit: boolean;
+  is_system: boolean;
 }
 
 interface PreviewState {
@@ -74,8 +88,11 @@ const FILTER_TABS = [
 /** Preview page size. Exports are unpaged. */
 const PREVIEW_ROWS = 50;
 
-/** Columns above which a print/PDF layout stops being readable. */
+/** Columns above which a print/PDF layout starts to get tight. */
 const WIDE_REPORT_COLUMNS = 12;
+
+/** Hard PDF limit. Must match PDF_MAX_COLUMNS in the export route. */
+const PDF_MAX_COLUMNS = 20;
 
 export default function StudentReportPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -103,9 +120,14 @@ export default function StudentReportPage() {
   const [fieldSearch, setFieldSearch] = useState("");
   const [tab, setTab] = useState<(typeof FILTER_TABS)[number]["key"]>("basics");
 
+  const [presets, setPresets] = useState<Preset[]>([]);
+  const [activePresetId, setActivePresetId] = useState("");
+  const [presetName, setPresetName] = useState("");
+  const [savingPreset, setSavingPreset] = useState(false);
+
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [running, setRunning] = useState(false);
-  const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
+  const [exporting, setExporting] = useState<ReportExportFormat | null>(null);
 
   // ── Masters ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -163,6 +185,101 @@ export default function StudentReportPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  // ── Presets ───────────────────────────────────────────────────────────────
+  const loadPresets = useCallback(async () => {
+    try {
+      const res = await adminFetch("/api/reports/presets");
+      const json = await res.json();
+      if (res.ok) setPresets(json.data ?? []);
+    } catch {
+      // A preset list that fails to load must not block the builder itself.
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPresets();
+  }, [loadPresets]);
+
+  const applyPreset = useCallback(
+    (id: string) => {
+      const preset = presets.find((p) => p.id === id);
+      if (!preset) return;
+      setActivePresetId(id);
+      setPresetName(preset.can_edit ? preset.name : `${preset.name} (copy)`);
+      setSelected(preset.fields);
+      // The stored session id is deliberately discarded in favour of whatever
+      // the picker currently holds, so "Contact Sheet" works in any year
+      // instead of silently reporting on the year it was saved in.
+      setFilters({
+        ...emptyReportFilters(sessionId ?? ""),
+        ...(preset.filters as Partial<ReportFiltersInput>),
+        session_id: sessionId ?? "",
+      });
+      setPreview(null);
+      toast.success(`Loaded “${preset.name}”`);
+    },
+    [presets, sessionId]
+  );
+
+  const savePreset = useCallback(async () => {
+    const name = presetName.trim();
+    if (!name) {
+      toast.error("Give the preset a name");
+      return;
+    }
+    setSavingPreset(true);
+    try {
+      const res = await adminFetch("/api/reports/presets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          entity: "students",
+          // Session is stripped before saving: a preset is a shape, not a year.
+          filters: { ...filters, session_id: undefined },
+          fields: selected,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "Failed to save preset");
+        return;
+      }
+      toast.success(`Saved “${name}”`);
+      setActivePresetId(json.data.id);
+      await loadPresets();
+    } catch {
+      toast.error("Failed to save preset");
+    } finally {
+      setSavingPreset(false);
+    }
+  }, [presetName, filters, selected, loadPresets]);
+
+  const deletePreset = useCallback(async () => {
+    const preset = presets.find((p) => p.id === activePresetId);
+    if (!preset) return;
+    if (!confirm(`Delete the preset “${preset.name}”?`)) return;
+    try {
+      const res = await adminFetch(
+        `/api/reports/presets?id=${encodeURIComponent(preset.id)}`,
+        { method: "DELETE" }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(json.error ?? "Failed to delete preset");
+        return;
+      }
+      toast.success(`Deleted “${preset.name}”`);
+      setActivePresetId("");
+      setPresetName("");
+      await loadPresets();
+    } catch {
+      toast.error("Failed to delete preset");
+    }
+  }, [activePresetId, presets, loadPresets]);
+
+  const activePreset = presets.find((p) => p.id === activePresetId);
 
   // ── Field picker ──────────────────────────────────────────────────────────
   const selectedSet = useMemo(() => new Set(selected), [selected]);
@@ -247,7 +364,7 @@ export default function StudentReportPage() {
   }, [payload, sessionId]);
 
   const exportReport = useCallback(
-    async (format: "csv" | "xlsx") => {
+    async (format: ReportExportFormat) => {
       if (!sessionId) {
         toast.error("Pick a session first");
         return;
@@ -321,8 +438,11 @@ export default function StudentReportPage() {
     </div>
   );
 
-  const columnWarning =
-    selected.length + ALWAYS_FIELD_KEYS.length > WIDE_REPORT_COLUMNS;
+  const totalColumns = selected.length + ALWAYS_FIELD_KEYS.length;
+  const columnWarning = totalColumns > WIDE_REPORT_COLUMNS;
+  // Mirrors PDF_MAX_COLUMNS in the export route. Disabling the button beats
+  // letting the request 400 — the user learns the limit before they wait.
+  const tooWideToPrint = totalColumns > PDF_MAX_COLUMNS;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -369,7 +489,89 @@ export default function StudentReportPage() {
             )}
             Excel
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => exportReport("pdf")}
+            disabled={!!exporting || loadingMasters || tooWideToPrint}
+            title={
+              tooWideToPrint
+                ? `${totalColumns} columns is too many to print legibly — use Excel`
+                : undefined
+            }
+          >
+            {exporting === "pdf" ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FileText className="mr-2 h-4 w-4" />
+            )}
+            PDF
+          </Button>
         </div>
+      </div>
+
+      {/* ── Presets ── */}
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-white p-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Saved report</Label>
+          <Select value={activePresetId} onValueChange={(v) => applyPreset(v ?? "")}>
+            <SelectTrigger className="h-9 w-[240px]">
+              <SelectValue placeholder="Load a saved report…" />
+            </SelectTrigger>
+            <SelectContent>
+              {presets.length === 0 && (
+                <SelectItem value="" label="No saved reports" disabled>
+                  No saved reports yet
+                </SelectItem>
+              )}
+              {presets.map((p) => (
+                <SelectItem key={p.id} value={p.id} label={p.name}>
+                  {p.name}
+                  {p.is_shared ? " · shared" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Save current selection as</Label>
+          <Input
+            className="h-9 w-[220px]"
+            placeholder="e.g. Bus route contact list"
+            value={presetName}
+            onChange={(e) => setPresetName(e.target.value)}
+          />
+        </div>
+
+        <Button
+          variant="outline"
+          onClick={savePreset}
+          disabled={savingPreset || !presetName.trim()}
+        >
+          {savingPreset ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="mr-2 h-4 w-4" />
+          )}
+          Save
+        </Button>
+
+        {activePreset?.can_edit && (
+          <Button
+            variant="outline"
+            onClick={deletePreset}
+            className="text-red-600 hover:text-red-700"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
+          </Button>
+        )}
+
+        {activePreset?.is_system && (
+          <span className="pb-2 text-xs text-muted-foreground">
+            Built-in report — saving under a new name makes your own copy.
+          </span>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
@@ -771,7 +973,7 @@ export default function StudentReportPage() {
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Display / Print Fields</span>
               <Badge variant="secondary">
-                {selected.length + ALWAYS_FIELD_KEYS.length} selected
+                {totalColumns} selected
               </Badge>
             </div>
             {/* The old ERP's worst UI: 111 unlabelled checkboxes in a 200px
@@ -796,8 +998,8 @@ export default function StudentReportPage() {
             )}
             {columnWarning && (
               <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                {selected.length + ALWAYS_FIELD_KEYS.length} columns — fine for
-                Excel, too wide to print legibly.
+                {totalColumns} columns — fine for Excel
+                {tooWideToPrint ? ", too wide for PDF" : ", tight in print"}.
               </p>
             )}
           </div>

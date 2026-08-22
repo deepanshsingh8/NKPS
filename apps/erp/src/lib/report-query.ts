@@ -45,6 +45,10 @@ export interface ReportResult {
   /** Rows matching the filters, before paging. */
   total: number;
   session: { id: string; name: string; start_date: string; end_date: string };
+  /** Human-readable labels for the classes actually in scope. Used by the PDF
+   *  subtitle so a printed sheet says which classes it covers — a report with
+   *  no visible scope is unfileable. */
+  classLabels: string[];
 }
 
 export class ReportQueryError extends Error {
@@ -105,8 +109,21 @@ export async function runStudentReport(
   // A class filter that matches nothing in this session is an empty report,
   // not an error — the admin picked a class that did not run that year.
   if (classIds.length === 0) {
-    return { rows: [], total: 0, session: session as ReportResult["session"] };
+    return {
+      rows: [],
+      total: 0,
+      session: session as ReportResult["session"],
+      classLabels: [],
+    };
   }
+
+  // Only when the caller narrowed to specific classes — listing all 20 on a
+  // whole-school report would push the real filters off the page.
+  const classLabels = filters.class_ids.length
+    ? (classes ?? []).map((c) =>
+        c.section ? `${c.name}-${c.section}` : String(c.name)
+      )
+    : [];
 
   const classById = new Map(
     (classes ?? []).map((c) => [
@@ -131,7 +148,12 @@ export async function runStudentReport(
   const { data: enrollments, error: enrolError } = await enrolQuery;
   if (enrolError) throw new ReportQueryError("Failed to load enrollments", 500);
   if (!enrollments?.length) {
-    return { rows: [], total: 0, session: session as ReportResult["session"] };
+    return {
+      rows: [],
+      total: 0,
+      session: session as ReportResult["session"],
+      classLabels,
+    };
   }
 
   // ── 4. Students — filtered independently, merged below ────────────────────
@@ -288,7 +310,7 @@ export async function runStudentReport(
     row.serial = i + 1;
   });
 
-  return { rows: merged, total: merged.length, session: sessionInfo };
+  return { rows: merged, total: merged.length, session: sessionInfo, classLabels };
 }
 
 /**

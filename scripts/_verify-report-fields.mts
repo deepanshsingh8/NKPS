@@ -4,7 +4,7 @@
  *   npx tsx scripts/_verify-report-fields.mts
  *
  * There is no test runner in this repo, so this is the runnable equivalent:
- * it fails loudly (exit 1) on the four ways the registry can go wrong.
+ * it fails loudly (exit 1) on the five ways this can go wrong.
  *
  *  1. Duplicate keys — a saved preset would silently resolve to the wrong column.
  *  2. A `columns` entry that is not a real database column — the query would
@@ -12,8 +12,10 @@
  *  3. A `resolve` that throws on a sparse row — every join is nullable, and a
  *     student with no enrollment, house, stop or session is a normal row.
  *  4. Sort/always/sensitive invariants.
+ *  5. A seeded preset in migration 091 naming a field key that does not exist.
  */
 
+import { readFileSync } from "node:fs";
 import {
   REPORT_FIELDS,
   REPORT_GROUPS,
@@ -162,6 +164,23 @@ if (!enrollmentColumnsFor(minimal).includes("student_id")) fail("enrollmentColum
 const narrow = studentColumnsFor(minimal);
 if (narrow.includes("aadhar_number")) fail("minimal selection still projects aadhar_number");
 
+// ─── 5. Seeded preset field keys resolve ────────────────────────────────────
+// Migration 091 seeds two shared presets by field key. Unknown keys are
+// dropped silently on load, so a typo there costs a missing column with no
+// error anywhere — exactly the kind of thing only a check like this catches.
+const presetSql = readFileSync(
+  new URL("./migrations/erp/migration-091-report-presets.sql", import.meta.url),
+  "utf8"
+);
+const knownKeys = new Set(REPORT_FIELDS.map((f) => f.key));
+const seededKeys = [...presetSql.matchAll(/ARRAY\[([^\]]+)\]/g)].flatMap((m) =>
+  [...m[1].matchAll(/'([a-z0-9_]+)'/g)].map((k) => k[1])
+);
+if (seededKeys.length === 0) fail("could not parse any field keys out of migration 091");
+for (const key of seededKeys) {
+  if (!knownKeys.has(key)) fail(`migration 091 seeds unknown field key "${key}"`);
+}
+
 // ─── Report ─────────────────────────────────────────────────────────────────
 console.log(`fields          : ${REPORT_FIELDS.length}`);
 console.log(`  always-on     : ${ALWAYS_FIELD_KEYS.join(", ")}`);
@@ -169,6 +188,7 @@ console.log(`  sortable      : ${SORTABLE_FIELDS.length}`);
 console.log(`  sensitive     : ${sensitiveCount}`);
 console.log(`  groups        : ${REPORT_GROUPS.length}`);
 console.log(`projection for "Name only": ${narrow.join(", ")}`);
+console.log(`seeded preset keys : ${seededKeys.length} (all resolve)`);
 
 if (failures.length) {
   console.error(`\n${failures.length} FAILURE(S):`);

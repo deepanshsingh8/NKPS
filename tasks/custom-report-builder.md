@@ -314,7 +314,9 @@ left, field picker right, actions bottom-left.
 - [x] Which §2.3 gap fields get columns — **all four sets** (see §6.1)
 - [x] Editors may hold the `reports` grant — **yes, after a PII review of the field list**
 - [x] Launch formats — **CSV + XLSX + PDF together**
-- [ ] Confirm branch strategy against the in-flight export branch
+- [x] Branch strategy — built in an isolated worktree off `origin/main`
+      (which was 4 commits ahead of local). No overlap with the export branch
+      materialised: `csv-export.ts` and `STUDENT_CSV_COLUMNS` are untouched.
 
 ### Phase 1 — Schema gaps first
 Moved ahead of the registry: all four gap sets were approved (§6.1), and the
@@ -345,8 +347,11 @@ the registry means editing seven consumers twice.
 - [x] Verified: registry↔zod drift guard passes (94 fields, no gaps, no dupes);
       messy enum input normalizes to values the DB CHECKs accept; `tsc --noEmit`
       clean
-- [ ] `/academics/houses` UI for the houses master (small CRUD)
-- [ ] House assignment on the student form / bulk sheet
+- [x] `/academics/houses` UI for the houses master (CRUD, colour picker,
+      deactivate-vs-delete warning) + `/academics/houses` → `classes` in
+      `PATH_FEATURE_OVERRIDES` (an unmapped admin path is open to any editor)
+- [x] House assignment on the student form — a Select beside class and roll,
+      persisted to the enrollment by POST/PATCH `/api/students`
 
 > Scope note: the admissions-CRM fields land as **plain student columns for
 > reporting**, not a counsellor/lead-management subsystem. If they turn out to
@@ -357,7 +362,8 @@ the registry means editing seven consumers twice.
 - [x] `packages/shared/src/lib/report-fields.ts` — 116 fields (old ERP had 111),
       built off `STUDENT_TEMPLATE_FIELDS` + joined/derived/blank fields
 - [x] `scripts/_verify-report-fields.mts` — duplicate keys, `columns[]` validity,
-      `resolve()` totality over a sparse row, sort/always/sensitive invariants.
+      `resolve()` totality over a sparse row, sort/always/sensitive invariants,
+      and that every field key seeded by migration 091 actually resolves.
       Caught `day_scholar` projecting off the wrong table on its first run.
 - [x] `packages/shared/src/lib/report-filters.ts` — zod filter schema + defaults,
       shared verbatim by the form and the API
@@ -385,14 +391,20 @@ the registry means editing seven consumers twice.
       `permissions.ts` `reports` key + middleware gate verified (307 → /login)
 
 ### Phase 5 — Print (in the first release)
-- [ ] `ReportPDF` in `apps/erp/src/components/pdf/`, landscape, auto column widths, `pdf_header_configs` / `pdf_footer_configs` letterhead
-- [ ] `Blank-1/2/3` render as empty ruled cells
-- [ ] Guard rail: warn above ~12 columns, hard-cap what PDF will attempt
+- [x] `ReportPDF` — landscape A4, registry-driven column widths, letterhead
+      from `pdf_header_configs`, repeating header row, page numbers
+- [x] `Blank-1/2/3` render as empty ruled cells
+- [x] Guard rail: amber warning above 12 columns; PDF button disabled and the
+      route 400s above 20, naming Excel as the alternative
 
 ### Phase 6 — Presets
-- [ ] Migration 091 `report_presets` (+ mirror into `supabase-schema.sql`)
-- [ ] `/api/reports/presets` CRUD, ownership + `is_shared` enforced server-side
-- [ ] Save / load / rename / delete in the UI; seed the two shared presets
+- [x] Migration 091 `report_presets` (+ mirrored into `supabase-schema.sql`)
+- [x] `/api/reports/presets` CRUD — ownership and `is_shared` enforced in the
+      route (the service-role client bypasses RLS, so the policies are the
+      backstop, not the control)
+- [x] Save / load / delete in the UI; two seeded system presets (Contact Sheet,
+      UDISE+ Extract). Loading a preset takes the session from the picker, not
+      from the preset, so a saved report works in any year.
 
 ### Phase 7 — Beyond students
 - [ ] Same engine, new registries: Fee Report, Attendance Report, Result Report
