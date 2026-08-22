@@ -74,6 +74,13 @@ interface AssignmentRow {
   student_count: number;
 }
 
+// ── What else in the system points at a stream ──
+interface StreamUsage {
+  classes: number;
+  subjects: number;
+  fee_structures: number;
+}
+
 // ── Stream with its subject details ──
 interface StreamWithSubjects extends Stream {
   subjects: {
@@ -132,15 +139,18 @@ export default function AdminSubjectsPage() {
 
   // ── Streams state ──
   const [streams, setStreams] = useState<StreamWithSubjects[]>([]);
+  const [streamUsage, setStreamUsage] = useState<Record<string, StreamUsage>>({});
   const [streamsLoading, setStreamsLoading] = useState(true);
   const [streamDialogOpen, setStreamDialogOpen] = useState(false);
   const [streamSubmitting, setStreamSubmitting] = useState(false);
   const [streamName, setStreamName] = useState("");
   const [streamCode, setStreamCode] = useState("");
+  const [streamSortOrder, setStreamSortOrder] = useState(0);
   const [editingStream, setEditingStream] = useState<StreamWithSubjects | null>(null);
   const [editStreamDialogOpen, setEditStreamDialogOpen] = useState(false);
   const [editStreamName, setEditStreamName] = useState("");
   const [editStreamCode, setEditStreamCode] = useState("");
+  const [editStreamSortOrder, setEditStreamSortOrder] = useState(0);
   // Manage stream subjects dialog
   const [manageStreamSubjectsOpen, setManageStreamSubjectsOpen] = useState(false);
   const [managingStream, setManagingStream] = useState<StreamWithSubjects | null>(null);
@@ -297,10 +307,18 @@ export default function AdminSubjectsPage() {
 
     const streamsList = (streamsData as Stream[]) ?? [];
 
-    // Fetch stream_subjects with subject details
-    const { data: ssData } = await supabase
-      .from("stream_subjects")
-      .select("id, stream_id, subject_id, is_mandatory, subjects(name, code)");
+    // Stream subject links, plus everything else that points at a stream.
+    // The stream FK is ON DELETE SET NULL, so deleting a stream that classes
+    // or fee rows still reference would silently strand them — the counts have
+    // to be on screen before the delete button is.
+    const [{ data: ssData }, { data: classRows }, { data: feeRows }] =
+      await Promise.all([
+        supabase
+          .from("stream_subjects")
+          .select("id, stream_id, subject_id, is_mandatory, subjects(name, code)"),
+        supabase.from("classes").select("stream_id"),
+        supabase.from("fee_structures").select("stream_id"),
+      ]);
 
     const streamSubjectMap: Record<string, StreamWithSubjects["subjects"]> = {};
     if (ssData) {
@@ -324,7 +342,21 @@ export default function AdminSubjectsPage() {
       subjects: streamSubjectMap[s.id] ?? [],
     }));
 
+    const usage: Record<string, StreamUsage> = {};
+    const bump = (id: string | null, key: keyof StreamUsage) => {
+      if (!id) return;
+      usage[id] ??= { classes: 0, subjects: 0, fee_structures: 0 };
+      usage[id][key] += 1;
+    };
+    for (const c of (classRows ?? []) as Array<{ stream_id: string | null }>)
+      bump(c.stream_id, "classes");
+    for (const ss of (ssData ?? []) as unknown as Array<{ stream_id: string | null }>)
+      bump(ss.stream_id, "subjects");
+    for (const f of (feeRows ?? []) as Array<{ stream_id: string | null }>)
+      bump(f.stream_id, "fee_structures");
+
     setStreams(enrichedStreams);
+    setStreamUsage(usage);
     setStreamsLoading(false);
   }, [supabase]);
 
@@ -711,10 +743,25 @@ export default function AdminSubjectsPage() {
   // Stream CRUD
   // ══════════════════════════════════════════════
 
+  // Two streams sharing a name make every stream dropdown ambiguous, and the
+  // historical importers match on name — a duplicate would silently split one
+  // stream's data across two rows.
+  const duplicateStream = (name: string, ignoreId?: string) =>
+    streams.find(
+      (s) =>
+        s.id !== ignoreId && s.name.trim().toLowerCase() === name.toLowerCase()
+    );
+
   const handleCreateStream = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!streamName.trim()) {
+    const name = streamName.trim();
+    if (!name) {
       toast.error("Stream name is required");
+      return;
+    }
+    const clash = duplicateStream(name);
+    if (clash) {
+      toast.error(`A stream named "${clash.name}" already exists`);
       return;
     }
     setStreamSubmitting(true);
@@ -723,10 +770,10 @@ export default function AdminSubjectsPage() {
       action: "insert",
       table: "streams",
       data: {
-        name: streamName.trim(),
+        name,
         code: streamCode.trim() || null,
         is_active: true,
-        sort_order: streams.length + 1,
+        sort_order: Number(streamSortOrder) || 0,
       },
     });
 
@@ -737,6 +784,7 @@ export default function AdminSubjectsPage() {
       setStreamDialogOpen(false);
       setStreamName("");
       setStreamCode("");
+      setStreamSortOrder(0);
       await fetchStreams();
     }
     setStreamSubmitting(false);
@@ -746,14 +794,21 @@ export default function AdminSubjectsPage() {
     setEditingStream(stream);
     setEditStreamName(stream.name);
     setEditStreamCode(stream.code || "");
+    setEditStreamSortOrder(stream.sort_order ?? 0);
     setEditStreamDialogOpen(true);
   };
 
   const handleEditStream = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingStream) return;
-    if (!editStreamName.trim()) {
+    const name = editStreamName.trim();
+    if (!name) {
       toast.error("Stream name is required");
+      return;
+    }
+    const clash = duplicateStream(name, editingStream.id);
+    if (clash) {
+      toast.error(`A stream named "${clash.name}" already exists`);
       return;
     }
     setStreamSubmitting(true);
@@ -762,8 +817,9 @@ export default function AdminSubjectsPage() {
       action: "update",
       table: "streams",
       data: {
-        name: editStreamName.trim(),
+        name,
         code: editStreamCode.trim() || null,
+        sort_order: Number(editStreamSortOrder) || 0,
       },
       match: { column: "id", value: editingStream.id },
     });
@@ -780,9 +836,18 @@ export default function AdminSubjectsPage() {
   };
 
   const handleDeleteStream = async (stream: StreamWithSubjects) => {
+    const u = streamUsage[stream.id];
+    const inUse =
+      (u?.classes ?? 0) + (u?.subjects ?? 0) + (u?.fee_structures ?? 0);
+    if (inUse > 0) {
+      toast.error(
+        `"${stream.name}" is used by ${u.classes} class(es), ${u.subjects} subject link(s) and ${u.fee_structures} fee row(s). Deactivate it instead — deleting would strand those records.`
+      );
+      return;
+    }
     if (
       !confirm(
-        `Delete stream "${stream.name}"? Students with this stream will have their stream unset.`
+        `Delete stream "${stream.name}"? This cannot be undone.`
       )
     )
       return;
@@ -1035,6 +1100,11 @@ export default function AdminSubjectsPage() {
             onClick={() => {
               setStreamName("");
               setStreamCode("");
+              setStreamSortOrder(
+                streams.length
+                  ? Math.max(...streams.map((s) => s.sort_order ?? 0)) + 1
+                  : 0
+              );
               setStreamDialogOpen(true);
             }}
             className="bg-navy-900 hover:bg-navy-800 text-white"
@@ -1582,6 +1652,18 @@ export default function AdminSubjectsPage() {
                     )}
                   </div>
 
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-2 border-t border-gray-100 dark:border-border text-xs text-gray-500 dark:text-gray-400">
+                    <span>
+                      {streamUsage[stream.id]?.classes ?? 0} class
+                      {(streamUsage[stream.id]?.classes ?? 0) === 1 ? "" : "es"}
+                    </span>
+                    <span>
+                      {streamUsage[stream.id]?.fee_structures ?? 0} fee row
+                      {(streamUsage[stream.id]?.fee_structures ?? 0) === 1 ? "" : "s"}
+                    </span>
+                    <span className="ml-auto">Order {stream.sort_order ?? 0}</span>
+                  </div>
+
                   <div className="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-border">
                     <Button
                       variant="ghost"
@@ -2103,6 +2185,21 @@ export default function AdminSubjectsPage() {
                   placeholder="e.g. SCI"
                 />
               </div>
+              <div className="space-y-1">
+                <Label htmlFor="streamSortOrder" className="text-xs font-medium">
+                  Sort Order
+                </Label>
+                <Input
+                  id="streamSortOrder"
+                  type="number"
+                  className="h-9"
+                  value={streamSortOrder}
+                  onChange={(e) => setStreamSortOrder(Number(e.target.value))}
+                />
+                <p className="text-[11px] text-gray-400">
+                  Controls the order streams appear in dropdowns.
+                </p>
+              </div>
             </div>
 
             <DialogFooter>
@@ -2180,6 +2277,24 @@ export default function AdminSubjectsPage() {
                   onChange={(e) => setEditStreamCode(e.target.value)}
                   placeholder="e.g. SCI"
                 />
+              </div>
+              <div className="space-y-1">
+                <Label
+                  htmlFor="editStreamSortOrder"
+                  className="text-xs font-medium"
+                >
+                  Sort Order
+                </Label>
+                <Input
+                  id="editStreamSortOrder"
+                  type="number"
+                  className="h-9"
+                  value={editStreamSortOrder}
+                  onChange={(e) => setEditStreamSortOrder(Number(e.target.value))}
+                />
+                <p className="text-[11px] text-gray-400">
+                  Controls the order streams appear in dropdowns.
+                </p>
               </div>
             </div>
 
