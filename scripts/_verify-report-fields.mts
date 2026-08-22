@@ -17,6 +17,7 @@
 
 import { readFileSync } from "node:fs";
 import {
+  REPORT_FOCUSES,
   REPORT_FIELDS,
   REPORT_GROUPS,
   ALWAYS_FIELD_KEYS,
@@ -82,6 +83,9 @@ const emptyRow: ReportRow = {
   busStop: null,
   session: null,
   subjects: null,
+  fees: null,
+  attendance: null,
+  results: null,
   serial: 1,
 };
 
@@ -105,6 +109,16 @@ const fullRow: ReportRow = {
   busStop: { name: "Rajawas Chowk" },
   session: { name: "2026-2027", start_date: "2026-04-01", end_date: "2027-03-31" },
   subjects: ["Physics", "Chemistry", "Mathematics"],
+  fees: {
+    billed: 48000, paid: 30000, balance: 18000, waived: 2500,
+    lastPaymentDate: "2026-07-04", lastReceiptNo: "R-1042", paymentCount: 3,
+  },
+  attendance: {
+    present: 180, absent: 12, late: 4, halfDay: 4, total: 200, percent: 93,
+  },
+  results: {
+    obtained: 412, max: 500, percent: 82.4, subjectCount: 5, examCount: 2,
+  },
   serial: 1,
 };
 
@@ -181,6 +195,25 @@ for (const key of seededKeys) {
   if (!knownKeys.has(key)) fail(`migration 093 seeds unknown field key "${key}"`);
 }
 
+// ─── 6. Focus presets resolve ───────────────────────────────────────────────
+// Same failure mode as the seeded presets: REPORT_FOCUSES drives the Fee /
+// Attendance / Result entry points, and an unknown key there silently yields a
+// report missing the very column the entry point exists to show.
+let focusKeyCount = 0;
+for (const [name, focus] of Object.entries(REPORT_FOCUSES)) {
+  for (const key of focus.fields) {
+    focusKeyCount += 1;
+    if (!knownKeys.has(key)) fail(`focus "${name}" names unknown field key "${key}"`);
+  }
+  if (focus.sort_by && !knownKeys.has(focus.sort_by)) {
+    fail(`focus "${name}" sorts by unknown field key "${focus.sort_by}"`);
+  }
+  const sortField = REPORT_FIELDS.find((f) => f.key === focus.sort_by);
+  if (sortField && !sortField.sortable) {
+    fail(`focus "${name}" sorts by "${focus.sort_by}", which is not sortable`);
+  }
+}
+
 // ─── Report ─────────────────────────────────────────────────────────────────
 console.log(`fields          : ${REPORT_FIELDS.length}`);
 console.log(`  always-on     : ${ALWAYS_FIELD_KEYS.join(", ")}`);
@@ -189,6 +222,7 @@ console.log(`  sensitive     : ${sensitiveCount}`);
 console.log(`  groups        : ${REPORT_GROUPS.length}`);
 console.log(`projection for "Name only": ${narrow.join(", ")}`);
 console.log(`seeded preset keys : ${seededKeys.length} (all resolve)`);
+console.log(`focus preset keys  : ${focusKeyCount} across ${Object.keys(REPORT_FOCUSES).length} focuses (all resolve)`);
 
 if (failures.length) {
   console.error(`\n${failures.length} FAILURE(S):`);

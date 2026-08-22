@@ -39,8 +39,10 @@ import {
 import {
   REPORT_FIELDS,
   REPORT_GROUPS,
+  REPORT_FOCUSES,
   ALWAYS_FIELD_KEYS,
   SORTABLE_FIELDS,
+  isReportFocus,
   type ReportGroup,
 } from "@nkps/shared/lib/report-fields";
 import {
@@ -108,15 +110,24 @@ export default function StudentReportPage() {
   // selection deliberately does not — a 100-key query string is unusable, and
   // saved presets (a later phase) are the real answer to reusing a selection.
   const [sessionId, setSessionId] = useUrlState("session");
+  // ?focus=fees|attendance|results — the Fee / Attendance / Result entry points
+  // on /reports. A starting selection, not a restriction: the picker stays
+  // fully open, so these are shortcuts into the one builder rather than three
+  // separate, weaker screens. It also means a single sheet can combine fee
+  // balance, attendance % and class, which siloed reports could never do.
+  const [focus] = useUrlState("focus");
 
-  const [filters, setFilters] = useState<ReportFiltersInput>(() =>
-    emptyReportFilters("")
+  const [filters, setFilters] = useState<ReportFiltersInput>(() => {
+    const base = emptyReportFilters("");
+    if (!isReportFocus(focus)) return base;
+    const f = REPORT_FOCUSES[focus];
+    return { ...base, sort_by: f.sort_by, sort_dir: f.sort_dir };
+  });
+  const [selected, setSelected] = useState<string[]>(() =>
+    isReportFocus(focus)
+      ? [...REPORT_FOCUSES[focus].fields]
+      : ["admission_no", "class_section", "father_name"]
   );
-  const [selected, setSelected] = useState<string[]>([
-    "admission_no",
-    "class_section",
-    "father_name",
-  ]);
   const [fieldSearch, setFieldSearch] = useState("");
   const [tab, setTab] = useState<(typeof FILTER_TABS)[number]["key"]>("basics");
 
@@ -450,10 +461,13 @@ export default function StudentReportPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-semibold text-navy-900">
-            Student Custom Report
+            {isReportFocus(focus) ? REPORT_FOCUSES[focus].label : "Student Custom Report"}
           </h1>
           <p className="text-sm text-muted-foreground">
             Pick the students, pick the columns, get a sheet.
+            {isReportFocus(focus)
+              ? " Started from a suggested column set — change anything you like."
+              : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -864,6 +878,51 @@ export default function StudentReportPage() {
                   </Select>
                 </div>
                 {triState("Transport", "has_transport")}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Fee Status</Label>
+                  <Select
+                    value={filters.fee_status ?? "all"}
+                    onValueChange={(v) =>
+                      set("fee_status", (v ?? "all") as "all" | "due" | "clear")
+                    }
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all" label="All">All</SelectItem>
+                      <SelectItem value="due" label="Has dues">
+                        Has dues
+                      </SelectItem>
+                      <SelectItem value="clear" label="Cleared">
+                        Cleared
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Balance for this session
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Attendance below (%)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    className="h-9"
+                    placeholder="e.g. 75"
+                    value={filters.attendance_below ?? ""}
+                    onChange={(e) =>
+                      set(
+                        "attendance_below",
+                        e.target.value === "" ? "" : Number(e.target.value)
+                      )
+                    }
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Students with nothing marked are excluded
+                  </p>
+                </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">New / Old</Label>
                   <Select

@@ -104,6 +104,19 @@ export const reportFiltersSchema = z
     /** New = admitted within the session being reported on. */
     new_old: z.enum(["both", "new", "old"]).default("both"),
 
+    // ── Derived, applied after the joins ──
+    // These force the (expensive) fee / attendance joins to run even when no
+    // column from them was ticked, because you cannot filter on a number you
+    // did not compute. Both default to off so the common report stays cheap.
+    /** "due" = balance ≥ ₹1 for the session. Sub-rupee remainders are settled. */
+    fee_status: z.enum(["all", "due", "clear"]).default("all"),
+    /** Keep only students below this attendance percentage. */
+    attendance_below: z
+      .union([z.number(), z.literal("")])
+      .optional()
+      .transform((v) => (typeof v === "number" && Number.isFinite(v) ? v : undefined))
+      .pipe(z.number().min(0).max(100).optional()),
+
     // ── Output ──
     fields: z.array(z.string().max(64)).max(200).default([]),
     sort_by: optionalTrimmed,
@@ -161,6 +174,7 @@ export function emptyReportFilters(sessionId: string): ReportFiltersInput {
     is_cwsn: "both",
     is_staff_ward: "both",
     has_transport: "both",
+    fee_status: "all",
     fields: [],
     sort_dir: "asc",
     then_dir: "asc",
@@ -189,6 +203,8 @@ export function countActiveFilters(f: ReportFilters): number {
     if (v !== "both") n += 1;
   }
   if (f.new_old !== "both") n += 1;
+  if (f.fee_status !== "all") n += 1;
+  if (f.attendance_below !== undefined) n += 1;
   // Only counts once the caller has moved off the default.
   if (!(f.statuses.length === 1 && f.statuses[0] === "active")) n += 1;
   return n;

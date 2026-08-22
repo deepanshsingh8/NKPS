@@ -33,9 +33,30 @@ import {
   type ReportRow,
   studentColumnsFor,
   enrollmentColumnsFor,
-  needsSubjects,
+  needsJoins,
 } from "@nkps/shared/lib/report-fields";
 import type { ReportFilters, TriState } from "@nkps/shared/lib/report-filters";
+import type { FeeStructure, TransportDirection } from "@nkps/shared/types";
+import {
+  amountBilledToDate,
+  resolveEffectiveFeeLines,
+  resolveStudentType,
+  settledAmount,
+  type StopFeeLookup,
+} from "./fees";
+
+/**
+ * Enrollment columns the fee maths needs regardless of which fee field was
+ * ticked. Projected only when a fee column is actually selected, so a contact
+ * sheet still reads the narrow set.
+ */
+const FEE_ENROLLMENT_COLUMNS = [
+  "stream_id",
+  "has_transport",
+  "bus_stop_id",
+  "transport_direction",
+  "transport_fee_override",
+];
 
 /** PostgREST's default cap is 1000; every list query here must push past it. */
 const ROW_CAP = 19_999;
@@ -77,6 +98,14 @@ export async function runStudentReport(
   filters: ReportFilters,
   fields: readonly ReportField[]
 ): Promise<ReportResult> {
+  // Which optional joins to run. Normally driven by the selected columns, but
+  // a filter on a derived number needs that number computed even when the
+  // column itself was not ticked — you cannot filter on what you did not
+  // calculate. "Show me the defaulters, name and class only" is a real request.
+  const joins = needsJoins(fields);
+  if (filters.fee_status !== "all") joins.fees = true;
+  if (filters.attendance_below !== undefined) joins.attendance = true;
+
   // ── 1. Session ────────────────────────────────────────────────────────────
   // Fetched rather than trusted: its start/end dates drive the New/Old
   // derivation, and its name is a printable column.
@@ -133,9 +162,12 @@ export async function runStudentReport(
   );
 
   // ── 3. Enrollments — the driving table ────────────────────────────────────
+  const enrollmentColumns = new Set(enrollmentColumnsFor(fields));
+  if (joins.fees) for (const c of FEE_ENROLLMENT_COLUMNS) enrollmentColumns.add(c);
+
   let enrolQuery = admin
     .from("student_enrollments")
-    .select(enrollmentColumnsFor(fields).join(", "))
+    .select([...enrollmentColumns].join(", "))
     .eq("academic_year_id", session.id)
     .in("class_id", classIds)
     .in("status", filters.statuses)
@@ -157,9 +189,15 @@ export async function runStudentReport(
   }
 
   // ── 4. Students — filtered independently, merged below ────────────────────
+  const studentColumns = new Set(studentColumnsFor(fields));
+  // resolveStudentType() reads it: schedule rows can be restricted to newly
+  // admitted or returning students (migration 085), and billing a returning
+  // student for an admission fee would overstate their balance.
+  if (joins.fees) studentColumns.add("admission_date");
+
   let studentQuery = admin
     .from("students")
-    .select(studentColumnsFor(fields).join(", "))
+    .select([...studentColumns].join(", "))
     .range(0, ROW_CAP);
 
   // `ilike` with wrapped wildcards is the "contains" the old screen offered.
@@ -224,7 +262,7 @@ export async function runStudentReport(
   let subjectsByStudent: Map<string, string[]> | null = null;
   let studentsWithSubject: Set<string> | null = null;
 
-  if (needsSubjects(fields) || filters.subject_id) {
+  if (joins.subjects || filters.subject_id) {
     const { data: classSubjects } = await admin
       .from("class_subjects")
       .select("id, subject_id, subjects(name)")
@@ -263,8 +301,264 @@ export async function runStudentReport(
     for (const list of subjectsByStudent.values()) list.sort();
   }
 
-  // ── 7. Merge ──────────────────────────────────────────────────────────────
   const sessionInfo = session as ReportResult["session"];
+
+  // ── 6b. Fees, attendance and results — batched, and only on demand ────────
+  // Each is one or two set-based queries for the WHOLE cohort, not a per-student
+  // round trip. getStudentOutstandingDues() costs ~5 queries per student; across
+  // 900 students that is thousands of round trips. The pure functions it
+  // delegates to (lib/fees.ts) take plain data, so they are reused here
+  // verbatim — the numbers cannot diverge from the Dues screen's maths, only
+  // the fetching differs.
+
+  type FeeBlock = NonNullable<ReportRow["fees"]>;
+  const feesByStudent = new Map<string, FeeBlock>();
+
+  if (joins.fees) {
+    const today = new Date().toISOString().slice(0, 10);
+    const [structuresRes, stopFeesRes, paymentsRes] = await Promise.all([
+      admin
+        .from("fee_structures")
+        .select("*")
+        .eq("academic_year_id", sessionInfo.id)
+        .eq("is_active", true)
+        .range(0, ROW_CAP),
+      admin
+        .from("bus_stop_fees")
+        .select("bus_stop_id, amount, frequency, is_active, bus_stops(name)")
+        .eq("academic_year_id", sessionInfo.id)
+        .range(0, ROW_CAP),
+      // Scoped to the session on purpose: a report headed "2024-25" must not
+      // fold in a payment made towards 2025-26. That is why the columns are
+      // labelled "(Session)" — see the note in report-fields.ts.
+      admin
+        .from("fee_payments")
+        .select(
+          "student_id, fee_structure_id, amount_paid, waiver_amount, refund_amount, status, payment_date, receipt_number"
+        )
+        .eq("academic_year_id", sessionInfo.id)
+        .range(0, ROW_CAP),
+    ]);
+
+    // fee_structures addresses a class by NAME, not by class id.
+    const structuresByClassName = new Map<string, FeeStructure[]>();
+    for (const raw of structuresRes.data ?? []) {
+      const row = raw as unknown as FeeStructure & { class_name: string | null };
+      const key = String(row.class_name ?? "");
+      const list = structuresByClassName.get(key) ?? [];
+      list.push(row);
+      structuresByClassName.set(key, list);
+    }
+
+    const stopFeesByStop = new Map<string, StopFeeLookup[]>();
+    for (const raw of stopFeesRes.data ?? []) {
+      const row = raw as unknown as {
+        bus_stop_id: string;
+        amount: number | string;
+        frequency: string;
+        is_active: boolean;
+        bus_stops: { name: string } | { name: string }[] | null;
+      };
+      const rel = row.bus_stops;
+      const list = stopFeesByStop.get(row.bus_stop_id) ?? [];
+      list.push({
+        bus_stop_id: row.bus_stop_id,
+        stop_name: (Array.isArray(rel) ? rel[0]?.name : rel?.name) ?? "",
+        amount: row.amount,
+        frequency: row.frequency,
+        is_active: row.is_active,
+      });
+      stopFeesByStop.set(row.bus_stop_id, list);
+    }
+
+    interface PayRow {
+      student_id: string;
+      fee_structure_id: string | null;
+      amount_paid: number | string;
+      waiver_amount: number | string | null;
+      refund_amount: number | string | null;
+      status: string;
+      payment_date: string | null;
+      receipt_number: string | null;
+    }
+    const paymentsByStudent = new Map<string, PayRow[]>();
+    for (const raw of paymentsRes.data ?? []) {
+      const row = raw as unknown as PayRow;
+      const list = paymentsByStudent.get(row.student_id) ?? [];
+      list.push(row);
+      paymentsByStudent.set(row.student_id, list);
+    }
+
+    for (const raw of enrollments) {
+      const e = raw as unknown as Record<string, unknown>;
+      const studentId = e.student_id as string;
+      const student = studentById.get(studentId);
+      if (!student) continue;
+
+      const className = classById.get(e.class_id as string)?.name ?? "";
+      const busStopId = (e.bus_stop_id as string | null) ?? null;
+      const lines = resolveEffectiveFeeLines({
+        structures: structuresByClassName.get(className) ?? [],
+        studentStreamId: (e.stream_id as string | null) ?? null,
+        // Schedule rows can be restricted to newly-admitted or returning
+        // students (migration 085); billing a returning student for an
+        // admission fee would overstate their balance.
+        studentType: resolveStudentType(
+          (student.admission_date as string | null) ?? null,
+          { start_date: sessionInfo.start_date, end_date: sessionInfo.end_date }
+        ),
+        hasTransport: Boolean(e.has_transport),
+        busStopId,
+        direction: ((e.transport_direction as string | null) ??
+          "both") as TransportDirection,
+        feeOverride:
+          e.transport_fee_override != null ? Number(e.transport_fee_override) : null,
+        stopFees: busStopId ? stopFeesByStop.get(busStopId) ?? [] : [],
+      });
+
+      const billed = lines.reduce(
+        (sum, line) => sum + amountBilledToDate(line, today, sessionInfo.start_date),
+        0
+      );
+
+      const payments = (paymentsByStudent.get(studentId) ?? []).filter(
+        (p) => p.status === "paid" || p.status === "partial"
+      );
+      // settledAmount() nets off refunds — a refunded receipt must not still
+      // read as money received.
+      const paid = payments.reduce((sum, p) => sum + settledAmount(p), 0);
+      const waived = payments.reduce(
+        (sum, p) => sum + Number(p.waiver_amount ?? 0),
+        0
+      );
+
+      const dated = payments
+        .filter((p) => p.payment_date)
+        .sort((a, b) =>
+          String(a.payment_date).localeCompare(String(b.payment_date))
+        );
+      const latest = dated[dated.length - 1];
+
+      feesByStudent.set(studentId, {
+        billed: Math.round(billed),
+        paid: Math.round(paid),
+        balance: Math.max(0, Math.round(billed - paid)),
+        waived: Math.round(waived),
+        lastPaymentDate: latest?.payment_date ?? null,
+        lastReceiptNo: latest?.receipt_number ?? null,
+        paymentCount: payments.length,
+      });
+    }
+  }
+
+  type AttendanceBlock = NonNullable<ReportRow["attendance"]>;
+  const attendanceByStudent = new Map<string, AttendanceBlock>();
+
+  if (joins.attendance) {
+    const { data: marks } = await admin
+      .from("attendance")
+      .select("student_id, status")
+      .in("class_id", classIds)
+      .gte("date", sessionInfo.start_date)
+      .lte("date", sessionInfo.end_date)
+      .range(0, ROW_CAP);
+
+    for (const raw of marks ?? []) {
+      const row = raw as unknown as { student_id: string; status: string };
+      const acc = attendanceByStudent.get(row.student_id) ?? {
+        present: 0,
+        absent: 0,
+        late: 0,
+        halfDay: 0,
+        total: 0,
+        percent: null,
+      };
+      if (row.status === "present") acc.present += 1;
+      else if (row.status === "absent") acc.absent += 1;
+      else if (row.status === "late") acc.late += 1;
+      else if (row.status === "half_day") acc.halfDay += 1;
+      acc.total += 1;
+      attendanceByStudent.set(row.student_id, acc);
+    }
+
+    for (const acc of attendanceByStudent.values()) {
+      // Late still means the student was in the room, so it counts as
+      // attending; a half day counts as half. This matches how the school's
+      // own registers are totalled.
+      const credited = acc.present + acc.late + acc.halfDay * 0.5;
+      acc.percent =
+        acc.total > 0 ? Math.round((credited / acc.total) * 1000) / 10 : null;
+    }
+  }
+
+  type ResultBlock = NonNullable<ReportRow["results"]>;
+  const resultsByStudent = new Map<string, ResultBlock>();
+
+  if (joins.results) {
+    const { data: marks } = await admin
+      .from("results")
+      .select("student_id, subject_id, exam_type_id, marks_obtained, max_marks")
+      .in("class_id", classIds)
+      .range(0, ROW_CAP);
+
+    const seenSubjects = new Map<string, Set<string>>();
+    const seenExams = new Map<string, Set<string>>();
+
+    for (const raw of marks ?? []) {
+      const row = raw as unknown as {
+        student_id: string;
+        subject_id: string | null;
+        exam_type_id: string | null;
+        marks_obtained: number | string | null;
+        max_marks: number | string | null;
+      };
+      const obtained =
+        row.marks_obtained == null ? null : Number(row.marks_obtained);
+      const max = row.max_marks == null ? null : Number(row.max_marks);
+      // An ungraded or absent row carries a null mark. Counting its max_marks
+      // would drag the percentage down as though the student scored zero, so
+      // the row is skipped entirely rather than treated as a 0.
+      if (
+        obtained === null ||
+        max === null ||
+        !Number.isFinite(obtained) ||
+        !Number.isFinite(max)
+      ) {
+        continue;
+      }
+
+      const acc = resultsByStudent.get(row.student_id) ?? {
+        obtained: 0,
+        max: 0,
+        percent: null,
+        subjectCount: 0,
+        examCount: 0,
+      };
+      acc.obtained += obtained;
+      acc.max += max;
+      resultsByStudent.set(row.student_id, acc);
+
+      if (row.subject_id) {
+        const set = seenSubjects.get(row.student_id) ?? new Set<string>();
+        set.add(row.subject_id);
+        seenSubjects.set(row.student_id, set);
+      }
+      if (row.exam_type_id) {
+        const set = seenExams.get(row.student_id) ?? new Set<string>();
+        set.add(row.exam_type_id);
+        seenExams.set(row.student_id, set);
+      }
+    }
+
+    for (const [studentId, acc] of resultsByStudent) {
+      acc.subjectCount = seenSubjects.get(studentId)?.size ?? 0;
+      acc.examCount = seenExams.get(studentId)?.size ?? 0;
+      acc.percent =
+        acc.max > 0 ? Math.round((acc.obtained / acc.max) * 1000) / 10 : null;
+    }
+  }
+
+  // ── 7. Merge ──────────────────────────────────────────────────────────────
   const merged: ReportRow[] = [];
 
   for (const raw of enrollments) {
@@ -284,6 +578,25 @@ export async function runStudentReport(
       busStop: e.bus_stop_id ? stopById.get(e.bus_stop_id as string) ?? null : null,
       session: sessionInfo,
       subjects: subjectsByStudent?.get(studentId) ?? null,
+      // A student with no payments, no attendance marks or no results gets a
+      // zeroed block rather than null when that join ran — "0 days present" is
+      // a fact worth printing, whereas null means "we never looked".
+      fees: joins.fees
+        ? feesByStudent.get(studentId) ?? {
+            billed: 0, paid: 0, balance: 0, waived: 0,
+            lastPaymentDate: null, lastReceiptNo: null, paymentCount: 0,
+          }
+        : null,
+      attendance: joins.attendance
+        ? attendanceByStudent.get(studentId) ?? {
+            present: 0, absent: 0, late: 0, halfDay: 0, total: 0, percent: null,
+          }
+        : null,
+      results: joins.results
+        ? resultsByStudent.get(studentId) ?? {
+            obtained: 0, max: 0, percent: null, subjectCount: 0, examCount: 0,
+          }
+        : null,
       serial: 0, // assigned after sorting
     };
 
@@ -297,6 +610,24 @@ export async function runStudentReport(
         admitted <= sessionInfo.end_date;
       if (filters.new_old === "new" && !isNew) continue;
       if (filters.new_old === "old" && isNew) continue;
+    }
+
+    // Same reason: these are computed above, not stored, so they can only be
+    // filtered here. ₹1 is the settled threshold, matching the dues gate — a
+    // student must not appear on a defaulters list over a rounding artefact.
+    if (filters.fee_status !== "all") {
+      const due = (row.fees?.balance ?? 0) >= 1;
+      if (filters.fee_status === "due" && !due) continue;
+      if (filters.fee_status === "clear" && due) continue;
+    }
+
+    if (filters.attendance_below !== undefined) {
+      const percent = row.attendance?.percent;
+      // A student with nothing marked has no attendance percentage, and
+      // "unknown" is not "below the threshold" — including them would put
+      // every unmarked child on a low-attendance list.
+      if (percent === null || percent === undefined) continue;
+      if (percent >= filters.attendance_below) continue;
     }
 
     merged.push(row);
