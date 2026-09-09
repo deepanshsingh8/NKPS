@@ -7,8 +7,13 @@ import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
  * GET  /api/electives                 → returns slot options + class XI/XII students with current selections
  * POST /api/electives/options         → admin: add a (slot, subject_id) row
  *  DEL /api/electives/options?id=…    → admin: remove a slot option
- * POST /api/electives/students        → admin: set a student's elective slot (creates/updates student_subjects)
+ * POST /api/electives/students        → admin: set a student's elective slot
  *  DEL /api/electives/students?id=…   → admin: clear an elective slot for a student
+ *
+ * The two write routes above keep student_elective_picks (the intent, with its
+ * slot) and student_subjects (what every report and export actually reads) in
+ * step — see the header of api/electives/students/route.ts. This GET reads the
+ * picks table directly because it is the only surface that cares about slots.
  *
  * Editor capability: gated by the `students` feature key (slot-option edits
  * fall under `subjects` — checked individually).
