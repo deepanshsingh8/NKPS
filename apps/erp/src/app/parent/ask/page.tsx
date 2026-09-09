@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { Loader2, Send } from "lucide-react";
+import { ChatMarkdown } from "@/components/ChatMarkdown";
 
 /**
  * The parent assistant, in the portal.
@@ -115,18 +116,23 @@ export default function ParentAskPage() {
       )}
 
       <div className="flex-1 space-y-3 overflow-y-auto">
-        {turns.map((turn, i) => (
-          <div
-            key={i}
-            className={
-              turn.role === "user"
-                ? "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-navy-900 px-3.5 py-2 text-sm text-white"
-                : "max-w-[90%] whitespace-pre-wrap rounded-2xl rounded-bl-sm border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-navy-900 dark:border-border dark:bg-muted dark:text-gray-100"
-            }
-          >
-            {turn.content}
-          </div>
-        ))}
+        {turns.map((turn, i) =>
+          turn.role === "user" ? (
+            <div
+              key={i}
+              className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-navy-900 px-3.5 py-2 text-sm text-white"
+            >
+              {turn.content}
+            </div>
+          ) : (
+            <div
+              key={i}
+              className="max-w-[90%] rounded-2xl rounded-bl-sm border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-navy-900 dark:border-border dark:bg-muted dark:text-gray-100"
+            >
+              <ChatMarkdown>{turn.content}</ChatMarkdown>
+            </div>
+          )
+        )}
         {busy && (
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
             <Loader2 className="h-4 w-4 animate-spin" />

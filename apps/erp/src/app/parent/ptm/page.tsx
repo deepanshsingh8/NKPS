@@ -94,6 +94,35 @@ export default function ParentPtmPage() {
         .select("student_id, students(id, full_name)")
         .eq("parent_id", parentId);
 
+      // One enrollment read for every child. PostgREST rejects an empty
+      // `.in()` list, so skip the query when no link row carries a student.
+      const studentIds = (studentParents ?? [])
+        .map((sp) => (sp.students as unknown as { id: string } | null)?.id)
+        .filter((id): id is string => Boolean(id));
+
+      // Active enrollment only, as before — a child between sessions simply
+      // shows no class here.
+      const classByStudent = new Map<
+        string,
+        { name: string; section: string } | null
+      >();
+      if (studentIds.length > 0) {
+        const { data: enrollments } = await supabase
+          .from("student_enrollments")
+          .select("student_id, classes(name, section)")
+          .in("student_id", studentIds)
+          .eq("status", "active");
+
+        for (const row of (enrollments ?? []) as unknown as {
+          student_id: string;
+          classes: { name: string; section: string } | null;
+        }[]) {
+          if (!classByStudent.has(row.student_id)) {
+            classByStudent.set(row.student_id, row.classes ?? null);
+          }
+        }
+      }
+
       const childOptions: ChildOption[] = [];
       for (const sp of studentParents ?? []) {
         const student = sp.students as unknown as {
@@ -101,17 +130,7 @@ export default function ParentPtmPage() {
           full_name: string;
         } | null;
         if (!student) continue;
-        const { data: enrollment } = await supabase
-          .from("student_enrollments")
-          .select("classes(name, section)")
-          .eq("student_id", student.id)
-          .eq("status", "active")
-          .limit(1)
-          .maybeSingle();
-        const classInfo = enrollment?.classes as unknown as {
-          name: string;
-          section: string;
-        } | null;
+        const classInfo = classByStudent.get(student.id) ?? null;
         childOptions.push({
           student_id: student.id,
           full_name: student.full_name,

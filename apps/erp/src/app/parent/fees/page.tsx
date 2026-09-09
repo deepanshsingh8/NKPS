@@ -43,6 +43,21 @@ interface ChildOption {
   section: string | null;
 }
 
+// The enrollment row drives both halves of this page — the class label in the
+// child selector and every fee figure below it — so it is read once per parent
+// and shared, rather than once for the label and again for the fees.
+interface WardEnrollment {
+  student_id: string;
+  class_id: string | null;
+  stream_id: string | null;
+  academic_year_id: string | null;
+  has_transport: boolean | null;
+  bus_stop_id: string | null;
+  transport_direction: TransportDirection | null;
+  transport_fee_override: number | null;
+  classes: { name: string; section: string } | null;
+}
+
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -55,6 +70,9 @@ export default function ParentFeesPage() {
   const preselectedChild = searchParams.get("child");
 
   const [children, setChildren] = useState<ChildOption[]>([]);
+  const [enrollments, setEnrollments] = useState<Map<string, WardEnrollment>>(
+    () => new Map()
+  );
   const [selectedChild, setSelectedChild] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [loadingFees, setLoadingFees] = useState(false);
@@ -109,6 +127,33 @@ export default function ParentFeesPage() {
         return;
       }
 
+      // One enrollment read for every child, carrying the class + stream +
+      // transport columns the fee maths needs as well as the label. PostgREST
+      // rejects an empty `.in()` list, so skip the query when no link row
+      // carries a student.
+      const studentIds = studentParents
+        .map((sp) => (sp.students as unknown as { id: string } | null)?.id)
+        .filter((id): id is string => Boolean(id));
+
+      // Newest enrollment wins, as the fee read has always done: rows arrive
+      // newest-first, so keep the first one seen for each student.
+      const enrollmentByStudent = new Map<string, WardEnrollment>();
+      if (studentIds.length > 0) {
+        const { data: enrollmentRows } = await supabase
+          .from("student_enrollments")
+          .select(
+            "student_id, class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, classes(name, section)"
+          )
+          .in("student_id", studentIds)
+          .order("enrollment_date", { ascending: false });
+
+        for (const row of (enrollmentRows ?? []) as unknown as WardEnrollment[]) {
+          if (!enrollmentByStudent.has(row.student_id)) {
+            enrollmentByStudent.set(row.student_id, row);
+          }
+        }
+      }
+
       const childOptions: ChildOption[] = [];
       for (const sp of studentParents) {
         const student = sp.students as unknown as {
@@ -117,17 +162,7 @@ export default function ParentFeesPage() {
         };
         if (!student) continue;
 
-        const { data: enrollment } = await supabase
-          .from("student_enrollments")
-          .select("classes(name, section)")
-          .eq("student_id", student.id)
-          .limit(1)
-          .single();
-
-        const classInfo = enrollment?.classes as unknown as {
-          name: string;
-          section: string;
-        } | null;
+        const classInfo = enrollmentByStudent.get(student.id)?.classes ?? null;
 
         childOptions.push({
           student_id: student.id,
@@ -137,6 +172,7 @@ export default function ParentFeesPage() {
         });
       }
 
+      setEnrollments(enrollmentByStudent);
       setChildren(childOptions);
 
       const initial = preselectedChild && childOptions.some((c) => c.student_id === preselectedChild)
@@ -158,28 +194,17 @@ export default function ParentFeesPage() {
       setFeeLoadError(null);
       const supabase = createClient();
 
-      // Fetch enrollment to determine class + stream + transport opt-in.
-      const { data: enrollment } = await supabase
-        .from("student_enrollments")
-        .select(
-          "class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, classes(name)"
-        )
-        .eq("student_id", selectedChild)
-        .order("enrollment_date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Class + stream + transport opt-in come from the enrollment already
+      // read for the child selector.
+      const enrollment = enrollments.get(selectedChild);
 
-      const className =
-        (enrollment?.classes as unknown as { name: string } | null)?.name ?? "";
-      const streamId = (enrollment?.stream_id as string | null) ?? null;
+      const className = enrollment?.classes?.name ?? "";
+      const streamId = enrollment?.stream_id ?? null;
       const hasTransport = Boolean(enrollment?.has_transport);
-      const busStopId = (enrollment?.bus_stop_id as string | null) ?? null;
-      const direction =
-        (enrollment?.transport_direction as TransportDirection | null) ?? "both";
-      const feeOverride =
-        (enrollment?.transport_fee_override as number | null) ?? null;
-      const academicYearId =
-        (enrollment?.academic_year_id as string | null) ?? null;
+      const busStopId = enrollment?.bus_stop_id ?? null;
+      const direction = enrollment?.transport_direction ?? "both";
+      const feeOverride = enrollment?.transport_fee_override ?? null;
+      const academicYearId = enrollment?.academic_year_id ?? null;
 
       // A schedule row can bill newly-admitted or returning students only
       // (the admission fee applies to this year's intake), so resolve which
@@ -305,7 +330,7 @@ export default function ParentFeesPage() {
     }
 
     fetchFees();
-  }, [selectedChild]);
+  }, [selectedChild, enrollments]);
 
   if (loading) {
     return (

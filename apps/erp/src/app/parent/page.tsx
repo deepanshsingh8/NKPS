@@ -49,6 +49,17 @@ import { UpcomingEvents } from "@nkps/shared/components/UpcomingEvents";
 import { linkChildSchema, type LinkChildData } from "@nkps/shared/lib/validations";
 import type { Profile } from "@nkps/shared/types";
 
+interface WardEnrollment {
+  student_id: string;
+  class_id: string;
+  roll_number: number | null;
+  classes: {
+    name: string;
+    section: string;
+    streams?: { name: string } | null;
+  } | null;
+}
+
 interface ChildInfo {
   student_id: string;
   relationship: string;
@@ -147,7 +158,32 @@ export default function ParentDashboard() {
         return;
       }
 
-      // For each child, get enrollment info
+      // Enrollment info for every child in one read. A link row whose student
+      // has gone missing leaves nothing to ask about, and PostgREST rejects an
+      // empty `.in()` list, so only query when there is at least one id.
+      const studentIds = studentParents
+        .map((sp) => (sp.students as unknown as { id: string } | null)?.id)
+        .filter((id): id is string => Boolean(id));
+
+      // Newest enrollment per child, as before: read them all newest-first and
+      // keep the first row seen for each student.
+      const enrollmentByStudent = new Map<string, WardEnrollment>();
+      if (studentIds.length > 0) {
+        const { data: enrollments } = await supabase
+          .from("student_enrollments")
+          .select(
+            "student_id, class_id, roll_number, classes(name, section, streams:stream_id(name))"
+          )
+          .in("student_id", studentIds)
+          .order("enrollment_date", { ascending: false });
+
+        for (const row of (enrollments ?? []) as unknown as WardEnrollment[]) {
+          if (!enrollmentByStudent.has(row.student_id)) {
+            enrollmentByStudent.set(row.student_id, row);
+          }
+        }
+      }
+
       const childInfos: ChildInfo[] = [];
       for (const sp of studentParents) {
         const student = sp.students as unknown as {
@@ -158,19 +194,8 @@ export default function ParentDashboard() {
         };
         if (!student) continue;
 
-        const { data: enrollment } = await supabase
-          .from("student_enrollments")
-          .select("class_id, roll_number, classes(name, section, streams:stream_id(name))")
-          .eq("student_id", student.id)
-          .order("enrollment_date", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        const classInfo = enrollment?.classes as unknown as {
-          name: string;
-          section: string;
-          streams?: { name: string } | null;
-        } | null;
+        const enrollment = enrollmentByStudent.get(student.id);
+        const classInfo = enrollment?.classes ?? null;
 
         childInfos.push({
           student_id: sp.student_id,

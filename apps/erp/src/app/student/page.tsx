@@ -57,31 +57,54 @@ export default function StudentDashboard() {
         return;
       }
 
-      // Fetch enrollment using the linked student_id
-      const { data: enrollment } = await supabase
-        .from("student_enrollments")
-        .select("class_id")
-        .eq("student_id", studentId)
-        .limit(1)
-        .single();
+      // Enrollment, latest result and latest payment all hang off student_id
+      // alone, so they go out together. Only the attendance counts have to
+      // wait, since they are scoped to the class the enrollment names.
+      const [{ data: enrollment }, { data: resultData }, { data: feeData }] =
+        await Promise.all([
+          supabase
+            .from("student_enrollments")
+            .select("class_id")
+            .eq("student_id", studentId)
+            .limit(1)
+            .single(),
+          supabase
+            .from("results")
+            .select("marks_obtained, max_marks, grade")
+            .eq("student_id", studentId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single(),
+          supabase
+            .from("fee_payments")
+            .select("status")
+            .eq("student_id", studentId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single(),
+        ]);
 
       const classId = enrollment?.class_id;
 
-      // Attendance percentage
+      // Attendance percentage — the denominator and the numerator are two
+      // independent counts, so ask for both at once.
       let attendancePercent: number | null = null;
       if (classId) {
-        const { count: totalDays } = await supabase
-          .from("attendance")
-          .select("*", { count: "exact", head: true })
-          .eq("student_id", studentId)
-          .eq("class_id", classId);
-
-        const { count: presentDays } = await supabase
-          .from("attendance")
-          .select("*", { count: "exact", head: true })
-          .eq("student_id", studentId)
-          .eq("class_id", classId)
-          .in("status", ["present", "late"]);
+        const [{ count: totalDays }, { count: presentDays }] = await Promise.all(
+          [
+            supabase
+              .from("attendance")
+              .select("*", { count: "exact", head: true })
+              .eq("student_id", studentId)
+              .eq("class_id", classId),
+            supabase
+              .from("attendance")
+              .select("*", { count: "exact", head: true })
+              .eq("student_id", studentId)
+              .eq("class_id", classId)
+              .in("status", ["present", "late"]),
+          ]
+        );
 
         if (totalDays && totalDays > 0) {
           attendancePercent = Math.round(
@@ -92,14 +115,6 @@ export default function StudentDashboard() {
 
       // Latest result
       let latestResult: string | null = null;
-      const { data: resultData } = await supabase
-        .from("results")
-        .select("marks_obtained, max_marks, grade")
-        .eq("student_id", studentId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
       if (resultData) {
         latestResult = resultData.grade
           ? `Grade ${resultData.grade}`
@@ -108,14 +123,6 @@ export default function StudentDashboard() {
 
       // Fee status — check most recent payment
       let feeStatus: "paid" | "pending" | "unknown" = "unknown";
-      const { data: feeData } = await supabase
-        .from("fee_payments")
-        .select("status")
-        .eq("student_id", studentId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
       if (feeData) {
         feeStatus = feeData.status === "paid" ? "paid" : "pending";
       }
