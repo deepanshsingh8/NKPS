@@ -18,6 +18,7 @@ import {
 import { runStudentReport, toMatrix, ReportQueryError } from "@/lib/report-query";
 import { getPdfTemplate } from "@/lib/pdf-templates";
 import { ReportPDF } from "@/components/pdf/ReportPDF";
+import { todayISO } from "@nkps/shared/lib/date";
 
 export const runtime = "nodejs";
 
@@ -177,7 +178,7 @@ export async function POST(request: Request) {
       }
     );
 
-  const stamp = new Date().toISOString().slice(0, 10);
+  const stamp = todayISO();
   const filename = `student-report-${result.session.name}-${stamp}`;
 
   if (format === "csv") {

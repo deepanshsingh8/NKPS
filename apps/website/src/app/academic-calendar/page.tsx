@@ -4,6 +4,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 import { createClient } from "@nkps/shared/lib/supabase/server";
 import type { CalendarEvent, CalendarEventType } from "@nkps/shared/types";
+import { todayISO } from "@nkps/shared/lib/date";
 
 export const metadata: Metadata = buildMetadata({
   title: "Academic Calendar — NK Public School Jaipur",
@@ -56,7 +57,7 @@ function formatRange(start: string, end: string | null) {
 
 export default async function AcademicCalendarPage() {
   const supabase = await createClient();
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISO();
 
   const { data } = await supabase
     .from("calendar_events")

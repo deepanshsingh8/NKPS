@@ -6,6 +6,7 @@ import { Card, CardContent } from "@nkps/shared/components/ui/card";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import { CalendarDays } from "lucide-react";
 import type { CalendarEvent, CalendarEventType } from "@nkps/shared/types";
+import { todayISO } from "@nkps/shared/lib/date";
 
 const EVENT_TYPE_LABELS: Record<CalendarEventType, string> = {
   exam: "Exam",
@@ -56,7 +57,7 @@ export function UpcomingEvents({
   useEffect(() => {
     async function fetchEvents() {
       const supabase = createClient();
-      const today = new Date().toISOString().split("T")[0];
+      const today = todayISO();
 
       // Portal calendars must never surface admin-internal events. RLS on
       // calendar_events is permissive (USING true), so the is_public gate is

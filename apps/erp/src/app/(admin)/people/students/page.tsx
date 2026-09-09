@@ -53,6 +53,7 @@ import {
   TabsTrigger,
 } from "@nkps/shared/components/ui/tabs";
 import { toast } from "sonner";
+import { todayISO } from "@nkps/shared/lib/date";
 import {
   ArrowUpCircle,
   CalendarClock,
@@ -1776,7 +1777,7 @@ export default function AdminStudentsPage() {
                     class_section: s.class_section ?? "",
                     enrollment_status: s.enrollment_status ?? "active",
                   }));
-                  downloadCSV(rows, STUDENT_CSV_COLUMNS, `students-${new Date().toISOString().split("T")[0]}`);
+                  downloadCSV(rows, STUDENT_CSV_COLUMNS, `students-${todayISO()}`);
                   toast.success(`Downloaded ${rows.length} students`);
                 }}
               >

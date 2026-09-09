@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
 import { cn } from "@nkps/shared/lib/utils";
+import { todayISO } from "@nkps/shared/lib/date";
 
 interface AttendanceDay {
   date: string;
@@ -228,7 +229,7 @@ function DetailStat({ tone, label, value }: { tone: AttendanceTone; label: strin
 
 function AttendanceBlock({ data }: { data: AttendanceData }) {
   const { daily, totals } = data;
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = todayISO();
 
   // Default focus: today if it has records, else the most recent day with data.
   const initialIdx = (() => {

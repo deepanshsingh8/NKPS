@@ -34,21 +34,14 @@ export default function ChangePasswordPage() {
     try {
       const supabase = createClient();
 
-      // Update the password via Supabase Auth
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (updateError) {
-        toast.error(updateError.message);
-        return;
-      }
-
-      // Clear the must_change_password flag server-side. This column is locked
-      // against direct writes from the browser client (migration 061), so it
-      // must go through an API route backed by the service-role client. If this
-      // fails the flag stays set and the user gets bounced back here on their
-      // next login — so we surface the error instead of silently continuing.
+      // The server sets the password AND clears must_change_password, in that
+      // order. Both belong to one route on purpose: when the browser changed
+      // the password itself and then asked the server to clear the flag, the
+      // two could be separated, and anyone holding the temporary password
+      // mailed to them could clear the flag while keeping that password.
+      //
+      // The flag column is also locked against browser writes (migration 061),
+      // so it has to go through a service-role route regardless.
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -60,11 +53,19 @@ export default function ChangePasswordPage() {
 
       const res = await fetch("/api/portal/complete-password-change", {
         method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ newPassword }),
       });
 
       if (!res.ok) {
-        toast.error("Couldn't finalize your password change. Please try again.");
+        const body = await res.json().catch(() => null);
+        toast.error(
+          body?.error ??
+            "Couldn't finalize your password change. Please try again."
+        );
         return;
       }
 

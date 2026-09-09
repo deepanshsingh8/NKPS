@@ -7,6 +7,7 @@ import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import type { CalendarEvent, CalendarEventType } from "@nkps/shared/types";
+import { todayISO } from "@nkps/shared/lib/date";
 
 const EVENT_TYPE_COLORS: Record<CalendarEventType, string> = {
   exam: "bg-navy-700",
@@ -35,7 +36,7 @@ export function SchoolEvents() {
   useEffect(() => {
     async function fetchEvents() {
       const supabase = createClient();
-      const today = new Date().toISOString().split("T")[0];
+      const today = todayISO();
 
       const { data } = await supabase
         .from("calendar_events")

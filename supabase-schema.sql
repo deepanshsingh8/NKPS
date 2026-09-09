@@ -4186,7 +4186,13 @@ ALTER TABLE fee_payments DROP CONSTRAINT IF EXISTS fee_payments_payment_method_c
 ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_payment_method_check
   CHECK (
     payment_method IN (
-      'cash', 'online', 'cheque', 'bank_transfer', 'upi', 'gateway', 'waiver'
+      'cash', 'online', 'cheque', 'bank_transfer', 'upi', 'gateway', 'waiver',
+      -- migration-054: the historical Day Book import records payments whose
+      -- original tender type the previous software never stored. Omitted from
+      -- this mirror until now, so a school provisioned from this file (rather
+      -- than by replaying migrations) failed every historical import on this
+      -- CHECK. Existing deployments already have it via migration 054.
+      'historical_unknown'
     )
   );
 
@@ -5916,11 +5922,20 @@ CREATE TABLE IF NOT EXISTS export_events (
   -- download this row describes.
   client_ip        text,
   user_agent       text,
+  -- How the export was produced. Deliberately a separate axis from `dataset`:
+  -- an AI-produced student sheet is still the student corpus, so reclassifying
+  -- it out of 'students' would make every existing per-dataset count wrong.
+  source           text NOT NULL DEFAULT 'manual'
+                     CHECK (source IN ('manual', 'ai')),
+  -- ai_query_runs.id that produced the sheet, when source = 'ai'.
+  ai_run_id        uuid,
   created_at       timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_export_events_actor
   ON export_events(actor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_export_events_ai
+  ON export_events(created_at DESC) WHERE source = 'ai';
 CREATE INDEX IF NOT EXISTS idx_export_events_dataset
   ON export_events(dataset, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_export_events_sensitive
@@ -6145,3 +6160,139 @@ CREATE INDEX IF NOT EXISTS idx_student_status_history_academic_year_id
   ON student_status_history(academic_year_id);
 CREATE INDEX IF NOT EXISTS idx_student_status_history_class_id
   ON student_status_history(class_id);
+
+
+-- ============================================================================
+-- SCHOOL PROFILE (migration 096)
+-- ============================================================================
+-- The school's own identity, moved out of packages/shared/src/lib/constants.ts
+-- so the assistant surfaces and the WhatsApp sender read it from the database
+-- instead of hardcoding it. Exactly one row, enforced by the singleton column.
+-- NOT a multi-tenancy migration: no other table carries a school_id.
+
+CREATE TABLE IF NOT EXISTS school_profile (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Exactly one row. See the note above.
+  singleton boolean NOT NULL DEFAULT true,
+
+  -- Identity
+  name text NOT NULL,
+  short_name text,
+  tagline text,
+  description text,
+  founded_year integer,
+  motto text,
+
+  -- Affiliation (CBSE and equivalents)
+  board text,
+  affiliation_number text,
+  school_code text,
+  udise_code text,
+
+  -- Contact
+  address_line1 text,
+  city text,
+  state text,
+  pin_code text,
+  phones text[] NOT NULL DEFAULT '{}',
+  emails text[] NOT NULL DEFAULT '{}',
+  website_url text,
+  office_hours text,
+
+  -- Geo, for transport and map surfaces. Nullable: a school that has not set
+  -- a pin should read as "unknown", never as (0, 0) off the coast of Africa.
+  latitude numeric(10, 7),
+  longitude numeric(10, 7),
+
+  -- Social
+  social jsonb NOT NULL DEFAULT '{}'::jsonb,
+
+  -- Assistant configuration
+  ai_enabled boolean NOT NULL DEFAULT false,
+  ai_tone text NOT NULL DEFAULT 'warm',
+  ai_languages text[] NOT NULL DEFAULT ARRAY['en'],
+  ai_disclaimer text,
+
+  -- WhatsApp Business (Meta Cloud API). Ids, not secrets — the access token
+  -- stays in the environment, never in a table an admin screen can read.
+  whatsapp_phone_number_id text,
+  whatsapp_waba_id text,
+
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT school_profile_singleton_true CHECK (singleton = true),
+  CONSTRAINT school_profile_name_not_blank CHECK (length(btrim(name)) > 0),
+  CONSTRAINT school_profile_ai_tone_known CHECK (ai_tone IN ('warm', 'formal', 'neutral')),
+  CONSTRAINT school_profile_languages_not_empty CHECK (cardinality(ai_languages) > 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS school_profile_one_row
+  ON school_profile (singleton);
+
+DROP TRIGGER IF EXISTS set_updated_at_school_profile ON school_profile;
+CREATE TRIGGER set_updated_at_school_profile
+  BEFORE UPDATE ON school_profile
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- ── RLS ─────────────────────────────────────────────────────────────────────
+-- Readable by everyone including anonymous visitors: the public website and
+-- the visitor-facing assistant both render from this row, and every column
+-- here is already published on the school's own website or its CBSE
+-- disclosure page. Nothing private belongs in this table — note the WhatsApp
+-- access token is deliberately absent.
+--
+-- Writes are admin-only.
+ALTER TABLE school_profile ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can read school profile" ON school_profile;
+CREATE POLICY "Anyone can read school profile"
+  ON school_profile FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS "Admins manage school profile" ON school_profile;
+CREATE POLICY "Admins manage school profile"
+  ON school_profile FOR ALL
+  USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');
+
+-- ── Seed ────────────────────────────────────────────────────────────────────
+-- Mirrors packages/shared/src/lib/constants.ts SCHOOL as of 2026-09-09, so
+-- nothing visible changes when readers switch over. ai_enabled stays false:
+-- the assistant surfaces are turned on deliberately, not by running a
+-- migration.
+INSERT INTO school_profile (
+  name, short_name, tagline, description, founded_year,
+  board, affiliation_number,
+  address_line1, city, state, pin_code,
+  phones, emails, office_hours,
+  latitude, longitude,
+  social, ai_enabled, ai_tone, ai_languages
+)
+SELECT
+  'NK Public School',
+  'NKPS',
+  'Empowering Young Minds Since 1985',
+  'NK Public School, affiliated to CBSE, is a premier educational institution in Jaipur offering holistic education from Nursery to Class XII.',
+  1985,
+  'CBSE',
+  '1730406',
+  'Grand Sikar Road, Rajawas',
+  'Jaipur',
+  'Rajasthan',
+  '302013',
+  ARRAY['+91-9785500046', '+91-9785500048'],
+  ARRAY['nkps.rajawas@gmail.com', 'principalnkpsraj@gmail.com'],
+  'Mon–Sat, 9:00 AM – 3:00 PM',
+  27.0688458,
+  75.7495752,
+  jsonb_build_object(
+    'facebook',  'https://www.facebook.com/nkpsrajawas',
+    'instagram', 'https://www.instagram.com/nkps_rajawas',
+    'youtube',   'https://www.youtube.com/channel/UCjXhDycJ_b8dJmfLlYbsM6w'
+  ),
+  false,
+  'warm',
+  ARRAY['en', 'hi']
+WHERE NOT EXISTS (SELECT 1 FROM school_profile);

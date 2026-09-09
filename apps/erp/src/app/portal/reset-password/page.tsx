@@ -55,33 +55,39 @@ export default function ResetPasswordPage() {
 
     try {
       const supabase = createClient();
-      const { data: updateData, error } = await supabase.auth.updateUser({
-        password: newPassword,
+
+      // One server route sets the password and clears must_change_password.
+      // Keeping them together is what stops the flag being cleared by someone
+      // who never changed the password; the flag column is locked against
+      // browser writes (migration 061) in any case.
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        toast.error("Your reset link has expired. Please request a new one.");
+        return;
+      }
+
+      const res = await fetch("/api/portal/complete-password-change", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ newPassword }),
       });
 
-      if (error) {
-        toast.error(error.message);
-      } else {
-        // Clear must_change_password flag if it was set, so middleware doesn't
-        // bounce the user back to /portal/change-password. This column is locked
-        // against direct writes from the browser client (migration 061), so it
-        // must go through an API route backed by the service-role client.
-        if (updateData.user) {
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
-          if (session?.access_token) {
-            await fetch("/api/portal/complete-password-change", {
-              method: "POST",
-              headers: { Authorization: `Bearer ${session.access_token}` },
-            });
-          }
-        }
-        await supabase.auth.signOut();
-        setSuccess(true);
-        toast.success("Password reset successfully!");
-        setTimeout(() => router.push("/portal/login"), 2000);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        toast.error(body?.error ?? "Couldn't reset your password. Please try again.");
+        return;
       }
+
+      await supabase.auth.signOut();
+      setSuccess(true);
+      toast.success("Password reset successfully!");
+      setTimeout(() => router.push("/portal/login"), 2000);
     } catch {
       toast.error("An unexpected error occurred");
     } finally {

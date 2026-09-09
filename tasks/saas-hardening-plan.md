@@ -243,14 +243,78 @@ Estimates assume one senior engineer working AI-assisted.
 
 ---
 
-## 7. Not yet audited
+## 7. Audit round 2 — completed
 
-The audits for these were started and did not finish. They are the known gaps in this document:
+The five audits that were cut short have now run for fees, exams/results and portal
+security. Frontend performance and CMS/website infrastructure are still outstanding.
 
-- Fees module deep correctness (concurrency, refund netting, instalment math)
-- Exams/results deep correctness (grading edge cases, publish/snapshot immutability, rank)
-- Portal RLS policy review against `supabase-schema.sql`'s 260 policies
-- Frontend performance measurement (bundle weights, waterfalls)
-- CMS/website/shared infrastructure review
+### Fixed on this branch
 
-None of these blocked the findings above, but none should be assumed clean.
+| ID | Severity | What it was |
+|---|---|---|
+| BUG-1 | High | Dates computed in UTC for an IST school (see §1) |
+| BUG-2 | Medium | Ten hot foreign keys with no index (see §1) |
+| E1 | **Critical** | Every parent and student saw "Rank 1" on the report card |
+| F1 | **Critical** | The admit-card dues gate counted payments from other years and dropped partially-refunded receipts |
+| A1 | **High** | `must_change_password` could be cleared without changing the password |
+| F5 | High | `historical_unknown` missing from the schema mirror — broke historical import for any newly provisioned school |
+
+**E1** — `computeRanksForClass` was called with the caller's RLS-bound client. Row-level
+security restricts a parent to their own children's enrolments, so the ranking cohort collapsed
+to one student and everyone came first. Staff are exempt from that policy, so from inside the
+school the ranks looked correct. Now uses the service-role client; authorization still happens
+upstream, and a parent still ranks against published marks only.
+
+**F1** — the gate priced fees for one academic year but subtracted every payment the student had
+ever made, so a family with last year's receipts could be released while owing this year's first
+instalment. In the other direction a partial refund leaves the row as `refunded` with
+`amount_paid` intact, and the gate dropped it entirely, blocking a family that owed only the
+refunded difference. Now year-scoped and using the shared `settledAmount` helper, which is what
+its own comment always claimed.
+
+**A1** — the route cleared the forced-password-change flag on a valid token alone, while the
+browser changed the password separately. Anyone holding the temporary password mailed to them
+could clear the flag and keep that password. The route now sets the password itself and clears
+the flag only after Supabase Auth accepts it.
+
+### Outstanding — needs your decision or a larger change
+
+These are confirmed but were **not** fixed, because each either changes school policy or needs a
+transaction/schema redesign that should not ride along with a hotfix merge.
+
+**Money**
+- **F3** No proration for mid-year admission. A student joining in October is instantly billed
+  every elapsed instalment plus late fee. Needs the office's policy: skip or prorate.
+- **F4** Approving a fee change request never re-checks the payment's live status, so a refund
+  can be overwritten or applied twice.
+- **F2 / F7** Schedule copy and schedule save delete before inserting with no transaction. A
+  mid-way failure can leave a class with no fee rows at all.
+- **F6** The over-collection guard is read-then-write with no unique constraint behind it, so two
+  clerks saving at once can both pass.
+- **F11** Nothing locks a past academic year. Prior-year fees can still be edited.
+- **F12** Late fee is in the office's figure but not the parent's or the gate's — three numbers
+  for one student. The recent `main` commit made this deliberate; it still needs surfacing to parents.
+- **F8** Waiver receipts print ₹0.
+
+**Grades**
+- **E2 / E3 / E4** Non-scholastic, class-test and supplementary write paths do not filter the
+  submitted student list against the class roster, so a teacher can write or delete marks for
+  students in other classes.
+- **E7** Editors holding the `results` grant cannot save marks at all — the write runs on the
+  RLS-bound client and there is no `staff` policy, so it fails with a 500.
+- **E6** `/api/results/import` bypasses the publish and finalize locks.
+- **E12** No "absent" concept. A missing exam row inflates a subject; a missing subject fails it.
+- **E21** CBSE best-of-five for classes X and XII is not implemented.
+- **E19** The admit-card QR is unsigned and unverifiable, and prints an internal student UUID.
+
+**Still not audited:** frontend performance, and the CMS/website/shared infrastructure review.
+
+---
+
+## 8. Operator actions required
+
+1. **Run `scripts/migrations/erp/migration-095-missing-fk-indexes.sql`** in Supabase. Nothing
+   breaks without it; the queries just stay slow.
+2. Two Claude sessions were working in this repo at once on 2026-09-09. Use `git worktree` for
+   parallel work — a shared checkout has one HEAD, and a branch can move under an in-flight
+   command.

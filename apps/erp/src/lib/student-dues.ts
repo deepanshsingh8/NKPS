@@ -5,6 +5,7 @@ import {
   amountBilledToDate,
   resolveEffectiveFeeLines,
   resolveStudentType,
+  settledAmount,
   type StopFeeLookup,
 } from "./fees";
 
@@ -32,8 +33,10 @@ export async function dueGateApplies(
 }
 
 interface PaymentRow {
+  fee_structure_id: string | null;
   amount_paid: number | string;
   waiver_amount: number | string | null;
+  refund_amount: number | string | null;
   status: string;
 }
 
@@ -177,21 +180,37 @@ export async function getStudentOutstandingDues(
     );
   }
 
-  const { data: paymentData, error: paymentError } = await admin
+  // Year-scoped to match totalFees above, which is. Without the filter the two
+  // sides priced different periods: last year's receipts were subtracted from
+  // this year's billed-to-date, so a student who owed the whole first
+  // instalment could still be read as settled and handed their admit card.
+  let paymentsQuery = admin
     .from("fee_payments")
-    .select("amount_paid, waiver_amount, status")
+    .select("fee_structure_id, amount_paid, waiver_amount, refund_amount, status")
     .eq("student_id", studentId);
+  if (academicYearId) {
+    paymentsQuery = paymentsQuery.eq("academic_year_id", academicYearId);
+  }
+  const { data: paymentData, error: paymentError } = await paymentsQuery;
 
   if (paymentError) {
     throw new Error(`Failed to load fee payments for dues: ${paymentError.message}`);
   }
 
+  // 'refunded' belongs in the set, and settledAmount() nets refund_amount per
+  // row: a PARTIAL refund leaves status='refunded' with amount_paid intact, so
+  // filtering the status out discarded the whole receipt and overstated dues,
+  // blocking a family that owed only the refunded difference. This is the same
+  // helper and the same status set the student and parent pages use, which is
+  // what the comment above this function has always claimed.
   const totalPaid = ((paymentData as PaymentRow[]) ?? [])
-    .filter((p) => p.status === "paid" || p.status === "partial")
-    .reduce(
-      (sum, p) => sum + Number(p.amount_paid) + Number(p.waiver_amount ?? 0),
-      0
-    );
+    .filter(
+      (p) =>
+        p.status === "paid" ||
+        p.status === "partial" ||
+        p.status === "refunded"
+    )
+    .reduce((sum, p) => sum + settledAmount(p), 0);
 
   const pending = Math.max(0, totalFees - totalPaid);
   // Treat sub-rupee remainders as settled to avoid floating-point false blocks.
