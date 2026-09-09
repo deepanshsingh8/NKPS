@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+import { firstDayOfMonthISO, todayISO } from "@nkps/shared/lib/date";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
@@ -68,12 +69,11 @@ export default function AdminAttendancePage() {
   const [classes, setClasses] = useState<ClassOption[]>([]);
   // Filter state lives in the URL so back-navigation restores it (UX-1).
   const [selectedClassId, setSelectedClassId] = useUrlState("class_id", "all");
-  const defaultDateFrom = (() => {
-    const d = new Date();
-    d.setDate(1); // first day of current month
-    return d.toISOString().split("T")[0];
-  })();
-  const defaultDateTo = new Date().toISOString().split("T")[0];
+  // Both anchored on the school's civil date. Mutating a Date with
+  // setDate(1) and converting with toISOString() afterwards returned the
+  // PREVIOUS month's last day when opened before 05:30 IST.
+  const defaultDateFrom = firstDayOfMonthISO();
+  const defaultDateTo = todayISO();
   const [dateFrom, setDateFrom] = useUrlState("from", defaultDateFrom);
   const [dateTo, setDateTo] = useUrlState("to", defaultDateTo);
   const [classStats, setClassStats] = useState<ClassAttendanceStat[]>([]);
@@ -116,7 +116,7 @@ export default function AdminAttendancePage() {
   // Fetch today's summary stats
   useEffect(() => {
     async function fetchTodaySummary() {
-      const today = new Date().toISOString().split("T")[0];
+      const today = todayISO();
 
       // Total enrolled students
       const { count: studentCount } = await supabase

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+import { todayISO } from "@nkps/shared/lib/date";
 import {
   Card,
   CardContent,
@@ -41,9 +42,6 @@ const formatCurrency = (amount: number) =>
     maximumFractionDigits: 0,
   }).format(amount);
 
-// Today, as YYYY-MM-DD. Computed once per render pass so every fee line is
-// judged against the same date.
-const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export default function StudentFeesPage() {
   const [loading, setLoading] = useState(true);

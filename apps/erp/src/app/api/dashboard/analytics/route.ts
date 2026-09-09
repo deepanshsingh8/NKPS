@@ -9,6 +9,7 @@ import {
 } from "@/lib/fees";
 import type { FeeStructure, TransportDirection } from "@nkps/shared/types";
 import type { FeatureKey } from "@nkps/shared/lib/permissions";
+import { todayISO, toISODate } from "@nkps/shared/lib/date";
 
 // Each analytics block maps to the permission that gates privileged access to
 // the underlying data. Blocks the caller can't see are simply absent from the
@@ -40,15 +41,19 @@ export async function GET() {
       }
     : null;
 
-  // Date ranges
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const monthStartStr = monthStart.toISOString().split("T")[0];
-  const monthEndStr = monthEnd.toISOString().split("T")[0];
-  const sixMonthsAgoStr = new Date(now.getFullYear(), now.getMonth() - 5, 1)
-    .toISOString()
-    .split("T")[0];
+  // Date ranges. Anchored on the school's civil date, not the server clock:
+  // this runs in UTC on Vercel, so `new Date().getMonth()` before 05:30 IST
+  // still reports the previous month and every range below shifts with it.
+  const [todayYear, todayMonth] = todayISO().split("-").map(Number);
+  // Month index is 0-based for the Date constructor; todayMonth is 1-based.
+  const monthStart = new Date(Date.UTC(todayYear, todayMonth - 1, 1));
+  const monthEnd = new Date(Date.UTC(todayYear, todayMonth, 0));
+  const monthStartStr = toISODate(monthStart, "UTC");
+  const monthEndStr = toISODate(monthEnd, "UTC");
+  const sixMonthsAgoStr = toISODate(
+    new Date(Date.UTC(todayYear, todayMonth - 6, 1)),
+    "UTC"
+  );
 
   const wantAttendance = can("attendance");
   const wantFees = can("fees");
@@ -181,9 +186,7 @@ export async function GET() {
       byDate.set(r.date, slot);
     }
     for (let d = 1; d <= daysInMonth; d++) {
-      const dt = new Date(now.getFullYear(), now.getMonth(), d)
-        .toISOString()
-        .split("T")[0];
+      const dt = toISODate(new Date(Date.UTC(todayYear, todayMonth - 1, d)), "UTC");
       const slot = byDate.get(dt) ?? { present: 0, absent: 0, late: 0 };
       const total = slot.present + slot.absent + slot.late;
       buckets.push({
@@ -289,7 +292,7 @@ export async function GET() {
 
     // One "today" for the whole pass so two students evaluated either side of
     // midnight can't disagree about whether an instalment has fallen due.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayISO();
     const yearStartDate = currentYearRange?.start_date ?? null;
 
     // Priced student by student through the same computeDuesBreakdown() the
@@ -437,12 +440,14 @@ export async function GET() {
       net: number;
     }[] = [];
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      // Constructed with Date.UTC, so read back with the UTC getters — the
+      // local-time getters would re-introduce a zone shift on the boundary.
+      const d = new Date(Date.UTC(todayYear, todayMonth - 1 - i, 1));
+      const monthKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
       const joined = admissionMonths.filter((m) => m === monthKey).length;
       const left = exitMonths.filter((m) => m === monthKey).length;
       admissionTrend.push({
-        month: monthNames[d.getMonth()],
+        month: monthNames[d.getUTCMonth()],
         admissions: joined,
         exits: left,
         net: joined - left,

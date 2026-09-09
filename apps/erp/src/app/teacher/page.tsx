@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+import { todayISO } from "@nkps/shared/lib/date";
 import Link from "next/link";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import {
@@ -123,7 +124,7 @@ export default function TeacherDashboard() {
       }
 
       // Check if attendance marked today
-      const today = new Date().toISOString().split("T")[0];
+      const today = todayISO();
       let pendingAttendance = true;
       if (allClassIds.length > 0) {
         const { count } = await supabase

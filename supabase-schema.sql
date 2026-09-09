@@ -6111,3 +6111,37 @@ ON CONFLICT DO NOTHING;
 
 COMMENT ON COLUMN report_presets.created_by IS
   'NULL means a system preset: shared, owned by nobody, admin-only to modify.';
+
+-- ============================================================
+-- Missing FK indexes (migration-095-missing-fk-indexes.sql)
+-- Postgres indexes PRIMARY KEY and UNIQUE automatically, but not
+-- foreign keys. These FK columns carry hot query traffic and had no
+-- index; see the migration file for why these and not the other 17.
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_fee_payments_academic_year_id
+  ON fee_payments(academic_year_id);
+
+CREATE INDEX IF NOT EXISTS idx_class_tests_class_id
+  ON class_tests(class_id);
+CREATE INDEX IF NOT EXISTS idx_class_tests_subject_id
+  ON class_tests(subject_id);
+
+CREATE INDEX IF NOT EXISTS idx_class_subjects_subject_id
+  ON class_subjects(subject_id);
+
+CREATE INDEX IF NOT EXISTS idx_timetable_periods_subject_id
+  ON timetable_periods(subject_id);
+
+CREATE INDEX IF NOT EXISTS idx_exam_schedules_subject_id
+  ON exam_schedules(subject_id);
+
+CREATE INDEX IF NOT EXISTS idx_student_enrollments_stream_id
+  ON student_enrollments(stream_id);
+
+CREATE INDEX IF NOT EXISTS idx_marksheet_publications_exam_type_id
+  ON marksheet_publications(exam_type_id);
+
+CREATE INDEX IF NOT EXISTS idx_student_status_history_academic_year_id
+  ON student_status_history(academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_student_status_history_class_id
+  ON student_status_history(class_id);

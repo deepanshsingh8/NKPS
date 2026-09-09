@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+import { todayISO } from "@nkps/shared/lib/date";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Badge } from "@nkps/shared/components/ui/badge";
@@ -68,7 +69,7 @@ export default function TeacherAttendancePage() {
   const [classes, setClasses] = useState<ClassOption[]>([]);
   // Filter state lives in the URL so back-navigation restores it (UX-1).
   const [selectedClassId, setSelectedClassId] = useUrlState("class_id");
-  const todayDate = new Date().toISOString().split("T")[0];
+  const todayDate = todayISO();
   const [date, setDate] = useUrlState("date", todayDate);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -316,7 +317,7 @@ export default function TeacherAttendancePage() {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                max={new Date().toISOString().split("T")[0]}
+                max={todayISO()}
               />
             </div>
           </div>

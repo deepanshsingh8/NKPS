@@ -37,6 +37,7 @@ import {
 } from "@nkps/shared/lib/report-fields";
 import type { ReportFilters, TriState } from "@nkps/shared/lib/report-filters";
 import type { FeeStructure, TransportDirection } from "@nkps/shared/types";
+import { todayISO } from "@nkps/shared/lib/date";
 import {
   amountBilledToDate,
   resolveEffectiveFeeLines,
@@ -315,7 +316,7 @@ export async function runStudentReport(
   const feesByStudent = new Map<string, FeeBlock>();
 
   if (joins.fees) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayISO();
     const [structuresRes, stopFeesRes, paymentsRes] = await Promise.all([
       admin
         .from("fee_structures")

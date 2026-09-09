@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, Suspense, Fragment } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+import { todayISO } from "@nkps/shared/lib/date";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Input } from "@nkps/shared/components/ui/input";
@@ -516,7 +517,7 @@ function LateFeeNote({
   if (pct === 0 && perDay === 0) return null;
 
   const anchor = line.late_fee_start_date ?? line.due_date;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   // Only "accruing" when the line itself is still owed. A line paid on time
   // incurs nothing however overdue its neighbours are.
   const outstanding = settled < annualizedAmount(line);
@@ -1355,7 +1356,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       // Use a single "today" reference for the whole compute pass so a row
       // crossing midnight mid-computation doesn't get a different verdict
       // than its neighbour.
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayISO();
       // Fallback anchor for recurring fees that carry no due date of their own
       // (legacy monthly/quarterly rows, transport stop fees): they run with the
       // academic year, so periods elapse from its start.
@@ -1547,7 +1548,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     return computeDuesBreakdown({
       lines: applicableFeeLines,
       payments: yearPayments,
-      today: new Date().toISOString().slice(0, 10),
+      today: todayISO(),
       yearStartDate: academicYearRange?.start_date ?? null,
     });
   }, [

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+import { todayISO } from "@nkps/shared/lib/date";
 import {
   Card,
   CardContent,
@@ -303,7 +304,7 @@ export default function ParentFeesPage() {
   // isn't an arrear in August. This is the same figure the download dues gate
   // uses (see lib/student-dues.ts), so what a parent sees here is exactly what
   // decides whether their child's admit card downloads.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const totalFees = sumAnnualized(feeLines);
   const billedToDate = feeLines.reduce(
     (sum, line) =>
