@@ -159,9 +159,17 @@ export async function POST(request: NextRequest) {
       `${buildAskContextBlock(session.name as string)}\n\n${message}`
     );
 
+    // Every report the turn ran, in call order. The UI shows the last by
+    // default and labels each with the model's stated purpose — a single
+    // run_id here could not distinguish "the 198 the answer is about" from
+    // "the 744 it counted to check the arithmetic".
     return NextResponse.json({
       reply: result.text,
-      run_id: result.runId,
+      runs: result.runs.map((r) => ({
+        run_id: r.runId,
+        purpose: r.purpose,
+        total: r.total,
+      })),
       stopped_by: result.stoppedBy,
     });
   } catch (err) {
