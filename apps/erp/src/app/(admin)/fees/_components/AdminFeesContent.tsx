@@ -853,13 +853,20 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     // offer a transport line. Only meaningful when the student is opted in
     // and actually assigned to a stop.
     if (hasTransport && busStopId && academicYearId) {
-      const { data: stopFee } = await supabase
+      const { data: stopFee, error: stopFeeError } = await supabase
         .from("bus_stop_fees")
         .select("amount, frequency, is_active, bus_stops(name)")
         .eq("bus_stop_id", busStopId)
         .eq("academic_year_id", academicYearId)
         .eq("is_active", true)
         .maybeSingle();
+      // Distinguish "this stop has no fee configured" from "the read failed":
+      // the else branch below clears the transport line, and an operator who
+      // sees it missing would reasonably conclude the student owes nothing for
+      // the bus and take a payment short of what is due.
+      if (stopFeeError) {
+        toast.error("Couldn't load the transport fee for this stop");
+      }
       if (stopFee) {
         const stopMeta =
           (stopFee.bus_stops as unknown as { name: string } | null) ?? null;
@@ -1278,7 +1285,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       // Structures for every class in the year, grouped by class name below.
       // Fetched whole even for a single class: the row count is small, and it
       // keeps one code path for both scopes.
-      const { data: structures } = await supabase
+      const { data: structures, error: structuresError } = await supabase
         .from("fee_structures")
         .select("*")
         .eq("academic_year_id", academicYearId)
@@ -1287,12 +1294,23 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       // Per-stop fees for the current year (stop-based model, migration 074).
       // Keyed by bus_stop_id so each transport-using enrollment can price its
       // assigned stop.
-      const { data: stopFeeRows } = await supabase
+      const { data: stopFeeRows, error: stopFeeError } = await supabase
         .from("bus_stop_fees")
         .select("bus_stop_id, amount, frequency, is_active")
         .eq("academic_year_id", academicYearId)
         .eq("is_active", true)
         .range(0, 9999);
+      // Same reasoning as the .range() above: a read that fails leaves the
+      // arrears under-reported with nothing on screen to say so. A dropped
+      // bus_stop_fees read would quietly clear the transport charge from every
+      // transport-using student in the register. Throw to the catch below,
+      // which surfaces it, rather than publishing a short total as fact.
+      if (structuresError) {
+        throw new Error(`fee_structures: ${structuresError.message}`);
+      }
+      if (stopFeeError) {
+        throw new Error(`bus_stop_fees: ${stopFeeError.message}`);
+      }
       type StopFeeRow = {
         bus_stop_id: string;
         amount: number;
