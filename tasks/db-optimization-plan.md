@@ -346,8 +346,20 @@ neither changes the data model.
       that context. Share one context between `green-sheet` and `computeRanksForClass`. **~730 → ~10.**
 - [x] **DONE** — N + (classSubjects × examTypes) ≈ 33 → 2 parallel queries.
 - [ ] The 8 parent-portal pages — replace the per-ward enrollment loop with one `.in()`.
-- [ ] `proxy.ts` — move the `/api/` early-return **above** `auth.getUser()`.
-- [ ] Hoist the shell's profile/permissions fetch into one provider; wrap `loadCaller` in React `cache()`.
+- [x] **DONE** — `/api/` early-return moved above `auth.getUser()` in `updateSession`. The cookie
+      refresh it also carried is not load-bearing for API routes: Bearer handlers never read the
+      session cookie, and every cookie-authed handler calls `getUser()` itself. **1 round trip saved
+      on every API request.**
+- [x] **DONE** — `SessionProvider` hoists `{ user, profile, editorPermissions }` into one fetch for
+      the whole shell (`SidebarShell`, `SidebarProfileMenu`, `AppSwitcher`, `useIsAdmin`), with
+      profiles + editor_permissions in parallel. **10 requests / 3 serial hops → 3 requests / 2 hops,
+      once per page load instead of once per consumer.**
+- [ ] **NOT DOING — `cache()` on `loadCaller`.** React `cache` memoizes only inside a render pass;
+      Route Handlers are not part of the component tree (`react.react-server`'s `cache` falls through
+      to a plain call when no dispatcher is set), and `verify-admin` is used *only* from route
+      handlers. It would be a provably dead wrapper. Audited every caller: the multi-`verifyAdmin*`
+      files are one call per HTTP method, i.e. one per request. The single real double-call is
+      `admin-proxy.ts` :84-89, on the `altKey` retry — a failure path only.
 - [ ] Convert the sequential independent `await`s in `AdminFeesContent` and `student/page.tsx` to
       `Promise.all`.
 
@@ -422,6 +434,30 @@ transform `pg_policies` in place via `ALTER POLICY`, which is correct under drif
 
 **Action needed:** reconcile the mirror against the live catalog. Until then, treat any migration
 that references a policy or index *by name* as unsafe.
+
+## 5b. Post-merge verification (measured after 102/103 were applied)
+
+| | before | after |
+|---|---|---|
+| `students` RLS overhead | +277ms | ~0 (−2ms over 11 runs) |
+| `student_enrollments` | +273ms | +9ms |
+| 944-row scan penalty | +209ms | ~0 — **no longer scales with the table** |
+| `/attendance` batched path | 0.52s | **0.15s** (the two fixes compound) |
+
+**The tail needs no follow-up migration.** The ~90 policies on tables 102 did not
+cover were measured with 25 interleaved paired samples (service-role vs anon,
+alternating sample-by-sample so drift cancels):
+
+```
+fee_structures     service 138ms  anon 115ms   -23ms
+disclosure_items   service 113ms  anon 112ms    -1ms
+bus_stops          service 112ms  anon 115ms    +4ms
+gallery_images     service 129ms  anon 116ms   -13ms
+```
+
+All zero. A naive non-interleaved run had suggested +78ms on `fee_structures`;
+that was drift, not signal. **Do not spend a migration on the tail** — those
+policies are either simple public-read or sit on tables of a few hundred rows.
 
 ## 6. Expected outcome
 
