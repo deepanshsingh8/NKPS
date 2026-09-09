@@ -7015,3 +7015,34 @@ END
 $assert$;
 
 COMMIT;
+
+
+-- ============================================================================
+-- MIRROR REPAIR: student_enrollments.pickup_address
+-- ============================================================================
+-- This column has been live since migration-053 and is read by production code
+-- (lib/admin-tables.ts, api/transport/assignments, the transport assignments
+-- page, validations.ts, types/index.ts) but it was never mirrored here. A
+-- database rebuilt from this file alone was missing it, and the transport
+-- assignments page would 400.
+--
+-- Confirmed against the live catalog: of every column on students,
+-- student_enrollments and fee_payments, this was the ONLY one missing from
+-- this file.
+--
+-- migration-053 also added pickup_lat / pickup_lng / pickup_verified_at /
+-- pickup_verified_by; migration-074 DROPPED all four along with the rest of the
+-- distance-based transport pricing model, and deliberately KEPT this one,
+-- repurposed. Only this column is restored here — the other four are correctly
+-- absent.
+ALTER TABLE student_enrollments
+  ADD COLUMN IF NOT EXISTS pickup_address text;
+
+-- Superseded comment: migration-053 described this as the "source of truth for
+-- billing distance", which stopped being true when migration-074 replaced
+-- road-distance slabs with flat per-stop fees. It is now a landmark that helps
+-- a driver find the child, and nothing prices off it.
+COMMENT ON COLUMN student_enrollments.pickup_address IS
+  'Free-text pickup landmark supplied by the parent, to help the driver locate '
+  'the child. NOT a pricing input: migration-074 replaced distance-based '
+  'transport fees with flat per-stop fees on bus_stop_fees.';
