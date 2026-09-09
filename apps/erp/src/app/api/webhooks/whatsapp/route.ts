@@ -142,6 +142,7 @@ async function handleInbound(
         wrong_code: "That code doesn't match. Please check and try again.",
         expired: "That code has expired. Send any message to get a new one.",
         locked: "Too many incorrect attempts. Please contact the school office.",
+        failed: "Something went wrong linking this number. Please contact the school office.",
       }[outcome.status];
       await reply(admin, phone, line, null);
       return;

@@ -373,9 +373,25 @@ dropped; garbage and null payloads return empty rather than throwing; an unknown
 status collapses to `failed` so it can never violate the CHECK; unconfigured fails closed and
 `sendText` throws `WHATSAPP_NOT_CONFIGURED`.
 
-**NOT verified — needs the user.** Migration 113 is not applied. Nothing touching
-`parent_phone_links`, `whatsapp_sessions`, `whatsapp_messages` or `bump_rate_limit` has run.
-No Meta credentials exist, so no message has been sent or received, and the templates
+**Verified after migration 113 was applied (2026-09-09).** 7/7 on the rate limiter and
+tables: all five tables live, `bump_rate_limit` allows 2 then refuses the 3rd in a window.
+Then 7/7 on enrolment against the real database: unrecognised number → `unknown_number`;
+unenrolled number resolves to null; a 6-digit code issued and **stored hashed, never
+plaintext**; wrong code rejected; correct code verifies; the number then resolves to the
+parent with both wards; expired and revoked sessions both refuse (checked at read, no
+sweeper); the 6th attempt is locked out **even with the right code**; re-enrolment works and
+leaves exactly one active session; `touchSession` rolls the window forward.
+
+**Two bugs found and fixed by that testing.** `completeEnrolment` used
+`upsert(..., { onConflict: "phone_e164" })`, but `whatsapp_sessions_active` is a PARTIAL
+unique index (`WHERE revoked_at IS NULL`) and Postgres will not match `ON CONFLICT` to a
+partial index unless the statement repeats the predicate — which PostgREST cannot express.
+The upsert therefore ALWAYS failed. Worse, the error was ignored and the function returned
+`verified` regardless, so a parent was told "this number is now linked" while no session
+existed, and their already-consumed code was gone. Now revoke-then-insert, with the error
+checked and a `failed` status the webhook surfaces.
+
+**Still NOT verified — needs Meta.** No Meta credentials exist, so no message has been sent or received, and the templates
 (`nkps_unknown_number`, `nkps_verify_code`) have not been created or approved. The enrolment
 flow, the OTP round-trip and the live rate limiter are all untested.
 

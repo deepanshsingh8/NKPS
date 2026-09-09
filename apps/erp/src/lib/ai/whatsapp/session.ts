@@ -139,7 +139,9 @@ export type EnrolmentResult =
   | { status: "verified" }
   | { status: "wrong_code" }
   | { status: "expired" }
-  | { status: "locked" };
+  | { status: "locked" }
+  /** The code was right but the session could not be created. */
+  | { status: "failed" };
 
 /**
  * Complete enrolment with a code the sender supplied.
@@ -191,17 +193,36 @@ export async function completeEnrolment(
     .eq("phone_e164", phoneE164)
     .is("revoked_at", null);
 
-  await admin.from("whatsapp_sessions").upsert(
-    {
-      parent_id: otp.parent_id as string,
-      phone_e164: phoneE164,
-      verified_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
-      last_seen_at: new Date().toISOString(),
-      revoked_at: null,
-    },
-    { onConflict: "phone_e164" }
-  );
+  // Revoke-then-insert, NOT upsert.
+  //
+  // whatsapp_sessions_active is a PARTIAL unique index (WHERE revoked_at IS
+  // NULL). Postgres will not match `ON CONFLICT (phone_e164)` to a partial
+  // index unless the statement repeats the predicate, which PostgREST's
+  // onConflict cannot express — so the upsert fails outright with "there is no
+  // unique or exclusion constraint matching the ON CONFLICT specification".
+  // Revoking first leaves at most one live row, which the index then accepts.
+  await admin
+    .from("whatsapp_sessions")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("phone_e164", phoneE164)
+    .is("revoked_at", null);
+
+  const { error: sessionError } = await admin.from("whatsapp_sessions").insert({
+    parent_id: otp.parent_id as string,
+    phone_e164: phoneE164,
+    verified_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
+    last_seen_at: new Date().toISOString(),
+  });
+
+  // Report the failure rather than claiming success. Saying "this number is
+  // now linked" when no session exists sends the parent back into enrolment
+  // on their next message with no idea why — and the code they just used is
+  // already consumed.
+  if (sessionError) {
+    console.error("[whatsapp] session create failed:", sessionError.message);
+    return { status: "failed" };
+  }
 
   return { status: "verified" };
 }
