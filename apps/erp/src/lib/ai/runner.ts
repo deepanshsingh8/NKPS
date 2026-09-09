@@ -93,10 +93,31 @@ const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   },
 ];
 
+/** One `run_student_report` call the model made, in the order it made them. */
+export interface AskRun {
+  runId: string;
+  /** The model's own stated intent, verbatim. Labels the table in the UI. */
+  purpose: string;
+  total: number;
+}
+
 export interface AskTurnResult {
   text: string;
-  /** Latest run id, so the UI can fetch the full table and the CSV. */
-  runId: string | null;
+  /**
+   * EVERY report the turn produced, not just the last.
+   *
+   * Reporting only the last one was wrong twice over. The model routinely
+   * cross-checks itself — count the students without transport, then count the
+   * ones with it to prove the two sum to the roll — so the final query is
+   * frequently not the one the answer is about; the user reads "198 have not
+   * opted" above a table of 744 who have. And when the model issues two report
+   * calls in the same round they execute in parallel, so "last" was decided by
+   * whichever promise happened to settle second.
+   *
+   * The UI shows the last as the default and lets the user switch, each run
+   * labelled with its purpose and row count.
+   */
+  runs: AskRun[];
   toolCalls: number;
   stoppedBy: "end_turn" | "budget" | "error";
 }
@@ -127,17 +148,18 @@ export async function runAskTurn(
   });
 
   let toolCalls = 0;
-  let lastRunId: string | null = null;
+  const runs: AskRun[] = [];
   const retries = new Map<string, number>();
 
   for (;;) {
     if (Date.now() > deadline || toolCalls >= AI_BUDGETS.maxToolCalls) {
       await finishConversation(ctx.admin, ctx.conversationId, "aborted", "budget_exhausted");
       return {
-        text: lastRunId
-          ? "That took longer than I allow for one question. I've kept the last result I did get — try narrowing the question."
-          : "That took longer than I allow for one question. Try asking for something narrower.",
-        runId: lastRunId,
+        text:
+          runs.length > 0
+            ? "That took longer than I allow for one question. I've kept the results I did get — try narrowing the question."
+            : "That took longer than I allow for one question. Try asking for something narrower.",
+        runs,
         toolCalls,
         stoppedBy: "budget",
       };
@@ -164,7 +186,7 @@ export async function runAskTurn(
       await finishConversation(ctx.admin, ctx.conversationId, "error", "model_error");
       return {
         text: "I couldn't reach the assistant just now. The report builder under Reports still works.",
-        runId: lastRunId,
+        runs,
         toolCalls,
         stoppedBy: "error",
       };
@@ -197,13 +219,13 @@ export async function runAskTurn(
         .join("\n")
         .trim();
       await finishConversation(ctx.admin, ctx.conversationId, "completed");
-      return { text, runId: lastRunId, toolCalls, stoppedBy: "end_turn" };
+      return { text, runs, toolCalls, stoppedBy: "end_turn" };
     }
 
     // Execute in parallel, then return EVERY result in one user message.
     // Splitting them across messages teaches the model to stop making parallel
     // calls, and dropping a failed one leaves a dangling tool_use.
-    const results = await Promise.all(
+    const settled = await Promise.all(
       toolUses.map(async (use) => {
         toolCalls += 1;
         const outcome = await executeTool(ctx, use, seq);
@@ -214,30 +236,39 @@ export async function runAskTurn(
           const exhausted =
             !isRecoverable(outcome.code) || attempts > AI_BUDGETS.maxToolRetries;
           return {
-            type: "tool_result" as const,
-            tool_use_id: use.id,
-            is_error: true,
-            content: exhausted
-              ? `${outcome.body}\nNo further attempts. Explain this to the user.`
-              : outcome.body,
+            block: {
+              type: "tool_result" as const,
+              tool_use_id: use.id,
+              is_error: true,
+              content: exhausted
+                ? `${outcome.body}\nNo further attempts. Explain this to the user.`
+                : outcome.body,
+            },
+            run: null,
           };
         }
 
-        if (outcome.runId) lastRunId = outcome.runId;
         return {
-          type: "tool_result" as const,
-          tool_use_id: use.id,
-          content: outcome.body,
+          block: {
+            type: "tool_result" as const,
+            tool_use_id: use.id,
+            content: outcome.body,
+          },
+          run: outcome.run ?? null,
         };
       })
     );
 
-    messages.push({ role: "user", content: results });
+    // Promise.all preserves the ARRAY order, so runs are appended in the order
+    // the model asked for them rather than the order they happened to finish.
+    for (const { run } of settled) if (run) runs.push(run);
+
+    messages.push({ role: "user", content: settled.map((r) => r.block) });
   }
 }
 
 type ToolOutcome =
-  | { ok: true; body: string; runId?: string | null }
+  | { ok: true; body: string; run?: AskRun | null }
   | { ok: false; code: ToolErrorCode; body: string };
 
 async function executeTool(
@@ -262,7 +293,19 @@ async function executeTool(
       return {
         ok: true,
         body: JSON.stringify(outcome.result),
-        runId: outcome.result.run_id,
+        run: outcome.result.run_id
+          ? {
+              runId: outcome.result.run_id,
+              // `purpose` is required on the tool and already logged verbatim;
+              // reusing it as the table's label costs nothing and means the
+              // chip reads "students without transport" rather than a uuid.
+              purpose:
+                typeof input.purpose === "string" && input.purpose.trim()
+                  ? input.purpose.trim()
+                  : "Report",
+              total: outcome.result.total,
+            }
+          : null,
       };
     }
 

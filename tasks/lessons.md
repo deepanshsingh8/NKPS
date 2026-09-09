@@ -24,3 +24,57 @@ far larger than my own diff.
    `git worktree`s/clones. Surface the overlap; don't bulldoze or commit shared state.
 4. Report faithfully: when you realize an earlier explanation was wrong, correct it
    plainly rather than quietly moving on.
+
+---
+
+## 2026-09-09 — A projection is a silent gate: unused arguments are a smell
+
+**What happened:** The Ask assistant, asked to break 942 students down by
+`has_transport`, answered "NO" for all 942 — while the same query's
+`has_transport: "yes"` filter correctly matched 744. The user spotted the
+contradiction in the assistant's own reply.
+
+**Why:** `runStudentReport` projects only the columns declared by the fields it
+is handed. `computeGroupCounts` was handed the *output* fields, then resolved a
+*group-by* field against those rows. `resolve()` reads straight off the row, so
+a missing column did not throw — it read `undefined` and fell out of the field's
+else branch. Uniform, plausible, wrong.
+
+**How to apply next time:**
+1. **When code resolves a field, check the query projected that field.** In this
+   codebase `source`/`columns` on a `ReportField` is what puts a column in the
+   SELECT. Resolving anything not in the projected set is undefined behaviour
+   that looks like data.
+2. **An argument that is accepted and then `void`ed is a bug marker.**
+   `computeGroupCounts(groupBy, rows, fields)` voided `fields` at the bottom.
+   That was the missing wiring, sitting in plain sight, passing review.
+3. **Fix the shape, not the symptom.** The function now resolves group keys only
+   against the fields that were actually projected, so the failure is
+   unreachable rather than merely corrected.
+4. **A new read path needs the same permission gate as the old one.** Grouping by
+   `father_mobile` enumerates parent numbers as effectively as a column of them
+   would, so group keys go through `resolveAiFields` too.
+
+## 2026-09-09 — "The last one" is not "the one the answer is about"
+
+**What happened:** The assistant answered "198 students have not opted for
+transport" above a table headed "744 students". Both numbers were right; the
+pairing was not.
+
+**Why:** The runner kept a single `lastRunId` and the UI showed it. But the model
+routinely counts one side of a split and then the other to check its arithmetic,
+so the final query is often not the one being reported on. And two report calls
+in one round run under `Promise.all`, so "last" was decided by whichever promise
+settled second — non-deterministic.
+
+**How to apply next time:**
+1. When an agent can act N times per turn, **the UI cannot assume the Nth action
+   is the answer.** Return all of them, labelled, and let the user see which.
+2. `Promise.all` preserves *array* order, not completion order. Collect from the
+   resolved array, never by assigning inside the async callback.
+3. The tool already required a `purpose` string for the audit log. Reusing it as
+   the UI label cost nothing — **audit fields often make good user-facing
+   provenance.**
+4. Prompt guidance ("finish with the query your answer is about") is a nudge;
+   labelling the table with what it actually is, is the guarantee. Prefer the
+   guarantee, add the nudge.

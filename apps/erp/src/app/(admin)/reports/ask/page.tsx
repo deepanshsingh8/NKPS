@@ -12,6 +12,7 @@ import {
   Table2,
 } from "lucide-react";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
+import { ChatMarkdown } from "@/components/ChatMarkdown";
 
 /**
  * Ask-your-school.
@@ -25,7 +26,13 @@ import { adminFetch } from "@nkps/shared/lib/admin-api";
 interface Turn {
   role: "user" | "assistant";
   content: string;
-  runId?: string | null;
+}
+
+/** One report the assistant ran, labelled with the intent it gave for it. */
+interface AskRun {
+  runId: string;
+  purpose: string;
+  total: number;
 }
 
 interface TableState {
@@ -47,6 +54,8 @@ export default function AskPage() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [allowSensitive, setAllowSensitive] = useState(false);
+  const [runs, setRuns] = useState<AskRun[]>([]);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [table, setTable] = useState<TableState | null>(null);
   const [tableBusy, setTableBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +72,8 @@ export default function AskPage() {
     setError(null);
     setInput("");
     setTable(null);
+    setRuns([]);
+    setActiveRunId(null);
     const history = turns.map((t) => ({ role: t.role, content: t.content }));
     setTurns((prev) => [...prev, { role: "user", content: trimmed }]);
     setBusy(true);
@@ -84,11 +95,25 @@ export default function AskPage() {
         return;
       }
 
-      setTurns((prev) => [
-        ...prev,
-        { role: "assistant", content: data.reply, runId: data.run_id },
-      ]);
-      if (data.run_id) void loadTable(data.run_id);
+      setTurns((prev) => [...prev, { role: "assistant", content: data.reply }]);
+
+      // A turn can produce several reports — the assistant often counts both
+      // sides of a split to check itself. Show the last by default, but keep
+      // the rest switchable rather than silently discarding them.
+      const returned: AskRun[] = (data.runs ?? []).map(
+        (r: { run_id: string; purpose: string; total: number }) => ({
+          runId: r.run_id,
+          purpose: r.purpose,
+          total: r.total,
+        })
+      );
+      setRuns(returned);
+
+      const shown = returned[returned.length - 1];
+      if (shown) {
+        setActiveRunId(shown.runId);
+        void loadTable(shown.runId);
+      }
     } catch {
       setError("Couldn't reach the assistant. The report builder still works.");
     } finally {
@@ -117,6 +142,8 @@ export default function AskPage() {
       setTableBusy(false);
     }
   }
+
+  const activeRun = runs.find((r) => r.runId === activeRunId) ?? null;
 
   return (
     <div className="flex h-full flex-col gap-5 p-6">
@@ -176,18 +203,23 @@ export default function AskPage() {
       )}
 
       <div className="flex-1 space-y-4 overflow-y-auto">
-        {turns.map((turn, i) => (
-          <div
-            key={i}
-            className={
-              turn.role === "user"
-                ? "ml-auto max-w-[75%] rounded-lg bg-navy-900 px-4 py-2.5 text-sm text-white"
-                : "max-w-[85%] rounded-lg border bg-white px-4 py-3 text-sm whitespace-pre-wrap text-navy-900"
-            }
-          >
-            {turn.content}
-          </div>
-        ))}
+        {turns.map((turn, i) =>
+          turn.role === "user" ? (
+            <div
+              key={i}
+              className="ml-auto max-w-[75%] whitespace-pre-wrap rounded-lg bg-navy-900 px-4 py-2.5 text-sm text-white"
+            >
+              {turn.content}
+            </div>
+          ) : (
+            <div
+              key={i}
+              className="max-w-[85%] rounded-lg border bg-white px-4 py-3 text-sm text-navy-900"
+            >
+              <ChatMarkdown>{turn.content}</ChatMarkdown>
+            </div>
+          )
+        )}
 
         {busy && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -205,12 +237,47 @@ export default function AskPage() {
 
         {(table || tableBusy) && (
           <div className="rounded-lg border bg-white">
+            {runs.length > 1 && (
+              <div className="flex flex-wrap items-center gap-1.5 border-b bg-cream-50 px-4 py-2">
+                <span className="mr-1 text-xs text-muted-foreground">
+                  {runs.length} reports ran — showing:
+                </span>
+                {runs.map((run) => (
+                  <button
+                    key={run.runId}
+                    type="button"
+                    onClick={() => {
+                      setActiveRunId(run.runId);
+                      void loadTable(run.runId);
+                    }}
+                    className={
+                      run.runId === activeRunId
+                        ? "rounded-full bg-blue-600 px-2.5 py-1 text-xs font-medium text-white"
+                        : "rounded-full border px-2.5 py-1 text-xs text-muted-foreground transition hover:border-blue-400 hover:text-navy-900"
+                    }
+                  >
+                    {run.purpose}
+                    <span className="ml-1.5 tabular-nums opacity-75">
+                      {run.total.toLocaleString("en-IN")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
-              <div className="flex items-center gap-2 text-sm font-medium text-navy-900">
-                <Table2 className="h-4 w-4 text-blue-600" />
+              <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-navy-900">
+                <Table2 className="h-4 w-4 shrink-0 text-blue-600" />
                 {table
                   ? `${table.total.toLocaleString("en-IN")} student${table.total === 1 ? "" : "s"}`
                   : "Loading…"}
+                {/* Naming the query the table came from is what makes a
+                    mismatch with the answer visible instead of silent. */}
+                {table && activeRun && (
+                  <span className="font-normal text-muted-foreground">
+                    · {activeRun.purpose}
+                  </span>
+                )}
                 {table && table.rows.length < table.total && (
                   <span className="font-normal text-muted-foreground">
                     · showing first {table.rows.length}
