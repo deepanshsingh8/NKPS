@@ -46,6 +46,9 @@ import {
 } from "lucide-react";
 import { formatClassName } from "@nkps/shared/lib/utils";
 
+/** PostgREST caps a response at 1000 rows unless an explicit range is given. */
+const ROW_CAP = 99999;
+
 interface ClassOption {
   id: string;
   name: string;
@@ -118,27 +121,31 @@ export default function AdminAttendancePage() {
     async function fetchTodaySummary() {
       const today = todayISO();
 
-      // Total enrolled students
-      const { count: studentCount } = await supabase
-        .from("student_enrollments")
-        .select("*", { count: "exact", head: true });
-      setTotalStudents(studentCount ?? 0);
+      // The three counts have nothing to say to each other, so they go out
+      // together — awaited in sequence the card row cost three round trips
+      // before any of it rendered.
+      const [studentRes, presentRes, absentRes] = await Promise.all([
+        // Total enrolled students
+        supabase
+          .from("student_enrollments")
+          .select("*", { count: "exact", head: true }),
+        // Present today
+        supabase
+          .from("attendance")
+          .select("*", { count: "exact", head: true })
+          .eq("date", today)
+          .in("status", ["present", "late"]),
+        // Absent today
+        supabase
+          .from("attendance")
+          .select("*", { count: "exact", head: true })
+          .eq("date", today)
+          .eq("status", "absent"),
+      ]);
 
-      // Present today
-      const { count: pCount } = await supabase
-        .from("attendance")
-        .select("*", { count: "exact", head: true })
-        .eq("date", today)
-        .in("status", ["present", "late"]);
-      setPresentToday(pCount ?? 0);
-
-      // Absent today
-      const { count: aCount } = await supabase
-        .from("attendance")
-        .select("*", { count: "exact", head: true })
-        .eq("date", today)
-        .eq("status", "absent");
-      setAbsentToday(aCount ?? 0);
+      setTotalStudents(studentRes.count ?? 0);
+      setPresentToday(presentRes.count ?? 0);
+      setAbsentToday(absentRes.count ?? 0);
     }
 
     fetchTodaySummary();
@@ -154,43 +161,87 @@ export default function AdminAttendancePage() {
         ? classes
         : classes.filter((c) => c.id === selectedClassId);
 
-    const stats: ClassAttendanceStat[] = [];
+    const classIds = targetClasses.map((c) => c.id);
 
-    for (const cls of targetClasses) {
-      // Get enrolled student count
-      const { count: studentCount } = await supabase
+    // An empty `.in()` list is not a query PostgREST will accept, and there is
+    // nothing to report anyway (a stale class_id in the URL lands here).
+    if (classIds.length === 0) {
+      setClassStats([]);
+      setLoadingStats(false);
+      return;
+    }
+
+    // One read per table for every class at once, grouped in JS below. Asking
+    // per class was two serial round trips each: a full school's 32 classes
+    // spent ~10s here against ~0.5s for the pair.
+    const [enrollmentRes, attendanceRes] = await Promise.all([
+      // TODO: unfiltered by status, so an exited student still counts toward
+      // the class roster here — the teacher dashboard counts only 'active'.
+      // Left as-is: this refactor is not changing what the numbers mean.
+      supabase
         .from("student_enrollments")
-        .select("*", { count: "exact", head: true })
-        .eq("class_id", cls.id);
-
-      // Get attendance in date range
-      const { data: attendanceData } = await supabase
+        .select("class_id")
+        .in("class_id", classIds)
+        .range(0, ROW_CAP),
+      supabase
         .from("attendance")
-        .select("status")
-        .eq("class_id", cls.id)
+        .select("class_id, status")
+        .in("class_id", classIds)
         .gte("date", dateFrom)
-        .lte("date", dateTo);
+        .lte("date", dateTo)
+        // A term-long range over every class runs to tens of thousands of
+        // rows; truncated at the default 1000 the table would under-report
+        // attendance with no error to notice.
+        .range(0, ROW_CAP),
+    ]);
 
-      const records = attendanceData ?? [];
-      const present = records.filter(
-        (r) => r.status === "present" || r.status === "late"
-      ).length;
-      const absent = records.filter((r) => r.status === "absent").length;
-      const late = records.filter((r) => r.status === "late").length;
+    const enrolledByClass = new Map<string, number>();
+    for (const row of enrollmentRes.data ?? []) {
+      enrolledByClass.set(
+        row.class_id,
+        (enrolledByClass.get(row.class_id) ?? 0) + 1
+      );
+    }
 
-      stats.push({
+    interface Tally {
+      total: number;
+      present: number;
+      absent: number;
+      late: number;
+    }
+    const tallyByClass = new Map<string, Tally>();
+    for (const row of attendanceRes.data ?? []) {
+      let tally = tallyByClass.get(row.class_id);
+      if (!tally) {
+        tally = { total: 0, present: 0, absent: 0, late: 0 };
+        tallyByClass.set(row.class_id, tally);
+      }
+      tally.total += 1;
+      // A late arrival still attended, so it counts as present here and is
+      // reported again on its own in the Late column.
+      if (row.status === "present" || row.status === "late") tally.present += 1;
+      if (row.status === "absent") tally.absent += 1;
+      if (row.status === "late") tally.late += 1;
+    }
+
+    const stats: ClassAttendanceStat[] = targetClasses.map((cls) => {
+      const tally = tallyByClass.get(cls.id);
+      const totalRecords = tally?.total ?? 0;
+      const present = tally?.present ?? 0;
+
+      return {
         classId: cls.id,
         className: cls.name,
         section: cls.section,
-        totalStudents: studentCount ?? 0,
-        totalRecords: records.length,
+        totalStudents: enrolledByClass.get(cls.id) ?? 0,
+        totalRecords,
         presentCount: present,
-        absentCount: absent,
-        lateCount: late,
+        absentCount: tally?.absent ?? 0,
+        lateCount: tally?.late ?? 0,
         attendancePercent:
-          records.length > 0 ? Math.round((present / records.length) * 100) : 0,
-      });
-    }
+          totalRecords > 0 ? Math.round((present / totalRecords) * 100) : 0,
+      };
+    });
 
     setClassStats(stats);
     setLoadingStats(false);

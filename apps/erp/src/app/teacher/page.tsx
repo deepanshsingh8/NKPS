@@ -49,6 +49,9 @@ interface PendingResult {
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+/** PostgREST caps a response at 1000 rows unless an explicit range is given. */
+const ROW_CAP = 99999;
+
 export default function TeacherDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [stats, setStats] = useState<TeacherStats>({
@@ -187,18 +190,48 @@ export default function TeacherDashboard() {
           .order("sort_order", { ascending: true });
 
         if (examTypes && examTypes.length > 0) {
+          const subjectIds = [
+            ...new Set((classSubjects ?? []).map((cs) => cs.subject_id)),
+          ];
+          const examTypeIds = examTypes.map((et) => et.id);
+
+          // The whole shortfall table comes from two reads, counted per
+          // combination in JS below. One count query per (class, subject,
+          // exam) was 30+ serial round trips before the dashboard rendered.
+          // Both lists are a single teacher's assignments, so they stay well
+          // inside the URL length an `.in()` filter can carry.
+          const [enrollmentRes, resultsRes] = await Promise.all([
+            supabase
+              .from("student_enrollments")
+              .select("class_id")
+              .in("class_id", classIds)
+              .eq("status", "active")
+              .range(0, ROW_CAP),
+            supabase
+              .from("results")
+              .select("class_id, subject_id, exam_type_id")
+              .in("class_id", classIds)
+              // Narrowed to the combinations actually consulted below, so a
+              // class's other subjects never cross the wire.
+              .in("subject_id", subjectIds)
+              .in("exam_type_id", examTypeIds)
+              .range(0, ROW_CAP),
+          ]);
+
           // Enrollment counts per class
           const enrollmentByClass: Record<string, number> = {};
-          await Promise.all(
-            classIds.map(async (cid) => {
-              const { count } = await supabase
-                .from("student_enrollments")
-                .select("*", { count: "exact", head: true })
-                .eq("class_id", cid)
-                .eq("status", "active");
-              enrollmentByClass[cid] = count ?? 0;
-            })
-          );
+          for (const row of enrollmentRes.data ?? []) {
+            enrollmentByClass[row.class_id] =
+              (enrollmentByClass[row.class_id] ?? 0) + 1;
+          }
+
+          // Results already entered, keyed by the same triple the shortfall
+          // is computed against.
+          const resultsByCombo: Record<string, number> = {};
+          for (const row of resultsRes.data ?? []) {
+            const key = `${row.class_id}|${row.subject_id}|${row.exam_type_id}`;
+            resultsByCombo[key] = (resultsByCombo[key] ?? 0) + 1;
+          }
 
           // For each (class, subject, exam) compute results count
           const pending: PendingResult[] = [];
@@ -209,12 +242,7 @@ export default function TeacherDashboard() {
             const enrolled = enrollmentByClass[cls.id] ?? 0;
             if (enrolled === 0) continue;
             for (const et of examTypes) {
-              const { count: resCount } = await supabase
-                .from("results")
-                .select("*", { count: "exact", head: true })
-                .eq("class_id", cls.id)
-                .eq("subject_id", sub.id)
-                .eq("exam_type_id", et.id);
+              const resCount = resultsByCombo[`${cls.id}|${sub.id}|${et.id}`];
               const shortfall = enrolled - (resCount ?? 0);
               if (shortfall > 0) {
                 pending.push({
