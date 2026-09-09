@@ -67,12 +67,12 @@ schema L701) — dropped from the migration list.
 ## Phase 3 — WhatsApp
 
 - [ ] 19. Meta Business verification + WABA (not code — start day 1)
-- [ ] 20. migration-113: `parent_phone_links`, `whatsapp_sessions`, `whatsapp_messages`,
+- [x] 20. migration-113 (number confirmed free): `parent_phone_links`, `whatsapp_sessions`, `whatsapp_messages`,
       `ai_rate_limits`
-- [ ] 21. `packages/shared/src/lib/messaging/whatsapp.ts` (mirrors `telephony/exotel.ts`)
-- [ ] 22. `/api/webhooks/whatsapp` — HMAC verify, phone→parent resolution, OTP enrolment
+- [x] 21. `packages/shared/src/lib/messaging/whatsapp.ts` (mirrors `telephony/exotel.ts`)
+- [x] 22. `/api/webhooks/whatsapp` — HMAC verify, phone→parent resolution, OTP enrolment
 - [x] 23. `tools/parent.ts` — the seven narrow read-only tools (+ portal channel)
-- [ ] 24. DB-backed rate limiter (in-memory `rateLimit()` is useless on a public ingress)
+- [x] 24. DB-backed rate limiter (in-memory `rateLimit()` is useless on a public ingress)
 
 ## Phase 4 — Sales one-pager
 
@@ -335,6 +335,49 @@ one conversation producing six unique rows.
 **Not verified:** there are **zero `student_parents` rows** in the database, so the scope
 tests used an in-memory ward list over real students. `verifyPortalUser()`'s own
 parent→wards resolution is typechecked but has never run against a real linked family.
+
+### Phase 3b — WhatsApp channel — code complete 2026-09-09
+
+**New** — `migration-113-whatsapp.sql`, `packages/shared/src/lib/messaging/whatsapp.ts`,
+`lib/ai/rate-limit-db.ts`, `lib/ai/whatsapp/session.ts`,
+`api/webhooks/whatsapp/route.ts`. Apply bundle regenerated to cover 110-113.
+
+**Decisions**
+1. **A phone number is not a session.** Meta's signature authenticates the *provider*, not
+   the handset. SIM swaps, shared family phones and recycled numbers are all real, so a
+   number must be enrolled once (OTP, or from the authenticated portal) before it sees any
+   child's data.
+2. **Never matched against `parents.phone`** — that column contains empty strings because
+   `ensureParentRecord` writes `opts.phone || ""` into a NOT NULL column, so a normalisation
+   miss would match a pile of unrelated parents. `parent_phone_links` has a partial unique
+   index that cannot hold a blank.
+3. **Zero matches and several matches get the SAME reply.** Telling the sender which would
+   let anyone probe the school's parent list.
+4. **OTP codes are stored hashed and salted with the phone number**, attempts capped at 5.
+   Six digits is a few thousand guesses otherwise.
+5. **DB-backed rate limiter** (`bump_rate_limit`, one atomic statement). The in-memory
+   helper is per-process — on a multi-instance deploy the effective limit is `max ×
+   instances` — which is fine on an authenticated screen and useless on a public ingress
+   that costs money per message. **Fails closed**: a broken limiter refuses rather than
+   letting an unbounded bill through.
+6. **Always 200 except a bad signature.** Meta retries any non-2xx, and a retry cannot fix
+   a handler bug — it just multiplies the damage and the bill.
+7. **No conversation history on this channel.** Threading across messages would mean
+   trusting a phone number to still be the same person several messages later.
+8. **`whatsapp_messages` stores `phone_last4` only**, following the `call_logs` precedent.
+
+**Verified — 17/17 pure-function tests.** Valid signature accepted; wrong-secret, tampered
+body, missing, malformed and unprefixed signatures all rejected without crashing; challenge
+refused on wrong token and wrong mode; text messages parsed and non-text (images/stickers)
+dropped; garbage and null payloads return empty rather than throwing; an unknown provider
+status collapses to `failed` so it can never violate the CHECK; unconfigured fails closed and
+`sendText` throws `WHATSAPP_NOT_CONFIGURED`.
+
+**NOT verified — needs the user.** Migration 113 is not applied. Nothing touching
+`parent_phone_links`, `whatsapp_sessions`, `whatsapp_messages` or `bump_rate_limit` has run.
+No Meta credentials exist, so no message has been sent or received, and the templates
+(`nkps_unknown_number`, `nkps_verify_code`) have not been created or approved. The enrolment
+flow, the OTP round-trip and the live rate limiter are all untested.
 
 ### Open, for later
 - Migrate the five attendance call sites onto `computeAttendanceSummary()`.
