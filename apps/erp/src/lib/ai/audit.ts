@@ -64,6 +64,32 @@ export async function startConversation(
   return data.id as string;
 }
 
+/**
+ * The next free message sequence for a conversation.
+ *
+ * Derived from the database rather than from `history.length`, because history
+ * is what the CLIENT sent — it can be truncated, replayed, or absent on a
+ * resumed conversation, and any of those makes seq collide with the
+ * (conversation_id, seq) unique constraint. The write then fails and the turn
+ * silently loses its audit row.
+ *
+ * One indexed lookup per turn is a fair price for a trail that cannot skip.
+ */
+export async function nextMessageSeq(
+  admin: SupabaseClient,
+  conversationId: string | null
+): Promise<number> {
+  if (!conversationId) return 1;
+  const { data } = await admin
+    .from("ai_messages")
+    .select("seq")
+    .eq("conversation_id", conversationId)
+    .order("seq", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return ((data?.seq as number | undefined) ?? 0) + 1;
+}
+
 export interface RecordMessageArgs {
   admin: SupabaseClient;
   conversationId: string | null;

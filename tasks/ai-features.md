@@ -71,7 +71,7 @@ schema L701) — dropped from the migration list.
       `ai_rate_limits`
 - [ ] 21. `packages/shared/src/lib/messaging/whatsapp.ts` (mirrors `telephony/exotel.ts`)
 - [ ] 22. `/api/webhooks/whatsapp` — HMAC verify, phone→parent resolution, OTP enrolment
-- [ ] 23. `tools/parent.ts` — the seven narrow read-only tools
+- [x] 23. `tools/parent.ts` — the seven narrow read-only tools (+ portal channel)
 - [ ] 24. DB-backed rate limiter (in-memory `rateLimit()` is useless on a public ingress)
 
 ## Phase 4 — Sales one-pager
@@ -305,6 +305,36 @@ rows in the database, so the actual drafting path — the prompt, the grounding,
 of the sentences — has NOT been exercised. The plan's acceptance test (verify every factual
 claim in three remarks against `computeFinalResult`) cannot run until marks are entered.
 Neither can the class-teacher 403, which needs a teacher login.
+
+### Phase 3a — parent assistant, portal channel — done 2026-09-09
+
+Built the **authenticated web channel first**, deliberately: it exercises the tools, the
+scoping and the audit trail against a caller Supabase has already proven, before any of it
+is exposed to an ingress whose only credential is a phone number. WhatsApp becomes a second
+channel onto the same assistant.
+
+**New** — `lib/ai/tools/parent.ts` (seven tools), `lib/ai/parent-runner.ts`,
+`api/ai/parent/route.ts`, `parent/ask/page.tsx`. **Modified** — `ParentSidebar.tsx`,
+`lib/ai/audit.ts` (+`nextMessageSeq`), both runners.
+
+**Verified against the live database.** All eight scope tests pass: every student-scoped
+tool serves the caller's own child and refuses another family's with `not_your_child`, and a
+nonexistent id returns the **identical message** to a not-yours id — no enumeration oracle.
+A real turn answered *"Is there any fee pending, and how is attendance?"* with **₹26,600
+outstanding** (the real figure from `getStudentOutstandingDues`, the same helper the dues
+screen uses) and correctly said attendance *"has not been marked yet"* rather than 0%. Asked
+about another child **by name**, it declined without confirming that child exists.
+
+**Bug found and fixed.** `ai_messages` has a `(conversation_id, seq)` unique constraint, and
+both runners derived `seq` from `history.length` — which is what the CLIENT sent. A
+truncated, replayed or resumed history collides, the insert fails, and the turn silently
+loses its audit row. Production masked it by opening a fresh conversation per request. Now
+`nextMessageSeq()` reads the true max from the database; verified with three turns reusing
+one conversation producing six unique rows.
+
+**Not verified:** there are **zero `student_parents` rows** in the database, so the scope
+tests used an in-memory ward list over real students. `verifyPortalUser()`'s own
+parent→wards resolution is typechecked but has never run against a real linked family.
 
 ### Open, for later
 - Migrate the five attendance call sites onto `computeAttendanceSummary()`.

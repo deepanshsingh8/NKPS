@@ -10,6 +10,7 @@ import {
   IdCard,
   MessageSquare,
   Bus,
+  Sparkles,
 } from "lucide-react";
 import { PortalSidebar } from "./PortalSidebar";
 
@@ -18,6 +19,11 @@ const navLinks = [
     href: "/parent",
     label: "Dashboard",
     icon: <LayoutDashboard className="h-5 w-5 shrink-0" />,
+  },
+  {
+    href: "/parent/ask",
+    label: "Ask the school",
+    icon: <Sparkles className="h-5 w-5 shrink-0" />,
   },
   {
     href: "/parent/attendance",
