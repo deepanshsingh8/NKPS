@@ -30,6 +30,7 @@ import {
   formatFieldValue,
   indianNationalFromNationality,
 } from "./student-template";
+import { REPORT_SENSITIVE_KEYS } from "./pii-fields";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -219,16 +220,11 @@ const TEMPLATE_GROUP: Record<string, ReportGroup> = {
 /**
  * Fields carrying personal data that a non-admin should not be able to export.
  * Enforced server-side — hiding them in the picker is presentation only.
+ *
+ * The list itself lives in `pii-fields.ts`, alongside the one the generic
+ * exports use and a note on where the two disagree.
  */
-const SENSITIVE_KEYS = new Set([
-  "aadhar_number", "jan_aadhar_number", "name_as_per_aadhar",
-  "father_annual_income", "mother_annual_income",
-  "address", "permanent_address", "mailing_address",
-  "office_address", "mother_office_address",
-  "present_pincode", "permanent_pincode",
-  "caution_money_amount", "counsellor_remark",
-  "pen_number", "apaar_number", "nic_number",
-]);
+const SENSITIVE_KEYS = REPORT_SENSITIVE_KEYS;
 
 // ── Template-backed fields ──────────────────────────────────────────────────
 
@@ -829,6 +825,102 @@ export function resolveFields(keys: readonly string[]): ReportField[] {
     out.push(field);
   }
   return out;
+}
+
+/**
+ * `resolveFields` for callers that need to know what was thrown away.
+ *
+ * The silent drop above is right for saved presets — a retired field should
+ * not break a report someone saved last year. It is wrong for a language
+ * model, which would receive a quietly smaller table and describe columns it
+ * never got. This returns the same fields plus the unknown keys and a
+ * suggestion for each, so the caller can hand the model something to correct.
+ *
+ * Suggestions are matched on the key and on the label's words, so a model that
+ * guesses "father_name" or "Father's Name" both land on `father_name`.
+ */
+export function partitionFieldKeys(keys: readonly string[]): {
+  resolved: ReportField[];
+  unknown: string[];
+  suggestions: Record<string, string[]>;
+} {
+  const resolved = resolveFields(keys);
+  const unknown = keys.filter((k) => !FIELD_BY_KEY.has(k));
+  const suggestions: Record<string, string[]> = {};
+
+  for (const bad of unknown) {
+    const needle = normalizeForMatch(bad);
+    if (!needle) continue;
+    const scored: { key: string; score: number }[] = [];
+    for (const field of REPORT_FIELDS) {
+      const score = Math.max(
+        matchScore(needle, normalizeForMatch(field.key)),
+        matchScore(needle, normalizeForMatch(field.label))
+      );
+      if (score > 0) scored.push({ key: field.key, score });
+    }
+    scored.sort((a, b) => b.score - a.score || a.key.localeCompare(b.key));
+    const top = scored.slice(0, 3).map((s) => s.key);
+    if (top.length > 0) suggestions[bad] = top;
+  }
+
+  return { resolved, unknown, suggestions };
+}
+
+function normalizeForMatch(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+/**
+ * Cheap similarity: shared word count, then containment, then shared prefix.
+ * Deliberately not an edit-distance library — this only has to order 135
+ * candidates well enough to put the right one in a three-item list.
+ */
+function matchScore(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1000;
+
+  const aWords = new Set(a.split(" "));
+  const bWords = b.split(" ");
+  let shared = 0;
+  for (const word of bWords) if (aWords.has(word)) shared += 1;
+
+  let score = shared * 100;
+  if (b.includes(a) || a.includes(b)) score += 50;
+
+  let prefix = 0;
+  while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix += 1;
+  score += prefix;
+
+  return score;
+}
+
+/**
+ * The field catalogue as a model reads it, grouped and role-filtered.
+ *
+ * Returned as data rather than a rendered string so the caller decides how to
+ * serialise it. It belongs in a cached prompt prefix: it is static per role,
+ * so paying for it once per role beats a lookup tool that costs a round trip
+ * on nearly every conversation.
+ */
+export function describeFieldCatalog(
+  isAdmin: boolean
+): { group: ReportGroup; fields: { key: string; label: string }[] }[] {
+  const visible = applyFieldVisibility(REPORT_FIELDS, isAdmin);
+  const byGroup = new Map<ReportGroup, { key: string; label: string }[]>();
+
+  for (const field of visible) {
+    const bucket = byGroup.get(field.group) ?? [];
+    bucket.push({ key: field.key, label: field.label });
+    byGroup.set(field.group, bucket);
+  }
+
+  // REPORT_GROUPS order, skipping groups no field actually lands in — two of
+  // them ("Previous School", "Academics") are declared but currently empty.
+  return REPORT_GROUPS.filter((g) => byGroup.has(g)).map((group) => ({
+    group,
+    fields: byGroup.get(group)!,
+  }));
 }
 
 /** Strip fields the caller isn't allowed to export. Admins keep everything. */
