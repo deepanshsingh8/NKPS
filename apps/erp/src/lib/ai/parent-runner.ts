@@ -244,10 +244,18 @@ export async function runParentTurn(
     );
 
     if (toolUses.length === 0) {
+      // Joined with a BLANK line, not a single newline.
+      //
+      // A reply can arrive as several text blocks — thinking and text
+      // interleave once tools are in play. Markdown block elements need a
+      // blank line to start: glue two blocks together with one newline and a
+      // table or list opening the second block is absorbed into the last
+      // paragraph of the first, and renders as literal pipe characters.
       const text = response.content
         .filter((b): b is Anthropic.TextBlock => b.type === "text")
-        .map((b) => b.text)
-        .join("\n")
+        .map((b) => b.text.trim())
+        .filter(Boolean)
+        .join("\n\n")
         .trim();
       await finishConversation(ctx.admin, ctx.conversationId, "completed");
       return { text, toolCalls, stoppedBy: "end_turn" };
