@@ -200,7 +200,28 @@ function normaliseHistory(raw: unknown): Anthropic.MessageParam[] {
     const { role, content } = entry as { role?: unknown; content?: unknown };
     if (role !== "user" && role !== "assistant") continue;
     if (typeof content !== "string" || !content.trim()) continue;
+
+    // Enforce alternation, starting on the user.
+    //
+    // The client can legitimately hold a question whose answer never arrived —
+    // the user stopped it, or it failed — and that empty assistant turn is
+    // dropped by the check above, leaving two user turns adjacent once the new
+    // question is appended. Dropping the orphan is right on both counts: the
+    // transcript stays well-formed, and a question the assistant never
+    // answered is not context, it is a false memory of having been asked.
+    const previous = out[out.length - 1];
+    if (!previous) {
+      if (role !== "user") continue;
+    } else if (previous.role === role) {
+      if (role === "user") out.pop();
+      else continue;
+    }
+
     out.push({ role, content: content.slice(0, 4000) });
   }
+
+  // A trailing user turn would sit directly before the new question.
+  if (out[out.length - 1]?.role === "user") out.pop();
+
   return out;
 }
