@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { runStudentReport, toMatrix, ReportQueryError } from "@/lib/report-query";
-import { getReportField } from "@nkps/shared/lib/report-fields";
+import type { ReportField } from "@nkps/shared/lib/report-fields";
 import {
   applyScope,
   enforceScopeOnRows,
@@ -180,6 +180,34 @@ export async function executeRunStudentReport(
   const requestedKeys = input.filters.fields ?? scoped.filters.fields ?? [];
   const policy = resolveAiFields(ctx, requestedKeys);
 
+  // ── Columns the model wants to GROUP by have to be fetched too ────────────
+  //
+  // This is not an optimisation, it is a correctness bug that hides in plain
+  // sight. `runStudentReport` projects only the columns the fields it is
+  // handed declare, and every `resolve()` reads straight off the row — so a
+  // group_by field missing from the projection does not error. It reads
+  // `undefined` and falls out of the field's else branch, producing a rollup
+  // that is uniform, plausible and wrong.
+  //
+  // Observed: grouping 942 students by `has_transport` returned "NO" for all
+  // 942, while the same query's `has_transport: "yes"` filter correctly
+  // matched 744. The filter runs in Postgres; the rollup ran on a row that
+  // never carried the column.
+  //
+  // Resolved through resolveAiFields, not waved through: a rollup over
+  // `father_mobile` enumerates parent numbers just as effectively as a column
+  // of them would, so grouping obeys the same sensitivity gate as output.
+  const groupKeys = input.group_by ?? [];
+  const groupPolicy =
+    groupKeys.length > 0 ? resolveAiFields(ctx, groupKeys) : null;
+
+  // The query projects the union. The OUTPUT stays exactly the columns that
+  // were asked for — grouping by transport must not add a transport column to
+  // the table or the CSV.
+  const queryFields = groupPolicy
+    ? unionFields(policy.fields, groupPolicy.fields)
+    : policy.fields;
+
   // Only fatal when NOTHING resolved. A partial answer with a named gap beats
   // a round-trip; the model is told what it got wrong either way.
   if (policy.fields.length === 0 && policy.unknown.length > 0) {
@@ -203,7 +231,7 @@ export async function executeRunStudentReport(
 
   let queryResult;
   try {
-    queryResult = await runScoped(ctx, scoped.filters, policy.fields);
+    queryResult = await runScoped(ctx, scoped.filters, queryFields);
   } catch (err) {
     const code = err instanceof ReportQueryError ? "query_failed" : "query_failed";
     const message =
@@ -271,11 +299,15 @@ export async function executeRunStudentReport(
     previewTruncated = true;
   }
 
-  const groupCounts = computeGroupCounts(
-    input.group_by ?? [],
-    guarded.rows,
-    policy.fields
-  );
+  const groupCounts = groupPolicy
+    ? computeGroupCounts(groupKeys, guarded.rows, groupPolicy.fields)
+    : [];
+
+  // A group_by key that was unknown or withheld yields no rollup. Fold it into
+  // the same two lists the model is already required to read out, or it simply
+  // never learns why the breakdown it asked for is missing.
+  const unknownFields = mergeUnknown(policy.unknown, groupPolicy?.unknown ?? []);
+  const withheldFields = mergeWithheld(policy.withheld, groupPolicy?.withheld ?? []);
 
   const runId = await createQueryRun({
     ctx,
@@ -296,8 +328,9 @@ export async function executeRunStudentReport(
     scopeApplied: { kind: ctx.scope.kind, note: scoped.scopeNote },
     rowCount: queryResult.total,
     previewRowCount: preview.length,
-    fieldKeys: policy.fields.map((f) => f.key),
-    sensitiveIncluded: policy.sensitiveIncluded,
+    fieldKeys: queryFields.map((f) => f.key),
+    sensitiveIncluded:
+      policy.sensitiveIncluded || (groupPolicy?.sensitiveIncluded ?? false),
     durationMs: Date.now() - started,
   });
 
@@ -312,12 +345,12 @@ export async function executeRunStudentReport(
       preview_truncated: previewTruncated,
       group_counts: groupCounts.length > 0 ? groupCounts : undefined,
       scope_applied: scoped.scopeNote,
-      unknown_fields: policy.unknown.map((u) => ({
+      unknown_fields: unknownFields.map((u) => ({
         key: u.key,
         did_you_mean: u.didYouMean,
       })),
-      withheld_fields: policy.withheld.map((w) => ({ key: w.key, reason: w.reason })),
-      withheld_notice: describeWithheld(policy.withheld),
+      withheld_fields: withheldFields.map((w) => ({ key: w.key, reason: w.reason })),
+      withheld_notice: describeWithheld(withheldFields),
       notes,
     },
   };
@@ -357,28 +390,43 @@ function zeroRowDiagnostics(filters: Record<string, unknown>): string[] {
   return notes;
 }
 
-/** Cheap in-memory rollups over the already-fetched rows. */
+/**
+ * Cheap in-memory rollups over the already-fetched rows.
+ *
+ * `available` is the set of fields the query actually PROJECTED, not the whole
+ * catalogue. That is the point: resolving a field whose columns were never
+ * selected silently yields the field's fallback value for every row, so a key
+ * that is not in this list must produce no rollup at all rather than a
+ * confident wrong one. Callers report those keys as unknown or withheld.
+ */
 function computeGroupCounts(
   groupBy: readonly string[],
   rows: readonly unknown[],
-  fields: Parameters<typeof toMatrix>[1]
+  available: readonly ReportField[]
 ): { by: string; counts: { value: string; n: number }[] }[] {
+  const byKey = new Map(available.map((f) => [f.key, f]));
   const out: { by: string; counts: { value: string; n: number }[] }[] = [];
 
   for (const key of groupBy) {
-    const field = getReportField(key);
+    const field = byKey.get(key);
     if (!field) continue;
+
     const tally = new Map<string, number>();
     for (const row of rows) {
       let value: string;
       try {
         const raw = field.resolve(row as never);
         value = raw == null || raw === "" ? "(blank)" : String(raw);
-      } catch {
+      } catch (err) {
+        // The column is projected, so a throw here is a real defect in the
+        // field's resolve() rather than a missing join. Swallowing it keeps
+        // the answer alive, but it must not do so silently.
+        console.error(`[ai.report] group_by "${key}" resolve() threw:`, err);
         value = "(blank)";
       }
       tally.set(value, (tally.get(value) ?? 0) + 1);
     }
+
     out.push({
       by: key,
       counts: [...tally.entries()]
@@ -388,6 +436,36 @@ function computeGroupCounts(
     });
   }
 
-  void fields;
   return out;
+}
+
+/** Output fields plus any group-by fields not already among them, in order. */
+function unionFields(
+  output: readonly ReportField[],
+  extra: readonly ReportField[]
+): ReportField[] {
+  const seen = new Set(output.map((f) => f.key));
+  const out = [...output];
+  for (const field of extra) {
+    if (seen.has(field.key)) continue;
+    seen.add(field.key);
+    out.push(field);
+  }
+  return out;
+}
+
+function mergeUnknown(
+  a: readonly { key: string; didYouMean: string[] }[],
+  b: readonly { key: string; didYouMean: string[] }[]
+): { key: string; didYouMean: string[] }[] {
+  const seen = new Set(a.map((u) => u.key));
+  return [...a, ...b.filter((u) => !seen.has(u.key))];
+}
+
+function mergeWithheld(
+  a: readonly { key: string; reason: "sensitive" | "not_permitted" }[],
+  b: readonly { key: string; reason: "sensitive" | "not_permitted" }[]
+): { key: string; reason: "sensitive" | "not_permitted" }[] {
+  const seen = new Set(a.map((w) => w.key));
+  return [...a, ...b.filter((w) => !seen.has(w.key))];
 }
