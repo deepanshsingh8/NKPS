@@ -6942,3 +6942,76 @@ CREATE INDEX IF NOT EXISTS idx_students_alumni_year_name
 ANALYZE;
 
 COMMIT;
+
+
+-- ============================================================================
+-- TRANSPORT READS RESTRICTED TO AUTHENTICATED (migration 104)
+-- ============================================================================
+-- The four transport tables above are created with "Public can read …"
+-- policies that have no TO clause, so they applied to PUBLIC — including the
+-- anon role, whose key ships in the marketing site's JS bundle. That exposed
+-- every pickup point, route, fee and bus registration number to the internet.
+-- Verified against production with real anon-key requests before the fix.
+--
+-- Applied after those CREATE POLICY statements so a database rebuilt from
+-- this file ends up correct.
+
+BEGIN;
+
+-- ── bus_stops ───────────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Public can read bus_stops" ON public.bus_stops;
+CREATE POLICY "Authenticated can read bus_stops"
+  ON public.bus_stops FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- ── bus_route_stops ─────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Public can read bus_route_stops" ON public.bus_route_stops;
+CREATE POLICY "Authenticated can read bus_route_stops"
+  ON public.bus_route_stops FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- ── bus_stop_fees ───────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Public can read bus_stop_fees" ON public.bus_stop_fees;
+CREATE POLICY "Authenticated can read bus_stop_fees"
+  ON public.bus_stop_fees FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- ── buses ───────────────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Public can read buses" ON public.buses;
+CREATE POLICY "Authenticated can read buses"
+  ON public.buses FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- ── Assertion: no anonymous read may survive on these four ─────────────────
+-- Catches both a policy name that did not match the DROPs above and any future
+-- policy that re-opens one of these tables to anon. Aborts the transaction.
+DO $assert$
+DECLARE leaked text;
+BEGIN
+  SELECT string_agg(format('%s."%s"', tablename, policyname), ', ')
+    INTO leaked
+    FROM pg_policies
+   WHERE schemaname = 'public'
+     AND tablename IN ('bus_stops','bus_route_stops','bus_stop_fees','buses')
+     AND cmd IN ('SELECT','ALL')
+     AND permissive = 'PERMISSIVE'
+     -- roles containing public/anon means unauthenticated callers are included
+     AND (roles::text[] && ARRAY['public','anon'])
+     -- ...and the predicate does not itself exclude them
+     AND coalesce(qual, 'true') = 'true';
+
+  IF leaked IS NOT NULL THEN
+    RAISE EXCEPTION
+      'migration-104 aborted: these policies still allow anonymous reads of transport data: %',
+      leaked;
+  END IF;
+
+  RAISE NOTICE 'migration-104: transport tables are no longer readable by anon.';
+END
+$assert$;
+
+COMMIT;
