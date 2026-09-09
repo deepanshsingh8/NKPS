@@ -19,6 +19,7 @@ import { z } from "zod";
 
 import { contentDispositionAttachment } from "@nkps/shared/lib/utils";
 import { renderListPdf } from "@nkps/shared/lib/table-pdf-handler";
+import { EXPORT_SENSITIVE_KEYS } from "@nkps/shared/lib/pii-fields";
 import {
   buildExportMatrix,
   exportAligns,
@@ -69,25 +70,7 @@ export type ExportRequest = z.infer<typeof exportRequestSchema>;
  * Enforced here rather than in the UI because a client-side filter is a
  * suggestion.
  */
-export const SENSITIVE_FIELDS = new Set([
-  "phone",
-  "email",
-  "address",
-  "permanent_address",
-  "present_pincode",
-  "permanent_pincode",
-  "father_mobile",
-  "mother_mobile",
-  "guardian_mobile",
-  "father_annual_income",
-  "mother_annual_income",
-  "aadhar_number",
-  "aadhaar_number",
-  "jan_aadhar_number",
-  "name_as_per_aadhar",
-  "parent_phone",
-  "parent_email",
-]);
+export const SENSITIVE_FIELDS = EXPORT_SENSITIVE_KEYS;
 
 export interface ExportActor {
   admin: SupabaseClient;

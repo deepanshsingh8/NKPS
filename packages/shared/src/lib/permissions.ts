@@ -156,6 +156,13 @@ const PATH_FEATURE_OVERRIDES: ReadonlyArray<readonly [string, FeatureKey]> = [
   // Approval queues sit beside the feature whose data they change.
   ["/fees/change-requests", "fees"],
   ["/transport/changes", "transport"],
+  // Ask-your-school is a natural-language front door onto the report builder
+  // and reaches exactly the same data, so it takes the same grant rather than
+  // a key of its own — a separate "AI" key would be a second, wider door to
+  // the student master wearing a different name. Registered here because
+  // /reports/ask is not a FEATURE_CATALOG href, and per the note above an
+  // unmapped admin path is open to every editor.
+  ["/reports/ask", "reports"],
 ];
 
 // Map an app-relative URL to its feature_key.

@@ -4,6 +4,7 @@ import {
   CalendarCheck,
   FileSpreadsheet,
   ReceiptText,
+  Sparkles,
   Users,
 } from "lucide-react";
 
@@ -63,6 +64,25 @@ export default function ReportsPage() {
           Build a sheet: choose the rows, choose the columns, export it.
         </p>
       </div>
+
+      <Link
+        href="/reports/ask"
+        className="group flex items-start gap-4 rounded-lg border border-blue-200 bg-blue-50/60 p-5 transition hover:border-blue-400 hover:shadow-sm"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+          <Sparkles className="h-5 w-5" />
+        </div>
+        <div>
+          <h2 className="font-medium text-navy-900 group-hover:text-blue-700">
+            Ask your school
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Describe the list you want in plain language — &ldquo;Class IX with
+            fees pending who don&rsquo;t take the bus&rdquo; — and get the sheet.
+            Same records and same export log as the builder below.
+          </p>
+        </div>
+      </Link>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {REPORTS.map((report) => (
