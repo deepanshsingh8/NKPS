@@ -35,58 +35,87 @@
 -- Deploy order does not matter. The directory component falls back to its
 -- bundled static staff list whenever the query errors, so neither
 -- "migration first" nor "code first" breaks the public page.
+--
+-- Every block below is guarded on the table actually existing. The first run
+-- of this file aborted on `student_elective_picks` — created by migration 049,
+-- which this database never received — and because the whole file is one
+-- transaction, the staff-PII fix rolled back with it. A table that isn't there
+-- has no policy to tighten and must not be able to block the part that
+-- matters. The guards make the file safe to run against any deployment,
+-- whatever subset of migrations it has seen.
 
 begin;
 
 -- ── teachers ────────────────────────────────────────────────────────────────
 -- No public consumer exists; this table is read only by ERP screens (classes,
 -- subjects, timetable, substitutions, staff) and by server routes.
-DROP POLICY IF EXISTS "Public can read teachers" ON teachers;
-
-CREATE POLICY "Authenticated can read teachers"
-  ON teachers FOR SELECT
-  TO authenticated
-  USING (true);
+do $$
+begin
+  if to_regclass('public.teachers') is null then
+    raise notice 'skip: teachers does not exist';
+    return;
+  end if;
+  drop policy if exists "Public can read teachers" on teachers;
+  drop policy if exists "Authenticated can read teachers" on teachers;
+  create policy "Authenticated can read teachers"
+    on teachers for select
+    to authenticated
+    using (true);
+end $$;
 
 -- ── staff_members ───────────────────────────────────────────────────────────
-DROP POLICY IF EXISTS "Public can view staff members" ON staff_members;
-
-CREATE POLICY "Authenticated can read staff members"
-  ON staff_members FOR SELECT
-  TO authenticated
-  USING (true);
+do $$
+begin
+  if to_regclass('public.staff_members') is null then
+    raise notice 'skip: staff_members does not exist';
+    return;
+  end if;
+  drop policy if exists "Public can view staff members" on staff_members;
+  drop policy if exists "Authenticated can read staff members" on staff_members;
+  create policy "Authenticated can read staff members"
+    on staff_members for select
+    to authenticated
+    using (true);
+end $$;
 
 -- ── public directory ────────────────────────────────────────────────────────
--- security_invoker = false (the default, stated explicitly): the view runs as
--- its owner and so is not blocked by the authenticated-only policy above.
--- That is the point — this view IS the curated public projection, and it can
--- only ever return the columns named here.
+-- The view runs with its OWNER's rights, which is the default for every
+-- Postgres version (the opt-in `security_invoker = true` is 15+, and naming
+-- it explicitly as false broke this file on 14 — so it is simply omitted).
+-- Owner rights are the point here: the view is not blocked by the
+-- authenticated-only policy above, and it can only ever return the columns
+-- named below. This IS the curated public projection.
 --
 -- The category filter is applied here as well as in the component: the public
 -- directory lists teaching and management staff, never bus drivers or peons,
 -- and that should not depend on a client-side filter being remembered.
-CREATE OR REPLACE VIEW public_staff_directory
-WITH (security_invoker = false) AS
-  SELECT
-    id,
-    name,
-    subject,
-    category,
-    photo_url,
-    qualifications,
-    sort_order
-  FROM staff_members
-  WHERE is_active = true
-    AND category IN (
-      'management', 'pgt', 'tgt', 'prt', 'motherTeachers', 'admin'
-    );
+do $$
+begin
+  if to_regclass('public.staff_members') is null then
+    raise notice 'skip: public_staff_directory needs staff_members';
+    return;
+  end if;
 
-GRANT SELECT ON public_staff_directory TO anon, authenticated;
+  execute $v$
+    create or replace view public_staff_directory as
+      select id, name, subject, category, photo_url, qualifications, sort_order
+      from staff_members
+      where is_active = true
+        and category in (
+          'management', 'pgt', 'tgt', 'prt', 'motherTeachers', 'admin'
+        )
+  $v$;
 
-COMMENT ON VIEW public_staff_directory IS
-  'The only staff data readable without logging in. Columns are deliberately '
-  'limited: staff_members also holds date_of_birth, address, phone, email and '
-  'license_number, none of which may ever be added here. See migration 098.';
+  execute 'grant select on public_staff_directory to anon, authenticated';
+
+  execute $c$
+    comment on view public_staff_directory is
+      'The only staff data readable without logging in. Columns are '
+      'deliberately limited: staff_members also holds date_of_birth, address, '
+      'phone, email and license_number, none of which may ever be added here. '
+      'See migration 098.'
+  $c$;
+end $$;
 
 -- ── student roster enumeration ──────────────────────────────────────────────
 -- `student_subjects` and `student_elective_picks` are both keyed on
@@ -98,18 +127,24 @@ COMMENT ON VIEW public_staff_directory IS
 -- Neither table has a single browser-side reader: every consumer is a server
 -- route on the service-role client, which bypasses RLS entirely. Restricting
 -- them to authenticated therefore changes no working behaviour.
-DROP POLICY IF EXISTS "Public can read student_subjects" ON student_subjects;
-
-CREATE POLICY "Authenticated can read student_subjects"
-  ON student_subjects FOR SELECT
-  TO authenticated
-  USING (true);
-
-DROP POLICY IF EXISTS "Public can read student_elective_picks" ON student_elective_picks;
-
-CREATE POLICY "Authenticated can read student_elective_picks"
-  ON student_elective_picks FOR SELECT
-  TO authenticated
-  USING (true);
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['student_subjects', 'student_elective_picks'] loop
+    if to_regclass('public.' || t) is null then
+      -- student_elective_picks comes from migration 049; a database that never
+      -- received it simply has nothing to tighten here.
+      raise notice 'skip: % does not exist', t;
+      continue;
+    end if;
+    execute format('drop policy if exists %I on %I', 'Public can read ' || t, t);
+    execute format('drop policy if exists %I on %I', 'Authenticated can read ' || t, t);
+    execute format(
+      'create policy %I on %I for select to authenticated using (true)',
+      'Authenticated can read ' || t, t
+    );
+  end loop;
+end $$;
 
 commit;

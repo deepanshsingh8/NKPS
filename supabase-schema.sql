@@ -6320,8 +6320,7 @@ WHERE NOT EXISTS (SELECT 1 FROM school_profile);
 -- limited; staff_members also holds date_of_birth, address, phone, email and
 -- license_number, none of which may ever be added here.
 -- ============================================================
-CREATE OR REPLACE VIEW public_staff_directory
-WITH (security_invoker = false) AS
+CREATE OR REPLACE VIEW public_staff_directory AS
   SELECT id, name, subject, category, photo_url, qualifications, sort_order
   FROM staff_members
   WHERE is_active = true
