@@ -579,6 +579,9 @@ export default function AdminStudentsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkStatusValue, setBulkStatusValue] = useState<string>("");
   const [applyingBulk, setApplyingBulk] = useState(false);
+  // The re-upload CSV re-fetches the full student columns on demand, so its
+  // menu item has a wait worth showing.
+  const [buildingReuploadCsv, setBuildingReuploadCsv] = useState(false);
 
   // Promote dialog state
   const [targetAcademicYearId, setTargetAcademicYearId] = useState("");
@@ -621,6 +624,19 @@ export default function AdminStudentsPage() {
 
   // Detail view dialog (read-only quick peek, separate from edit)
   const [detailStudent, setDetailStudent] = useState<StudentRow | null>(null);
+  // Both dialogs render every field in the shared template registry, which the
+  // narrow list payload does not carry — so each waits on its own fetch of the
+  // full row. "error" is a distinct state on purpose: a detail drawer showing
+  // twelve of fifty fields with no explanation reads as "this student has no
+  // details recorded", which is a lie.
+  const [detailLoad, setDetailLoad] =
+    useState<"loading" | "ready" | "error">("ready");
+  const [editLoading, setEditLoading] = useState(false);
+  // Which student each dialog is currently loading. Set on open, compared when
+  // the fetch resolves, so opening a second row while the first is in flight
+  // can't have the first one's record land in the dialog.
+  const detailLoadRef = useRef<string | null>(null);
+  const editLoadRef = useRef<string | null>(null);
 
   // Invite-guardian dialog (creates a parent portal account AND links it to
   // this student in one shot — the guaranteed-link path, /api/parents/invite)
@@ -713,20 +729,31 @@ export default function AdminStudentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
+  // Which listing query the page is looking at. Shared so the re-upload CSV
+  // below can re-ask for exactly the same set of students with `full=1`.
+  //
+  // A session other than the current one takes the roster branch of the API,
+  // which hard-filters by year and includes students who have since left — the
+  // current-session view keeps the heuristic that lets an admin find any name
+  // regardless of state.
+  const listUrl = useCallback(
+    (full = false) => {
+      const params = new URLSearchParams();
+      if (selectedClassId) params.set("class_id", selectedClassId);
+      else if (sessionId && !session.isCurrentSession)
+        params.set("academic_year_id", sessionId);
+      if (full) params.set("full", "1");
+      const qs = params.toString();
+      return qs ? `/api/students?${qs}` : "/api/students";
+    },
+    [selectedClassId, sessionId, session.isCurrentSession]
+  );
+
   const fetchStudents = useCallback(async () => {
     setLoading(true);
 
     try {
-      // A session other than the current one takes the roster branch of the
-      // API, which hard-filters by year and includes students who have since
-      // left — the current-session view keeps the heuristic that lets an admin
-      // find any name regardless of state.
-      const url = selectedClassId
-        ? `/api/students?class_id=${selectedClassId}`
-        : sessionId && !session.isCurrentSession
-          ? `/api/students?academic_year_id=${sessionId}`
-          : `/api/students`;
-      const res = await adminFetch(url);
+      const res = await adminFetch(listUrl());
       const json = await res.json();
 
       if (!res.ok) {
@@ -743,8 +770,33 @@ export default function AdminStudentsPage() {
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClassId, sessionId, session.isCurrentSession]);
+  }, [listUrl]);
+
+  // One student's complete record.
+  //
+  // The listing carries only the dozen columns the table, the search and the
+  // row actions read (see LIST_STUDENT_COLUMNS in api/students/route.ts). Any
+  // surface driven by the shared template registry — the edit form and the
+  // detail drawer — needs all ~50 of its fields, so it reads them here when
+  // the reader opens it rather than having every reader download them for 900
+  // students they will never open.
+  const fetchFullStudent = useCallback(
+    async (id: string): Promise<Record<string, unknown> | null> => {
+      try {
+        const res = await adminFetch(`/api/students/${id}`);
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.data) {
+          toast.error(json.error || "Could not load the full student record");
+          return null;
+        }
+        return json.data as Record<string, unknown>;
+      } catch {
+        toast.error("Could not load the full student record");
+        return null;
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     fetchClasses();
@@ -979,6 +1031,7 @@ export default function AdminStudentsPage() {
     setFormData(emptyStudentForm(selectedClassId));
     setFormErrors({});
     setEditingStudent(null);
+    setEditLoading(false);
   };
 
   // Open the Add dialog with the next admission number pre-filled (highest
@@ -1072,10 +1125,59 @@ export default function AdminStudentsPage() {
     }
   };
 
-  const openEditDialog = (student: StudentRow) => {
+  // The edit form writes EVERY column in the shared template registry, and
+  // reads its initial value straight off the row it is handed. The list row
+  // carries a dozen columns, so opening the form on it would show ~40 fields
+  // blank and then save those blanks over real data. The full row is fetched
+  // first, and the form is not rendered until it arrives.
+  const openEditDialog = async (student: StudentRow) => {
+    setFormErrors({});
     setEditingStudent(student);
-    setFormData(studentToForm(student, selectedClassId));
+    editLoadRef.current = student.id;
+    setEditLoading(true);
     setEditDialogOpen(true);
+
+    const full = await fetchFullStudent(student.id);
+    if (editLoadRef.current !== student.id) return;
+    editLoadRef.current = null;
+    setEditLoading(false);
+
+    if (!full) {
+      // Better to close than to offer a form that would blank the record.
+      setEditDialogOpen(false);
+      setEditingStudent(null);
+      return;
+    }
+    // `full` holds only `students` columns, so the enrollment-derived fields
+    // the list merged in (class_id, roll_number, stream_id, house_id,
+    // enrollment_id …) survive the spread.
+    const merged = { ...student, ...full } as unknown as StudentRow;
+    setEditingStudent(merged);
+    setFormData(studentToForm(merged, selectedClassId));
+  };
+
+  // The detail drawer renders both template sections, so it needs the same
+  // full row. Its header (name, admission no, class) comes from the list row
+  // and paints immediately; only the profile sections wait.
+  const openDetailDialog = async (student: StudentRow) => {
+    setDetailStudent(student);
+    detailLoadRef.current = student.id;
+    setDetailLoad("loading");
+
+    const full = await fetchFullStudent(student.id);
+    if (detailLoadRef.current !== student.id) return;
+    detailLoadRef.current = null;
+
+    if (!full) {
+      setDetailLoad("error");
+      return;
+    }
+    setDetailStudent((prev) =>
+      prev && prev.id === student.id
+        ? ({ ...prev, ...full } as unknown as StudentRow)
+        : prev
+    );
+    setDetailLoad("ready");
   };
 
   const handleAddStudent = async (e: React.FormEvent) => {
@@ -1213,6 +1315,46 @@ export default function AdminStudentsPage() {
 
     toast.success("Student deleted");
     await fetchStudents();
+  };
+
+  // The bulk-upload round-trip CSV.
+  //
+  // STUDENT_CSV_COLUMNS spans the whole template registry, because its headers
+  // are the bulk importer's — so this is the one client that genuinely needs
+  // every student column. It asks for them here, on the click, instead of the
+  // listing shipping them to every reader: the same query the list is showing
+  // with `full=1`, merged onto the rows the filters have already narrowed to.
+  const handleDownloadReuploadTemplate = async () => {
+    setBuildingReuploadCsv(true);
+    try {
+      const res = await adminFetch(listUrl(true));
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(json.error || "Failed to build the re-upload file");
+        return;
+      }
+      const fullById = new Map(
+        ((json.data as Record<string, unknown>[]) ?? []).map((r) => [
+          r.id as string,
+          r,
+        ])
+      );
+      const rows = visibleStudents.map((s) => ({
+        ...s,
+        // Only `students` columns are overwritten; class, roll number and
+        // status come off the enrollment and are restated below.
+        ...(fullById.get(s.id) ?? {}),
+        class_name: s.class_name ?? "",
+        class_section: s.class_section ?? "",
+        enrollment_status: s.enrollment_status ?? "active",
+      }));
+      downloadCSV(rows, STUDENT_CSV_COLUMNS, `students-${todayISO()}`);
+      toast.success(`Downloaded ${rows.length} students`);
+    } catch {
+      toast.error("Failed to build the re-upload file");
+    } finally {
+      setBuildingReuploadCsv(false);
+    }
   };
 
   // Download one student's full profile as the template-formatted xlsx
@@ -1427,7 +1569,7 @@ export default function AdminStudentsPage() {
   const rowHandlersRef = useRef<StudentRowActions | null>(null);
   useEffect(() => {
     rowHandlersRef.current = {
-      onOpenDetail: (student) => setDetailStudent(student),
+      onOpenDetail: (student) => openDetailDialog(student),
       onToggleSelect: (studentId) => toggleSelection(studentId),
       onEdit: (student) => openEditDialog(student),
       onFees: (studentId) => router.push(`/fees/payments?student_id=${studentId}`),
@@ -1764,24 +1906,19 @@ export default function AdminStudentsPage() {
                   Promote Class
                 </DropdownMenuItem>
               )}
+              {/* Kept alongside the general export: these columns are the
+                  bulk-upload template's own headers, so this file can be
+                  fixed in Excel and re-uploaded. The Export dialog is for
+                  reading, this is for round-tripping. */}
               <DropdownMenuItem
-                disabled={visibleStudents.length === 0}
-                onClick={() => {
-                  // Kept alongside the general export: these columns are the
-                  // bulk-upload template's own headers, so this file can be
-                  // fixed in Excel and re-uploaded. The Export dialog is for
-                  // reading, this is for round-tripping.
-                  const rows = visibleStudents.map((s) => ({
-                    ...s,
-                    class_name: s.class_name ?? "",
-                    class_section: s.class_section ?? "",
-                    enrollment_status: s.enrollment_status ?? "active",
-                  }));
-                  downloadCSV(rows, STUDENT_CSV_COLUMNS, `students-${todayISO()}`);
-                  toast.success(`Downloaded ${rows.length} students`);
-                }}
+                disabled={visibleStudents.length === 0 || buildingReuploadCsv}
+                onClick={handleDownloadReuploadTemplate}
               >
-                <Download className="h-4 w-4 mr-2" />
+                {buildingReuploadCsv ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
                 Download re-upload template
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setUploadDialogOpen(true)}>
@@ -2126,7 +2263,17 @@ export default function AdminStudentsPage() {
               </div>
             </div>
           </DialogHeader>
-          {editDialogOpen && renderStudentForm(handleEditStudent, true)}
+          {editDialogOpen &&
+            (editLoading ? (
+              // The full record is on its way. Rendering the form now would
+              // show the reader ~40 empty fields and then swap their values in
+              // underneath them.
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
+              </div>
+            ) : (
+              renderStudentForm(handleEditStudent, true)
+            ))}
         </DialogContent>
       </Dialog>
 
@@ -2134,7 +2281,11 @@ export default function AdminStudentsPage() {
       <Dialog
         open={!!detailStudent}
         onOpenChange={(open) => {
-          if (!open) setDetailStudent(null);
+          if (!open) {
+            setDetailStudent(null);
+            detailLoadRef.current = null;
+            setDetailLoad("ready");
+          }
         }}
       >
         <DialogContent className="sm:max-w-2xl">
@@ -2193,24 +2344,41 @@ export default function AdminStudentsPage() {
                     )}
                   </DetailField>
                 </div>
-                <ProfileDetailSection
-                  title="General Profile"
-                  section="general"
-                  student={detailStudent}
-                  streams={streams}
-                />
-                <ProfileDetailSection
-                  title="Enrolment Profile"
-                  section="enrolment"
-                  student={detailStudent}
-                  streams={streams}
-                />
-                <div>
-                  <p className="text-sm font-semibold text-navy-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-800 pb-1 mb-3">
-                    Call
-                  </p>
-                  <StudentCallActions student={detailStudent} />
-                </div>
+                {/* The profile sections and the call buttons read the whole
+                    template registry, which the list payload does not carry —
+                    they wait on the per-student fetch rather than rendering a
+                    dozen fields as if that were the whole record. */}
+                {detailLoad === "loading" ? (
+                  <div className="flex justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
+                  </div>
+                ) : detailLoad === "error" ? (
+                  <div className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-3 text-sm text-amber-800 dark:text-amber-300">
+                    This student&apos;s full profile could not be loaded, so the
+                    details below are not shown. Close and reopen to retry.
+                  </div>
+                ) : (
+                  <>
+                    <ProfileDetailSection
+                      title="General Profile"
+                      section="general"
+                      student={detailStudent}
+                      streams={streams}
+                    />
+                    <ProfileDetailSection
+                      title="Enrolment Profile"
+                      section="enrolment"
+                      student={detailStudent}
+                      streams={streams}
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-navy-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-800 pb-1 mb-3">
+                        Call
+                      </p>
+                      <StudentCallActions student={detailStudent} />
+                    </div>
+                  </>
+                )}
               </div>
 
               <DialogFooter>
@@ -2239,6 +2407,7 @@ export default function AdminStudentsPage() {
                     onClick={() => {
                       const s = detailStudent;
                       setDetailStudent(null);
+                      detailLoadRef.current = null;
                       openInviteDialog(s);
                     }}
                   >
@@ -2251,6 +2420,7 @@ export default function AdminStudentsPage() {
                   onClick={() => {
                     const s = detailStudent;
                     setDetailStudent(null);
+                    detailLoadRef.current = null;
                     openEditDialog(s);
                   }}
                 >

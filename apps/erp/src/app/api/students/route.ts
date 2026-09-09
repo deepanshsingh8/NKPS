@@ -14,6 +14,43 @@ import {
   parseHistoricalCorrection,
 } from "@/lib/historical-correction";
 
+/**
+ * The columns the students LIST actually reads.
+ *
+ * `students` is 98 columns wide and most of them are empty: on the live data
+ * 38 are 100% NULL and 30 more are under 10% filled, so `select("*")` shipped
+ * 2.4 MB of student rows for 944 students, most of it repeated column names
+ * and nulls. This projection is 262 KB for the same rows, which after the
+ * enrollment merge below is a 2,850 KB → 723 KB response. The queries take
+ * about the same time either way — the win is the browser's download.
+ *
+ * What consumes these (all in (admin)/people/students/page.tsx unless noted):
+ *   id                  — row key, selection, fees/export/detail links
+ *   admission_no        — column, search, per-student export filename
+ *   full_name           — column, search, sort, delete/unlock confirmations
+ *   father_name         — column + its header filter, search
+ *   mother_name         — invite-guardian dialog's name fallback
+ *   email, phone        — CreatePortalUsersDialog items; phone also prefills
+ *                         the invite dialog
+ *   gender              — column + its header filter
+ *   is_active           — status badge fallback for students with no
+ *                         enrollment row (the "Unassigned" tab)
+ *   nationality,
+ *   is_alumni,
+ *   alumni_passing_year — carried for the alumni gate and the Student shape;
+ *                         cheap, and the list is defined by `is_alumni`
+ * `(admin)/exams/results/edit/page.tsx` also reads this endpoint and needs
+ * only id / full_name / admission_no plus the enrollment-derived class fields.
+ *
+ * Everything else a reader can reach — the edit form, the detail drawer and
+ * the bulk-upload round-trip CSV, all of which are driven by the full shared
+ * template registry — fetches the whole row on demand instead:
+ * GET /api/students/[id] for one student, `?full=1` here for a whole list.
+ */
+const LIST_STUDENT_COLUMNS =
+  "id, admission_no, full_name, father_name, mother_name, email, phone, " +
+  "gender, nationality, is_active, is_alumni, alumni_passing_year";
+
 export async function GET(request: NextRequest) {
   try {
     const admin = await verifyAdminOrEditor("students");
@@ -23,6 +60,15 @@ export async function GET(request: NextRequest) {
     const classId = request.nextUrl.searchParams.get("class_id");
     const scope = request.nextUrl.searchParams.get("scope");
     const academicYearId = request.nextUrl.searchParams.get("academic_year_id");
+    // ?full=1 — every student column, for the one client that needs them all:
+    // the "Download re-upload template" CSV, whose headers are the bulk
+    // importer's and therefore span the whole template registry. It is an
+    // explicit click that produces a file of exactly this data, so paying the
+    // 2.4 MB there is the point; paying it on every page load was not.
+    const studentColumns =
+      request.nextUrl.searchParams.get("full") === "1"
+        ? "*"
+        : LIST_STUDENT_COLUMNS;
 
     // ?scope=alumni — the Alumni tab. Kept as its own server query because the
     // main listing deliberately excludes is_alumni rows (they accumulate into
@@ -56,7 +102,7 @@ export async function GET(request: NextRequest) {
     // for a past session is most of the interesting cases.
     if (!classId && academicYearId) {
       const [roster, currentYearRes] = await Promise.all([
-        fetchSessionRoster(admin, { academicYearId }),
+        fetchSessionRoster(admin, { academicYearId, studentColumns }),
         admin
           .from("academic_years")
           .select("id")
@@ -94,10 +140,12 @@ export async function GET(request: NextRequest) {
       // The three queries below are independent, so they are issued together.
       // Run sequentially they cost three round trips to Postgres before any
       // byte reaches the client, which dominated the wait on this endpoint.
+      //
+      // The projection is LIST_STUDENT_COLUMNS, not `*` — see its comment.
       const [studentsRes, currentYearRes, enrollmentsRes] = await Promise.all([
         admin
           .from("students")
-          .select("*")
+          .select(studentColumns)
           .not("is_alumni", "is", true)
           .order("full_name", { ascending: true })
           .range(0, 9999),
@@ -114,14 +162,22 @@ export async function GET(request: NextRequest) {
           .range(0, 9999),
       ]);
 
-      const { data: allStudents, error } = studentsRes;
+      const { data: studentsData, error } = studentsRes;
 
       if (error) {
         console.error("Fetch all students error:", error);
         return NextResponse.json({ error: "Failed to fetch students" }, { status: 500 });
       }
 
-      if (!allStudents || allStudents.length === 0) {
+      // The projection is chosen at runtime (narrow vs `full=1`), so
+      // postgrest-js can't infer a row shape from the select string and hands
+      // back its opaque fallback type. The rows are plain student columns.
+      const allStudents = (studentsData ?? []) as unknown as Record<
+        string,
+        unknown
+      >[];
+
+      if (allStudents.length === 0) {
         return NextResponse.json({ data: [] });
       }
 
@@ -171,7 +227,7 @@ export async function GET(request: NextRequest) {
       }
 
       const merged = allStudents.map((s) => {
-        const enrollment = byStudent.get(s.id);
+        const enrollment = byStudent.get(s.id as string);
         // Supabase returns nested relations as object or array depending on FK
         // inference — handle both shapes.
         const rawCls = enrollment?.classes as
@@ -252,7 +308,9 @@ export async function GET(request: NextRequest) {
     // Chunks are independent — fetch them concurrently rather than one after
     // another, so a large class costs one round trip instead of one per chunk.
     const chunkResults = await Promise.all(
-      studentChunks.map((chunk) => admin.from("students").select("*").in("id", chunk))
+      studentChunks.map((chunk) =>
+        admin.from("students").select(studentColumns).in("id", chunk)
+      )
     );
     const studentsAll: StudentRow[] = [];
     let studentError: { message: string } | null = null;
@@ -261,7 +319,9 @@ export async function GET(request: NextRequest) {
         studentError = error;
         break;
       }
-      if (data) studentsAll.push(...(data as StudentRow[]));
+      // Runtime-chosen projection ⇒ no inferable row shape; see the note on
+      // `allStudents` above.
+      if (data) studentsAll.push(...(data as unknown as StudentRow[]));
     }
     const students = studentsAll.sort((a, b) =>
       String(a.full_name ?? "").localeCompare(String(b.full_name ?? ""))
