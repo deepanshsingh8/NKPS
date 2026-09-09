@@ -115,6 +115,12 @@ export default function TeacherResultsPage() {
   >({});
   const [remarks, setRemarks] = useState<Record<string, string>>({});
   const [remarksLoading, setRemarksLoading] = useState(false);
+  // AI-drafted remarks. `draftedFor` holds the evidence each draft used, shown
+  // under the textarea so the teacher can check the sentence is about THIS
+  // child before saving. Nothing here is persisted until they press Save.
+  const [draftingRemarks, setDraftingRemarks] = useState(false);
+  const [draftedFor, setDraftedFor] = useState<Record<string, string[]>>({});
+  const [draftNotes, setDraftNotes] = useState<string[]>([]);
 
   const isClassTeacher = Boolean(
     selectedClassId &&
@@ -392,6 +398,71 @@ export default function TeacherResultsPage() {
 
   function handleRemarkChange(studentId: string, value: string) {
     setRemarks((prev) => ({ ...prev, [studentId]: value }));
+    // Once the teacher edits a draft it is theirs, so drop the provenance chip.
+    setDraftedFor((prev) => {
+      if (!prev[studentId]) return prev;
+      const next = { ...prev };
+      delete next[studentId];
+      return next;
+    });
+  }
+
+  async function handleDraftRemarks() {
+    if (!selectedClassId || !selectedExamTypeId || draftingRemarks) return;
+    setDraftingRemarks(true);
+    setDraftNotes([]);
+    try {
+      const res = await fetch("/api/ai/remarks/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          class_id: selectedClassId,
+          exam_type_id: selectedExamTypeId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Couldn't draft remarks.");
+        return;
+      }
+
+      // Only fill EMPTY boxes. A teacher who already wrote something must
+      // never have it replaced by a draft they didn't ask for.
+      let filled = 0;
+      let keptExisting = 0;
+      setRemarks((prev) => {
+        const next = { ...prev };
+        const grounds: Record<string, string[]> = {};
+        for (const d of data.drafts ?? []) {
+          if ((next[d.student_id] ?? "").trim()) {
+            keptExisting += 1;
+            continue;
+          }
+          next[d.student_id] = d.remark;
+          grounds[d.student_id] = d.grounded_on ?? [];
+          filled += 1;
+        }
+        setDraftedFor((g) => ({ ...g, ...grounds }));
+        return next;
+      });
+
+      const notes: string[] = [...(data.notes ?? [])];
+      if (keptExisting > 0) {
+        notes.push(
+          `${keptExisting} remark(s) you had already written were left untouched.`
+        );
+      }
+      setDraftNotes(notes);
+      toast.success(
+        filled > 0
+          ? `Drafted ${filled} remark(s). Review and edit before saving.`
+          : "Nothing new to draft — every student already has a remark."
+      );
+    } catch {
+      toast.error("Couldn't reach the assistant. Write remarks by hand.");
+    } finally {
+      setDraftingRemarks(false);
+    }
   }
 
   function handleMarksChange(studentId: string, value: string) {
@@ -680,6 +751,29 @@ export default function TeacherResultsPage() {
                   student. Remarks are shared across all subjects for this exam.
                 </p>
               )}
+              {isClassTeacher && selectedExamTypeId && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDraftRemarks}
+                    disabled={draftingRemarks}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:opacity-50 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                  >
+                    {draftingRemarks ? "Drafting…" : "Draft remarks with AI"}
+                  </button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Fills empty boxes only, from each student&rsquo;s own marks
+                    and attendance. Nothing is saved until you press Save.
+                  </span>
+                </div>
+              )}
+              {draftNotes.length > 0 && (
+                <ul className="mt-2 space-y-0.5 text-xs text-amber-700 dark:text-amber-400">
+                  {draftNotes.map((note) => (
+                    <li key={note}>{note}</li>
+                  ))}
+                </ul>
+              )}
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -857,6 +951,13 @@ export default function TeacherResultsPage() {
                                 rows={2}
                                 className="w-full min-h-[44px] rounded-lg border border-gray-200 dark:border-border bg-white dark:bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500 resize-y"
                               />
+                              {draftedFor[student.student_id] &&
+                                draftedFor[student.student_id].length > 0 && (
+                                  <p className="mt-1 text-[11px] leading-tight text-gray-500 dark:text-gray-400">
+                                    AI draft, based on:{" "}
+                                    {draftedFor[student.student_id].join(" · ")}
+                                  </p>
+                                )}
                             </TableCell>
                           )}
                           {isClassTeacher && selectedClassRow?.academic_year_id ? (

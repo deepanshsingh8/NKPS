@@ -59,10 +59,10 @@ schema L701) — dropped from the migration list.
 
 ## Phase 2 — Remarks
 
-- [ ] 16. `ai/remarks.ts` — evidence gather + one structured-output call per class
-- [ ] 17. `/api/ai/remarks/draft` (teacher, `class_teacher_id` scope ONLY — narrower than
+- [x] 16. `ai/remarks.ts` — evidence gather + one structured-output call per class
+- [x] 17. `/api/ai/remarks/draft` (teacher, `class_teacher_id` scope ONLY — narrower than
       `get_my_class_ids()`, which also includes `class_subjects.teacher_id`)
-- [ ] 18. "Draft remarks" button in `apps/erp/src/app/teacher/results/page.tsx`
+- [x] 18. "Draft remarks" button in `apps/erp/src/app/teacher/results/page.tsx`
 
 ## Phase 3 — WhatsApp
 
@@ -270,6 +270,41 @@ had rows: `CallerContext.conversationId` was typed `string` and the route passed
 `recordToolCall` silently skipped every tool-call log while query runs were still written —
 a half-populated trail that reads as complete. Now `string | null`, so "audit unavailable"
 is explicit.
+
+### Phase 2 — done 2026-09-09
+
+**New** — `lib/ai/remarks.ts`, `api/ai/remarks/draft/route.ts`.
+**Modified** — `teacher/results/page.tsx` ("Draft remarks with AI" button + provenance chips).
+
+**Decisions**
+1. **No tools.** Nothing is unknown at request time — the UI already has the class and
+   exam — so the server gathers evidence deterministically and makes ONE structured-output
+   call for the whole class. 40 per-student calls would cost 40x for no benefit.
+2. **`includeUnpublished: true` is hard-coded**, not an argument. A privacy gate a caller
+   can flip is not a gate, and this must never become reachable from a parent surface.
+3. **The narrow teacher rule.** The route requires `classes.class_teacher_id`, NOT
+   `get_my_class_ids()` (= `class_teacher_id ∪ class_subjects.teacher_id`). A subject
+   teacher may enter their own marks but has no business authoring the holistic report-card
+   remark — and `POST /api/results/remarks` already enforces exactly this. Widening it here
+   would let the AI path grant what the deterministic path refuses.
+4. **Empty boxes only.** Drafts never overwrite a remark the teacher already wrote; those
+   are counted and reported instead.
+5. **`grounded_on` renders under each textarea** ("based on: Maths 41% · attendance 62%") and
+   disappears the moment the teacher edits — once they touch it, it is theirs.
+6. **Students with no evidence are skipped, not given a generic sentence.** A remark that
+   could apply to any child is worse than a blank one, because it looks hand-written.
+
+**Verified against the live database.** Evidence gathering found all 18 students in XI-A.
+Every one had `overall: null`, zero subjects and zero attendance — so `draftClassRemarks`
+refused with `no_evidence` (409): *"No marks or attendance have been recorded for XIA yet…
+Enter the marks first, then draft."* **It never called the model**, so the empty case costs
+nothing.
+
+**Unverifiable until there is data.** There are zero `results` and zero `result_masters`
+rows in the database, so the actual drafting path — the prompt, the grounding, the quality
+of the sentences — has NOT been exercised. The plan's acceptance test (verify every factual
+claim in three remarks against `computeFinalResult`) cannot run until marks are entered.
+Neither can the class-teacher 403, which needs a teacher login.
 
 ### Open, for later
 - Migrate the five attendance call sites onto `computeAttendanceSummary()`.
