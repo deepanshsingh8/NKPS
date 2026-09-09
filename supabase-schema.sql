@@ -6689,3 +6689,239 @@ COMMENT ON TABLE whatsapp_messages IS
   'phone_last4 only, never the full number — see call_logs for the precedent.';
 COMMENT ON TABLE ai_rate_limits IS
   'RLS enabled with NO policies, intentionally: service-role only.';
+
+
+-- ============================================================================
+-- RLS PER-ROW CALL HOISTING (migration 102)
+-- ============================================================================
+-- Mirrored as the DO block rather than as rewritten CREATE POLICY statements,
+-- and that is deliberate. The CREATE POLICY statements ABOVE in this file are
+-- known to be stale — migration-erp-redesign.sql renamed ~50 of them without
+-- updating this mirror. Rewriting them here would encode names that may not
+-- exist. The DO block transforms whatever policies actually got created, so a
+-- database rebuilt from this file ends up correct either way. It is
+-- idempotent: re-running it is a no-op.
+--
+-- See scripts/audit/schema-mirror-audit.sql to reconcile the drift properly.
+
+BEGIN;
+
+DO $mig$
+DECLARE
+  r        record;
+  q        text;
+  w        text;
+  stmt     text;
+  changed  int := 0;
+  scanned  int := 0;
+  -- Scalar, zero-argument, STABLE helpers. Set-returning helpers
+  -- (get_my_class_ids, get_my_children_ids) are excluded on purpose.
+  fns text[] := ARRAY[
+    'get_user_role',
+    'get_my_student_id',
+    'get_my_teacher_id',
+    'get_my_parent_id'
+  ];
+  fn   text;
+  tabs text[] := ARRAY[
+    'profiles','students','student_enrollments','results','attendance',
+    'fee_payments','parents','report_presets','student_subjects',
+    'class_tests','class_test_results','non_scholastic_assessments',
+    'student_remarks','ptm_notes','supplementary_attempts'
+  ];
+BEGIN
+  FOR r IN
+    SELECT tablename, policyname, qual, with_check
+      FROM pg_policies
+     WHERE schemaname = 'public'
+       AND tablename = ANY(tabs)
+     ORDER BY tablename, policyname
+  LOOP
+    scanned := scanned + 1;
+    q := r.qual;
+    w := r.with_check;
+
+    FOREACH fn IN ARRAY fns LOOP
+      -- Order matters. Park already-wrapped and schema-qualified forms behind
+      -- sentinels first, so the bare replacement cannot corrupt them into
+      -- `public.(SELECT f())` or double-wrap an existing `(SELECT f())`.
+      q := replace(q, '( SELECT '||fn||'()',        '@@W@@'||fn);
+      q := replace(q, '(SELECT '||fn||'()',         '@@W@@'||fn);
+      q := replace(q, '( SELECT public.'||fn||'()', '@@P@@'||fn);
+      q := replace(q, '(SELECT public.'||fn||'()',  '@@P@@'||fn);
+      q := replace(q, 'public.'||fn||'()',          '@@Q@@'||fn);
+      q := replace(q, fn||'()',            '(SELECT '||fn||'())');
+      q := replace(q, '@@Q@@'||fn,         '(SELECT public.'||fn||'())');
+      q := replace(q, '@@P@@'||fn,         '(SELECT public.'||fn||'()');
+      q := replace(q, '@@W@@'||fn,         '(SELECT '||fn||'()');
+
+      w := replace(w, '( SELECT '||fn||'()',        '@@W@@'||fn);
+      w := replace(w, '(SELECT '||fn||'()',         '@@W@@'||fn);
+      w := replace(w, '( SELECT public.'||fn||'()', '@@P@@'||fn);
+      w := replace(w, '(SELECT public.'||fn||'()',  '@@P@@'||fn);
+      w := replace(w, 'public.'||fn||'()',          '@@Q@@'||fn);
+      w := replace(w, fn||'()',            '(SELECT '||fn||'())');
+      w := replace(w, '@@Q@@'||fn,         '(SELECT public.'||fn||'())');
+      w := replace(w, '@@P@@'||fn,         '(SELECT public.'||fn||'()');
+      w := replace(w, '@@W@@'||fn,         '(SELECT '||fn||'()');
+    END LOOP;
+
+    -- auth.uid() gets the same treatment.
+    q := replace(q, '( SELECT auth.uid()', '@@A@@');
+    q := replace(q, '(SELECT auth.uid()',  '@@A@@');
+    q := replace(q, 'auth.uid()',          '(SELECT auth.uid())');
+    q := replace(q, '@@A@@',               '(SELECT auth.uid()');
+    w := replace(w, '( SELECT auth.uid()', '@@A@@');
+    w := replace(w, '(SELECT auth.uid()',  '@@A@@');
+    w := replace(w, 'auth.uid()',          '(SELECT auth.uid())');
+    w := replace(w, '@@A@@',               '(SELECT auth.uid()');
+
+    CONTINUE WHEN q IS NOT DISTINCT FROM r.qual
+              AND w IS NOT DISTINCT FROM r.with_check;
+
+    stmt := format('ALTER POLICY %I ON public.%I', r.policyname, r.tablename);
+    IF q IS NOT NULL THEN stmt := stmt || format(' USING (%s)', q); END IF;
+    IF w IS NOT NULL THEN stmt := stmt || format(' WITH CHECK (%s)', w); END IF;
+
+    RAISE NOTICE '%;', stmt;
+    EXECUTE stmt;
+    changed := changed + 1;
+  END LOOP;
+
+  RAISE NOTICE 'migration-102: scanned % policies, rewrote %.', scanned, changed;
+
+  IF changed = 0 THEN
+    RAISE WARNING 'migration-102 changed nothing. Either it has already been '
+                  'applied, or the helper names differ from those expected.';
+  END IF;
+END
+$mig$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- BUG FIX (a real behaviour change, not a rewrite)
+--
+-- The teacher policy on student_subjects compares class_subjects.teacher_id
+-- against auth.uid(). But class_subjects.teacher_id REFERENCES teachers(id),
+-- while auth.uid() is profiles.id / auth.users.id - two different UUID
+-- spaces. The predicate is ALWAYS FALSE, so teachers see ZERO
+-- student_subjects rows today. Every other policy in the schema correctly
+-- uses get_my_teacher_id() for this.
+--
+-- Written defensively: the redesign may have renamed this policy, so we fix
+-- whichever policy on student_subjects still carries the broken comparison.
+-- ─────────────────────────────────────────────────────────────────────────
+DO $fix$
+DECLARE r record; q text; n int := 0;
+BEGIN
+  FOR r IN
+    SELECT policyname, qual FROM pg_policies
+     WHERE schemaname='public' AND tablename='student_subjects'
+       AND qual LIKE '%teacher_id%' AND qual LIKE '%auth.uid()%'
+  LOOP
+    q := replace(r.qual, 'teacher_id = (SELECT auth.uid())',
+                         'teacher_id = (SELECT get_my_teacher_id())');
+    q := replace(q,      'teacher_id = auth.uid()',
+                         'teacher_id = (SELECT get_my_teacher_id())');
+    CONTINUE WHEN q = r.qual;
+    RAISE NOTICE 'BUGFIX ALTER POLICY %I ON student_subjects USING (%)', r.policyname, q;
+    EXECUTE format('ALTER POLICY %I ON public.student_subjects USING (%s)', r.policyname, q);
+    n := n + 1;
+  END LOOP;
+  RAISE NOTICE 'migration-102 bugfix: repaired % student_subjects policy(ies).', n;
+END
+$fix$;
+
+COMMIT;
+
+
+-- ============================================================================
+-- INDEX COVERAGE (migration 103)
+-- ============================================================================
+-- Postgres indexes PRIMARY KEY and UNIQUE automatically but never a foreign
+-- key, so each of these was a parent DELETE that seq-scanned its child table.
+-- The composites match the .eq()/.order() chains the app actually issues.
+-- Additive only: the 34 redundant-index candidates are NOT dropped, because
+-- deciding that from this mirror is unsafe while the mirror is known stale.
+
+BEGIN;
+
+-- ── Tier 1: unindexed FKs on tables that grow without bound ──────────────
+-- Every DELETE FROM profiles / buses / bus_stops currently seq-scans these.
+
+-- transport_change_requests carries six unindexed FKs.
+CREATE INDEX IF NOT EXISTS idx_tcr_requested_by      ON transport_change_requests(requested_by);
+CREATE INDEX IF NOT EXISTS idx_tcr_reviewed_by       ON transport_change_requests(reviewed_by);
+CREATE INDEX IF NOT EXISTS idx_tcr_previous_bus_id   ON transport_change_requests(previous_bus_id);
+CREATE INDEX IF NOT EXISTS idx_tcr_amended_bus_id    ON transport_change_requests(amended_bus_id);
+CREATE INDEX IF NOT EXISTS idx_tcr_previous_stop_id  ON transport_change_requests(previous_stop_id);
+CREATE INDEX IF NOT EXISTS idx_tcr_amended_stop_id   ON transport_change_requests(amended_stop_id);
+
+-- Append-only audit tables. migration-095 skipped these on the grounds that
+-- they "sit on small master tables"; they are not master tables and they do
+-- not stay small - student_status_history gains a row per student per
+-- promotion run.
+CREATE INDEX IF NOT EXISTS idx_student_enrollments_status_changed_by
+  ON student_enrollments(status_changed_by);
+CREATE INDEX IF NOT EXISTS idx_student_status_history_changed_by
+  ON student_status_history(changed_by);
+CREATE INDEX IF NOT EXISTS idx_teacher_absences_marked_by
+  ON teacher_absences(marked_by);
+CREATE INDEX IF NOT EXISTS idx_fee_change_requests_reviewed_by
+  ON fee_change_requests(reviewed_by);
+CREATE INDEX IF NOT EXISTS idx_historical_corrections_enrollment
+  ON historical_corrections(enrollment_id);
+CREATE INDEX IF NOT EXISTS idx_fee_change_audit_source_request
+  ON fee_change_audit_log(source_request_id);
+
+-- ── Tier 2: remaining unindexed join columns ─────────────────────────────
+-- migration-095 added exam_schedules(subject_id) but missed class_id, which
+-- is only ever the SECOND column of idx_exam_schedules_exam_class and so has
+-- no leading index of its own.
+CREATE INDEX IF NOT EXISTS idx_exam_schedules_class_id
+  ON exam_schedules(class_id);
+CREATE INDEX IF NOT EXISTS idx_result_masters_grade_scale_id
+  ON result_masters(grade_scale_id);
+CREATE INDEX IF NOT EXISTS idx_students_alumni_academic_year_id
+  ON students(alumni_academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_export_events_academic_year_id
+  ON export_events(academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_buses_conductor_id
+  ON buses(conductor_id);
+CREATE INDEX IF NOT EXISTS idx_elective_slot_options_subject_id
+  ON elective_slot_options(subject_id);
+
+-- ── Composites matching the query shapes the app actually issues ─────────
+-- Each was cross-checked against the .eq()/.in()/.order() chains in apps/erp.
+
+-- The hottest shape in the codebase: 15 call sites do
+--   .eq("class_id", ...).eq("status","active").order("roll_number")
+-- idx_enrollments_active is (student_id, class_id, academic_year_id) WHERE
+-- status='active' - it leads with student_id, so a class-roster read cannot
+-- use it and falls back to the single-column class_id index plus a sort.
+CREATE INDEX IF NOT EXISTS idx_enrollments_class_status_roll
+  ON student_enrollments(class_id, status, roll_number);
+
+-- 14 sites: .eq(student_id)[.eq(academic_year_id)].order(enrollment_date DESC).
+-- UNIQUE(student_id, class_id) cannot serve the ordering, so this sorts today.
+CREATE INDEX IF NOT EXISTS idx_enrollments_student_year_date
+  ON student_enrollments(student_id, academic_year_id, enrollment_date DESC);
+
+-- 7 sites on the marksheet path. Only (class_id, subject_id) and a separate
+-- (exam_type_id) exist, so neither serves this pair.
+CREATE INDEX IF NOT EXISTS idx_results_class_exam
+  ON results(class_id, exam_type_id);
+
+-- 6 sites: the student fee ledger.
+CREATE INDEX IF NOT EXISTS idx_fee_payments_student_year_date
+  ON fee_payments(student_id, academic_year_id, payment_date DESC);
+
+-- The two /api/students list endpoints, which order by full_name and split on
+-- is_alumni. Partial so each index only carries the rows its endpoint reads.
+CREATE INDEX IF NOT EXISTS idx_students_active_name
+  ON students(full_name) WHERE is_alumni = false;
+CREATE INDEX IF NOT EXISTS idx_students_alumni_year_name
+  ON students(alumni_passing_year, full_name) WHERE is_alumni = true;
+
+ANALYZE;
+
+COMMIT;
