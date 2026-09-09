@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { getAiClient, AI_MODELS, AI_EFFORT, AI_BUDGETS, AI_MAX_TOKENS } from "./client";
 import type { CallerContext } from "./caller-context";
-import { recordMessage, recordToolCall, finishConversation } from "./audit";
+import { recordMessage, recordToolCall, finishConversation, nextMessageSeq } from "./audit";
 import { isRecoverable, renderToolError, type ToolErrorCode } from "./tool-errors";
 import { executeRunStudentReport } from "./tools/report";
 import {
@@ -115,7 +115,9 @@ export async function runAskTurn(
     { role: "user", content: userMessage },
   ];
 
-  let seq = history.length + 1;
+  // Never history.length: see nextMessageSeq for why the client's idea of
+  // history cannot be trusted to produce a unique sequence.
+  let seq = await nextMessageSeq(ctx.admin, ctx.conversationId);
   await recordMessage({
     admin: ctx.admin,
     conversationId: ctx.conversationId,
