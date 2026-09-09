@@ -63,6 +63,11 @@ import type { Class, ExamType } from "@nkps/shared/types";
 interface PublishStatus {
   total: number;
   published: number;
+  // Co-scholastic rows publish through the same action and the same scope, so
+  // the stage-1 card reports them alongside the marks rather than hiding a
+  // second workflow behind another button.
+  non_scholastic_total: number;
+  non_scholastic_published: number;
 }
 
 interface MarksheetVersion {
@@ -237,7 +242,12 @@ const session = useAcademicSession();
         toast.error(data.error ?? "Failed to update publish state");
         return;
       }
-      toast.success(`${next ? "Published" : "Unpublished"} ${data.affected} rows`);
+      toast.success(
+        `${next ? "Published" : "Unpublished"} ${data.affected} result rows` +
+          (data.non_scholastic_affected > 0
+            ? ` · ${data.non_scholastic_affected} co-scholastic`
+            : "")
+      );
       fetchData();
     } catch {
       toast.error("Network error");
@@ -533,6 +543,18 @@ const session = useAcademicSession();
     return { total: rows.length, finalized, pending };
   }, [rows]);
 
+  // Stage 1 acts on marks and co-scholastic grades together, so its empty
+  // state and button enablement key off the combined counts — a class with
+  // co-scholastic grades but no marks rows must still be publishable.
+  const stage1 = useMemo(() => {
+    if (!publishStatus) return null;
+    return {
+      total: publishStatus.total + publishStatus.non_scholastic_total,
+      published:
+        publishStatus.published + publishStatus.non_scholastic_published,
+    };
+  }, [publishStatus]);
+
   const activeSelectedIds = useMemo(
     () =>
       rows
@@ -630,16 +652,17 @@ const session = useAcademicSession();
                 Stage 1 · Online Publish
               </CardTitle>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Toggle visibility for students and parents. Marks stay editable
-                — re-publish after edits doesn&apos;t create a new version.
+                Toggle visibility of marks and co-scholastic grades for students
+                and parents. Both stay editable — re-publish after edits
+                doesn&apos;t create a new version.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              {loadingData || !publishStatus ? (
+              {loadingData || !publishStatus || !stage1 ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin" />
                 </div>
-              ) : publishStatus.total === 0 ? (
+              ) : stage1.total === 0 ? (
                 <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">
                   No results recorded for this class + exam yet.
                 </p>
@@ -656,25 +679,33 @@ const session = useAcademicSession();
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-500 dark:text-gray-400">
+                        Co-scholastic rows
+                      </span>
+                      <span className="font-medium text-navy-900 dark:text-white">
+                        {publishStatus.non_scholastic_total}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500 dark:text-gray-400">
                         Published
                       </span>
                       <Badge
                         variant="outline"
                         className={
-                          publishStatus.published === publishStatus.total &&
-                          publishStatus.published > 0
+                          stage1.published === stage1.total &&
+                          stage1.published > 0
                             ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800"
                             : "text-gray-500 dark:text-gray-400"
                         }
                       >
-                        {publishStatus.published} / {publishStatus.total}
+                        {stage1.published} / {stage1.total}
                       </Badge>
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <Button
                       onClick={() => togglePublishPost(true)}
-                      disabled={busy || publishStatus.published === publishStatus.total}
+                      disabled={busy || stage1.published === stage1.total}
                       className="flex-1 bg-navy-900 text-white hover:bg-navy-900/90"
                       size="sm"
                     >
@@ -683,7 +714,7 @@ const session = useAcademicSession();
                     </Button>
                     <Button
                       onClick={() => togglePublishPost(false)}
-                      disabled={busy || publishStatus.published === 0}
+                      disabled={busy || stage1.published === 0}
                       variant="outline"
                       className="flex-1"
                       size="sm"
