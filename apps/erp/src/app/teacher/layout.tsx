@@ -2,6 +2,7 @@
 
 import { TeacherSidebar } from "@/components/portal/TeacherSidebar";
 import { SidebarProvider } from "@nkps/shared/components/providers/SidebarProvider";
+import { SessionProvider } from "@nkps/shared/components/providers/SessionProvider";
 import { AppShell } from "@nkps/shared/components/AppShell";
 
 export default function TeacherLayout({
@@ -10,10 +11,12 @@ export default function TeacherLayout({
   children: React.ReactNode;
 }) {
   return (
-    <SidebarProvider>
-      <AppShell sidebar={<TeacherSidebar />} title="Teacher Portal">
-        {children}
-      </AppShell>
-    </SidebarProvider>
+    <SessionProvider>
+      <SidebarProvider>
+        <AppShell sidebar={<TeacherSidebar />} title="Teacher Portal">
+          {children}
+        </AppShell>
+      </SidebarProvider>
+    </SessionProvider>
   );
 }

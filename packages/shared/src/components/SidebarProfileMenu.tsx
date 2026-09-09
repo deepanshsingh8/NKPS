@@ -7,14 +7,8 @@ import { createClient } from "@nkps/shared/lib/supabase/client";
 import { Settings, LogOut, ChevronUp, ExternalLink } from "lucide-react";
 import { cn } from "@nkps/shared/lib/utils";
 import { getWebsiteUrl } from "@nkps/shared/lib/cross-app";
+import { useSession } from "@nkps/shared/components/providers/SessionProvider";
 import { toast } from "sonner";
-
-interface UserProfile {
-  full_name: string;
-  email: string;
-  role: string;
-  avatar_url: string | null;
-}
 
 export function SidebarProfileMenu({
   settingsHref,
@@ -25,28 +19,11 @@ export function SidebarProfileMenu({
   logoutRedirect?: string;
   collapsed?: boolean;
 }) {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  // Shared with the sidebar, the app switcher and useIsAdmin — see
+  // SessionProvider. This used to be its own getUser() -> profiles pair.
+  const { profile } = useSession();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    async function fetchProfile() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from("profiles")
-        .select("full_name, email, role, avatar_url")
-        .eq("id", user.id)
-        .single();
-
-      if (data) setProfile(data as UserProfile);
-    }
-    fetchProfile();
-  }, []);
 
   // Close on outside click
   useEffect(() => {
@@ -135,7 +112,7 @@ export function SidebarProfileMenu({
         {profile?.avatar_url ? (
           <Image
             src={profile.avatar_url}
-            alt={profile.full_name}
+            alt={profile.full_name ?? ""}
             width={36}
             height={36}
             className={cn(

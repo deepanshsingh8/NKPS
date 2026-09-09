@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { CmsSidebar } from "@/components/CmsSidebar";
 import { SidebarProvider } from "@nkps/shared/components/providers/SidebarProvider";
+import { SessionProvider } from "@nkps/shared/components/providers/SessionProvider";
 import { AppShell } from "@nkps/shared/components/AppShell";
 
 const NO_SHELL_PATHS = ["/login", "/offline"];
@@ -16,10 +17,12 @@ export function CmsShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SidebarProvider>
-      <AppShell sidebar={<CmsSidebar />} title="NKPS CMS">
-        {children}
-      </AppShell>
-    </SidebarProvider>
+    <SessionProvider>
+      <SidebarProvider>
+        <AppShell sidebar={<CmsSidebar />} title="NKPS CMS">
+          {children}
+        </AppShell>
+      </SidebarProvider>
+    </SessionProvider>
   );
 }

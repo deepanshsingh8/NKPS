@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { createClient } from "@nkps/shared/lib/supabase/client";
 import type { UserRole } from "@nkps/shared/types";
 import {
   featureKeyForPath,
@@ -20,6 +19,7 @@ import { cn } from "@nkps/shared/lib/utils";
 import { SidebarProfileMenu } from "@nkps/shared/components/SidebarProfileMenu";
 import { SidebarTooltip } from "@nkps/shared/components/SidebarTooltip";
 import { useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
+import { useSession } from "@nkps/shared/components/providers/SessionProvider";
 import { useUnreadCount } from "@nkps/shared/hooks/useUnreadCount";
 
 export type SidebarLink = {
@@ -116,8 +116,15 @@ export function SidebarShell({
       !!pendingTransportChangeBadgeHrefs &&
       pendingTransportChangeBadgeHrefs.size > 0,
   });
-  const [userRole, setUserRole] = useState<UserRole>("admin");
-  const [permissions, setPermissions] = useState<Set<FeatureKey> | null>(null);
+  // Role + grants come from the shell-wide session (see SessionProvider).
+  // This used to be a strictly chained getUser() -> profiles ->
+  // editor_permissions of its own, three serial round trips deep, repeated by
+  // the profile menu, the app switcher and useIsAdmin on the same page.
+  const { profile, editorPermissions } = useSession();
+  // Assume admin until the profile lands — the sidebar has always rendered
+  // optimistically and then filtered down, and inverting that would trade a
+  // brief flash of extra links for a brief flash of an empty pane.
+  const userRole: UserRole = (profile?.role as UserRole) || "admin";
   const [groupOverrides, setGroupOverrides] = useState<Record<string, boolean>>(
     {}
   );
@@ -148,52 +155,18 @@ export function SidebarShell({
     setGroupOverrides((prev) => ({ ...prev, [group.label]: !currentlyOpen }));
   };
 
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single()
-        .then(({ data }) => {
-          if (!data?.role) return;
-          const role = data.role as UserRole;
-          setUserRole(role);
-          // Admins skip the lookup — they always see everything. Staff and
-          // teachers may hold editor capability via editor_permissions rows;
-          // students/parents never reach this shell.
-          if (role === "admin") {
-            setPermissions(new Set());
-            return;
-          }
-          supabase
-            .from("editor_permissions")
-            .select("feature_key")
-            .eq("editor_id", user.id)
-            .then(({ data: rows }) => {
-              const keys = new Set<FeatureKey>(
-                (rows ?? []).map((r) => r.feature_key as FeatureKey)
-              );
-              setPermissions(keys);
-            });
-        });
-    });
-  }, []);
-
   const isAdmin = userRole === "admin";
 
   const isCapabilityAllowed = (href: string): boolean => {
     if (editorAlwaysAllowedHrefs.has(href)) return true;
     const key = resolveFeatureKey(href);
     if (!key) return false;
-    return permissions?.has(key) ?? false;
+    return editorPermissions?.has(key) ?? false;
   };
 
   // Hide everything until permissions load (for non-admins) to avoid flash of
-  // forbidden links.
-  const permissionsReady = isAdmin || permissions !== null;
+  // forbidden links. Admins never consult the grants, so they don't wait on them.
+  const permissionsReady = isAdmin || editorPermissions !== null;
 
   const filterItem = (item: SidebarItem): SidebarItem | null => {
     if (item.kind === "link") {
