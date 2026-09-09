@@ -4436,10 +4436,27 @@ CREATE POLICY "Admins manage elective_slot_options"
   USING (public.get_user_role() = 'admin')
   WITH CHECK (public.get_user_role() = 'admin');
 
--- §5 Per-student elective picks. Dedicated table — the legacy student_subjects
--- table was removed by the ERP redesign because subjects are inferred from
--- class enrollment + class_subjects. Electives are per-student overrides, so
--- they get their own narrow table.
+-- §5 Per-student elective picks.
+--
+-- CORRECTION: this comment used to claim "the legacy student_subjects table was
+-- removed by the ERP redesign". That is false and was actively misleading —
+-- student_subjects is alive (see §2k above) and is the ONLY table every report
+-- and export reads to answer "what does this student study":
+-- lib/student-roster.ts, lib/report-query.ts, api/students/[id]/export.
+--
+-- The two tables are not alternatives, they are intent and materialization:
+--   student_elective_picks  — the choice, carrying `slot`, which
+--                             student_subjects cannot express, plus the
+--                             UNIQUE(student_id, slot) rule that stops two
+--                             picks landing in one slot.
+--   student_subjects        — the resolved subject list, keyed by
+--                             class_subject_id so reporting can join through
+--                             to the class and teacher.
+--
+-- api/electives/students now writes BOTH in step. Before that it wrote only
+-- the pick, so an in-app elective was invisible to every report and export,
+-- and filtering a report by an elective silently excluded every student who
+-- had chosen it.
 CREATE TABLE IF NOT EXISTS student_elective_picks (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   student_id uuid REFERENCES students(id) ON DELETE CASCADE NOT NULL,
