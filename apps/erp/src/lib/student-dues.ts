@@ -4,6 +4,7 @@ import type {
   FeeStructure,
   TransportDirection,
 } from "@nkps/shared/types";
+import { todayISO } from "@nkps/shared/lib/date";
 import {
   computeDuesBreakdown,
   resolveEffectiveFeeLines,
@@ -116,7 +117,7 @@ export async function getStudentOutstandingDues(
   );
   // One "today" for the whole calculation, so two lines evaluated either side
   // of midnight can't disagree about whether an instalment has fallen due.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
 
   let lines: EffectiveFeeLine[] = [];
   if (className) {
