@@ -1,11 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { FeeStructure, TransportDirection } from "@nkps/shared/types";
-import { todayISO } from "@nkps/shared/lib/date";
+import type {
+  EffectiveFeeLine,
+  FeeStructure,
+  TransportDirection,
+} from "@nkps/shared/types";
 import {
-  amountBilledToDate,
+  computeDuesBreakdown,
   resolveEffectiveFeeLines,
   resolveStudentType,
-  settledAmount,
+  type DuesPaymentRow,
   type StopFeeLookup,
 } from "./fees";
 
@@ -32,20 +35,18 @@ export async function dueGateApplies(
   return role === "student" || role === "parent";
 }
 
-interface PaymentRow {
-  fee_structure_id: string | null;
-  amount_paid: number | string;
-  waiver_amount: number | string | null;
-  refund_amount: number | string | null;
-  status: string;
-}
-
-// Outstanding fee dues for a single student. Mirrors the student-facing fees
-// page (apps/erp/src/app/student/fees/page.tsx) exactly so the gating amount
-// matches the "Pending" figure the student already sees: fee lines billed to
-// date (academic + opted transport stop) minus cash paid + waivers granted on
-// paid/partial payments. Late fees are intentionally excluded to stay
-// consistent with that view. Pass a service-role client to bypass RLS.
+// Outstanding fee dues for a single student, used to gate admit-card and
+// report-card downloads. Runs the same computeDuesBreakdown() the fee screens
+// and the office's dues register run, over the same inputs — fee lines
+// narrowed to this student, receipts scoped to the billed academic year — so
+// the gating amount tracks the "Payable Now" figure the family already sees.
+// Pass a service-role client to bypass RLS.
+//
+// The one deliberate divergence is the late fee: the gate drops that term, so
+// it is always the more lenient of the two. Erring lenient is the safe
+// direction — a child should not lose their admit card over a surcharge — and
+// the comments in student/fees and parent/fees say the same. Do not make the
+// gate stricter without updating them too.
 //
 // Billed-to-date, not the annual total: a session's later instalments are not
 // arrears yet, and gating on them would lock a fully paid-up student out of
@@ -64,8 +65,8 @@ export async function getStudentOutstandingDues(
     .limit(1)
     .maybeSingle();
 
-  // Never swallow a DB error here: a silent failure would make totalPaid or
-  // totalFees default to 0, which either falsely blocks a paid-up student from
+  // Never swallow a DB error here: a silent failure would leave the fee lines
+  // or the receipts empty, which either falsely blocks a paid-up student from
   // downloading or falsely opens the gate. Propagate so the caller fails the
   // request explicitly instead of mis-gating.
   if (enrollmentError) {
@@ -115,9 +116,9 @@ export async function getStudentOutstandingDues(
   );
   // One "today" for the whole calculation, so two lines evaluated either side
   // of midnight can't disagree about whether an instalment has fallen due.
-  const today = todayISO();
+  const today = new Date().toISOString().slice(0, 10);
 
-  let totalFees = 0;
+  let lines: EffectiveFeeLine[] = [];
   if (className) {
     let structuresQuery = admin
       .from("fee_structures")
@@ -164,7 +165,7 @@ export async function getStudentOutstandingDues(
         };
       }
     );
-    const lines = resolveEffectiveFeeLines({
+    lines = resolveEffectiveFeeLines({
       structures: (structuresData as FeeStructure[]) ?? [],
       studentStreamId: streamId,
       studentType,
@@ -174,19 +175,17 @@ export async function getStudentOutstandingDues(
       feeOverride,
       stopFees,
     });
-    totalFees = lines.reduce(
-      (sum, line) => sum + amountBilledToDate(line, today, year?.start_date),
-      0
-    );
   }
 
-  // Year-scoped to match totalFees above, which is. Without the filter the two
-  // sides priced different periods: last year's receipts were subtracted from
-  // this year's billed-to-date, so a student who owed the whole first
-  // instalment could still be read as settled and handed their admit card.
+  // Scope receipts to the enrollment's year, exactly as both fee screens do.
+  // Fee structures are year-scoped, so letting a prior year's receipts settle
+  // this year's lines under-reports dues and opens the gate for a student who
+  // genuinely owes money.
   let paymentsQuery = admin
     .from("fee_payments")
-    .select("fee_structure_id, amount_paid, waiver_amount, refund_amount, status")
+    .select(
+      "fee_structure_id, amount_paid, waiver_amount, refund_amount, status"
+    )
     .eq("student_id", studentId);
   if (academicYearId) {
     paymentsQuery = paymentsQuery.eq("academic_year_id", academicYearId);
@@ -197,22 +196,28 @@ export async function getStudentOutstandingDues(
     throw new Error(`Failed to load fee payments for dues: ${paymentError.message}`);
   }
 
-  // 'refunded' belongs in the set, and settledAmount() nets refund_amount per
-  // row: a PARTIAL refund leaves status='refunded' with amount_paid intact, so
-  // filtering the status out discarded the whole receipt and overstated dues,
-  // blocking a family that owed only the refunded difference. This is the same
-  // helper and the same status set the student and parent pages use, which is
-  // what the comment above this function has always claimed.
-  const totalPaid = ((paymentData as PaymentRow[]) ?? [])
-    .filter(
-      (p) =>
-        p.status === "paid" ||
-        p.status === "partial" ||
-        p.status === "refunded"
-    )
-    .reduce((sum, p) => sum + settledAmount(p), 0);
+  // 'refunded' is a receipt-bearing status: a partially-refunded payment keeps
+  // it with amount_paid intact, and settledAmount() (inside the breakdown)
+  // nets refund_amount out per row. Dropping those rows would erase the whole
+  // receipt; keeping them without netting would credit money already returned.
+  const receipts =
+    (paymentData as (DuesPaymentRow & { status: string })[] | null) ?? [];
+  const payments = receipts.filter(
+    (p) =>
+      p.status === "paid" || p.status === "partial" || p.status === "refunded"
+  );
 
-  const pending = Math.max(0, totalFees - totalPaid);
+  const dues = computeDuesBreakdown({
+    lines,
+    payments,
+    today,
+    yearStartDate: year?.start_date,
+  });
+
+  // The shared figure minus the one term the gate deliberately omits. Late
+  // fees are additive in computeDuesBreakdown and are zeroed there once the
+  // billed amount is covered, so this can't go negative.
+  const pending = dues.dues - dues.lateFee;
   // Treat sub-rupee remainders as settled to avoid floating-point false blocks.
   return { total: Math.round(pending), hasOutstanding: pending >= 1 };
 }
