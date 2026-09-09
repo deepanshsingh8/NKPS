@@ -368,8 +368,12 @@ CREATE INDEX IF NOT EXISTS idx_student_subjects_class_subject ON student_subject
 
 ALTER TABLE student_subjects ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public can read student_subjects"
-  ON student_subjects FOR SELECT USING (true);
+-- migration-098: authenticated-only. Keyed on student_id, so anon read
+-- allowed enumeration of every student UUID and their subject choices.
+CREATE POLICY "Authenticated can read student_subjects"
+  ON student_subjects FOR SELECT
+  TO authenticated
+  USING (true);
 
 CREATE POLICY "Admins can insert student_subjects"
   ON student_subjects FOR INSERT
@@ -1279,8 +1283,13 @@ CREATE POLICY "Staff can delete section_cards"
 -- Staff Members
 ALTER TABLE staff_members ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public can view staff members"
+-- migration-098: authenticated-only, for the same reason as `teachers`
+-- (date_of_birth, address, phone, email, license_number). The public staff
+-- directory reads the `public_staff_directory` view instead — defined at the
+-- end of this file.
+CREATE POLICY "Authenticated can read staff members"
   ON staff_members FOR SELECT
+  TO authenticated
   USING (true);
 
 CREATE POLICY "Staff can insert staff members"
@@ -1425,8 +1434,12 @@ CREATE POLICY "Admins can delete profiles"
 -- ── Teachers ────────────────────────────────────────────────────────────────
 ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public can read teachers"
+-- migration-098: authenticated-only. This policy previously read
+-- `USING (true)` with no TO clause, which includes anon — exposing
+-- aadhar_number, date_of_birth, address, phone and email to the internet.
+CREATE POLICY "Authenticated can read teachers"
   ON teachers FOR SELECT
+  TO authenticated
   USING (true);
 
 CREATE POLICY "Admins can insert teachers"
@@ -4442,8 +4455,12 @@ CREATE INDEX IF NOT EXISTS idx_student_elective_picks_subject ON student_electiv
 
 ALTER TABLE student_elective_picks ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public can read student_elective_picks"
-  ON student_elective_picks FOR SELECT USING (true);
+-- migration-098: authenticated-only. Keyed on student_id, so anon read
+-- allowed enumeration of every student UUID and their subject choices.
+CREATE POLICY "Authenticated can read student_elective_picks"
+  ON student_elective_picks FOR SELECT
+  TO authenticated
+  USING (true);
 
 CREATE POLICY "Admins manage student_elective_picks"
   ON student_elective_picks FOR ALL
@@ -6296,3 +6313,20 @@ SELECT
   'warm',
   ARRAY['en', 'hi']
 WHERE NOT EXISTS (SELECT 1 FROM school_profile);
+
+-- ============================================================
+-- Public staff directory (migration-098-restrict-staff-pii.sql)
+-- The ONLY staff data readable without logging in. Columns are deliberately
+-- limited; staff_members also holds date_of_birth, address, phone, email and
+-- license_number, none of which may ever be added here.
+-- ============================================================
+CREATE OR REPLACE VIEW public_staff_directory
+WITH (security_invoker = false) AS
+  SELECT id, name, subject, category, photo_url, qualifications, sort_order
+  FROM staff_members
+  WHERE is_active = true
+    AND category IN (
+      'management', 'pgt', 'tgt', 'prt', 'motherTeachers', 'admin'
+    );
+
+GRANT SELECT ON public_staff_directory TO anon, authenticated;
