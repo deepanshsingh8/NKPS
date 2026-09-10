@@ -23,7 +23,11 @@ export async function GET(
     caller.admin,
     runId,
     { kind: "all" },
-    caller.role === "admin"
+    caller.role === "admin",
+    // Ownership. The scope check above cannot stand in for it: every holder of
+    // the `reports` grant resolves to {kind:"all"}, so the hash always matches
+    // and a run id would otherwise work for anyone who had it.
+    { ownerId: caller.user.id }
   );
 
   if (!outcome.ok) {

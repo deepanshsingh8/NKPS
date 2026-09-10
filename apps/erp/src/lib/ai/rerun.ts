@@ -18,6 +18,14 @@ import { scopeHash, type RowScope } from "./caller-context";
  *  3. The stored filters are used verbatim. They were already scoped when
  *     written, so re-running cannot widen anything even if the model's
  *     original request tried to.
+ *  4. The run belongs to the caller's own conversation.
+ *
+ * (4) was missing until chat history made it matter. The scope check in (2)
+ * looks like it covers ownership, and does not: every holder of the `reports`
+ * grant resolves to `{kind:"all"}`, so the hashes always match and any of them
+ * could pass any run id. Both could have built the same report by hand, so the
+ * exposure was small — but a persistent history turns run ids into durable,
+ * quotable handles, and a handle that works for anyone is a handle that leaks.
  *
  * The trade-off is honest: the query runs a second time and the data may have
  * moved, so callers state the fresh total rather than the one from the
@@ -30,6 +38,21 @@ export type RerunFailure =
   | { code: "expired"; status: 410; message: string }
   | { code: "scope_changed"; status: 403; message: string };
 
+export interface RerunOptions {
+  /**
+   * Whose runs these are. A run attached to someone else's conversation is
+   * reported as not_found, never as forbidden — the id must not become a way
+   * to discover that a colleague asked something.
+   */
+  ownerId?: string;
+  /**
+   * Skip the expiry check only. Used by the explicit re-run path, which then
+   * writes a NEW run row rather than reviving this one, so the expired handle
+   * stays expired and a fresh authorization moment is recorded.
+   */
+  ignoreExpiry?: boolean;
+}
+
 export interface RerunSuccess {
   headers: string[];
   body: (string | number | null)[][];
@@ -38,28 +61,50 @@ export interface RerunSuccess {
   sensitive: boolean;
   academicYearId: string | null;
   filters: ReportFilters;
+  /** Carried so the re-run path can clone this row's attribution. */
+  conversationId: string | null;
+  messageSeq: number | null;
+  purpose: string | null;
 }
 
 export async function rerunQueryRun(
   admin: SupabaseClient,
   runId: string,
   scope: RowScope,
-  isAdmin: boolean
+  isAdmin: boolean,
+  opts: RerunOptions = {}
 ): Promise<{ ok: true; data: RerunSuccess } | { ok: false; error: RerunFailure }> {
   const { data: run } = await admin
     .from("ai_query_runs")
-    .select("id, filters, field_keys, scope_hash, expires_at, academic_year_id")
+    .select(
+      "id, filters, field_keys, scope_hash, expires_at, academic_year_id, conversation_id, message_seq, purpose"
+    )
     .eq("id", runId)
     .maybeSingle();
 
-  if (!run) {
-    return {
-      ok: false,
-      error: { code: "not_found", status: 404, message: "That result is no longer available." },
-    };
+  const notFound = {
+    ok: false as const,
+    error: {
+      code: "not_found" as const,
+      status: 404 as const,
+      message: "That result is no longer available.",
+    },
+  };
+
+  if (!run) return notFound;
+
+  // A run with no conversation predates chat history and has no owner to
+  // check; the scope check still applies to it.
+  if (opts.ownerId && run.conversation_id) {
+    const { data: owner } = await admin
+      .from("ai_conversations")
+      .select("actor_id")
+      .eq("id", run.conversation_id as string)
+      .maybeSingle();
+    if (owner && owner.actor_id !== opts.ownerId) return notFound;
   }
 
-  if (new Date(run.expires_at as string).getTime() < Date.now()) {
+  if (!opts.ignoreExpiry && new Date(run.expires_at as string).getTime() < Date.now()) {
     return {
       ok: false,
       error: {
@@ -84,6 +129,9 @@ export async function rerunQueryRun(
 
   const filters = run.filters as ReportFilters;
   const storedKeys = (run.field_keys as string[]) ?? [];
+  const conversationId = (run.conversation_id as string | null) ?? null;
+  const messageSeq = (run.message_seq as number | null) ?? null;
+  const purpose = (run.purpose as string | null) ?? null;
 
   // Re-resolve rather than trusting the stored list to still be valid: a field
   // retired since the run was created should drop out, not throw.
@@ -104,6 +152,9 @@ export async function rerunQueryRun(
       sensitive: !isAdmin ? false : fields.some((f) => f.sensitive === true),
       academicYearId: (run.academic_year_id as string | null) ?? result.session?.id ?? null,
       filters,
+      conversationId,
+      messageSeq,
+      purpose,
     },
   };
 }
