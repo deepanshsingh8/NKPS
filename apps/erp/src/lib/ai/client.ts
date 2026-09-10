@@ -104,8 +104,16 @@ export const AI_EFFORT = {
   ask: "high",
   remarks: "medium",
   parent: "low",
-  /** Retrieval plus a short explanation — the hard part is not reasoning. */
-  guide: "low",
+  /**
+   * High, not low.
+   *
+   * "Retrieval plus a short explanation" undersold the job. The questions that
+   * matter are diagnostic — "report cards are showing zero" means reading a
+   * workflow, then two screens, then working out which of four causes fits
+   * what the user actually said. Low effort answered those thinly, which on a
+   * help surface is worse than not answering: it reads as authoritative.
+   */
+  guide: "high",
   /** A wrong mapping writes wrong data into 900 student records. */
   importMapping: "medium",
 } as const;

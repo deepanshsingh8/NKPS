@@ -1,6 +1,11 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { findScreenGuide, SCREEN_GUIDES } from "@nkps/shared/lib/guide/screens";
+import {
+  findScreenGuide,
+  findWorkflow,
+  SCREEN_GUIDES,
+  WORKFLOWS,
+} from "@nkps/shared/lib/guide/screens";
 import { getAiClient, AI_MODELS, AI_EFFORT, AI_BUDGETS } from "../client";
 import {
   recordMessage,
@@ -47,10 +52,37 @@ const GUIDE_TOOLS: Anthropic.Tool[] = [
     },
     strict: true,
   },
+  {
+    name: "get_workflow",
+    description:
+      "The ordered steps for a job that spans several screens, or the ranked " +
+      "causes of a symptom. Call this FIRST for any setup, rollover or " +
+      '"why is this not working" question — the order is the answer, and no ' +
+      "single screen entry has it.",
+    input_schema: {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+          description: 'Workflow id from the index, e.g. "exam-setup".',
+        },
+      },
+      additionalProperties: false,
+      required: ["id"],
+    },
+    strict: true,
+  },
 ];
 
-/** Fewer rounds than Ask: a help answer needs one or two lookups, not eight. */
-const MAX_LOOKUPS = 4;
+/**
+ * Room for a real answer.
+ *
+ * Was 4, which quietly capped the useful case: a symptom question legitimately
+ * reads a workflow and then two or three of the screens it names, and running
+ * out mid-diagnosis produced exactly the half-answers this surface exists to
+ * avoid. Lookups are a local file read — the only cost is a round trip.
+ */
+const MAX_LOOKUPS = 8;
 
 export async function* runGuideTurn(args: {
   admin: SupabaseClient;
@@ -80,6 +112,8 @@ export async function* runGuideTurn(args: {
   });
 
   let lookups = 0;
+  // Set once the lookup budget is spent, so the nudge is added exactly once.
+  let forcedFinal = false;
 
   for (;;) {
     if (args.signal?.aborted) {
@@ -87,9 +121,27 @@ export async function* runGuideTurn(args: {
       return;
     }
 
-    if (Date.now() > deadline || lookups >= MAX_LOOKUPS) {
+    // Running out of LOOKUPS is not a reason to give up — by that point the
+    // model is holding everything it needs and is one round from writing the
+    // answer. Abandoning there produced the worst possible outcome: eight
+    // successful reads and then "ask about one screen at a time", on exactly
+    // the broad questions this surface exists for. So the budget takes the
+    // tools away and demands an answer instead of ending the turn.
+    const outOfLookups = lookups >= MAX_LOOKUPS;
+    if (outOfLookups && !forcedFinal) {
+      forcedFinal = true;
+      messages.push({
+        role: "user",
+        content:
+          "You have used your lookup budget. Answer now, in full, using what you have already read. Do not mention the budget.",
+      });
+    }
+
+    // Running out of WALL CLOCK is different — there is no time left to write
+    // anything, so this one really does have to stop.
+    if (Date.now() > deadline) {
       const text =
-        "That is taking longer than I allow for one question — try asking about one screen at a time.";
+        "That took longer than I allow for one question — try asking about one screen at a time.";
       await recordTurnFailure({
         admin: args.admin,
         conversationId: args.conversationId,
@@ -108,7 +160,7 @@ export async function* runGuideTurn(args: {
       const stream = client.messages.stream(
         {
           model: AI_MODELS.guide,
-          max_tokens: 1500,
+          max_tokens: 3000,
           output_config: { effort: AI_EFFORT.guide },
           system: [
             {
@@ -117,7 +169,9 @@ export async function* runGuideTurn(args: {
               cache_control: { type: "ephemeral" },
             },
           ],
-          tools: GUIDE_TOOLS,
+          // No tools on the forced round: the instruction above is a
+          // request, an empty tool list is a guarantee.
+          ...(forcedFinal ? {} : { tools: GUIDE_TOOLS }),
           messages,
         },
         { signal: args.signal }
@@ -185,41 +239,71 @@ export async function* runGuideTurn(args: {
     const results: Anthropic.ToolResultBlockParam[] = [];
     for (const use of toolUses) {
       lookups += 1;
-      const input = use.input as { path?: unknown };
-      const path = typeof input.path === "string" ? input.path : "";
-      const guide = findScreenGuide(path);
+      const input = use.input as { path?: unknown; id?: unknown };
 
-      yield { type: "tool_start", label: guide?.title ?? path };
+      const found =
+        use.name === "get_workflow"
+          ? lookupWorkflow(typeof input.id === "string" ? input.id : "")
+          : lookupScreen(typeof input.path === "string" ? input.path : "");
+
+      yield { type: "tool_start", label: found.label };
 
       await recordToolCall({
         admin: args.admin,
         conversationId: args.conversationId,
         messageSeq: seq,
-        toolName: "get_screen_guide",
+        toolName: use.name,
         argsRaw: input,
-        errorCode: guide ? null : "unknown_screen",
+        errorCode: found.ok ? null : "not_found",
       });
 
       results.push({
         type: "tool_result",
         tool_use_id: use.id,
-        is_error: !guide,
-        content: guide
-          ? JSON.stringify(guide)
-          : // Naming the near misses is what turns a dead end into a useful
-            // answer: the model can say "did you mean Students?" instead of
-            // apologising.
-            JSON.stringify({
-              error: `No guide for "${path}".`,
-              did_you_mean: SCREEN_GUIDES.filter((g) =>
-                g.path.startsWith(`/${path.split("/")[1] ?? ""}`)
-              )
-                .slice(0, 5)
-                .map((g) => g.path),
-            }),
+        is_error: !found.ok,
+        content: found.body,
       });
     }
 
     messages.push({ role: "user", content: results });
   }
+}
+
+/**
+ * Resolve a screen lookup.
+ *
+ * A miss returns near misses rather than a bare failure — that is what turns a
+ * dead end into "did you mean Students?" instead of an apology.
+ */
+function lookupScreen(path: string): { ok: boolean; label: string; body: string } {
+  const guide = findScreenGuide(path);
+  if (guide) {
+    return { ok: true, label: guide.title, body: JSON.stringify(guide) };
+  }
+  const prefix = `/${path.split("/")[1] ?? ""}`;
+  return {
+    ok: false,
+    label: path || "an unknown screen",
+    body: JSON.stringify({
+      error: `No guide for "${path}".`,
+      did_you_mean: SCREEN_GUIDES.filter((g) => g.path.startsWith(prefix))
+        .slice(0, 5)
+        .map((g) => g.path),
+    }),
+  };
+}
+
+function lookupWorkflow(id: string): { ok: boolean; label: string; body: string } {
+  const workflow = findWorkflow(id);
+  if (workflow) {
+    return { ok: true, label: workflow.title, body: JSON.stringify(workflow) };
+  }
+  return {
+    ok: false,
+    label: id || "an unknown job",
+    body: JSON.stringify({
+      error: `No workflow called "${id}".`,
+      available: WORKFLOWS.map((w) => w.id),
+    }),
+  };
 }

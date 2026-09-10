@@ -1796,3 +1796,296 @@ export function guideIndex(): string {
 export function guidePaths(): string[] {
   return SCREEN_GUIDES.map((g) => g.path);
 }
+
+/**
+ * Jobs that span several screens.
+ *
+ * The screen registry answers "how do I do X *here*". It cannot answer "how do
+ * I set up exams?", because the answer is six screens in a fixed order and no
+ * single entry knows about the other five. Those are the questions a new user
+ * actually asks, and answering them by stitching together screen entries
+ * produces something that is individually correct and collectively useless —
+ * it leaves out the order, which is the entire content of the question.
+ *
+ * Diagnostics live here too. "Report cards are blank" is not a screen, it is a
+ * symptom with three or four candidate causes across the module.
+ */
+export interface Workflow {
+  /** Stable id the model asks for. */
+  id: string;
+  /** What someone would call it. */
+  title: string;
+  /** One line, shown in the cached index. */
+  summary: string;
+  /** Ordered. Each step names the screen it happens on. */
+  steps: { path: string; what: string; why?: string }[];
+  /** What goes wrong, in the order it usually goes wrong. */
+  pitfalls?: string[];
+}
+
+export const WORKFLOWS: Workflow[] = [
+  {
+    id: "exam-setup",
+    title: "Set up exams and report cards from scratch",
+    summary:
+      "The fixed order for a new class or year — masters before operations, or results compute as zero.",
+    steps: [
+      {
+        path: "/academics/years",
+        what: "Make sure the academic year exists and is marked current.",
+      },
+      {
+        path: "/academics/classes",
+        what: "Create the classes, with a class teacher.",
+      },
+      {
+        path: "/academics/subjects",
+        what: "Assign subjects to each class on the Class Assignments tab.",
+        why: "Result Master has nothing to offer until a class has subjects.",
+      },
+      {
+        path: "/exams/grade-master",
+        what: "Create a grade scale and apply it to the classes.",
+        why: "With no scale, marks compute but every letter grade prints blank.",
+      },
+      {
+        path: "/exams/types",
+        what: "Create each exam for the year and balance the level to 100%.",
+      },
+      {
+        path: "/exams/result-master",
+        what:
+          'Create the master, then work through all three tabs: Basic Rules, Subjects (at least one Main), and Advanced — where you MUST press "Save Advanced Settings".',
+        why: "The Advanced weightage grid is the step everyone skips, and skipping it makes every subject score zero.",
+      },
+      {
+        path: "/teacher/results",
+        what: "Teachers enter marks for their class and subject.",
+      },
+      {
+        path: "/exams/publish",
+        what: "Stage 1 publishes marks to parents; Stage 2 freezes the marksheet PDFs.",
+      },
+    ],
+    pitfalls: [
+      "The Advanced tab pre-fills from the exam types, so it LOOKS configured. Nothing is saved until you press the button, and there is no warning anywhere.",
+      "A Result Master with zero subjects behaves exactly like no Result Master at all.",
+      "Finalizing before the weightage is right freezes the zeros into the official PDFs. Fixing the marks afterwards does not change them — you have to re-finalize.",
+    ],
+  },
+  {
+    id: "zero-results",
+    title: "Report cards are blank or showing zero",
+    summary: "The four causes, in the order they are worth checking.",
+    steps: [
+      {
+        path: "/exams/result-master",
+        what:
+          'Open Advanced for that class and check the weightage chip reads "Sum: 100%". If the grid is empty or was never saved, that is your answer.',
+        why: "An exam with no weightage contributes nothing, so every subject computes as zero.",
+      },
+      {
+        path: "/exams/result-master",
+        what: "Check the Subjects tab has at least one subject with Role = Main.",
+        why: "Only Main subjects feed the aggregate.",
+      },
+      {
+        path: "/exams/grade-master",
+        what: "If marks show but grades are blank, no grade scale resolves for the class.",
+      },
+      {
+        path: "/exams/publish",
+        what:
+          "If it looks right to you but parents see nothing, the marks were never published — Stage 1.",
+      },
+    ],
+    pitfalls: [
+      "Result Master → Preview reads live data, so it shows marks parents cannot see. \"Works for me, blank for them\" is almost always Stage 1.",
+      "Already-finalized marksheets are frozen snapshots. Correcting the config does not update them.",
+    ],
+  },
+  {
+    id: "new-session",
+    title: "Roll over to a new academic session",
+    summary: "What has to be recreated for a new year, including the things that silently read as zero.",
+    steps: [
+      { path: "/academics/years", what: 'Add the new year, then "Set Current".' },
+      { path: "/academics/classes", what: "Create the classes for the new year." },
+      {
+        path: "/people/students",
+        what:
+          "For each outgoing class: mark every student passed or failed, then Actions → Promote Class into the new year.",
+        why: "Promote refuses while anyone in the class is still 'active'.",
+      },
+      {
+        path: "/fees/academic",
+        what: "Build the fee schedule for each class in the new year.",
+      },
+      {
+        path: "/transport/stops",
+        what: "Set every stop's monthly fee again.",
+        why: "Transport fees are stored per academic year, so a new session starts at zero for every stop.",
+      },
+      {
+        path: "/exams/result-master",
+        what: "Create the Result Master for each class in the new year.",
+      },
+    ],
+    pitfalls: [
+      "The transport fee reset is the quiet one — transport billing simply reads as zero and nothing complains.",
+      "Class XII passers become alumni on promotion; failed students are re-enrolled in the same class.",
+    ],
+  },
+  {
+    id: "fees-setup",
+    title: "Start collecting fees for a class",
+    summary: "Why the Fee dropdown on Record Payment is empty, and what fills it.",
+    steps: [
+      {
+        path: "/fees/academic",
+        what:
+          "On Fee Schedule, pick the class (and stream for XI/XII), add a row per instalment, and Save.",
+        why: "Record Payment reads its Fee dropdown from this. No schedule, no dropdown.",
+      },
+      {
+        path: "/fees/academic",
+        what: 'Once saved, use "Copy to classes" for the rest.',
+      },
+      {
+        path: "/fees/payments",
+        what: "Find the student, click Record Payment, pick the instalment.",
+      },
+      { path: "/fees/dues", what: "The arrears register now has real numbers." },
+    ],
+    pitfalls: [
+      "A transport line only appears on Record Payment if the student has a stop assigned AND that stop carries a fee for this year.",
+      'Dues are counted as of today — "Due Till Date" and "Annual Fee" are deliberately different numbers.',
+    ],
+  },
+  {
+    id: "transport-setup",
+    title: "Put a student on the school bus",
+    summary: "Stop, then route, then student — each step unlocks the next.",
+    steps: [
+      {
+        path: "/transport/stops",
+        what: "Add the stop, then set its monthly fee with the rupee icon.",
+      },
+      {
+        path: "/people/staff",
+        what: 'Add the driver as staff with category "Bus Drivers".',
+      },
+      {
+        path: "/transport/buses",
+        what: "Register the bus, then use the route icon to tick the stops it serves.",
+        why: "A student whose stop is on no route gets no bus suggestion.",
+      },
+      {
+        path: "/transport/assignments",
+        what:
+          'Open the student, tick "Uses school transport", pick the stop and bus, and set the direction.',
+      },
+    ],
+    pitfalls: [
+      "A one-way rider needs a custom one-side fee, or the save is refused — the flat stop fee covers both legs.",
+      "Removing a student from transport clears the whole year's unpaid transport dues, including months already ridden.",
+    ],
+  },
+  {
+    id: "new-teacher",
+    title: "Get a new teacher working in the system",
+    summary: "The conversion step people miss, and why nobody can select them until it happens.",
+    steps: [
+      {
+        path: "/people/staff",
+        what: 'Add them with a teaching category and an email address.',
+      },
+      {
+        path: "/people/staff",
+        what: "Click the graduation-cap icon to convert them to a teacher record.",
+        why:
+          "Until this is done they appear in NO class-teacher or subject-teacher dropdown anywhere in the ERP.",
+      },
+      {
+        path: "/people/staff",
+        what: "Click the person-plus icon to create their portal login (admin only).",
+      },
+      {
+        path: "/academics/subjects",
+        what: "On Class Assignments, set them as the teacher for their subjects.",
+      },
+      {
+        path: "/academics/classes",
+        what: "If they are a class teacher, set that on the class.",
+        why:
+          "Report-card remarks are limited to the class teacher specifically, not to anyone teaching the class.",
+      },
+    ],
+    pitfalls: [
+      "Bus drivers and peons cannot be given a portal login at all.",
+      "No email on the staff row means no login can be created.",
+    ],
+  },
+  {
+    id: "onboard-students",
+    title: "Load a new intake of students",
+    summary: "Bulk upload, and what it does to students who already exist.",
+    steps: [
+      { path: "/academics/classes", what: "Make sure the classes exist first." },
+      {
+        path: "/people/students",
+        what: 'Actions → Upload Excel, then "Download Template" and fill it.',
+        why: "Only Admission No, Name and Class are required; missing classes are auto-created.",
+      },
+      {
+        path: "/people/students",
+        what: "Review the preview, fix what it flags, then import.",
+      },
+      {
+        path: "/academics/classes",
+        what: "Generate roll numbers for each class.",
+      },
+      {
+        path: "/people/students",
+        what: 'Tick the rows and use "Create Users" for portal logins (admin only).',
+      },
+    ],
+    pitfalls: [
+      "Re-uploading an existing admission number UPDATES that student. A blank cell clears the stored value; a column left out entirely is untouched.",
+      "The header checkbox selects every student matching the filters, not just the visible page.",
+    ],
+  },
+  {
+    id: "parents-cant-see",
+    title: "Parents or students cannot see something",
+    summary: "The publish gates, one per kind of content.",
+    steps: [
+      {
+        path: "/exams/publish",
+        what: "Exam marks and report cards: Stage 1 · Online Publish for that class and exam.",
+      },
+      {
+        path: "/teacher/class-tests",
+        what: "Class tests: the eye icon on the test row. They are separate from exam publishing.",
+      },
+      {
+        path: "/exams/non-scholastic-assessments",
+        what:
+          "Co-scholastic grades: published by Stage 1 too, but they only reach the report card if Result Master → Advanced has them switched on.",
+      },
+      {
+        path: "/calendar",
+        what: 'Calendar events: the "Show on public website" tick on the event.',
+      },
+    ],
+  },
+];
+
+/** Compact list for the cached prefix — ids, titles and one line each. */
+export function workflowIndex(): string {
+  return WORKFLOWS.map((w) => `${w.id} — ${w.title}: ${w.summary}`).join("\n");
+}
+
+export function findWorkflow(id: string): Workflow | null {
+  return WORKFLOWS.find((w) => w.id === id) ?? null;
+}
