@@ -33,6 +33,11 @@ import {
   type ParsedDayBookReceipt,
 } from "@nkps/shared/lib/historical-import";
 import type { FeeStructure } from "@nkps/shared/types";
+import {
+  buildStreamLookup,
+  resolveStreamId,
+  streamIsMissing,
+} from "@nkps/shared/lib/stream-alias";
 import { resolveEffectiveFeeStructures, resolveStudentType } from "@/lib/fees";
 import {
   allocateStudentReceipts,
@@ -187,10 +192,13 @@ export async function POST(req: NextRequest) {
     if (res.error) return NextResponse.json({ error: res.error.message }, { status: 500 });
   }
 
-  const streamByName = new Map<string, string>();
-  for (const s of streamsRes.data ?? []) {
-    streamByName.set(String(s.name).toLowerCase(), s.id as string);
-  }
+  // Alias-aware: the file says "XI-Arts" and the school stores the stream as
+  // "Humanities". A bare-name lookup misses, which silently drops every one of
+  // that class's schedule rows AND makes the commit path create a second
+  // stream beside the real one.
+  const streamByName = buildStreamLookup(
+    (streamsRes.data ?? []).map((s) => ({ id: s.id as string, name: String(s.name) }))
+  );
 
   type ClassRow = { id: string; name: string; section: string; stream_id: string | null };
   const classesByKey = new Map<string, ClassRow>();
@@ -448,15 +456,12 @@ export async function POST(req: NextRequest) {
   const willCreateClasses: Array<{ name: string; section: string; stream_name: string | null }> = [];
   for (const spec of classSpecByKey.values()) {
     if (
-      spec.stream_name &&
-      !streamByName.has(spec.stream_name.toLowerCase()) &&
-      !willCreateStreams.includes(spec.stream_name)
+      streamIsMissing(streamByName, spec.stream_name) &&
+      !willCreateStreams.includes(spec.stream_name!)
     ) {
-      willCreateStreams.push(spec.stream_name);
+      willCreateStreams.push(spec.stream_name!);
     }
-    const sid = spec.stream_name
-      ? streamByName.get(spec.stream_name.toLowerCase()) ?? null
-      : null;
+    const sid = resolveStreamId(streamByName, spec.stream_name);
     if ((spec.stream_name && !sid) || !classesByKey.has(classKey(spec.name, spec.section, sid))) {
       willCreateClasses.push(spec);
     }
@@ -483,12 +488,22 @@ export async function POST(req: NextRequest) {
   });
 
   // Fold the allocation verdict back onto the rows the operator sees.
+  //
+  // The message is rewritten here rather than in fee-allocation.ts, which is a
+  // pure module with no idea what class a receipt belongs to. Naming the class
+  // is the whole value of the message: "this class's fee schedule" sends the
+  // operator to a screen with fifteen classes on it and no way to tell which
+  // one is short, and a stream-scoped class is worse again because XI-Arts and
+  // XI-Commerce are different schedules that look identical in a list.
   const resultBySourceRow = new Map(rowResults.map((r) => [r.source_row, r]));
   for (const problem of allocation.problems) {
     const row = resultBySourceRow.get(problem.source_row);
     if (!row) continue;
     row.status = "error";
-    row.message = problem.message;
+    row.message = problem.message.replace(
+      "this class's fee schedule",
+      `the ${row.raw_class} fee schedule`
+    );
   }
   for (const [sourceRow, info] of allocation.perRow) {
     const row = resultBySourceRow.get(sourceRow);
@@ -866,11 +881,13 @@ async function materializeClasses(
 ): Promise<{ error: string | null }> {
   const { academicYearId, classSpecByKey, streamByName, classesByKey } = args;
 
+  // streamIsMissing, not a bare `has()`: "Arts" must not spawn a twin of the
+  // school's "Humanities".
   const missingStreams = [
     ...new Set(
       [...classSpecByKey.values()]
         .map((s) => s.stream_name)
-        .filter((n): n is string => !!n && !streamByName.has(n.toLowerCase()))
+        .filter((n): n is string => streamIsMissing(streamByName, n))
     ),
   ];
   if (missingStreams.length > 0) {
@@ -879,12 +896,15 @@ async function materializeClasses(
       .insert(missingStreams.map((name) => ({ name })))
       .select("id, name");
     if (error) return { error: `Failed to create streams: ${error.message}` };
-    for (const s of data ?? []) streamByName.set(String(s.name).toLowerCase(), s.id as string);
+    for (const s of data ?? []) {
+      const fresh = buildStreamLookup([{ id: s.id as string, name: String(s.name) }]);
+      for (const [k, v] of fresh) if (!streamByName.has(k)) streamByName.set(k, v);
+    }
   }
 
   const toInsert: Array<Record<string, unknown>> = [];
   for (const spec of classSpecByKey.values()) {
-    const sid = spec.stream_name ? streamByName.get(spec.stream_name.toLowerCase()) ?? null : null;
+    const sid = resolveStreamId(streamByName, spec.stream_name);
     if (classesByKey.has(classKey(spec.name, spec.section, sid))) continue;
     toInsert.push({
       name: spec.name,
@@ -980,7 +1000,7 @@ async function createStubStudents(
   for (const s of toCreate) {
     const student = byAdmissionNo.get(normalizeAdmissionNo(s.admission_no));
     if (!student) continue;
-    const sid = s.stream_name ? streamByName.get(s.stream_name.toLowerCase()) ?? null : null;
+    const sid = resolveStreamId(streamByName, s.stream_name);
     const cls = classesByKey.get(classKey(s.class_name, s.section, sid));
     if (!cls) {
       warnings.push(
@@ -1141,9 +1161,7 @@ function allocate(args: {
 
   for (const [, rows] of groups) {
     const first = rows[0];
-    const streamId = first.norm.stream_name
-      ? streamByName.get(first.norm.stream_name.toLowerCase()) ?? null
-      : null;
+    const streamId = resolveStreamId(streamByName, first.norm.stream_name);
 
     const admissionDate =
       studentsByAdm.get(first.admission_no)?.admission_date ??

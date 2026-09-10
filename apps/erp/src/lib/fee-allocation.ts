@@ -190,10 +190,12 @@ export function allocateStudentReceipts(args: {
           source_row: receipt.source_row,
           head: headEntry.head,
           amount: headEntry.amount,
+          // "this class's fee schedule" is a placeholder the import route
+          // rewrites with the actual class name — this module does not know it.
           message:
             `No active "${headEntry.head}" row in this class's fee schedule ` +
-            `for the selected year. Publish the schedule (Fees → Academic ` +
-            `Fees → Fee Schedule) before importing.`,
+            `for the selected year. Publish it under Fees → Academic Fees → ` +
+            `Fee Schedule, or copy it from another class with the same fees.`,
         });
         continue;
       }
