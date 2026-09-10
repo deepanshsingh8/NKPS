@@ -9,6 +9,7 @@ import { Button } from "@nkps/shared/components/ui/button";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Checkbox } from "@nkps/shared/components/ui/checkbox";
+import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Dialog,
@@ -1036,12 +1037,15 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           "students(id, full_name, admission_no, father_name, is_active), classes(name, section, streams(name))"
         )
         .eq("academic_year_id", academicYearId)
-        .eq("status", "active")
-        // Past PostgREST's 1000-row default cap: a whole-school roster
-        // silently truncated at 1000 would hide students with no warning.
-        .range(0, 9999);
+        .eq("status", "active");
       if (paymentsClassId) query = query.eq("class_id", paymentsClassId);
-      const { data } = await query;
+      // Paged. A .range() cannot lift PostgREST's db-max-rows cap, and the
+      // school is at 942 active students against a cap of 1000 — a truncated
+      // roster here means a student the office cannot find to take money from,
+      // with nothing on screen to say why.
+      const { data } = await fetchAllRows<Record<string, unknown>>((from, to) =>
+        query.range(from, to)
+      );
       if (cancelled) return;
       type Row = {
         students: {
@@ -1304,10 +1308,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         .in(
           "status",
           includeLeavers ? ["active", "exited", "terminated"] : ["active"]
-        )
-        .range(0, 9999);
+        );
       if (duesClassId) enrollmentQuery = enrollmentQuery.eq("class_id", duesClassId);
-      const { data: enrollments } = await enrollmentQuery;
+      const { data: enrollments, error: enrollmentError } = await fetchAllRows<
+        Record<string, unknown>
+      >((from, to) => enrollmentQuery.range(from, to));
+      if (enrollmentError) {
+        throw new Error(`student_enrollments: ${enrollmentError}`);
+      }
       // Structures for every class in the year, grouped by class name below.
       // Fetched whole even for a single class: the row count is small, and it
       // keeps one code path for both scopes.
@@ -1376,14 +1384,23 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             "student_id, fee_structure_id, amount_paid, waiver_amount, refund_amount, status"
           )
           .in("status", ["paid", "partial", "refunded"])
-          .eq("academic_year_id", academicYearId)
-          .range(0, 99999);
+          .eq("academic_year_id", academicYearId);
         // Scope by student only for a single class. Across the whole school
         // the id list would be thousands of UUIDs in a query string, and the
         // year filter already bounds the result to the same rows.
         if (duesClassId) payQuery = payQuery.in("student_id", studentIds);
-        const { data: pays } = await payQuery;
-        payments = (pays as unknown as PayRow[]) ?? [];
+        // Paged, not .range(0, 99999). A Range header cannot lift PostgREST's
+        // db-max-rows cap, only ask for less than it — so the old call read
+        // the first 1000 payments and returned 200 OK. After the 2026-27 day
+        // book put 1,994 rows in this table it reported 432 students as having
+        // paid nothing, against Rs 1.02 crore that was in the table all along.
+        const { data: pays, error: payError } = await fetchAllRows<PayRow>(
+          (from, to) => payQuery.range(from, to)
+        );
+        // A short read here understates what a family has paid and invents
+        // arrears. Surface it instead of publishing the number.
+        if (payError) throw new Error(`fee_payments: ${payError}`);
+        payments = pays;
       }
 
       const allStructures = (structures as FeeStructure[] | null) ?? [];
