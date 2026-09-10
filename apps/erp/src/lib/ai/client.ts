@@ -84,6 +84,12 @@ export const AI_MODELS = {
    * than the tokens saved. `effort` is the lever here instead.
    */
   guide: "claude-opus-5",
+  /**
+   * Matching spreadsheet columns to template fields. One structured call over
+   * column SHAPES — never values — so the hard part is inference from thin
+   * evidence, which is exactly where a capable model earns its keep.
+   */
+  importMapping: "claude-opus-5",
 } as const;
 
 /**
@@ -100,6 +106,8 @@ export const AI_EFFORT = {
   parent: "low",
   /** Retrieval plus a short explanation — the hard part is not reasoning. */
   guide: "low",
+  /** A wrong mapping writes wrong data into 900 student records. */
+  importMapping: "medium",
 } as const;
 
 /**
