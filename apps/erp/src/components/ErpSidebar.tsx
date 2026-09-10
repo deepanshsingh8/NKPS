@@ -157,6 +157,10 @@ const erpItems: SidebarItem[] = [
     label: "Reports",
     landingHref: "/reports",
     children: [
+      // First in the group on purpose: it is the fastest route to a list, and
+      // until now the page had no sidebar entry at all — the only way in was a
+      // card on /reports, so anyone who did not scroll never found it.
+      { kind: "link", icon: Sparkles, label: "Ask your school", href: "/reports/ask" },
       { kind: "link", icon: UserCheck, label: "Student Report", href: "/reports/students" },
       { kind: "link", icon: ReceiptText, label: "Fee Report", href: "/reports/students?focus=fees" },
       { kind: "link", icon: CheckSquare, label: "Attendance Report", href: "/reports/students?focus=attendance" },
