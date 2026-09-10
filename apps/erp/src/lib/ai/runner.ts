@@ -108,29 +108,43 @@ export interface AskRun {
   total: number;
 }
 
-export interface AskTurnResult {
-  text: string;
+/**
+ * What the browser is told as a turn happens.
+ *
+ * The turn used to be one 45-second silence followed by a paragraph. Streaming
+ * buys three things, in this order of value: a Stop button that actually stops
+ * work on the SERVER rather than only hiding the result, progressive text, and
+ * an honest answer to "why is this taking so long".
+ */
+export type AskEvent =
   /**
-   * EVERY report the turn produced, not just the last.
-   *
-   * Reporting only the last one was wrong twice over. The model routinely
-   * cross-checks itself — count the students without transport, then count the
-   * ones with it to prove the two sum to the roll — so the final query is
-   * frequently not the one the answer is about; the user reads "198 have not
-   * opted" above a table of 744 who have. And when the model issues two report
-   * calls in the same round they execute in parallel, so "last" was decided by
-   * whichever promise happened to settle second.
-   *
-   * The UI shows the last as the default and lets the user switch, each run
-   * labelled with its purpose and row count.
+   * Sent before the model runs, so a chat that is stopped one second in still
+   * knows its own id and the next message appends instead of starting over.
    */
-  runs: AskRun[];
-  toolCalls: number;
-  stoppedBy: "end_turn" | "budget" | "error";
-}
+  | { type: "start"; conversationId: string | null }
+  /** Text as the model writes it. Only text — thinking deltas never leave. */
+  | { type: "delta"; text: string }
+  /**
+   * A round finished. `hadTools` means the text just streamed was a preamble
+   * ("Let me check the class list…"), not the answer — the client moves it to
+   * the progress line and starts the answer buffer over. Without this the live
+   * view would show preamble plus answer while a reload showed only the
+   * answer, and the same turn would read differently depending on when you
+   * looked at it.
+   */
+  | { type: "round_end"; hadTools: boolean }
+  | { type: "tool_start"; name: string; label: string | null }
+  | { type: "tool_done"; name: string; failed: boolean }
+  | {
+      type: "done";
+      text: string;
+      runs: AskRun[];
+      conversationId: string | null;
+      stoppedBy: "end_turn" | "budget" | "error";
+    };
 
 /**
- * Run one turn.
+ * Run one turn, reporting as it goes.
  *
  * `question` is what the human typed; `contextBlock` is what the server adds
  * for the model's benefit (the current session name). They are separate
@@ -138,14 +152,20 @@ export interface AskTurnResult {
  * the audit trail sees only the question. Before this they were concatenated
  * by the caller, so every stored user message began with a sentence the server
  * wrote and the transcript attributed it to the user.
+ *
+ * `signal` is the request's own. When the user hits Stop the browser drops the
+ * connection, Next aborts the request, and that abort reaches the model call —
+ * so the completion is genuinely cancelled rather than merely ignored. Before
+ * this, a stopped turn still paid for every token it was going to produce.
  */
-export async function runAskTurn(
+export async function* runAskTurn(
   ctx: CallerContext,
   systemPrompt: string,
   history: Anthropic.MessageParam[],
   question: string,
-  contextBlock?: string
-): Promise<AskTurnResult> {
+  contextBlock?: string,
+  signal?: AbortSignal
+): AsyncGenerator<AskEvent, void, void> {
   const client = getAiClient();
   const deadline = Date.now() + AI_BUDGETS.maxWallClockMs;
 
@@ -172,6 +192,20 @@ export async function runAskTurn(
   const retries = new Map<string, number>();
 
   for (;;) {
+    // Checked at the top of every round, not only inside the model call: a
+    // turn aborted while its tools are running must not start another round.
+    if (signal?.aborted) {
+      await recordTurnFailure({
+        admin: ctx.admin,
+        conversationId: ctx.conversationId,
+        seq: seq + 1,
+        content: "Stopped.",
+        errorCode: "user_stopped",
+      });
+      await finishConversation(ctx.admin, ctx.conversationId, "aborted", "user_stopped");
+      return;
+    }
+
     if (Date.now() > deadline || toolCalls >= AI_BUDGETS.maxToolCalls) {
       const text =
         runs.length > 0
@@ -187,26 +221,61 @@ export async function runAskTurn(
         errorCode: "budget_exhausted",
       });
       await finishConversation(ctx.admin, ctx.conversationId, "aborted", "budget_exhausted");
-      return { text, runs, toolCalls, stoppedBy: "budget" };
+      yield {
+        type: "done",
+        text,
+        runs,
+        conversationId: ctx.conversationId,
+        stoppedBy: "budget",
+      };
+      return;
     }
 
     const startedAt = Date.now();
     let response: Anthropic.Message;
     try {
-      response = await client.messages.create({
-        model: AI_MODELS.ask,
-        max_tokens: AI_MAX_TOKENS,
-        thinking: { type: "adaptive" },
-        output_config: { effort: AI_EFFORT.ask },
-        // Cache the stable prefix: tool definitions and the system prompt.
-        // Everything volatile is in `messages`, after this breakpoint.
-        system: [
-          { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
-        ],
-        tools: TOOL_DEFINITIONS,
-        messages,
-      });
+      const stream = client.messages.stream(
+        {
+          model: AI_MODELS.ask,
+          max_tokens: AI_MAX_TOKENS,
+          thinking: { type: "adaptive" },
+          output_config: { effort: AI_EFFORT.ask },
+          // Cache the stable prefix: tool definitions and the system prompt.
+          // Everything volatile is in `messages`, after this breakpoint.
+          system: [
+            { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+          ],
+          tools: TOOL_DEFINITIONS,
+          messages,
+        },
+        { signal }
+      );
+
+      for await (const event of stream) {
+        // text_delta ONLY. thinking_delta is the model's private reasoning and
+        // must never reach a school office screen.
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          yield { type: "delta", text: event.delta.text };
+        }
+      }
+
+      response = await stream.finalMessage();
     } catch (err) {
+      // An abort is the user's doing, not a failure to report as one — and it
+      // arrives here as a thrown error because that is how a cancelled fetch
+      // surfaces.
+      if (signal?.aborted) {
+        await recordTurnFailure({
+          admin: ctx.admin,
+          conversationId: ctx.conversationId,
+          seq: seq + 1,
+          content: "Stopped.",
+          errorCode: "user_stopped",
+        });
+        await finishConversation(ctx.admin, ctx.conversationId, "aborted", "user_stopped");
+        return;
+      }
+
       console.error("[ai.runner] model call failed:", err);
       const text =
         "I couldn't reach the assistant just now. The report builder under Reports still works.";
@@ -218,7 +287,14 @@ export async function runAskTurn(
         errorCode: "model_error",
       });
       await finishConversation(ctx.admin, ctx.conversationId, "error", "model_error");
-      return { text, runs, toolCalls, stoppedBy: "error" };
+      yield {
+        type: "done",
+        text,
+        runs,
+        conversationId: ctx.conversationId,
+        stoppedBy: "error",
+      };
+      return;
     }
 
     // Joined with a BLANK line, not a single newline.
@@ -259,9 +335,25 @@ export async function runAskTurn(
       (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
     );
 
+    yield { type: "round_end", hadTools: toolUses.length > 0 };
+
     if (toolUses.length === 0) {
       await finishConversation(ctx.admin, ctx.conversationId, "completed");
-      return { text: replyText, runs, toolCalls, stoppedBy: "end_turn" };
+      yield {
+        type: "done",
+        text: replyText,
+        runs,
+        conversationId: ctx.conversationId,
+        stoppedBy: "end_turn",
+      };
+      return;
+    }
+
+    // Announce all of them before any of them run. They execute in parallel,
+    // so reporting them one at a time would misrepresent the order and hide
+    // the fact that two lookups are in flight at once.
+    for (const use of toolUses) {
+      yield { type: "tool_start", name: use.name, label: toolLabel(use) };
     }
 
     // Execute in parallel, then return EVERY result in one user message.
@@ -287,6 +379,8 @@ export async function runAskTurn(
                 : outcome.body,
             },
             run: null,
+            name: use.name,
+            failed: true,
           };
         }
 
@@ -297,6 +391,8 @@ export async function runAskTurn(
             content: outcome.body,
           },
           run: outcome.run ?? null,
+          name: use.name,
+          failed: false,
         };
       })
     );
@@ -304,9 +400,29 @@ export async function runAskTurn(
     // Promise.all preserves the ARRAY order, so runs are appended in the order
     // the model asked for them rather than the order they happened to finish.
     for (const { run } of settled) if (run) runs.push(run);
+    for (const { name, failed } of settled) {
+      yield { type: "tool_done", name, failed };
+    }
 
     messages.push({ role: "user", content: settled.map((r) => r.block) });
   }
+}
+
+/**
+ * A human label for a tool call in flight.
+ *
+ * `purpose` is required on run_student_report and already logged verbatim, so
+ * the progress line can read "Running report: students without transport"
+ * instead of a tool name nobody outside this codebase recognises.
+ */
+function toolLabel(use: Anthropic.ToolUseBlock): string | null {
+  const input = use.input as Record<string, unknown>;
+  const purpose = typeof input.purpose === "string" ? input.purpose.trim() : "";
+  if (purpose) return purpose;
+  if (use.name === "list_lookup_values" && typeof input.kind === "string") {
+    return input.kind;
+  }
+  return null;
 }
 
 type ToolOutcome =

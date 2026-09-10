@@ -216,48 +216,94 @@ export async function POST(request: NextRequest) {
       )
     : normaliseHistory(body.history);
 
-  try {
-    const result = await runAskTurn(
-      ctx,
-      systemPrompt,
-      history,
-      message,
-      buildAskContextBlock(session.name as string)
-    );
+  // ── Server-Sent Events, not JSON ──────────────────────────────────────────
+  // The turn used to be a single silent await of up to 45 seconds. Streaming
+  // it changes the error contract: once a byte is flushed there is no status
+  // code left to set, so a late failure has to arrive in-band as a `done`
+  // event carrying the sentence the user should read.
+  const encoder = new TextEncoder();
+  let closed = false;
 
-    // Every report the turn ran, in call order. The UI shows the last by
-    // default and labels each with the model's stated purpose — a single
-    // run_id here could not distinguish "the 198 the answer is about" from
-    // "the 744 it counted to check the arithmetic".
-    // after(), not a bare `void`: a fire-and-forget promise can be frozen the
-    // instant the response flushes, and because nothing awaits it the failure
-    // would be completely silent. Only on the first turn — later turns keep
-    // the title the chat already has.
-    if (isNewConversation && conversationId) {
-      const id = conversationId;
-      after(() => generateTitle(admin, id, message));
-    }
+  const sse = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: unknown) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        } catch {
+          // The client went away mid-turn. The abort signal below is what
+          // actually stops the work; this just stops us shouting into a
+          // closed pipe.
+          closed = true;
+        }
+      };
 
-    return NextResponse.json({
-      reply: result.text,
-      conversation_id: conversationId,
-      runs: result.runs.map((r) => ({
-        run_id: r.runId,
-        purpose: r.purpose,
-        total: r.total,
-      })),
-      stopped_by: result.stoppedBy,
-    });
-  } catch (err) {
-    console.error("[ai.ask] turn failed:", err);
-    return NextResponse.json(
-      {
-        error:
-          "Something went wrong running that. The report builder under Reports still works.",
-      },
-      { status: 500 }
-    );
+      send({ type: "start", conversation_id: conversationId });
+
+      try {
+        for await (const event of runAskTurn(
+          ctx,
+          systemPrompt,
+          history,
+          message,
+          buildAskContextBlock(session.name as string),
+          request.signal
+        )) {
+          send(
+            event.type === "done"
+              ? {
+                  type: "done",
+                  text: event.text,
+                  conversation_id: event.conversationId,
+                  stopped_by: event.stoppedBy,
+                  // Every report the turn ran, in call order. The UI shows the
+                  // last by default and labels each with the model's stated
+                  // purpose — one run_id could not distinguish "the 198 the
+                  // answer is about" from "the 744 it counted to check".
+                  runs: event.runs.map((r) => ({
+                    run_id: r.runId,
+                    purpose: r.purpose,
+                    total: r.total,
+                  })),
+                }
+              : event
+          );
+        }
+      } catch (err) {
+        console.error("[ai.ask] turn failed:", err);
+        send({
+          type: "done",
+          text: "Something went wrong running that. The report builder under Reports still works.",
+          conversation_id: conversationId,
+          stopped_by: "error",
+          runs: [],
+        });
+      } finally {
+        closed = true;
+        controller.close();
+      }
+    },
+  });
+
+  // after(), not a bare `void`: a fire-and-forget promise can be frozen the
+  // instant the response finishes, and because nothing awaits it the failure
+  // would be completely silent. Only on the first turn — later turns keep the
+  // title the chat already has.
+  if (isNewConversation && conversationId) {
+    const id = conversationId;
+    after(() => generateTitle(admin, id, message));
   }
+
+  return new Response(sse, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-store, no-transform",
+      Connection: "keep-alive",
+      // Nginx and friends buffer proxied responses by default, which turns a
+      // stream back into one long silence followed by everything at once.
+      "X-Accel-Buffering": "no",
+    },
+  });
 }
 
 /**
