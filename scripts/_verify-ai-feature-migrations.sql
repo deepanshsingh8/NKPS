@@ -99,6 +99,55 @@ WITH checks AS (
                           'public.ai_query_runs'::regclass)
             AND obj_description(c.oid, 'pg_class') ILIKE '%intentional%'),
          'comment says the missing policies are deliberate'
+
+  -- ── 114 ─────────────────────────────────────────────────────────────────
+  UNION ALL
+  SELECT '114 ai_conversations is listable and soft-deletable',
+         (SELECT count(*) = 4 FROM information_schema.columns
+          WHERE table_name = 'ai_conversations'
+            AND column_name IN ('title','title_source','deleted_at','deleted_by')),
+         'title, title_source, deleted_at, deleted_by'
+  UNION ALL
+  SELECT '114 the chat sidebar has an index that matches its query',
+         EXISTS (SELECT 1 FROM pg_indexes
+                 WHERE tablename = 'ai_conversations'
+                   AND indexname = 'idx_ai_conversations_actor_recent'),
+         'idx_ai_conversations_actor_recent (actor_id, feature, last_at DESC)'
+  UNION ALL
+  SELECT '114 ai_messages can carry a per-turn failure and a redaction',
+         (SELECT count(*) = 2 FROM information_schema.columns
+          WHERE table_name = 'ai_messages'
+            AND column_name IN ('error_code','redacted_at')),
+         'error_code, redacted_at'
+  UNION ALL
+  SELECT '114 a query run knows which answer owns it, and what to call it',
+         (SELECT count(*) = 2 FROM information_schema.columns
+          WHERE table_name = 'ai_query_runs'
+            AND column_name IN ('message_seq','purpose')),
+         'message_seq, purpose'
+  UNION ALL
+  SELECT '114 a result outlives the school day',
+         (SELECT column_default LIKE '%24:00:00%'
+                 OR column_default LIKE '%24 hours%'
+            FROM information_schema.columns
+           WHERE table_name = 'ai_query_runs' AND column_name = 'expires_at'),
+         'ai_query_runs.expires_at defaults to now() + 24 hours'
+  UNION ALL
+  SELECT '114 no user message still carries the injected session prefix',
+         NOT EXISTS (SELECT 1 FROM ai_messages
+                     WHERE role = 'user' AND content LIKE 'Current session: %'),
+         'the backfill stripped the server-written prefix'
+  UNION ALL
+  SELECT '114 the feature check has room for the in-app guide',
+         EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'ai_conversations_feature_check'
+                   AND pg_get_constraintdef(oid) LIKE '%guide%'),
+         'feature IN (ask, remarks, parent, guide)'
+  UNION ALL
+  SELECT '114 ai_messages says out loud that it now holds student data',
+         (SELECT obj_description('public.ai_messages'::regclass, 'pg_class')
+                 ILIKE '%CHANGED IN 114%'),
+         'the comment records that replies are stored, and what that costs'
 )
 SELECT
   CASE WHEN ok THEN 'PASS' ELSE '*** FAIL ***' END AS result,

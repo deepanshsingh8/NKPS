@@ -6365,7 +6365,9 @@ CREATE TABLE IF NOT EXISTS ai_conversations (
   -- Where the request came in. whatsapp has no Supabase session, so user_id
   -- is null there and parent_id carries the identity.
   channel text NOT NULL CHECK (channel IN ('erp_web', 'portal_web', 'whatsapp')),
-  feature text NOT NULL CHECK (feature IN ('ask', 'remarks', 'parent')),
+  -- migration-114 added 'guide': the in-app help assistant, which answers
+  -- questions about the software and reads no student data.
+  feature text NOT NULL CHECK (feature IN ('ask', 'remarks', 'parent', 'guide')),
 
   -- Actor. SET NULL so the trail outlives the account, matching export_events
   -- and historical_corrections.
@@ -6388,7 +6390,19 @@ CREATE TABLE IF NOT EXISTS ai_conversations (
   error_code text,
 
   started_at timestamptz NOT NULL DEFAULT now(),
-  last_at timestamptz NOT NULL DEFAULT now()
+  last_at timestamptz NOT NULL DEFAULT now(),
+
+  -- migration-114: what makes this listable as a chat rather than only
+  -- auditable. 'auto' titles are machine-written and safe to overwrite;
+  -- 'user' means a human renamed it and the titler must never clobber it.
+  title text,
+  title_source text CHECK (title_source IN ('auto', 'user')),
+
+  -- Soft delete. A hard DELETE cascades ai_messages AND ai_tool_calls, which
+  -- would let anyone erase the record of what the assistant read simply by
+  -- tidying their chat list. The audit outlives the conversation.
+  deleted_at timestamptz,
+  deleted_by uuid REFERENCES profiles(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_conversations_actor
@@ -6397,6 +6411,12 @@ CREATE INDEX IF NOT EXISTS idx_ai_conversations_channel
   ON ai_conversations (channel, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ai_conversations_parent
   ON ai_conversations (parent_id, started_at DESC) WHERE parent_id IS NOT NULL;
+-- migration-114: the chat sidebar query, exactly. The index above is on
+-- started_at, which is the wrong column for a list that reorders every time a
+-- reply lands.
+CREATE INDEX IF NOT EXISTS idx_ai_conversations_actor_recent
+  ON ai_conversations (actor_id, feature, last_at DESC)
+  WHERE deleted_at IS NULL;
 
 -- ── Messages ────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ai_messages (
@@ -6406,9 +6426,10 @@ CREATE TABLE IF NOT EXISTS ai_messages (
 
   role text NOT NULL CHECK (role IN ('user', 'assistant')),
 
-  -- The human's own words are kept because support cannot debug "the
-  -- assistant gave a wrong answer" without them. The assistant's data-bearing
-  -- output is NOT kept here — follow ai_query_runs instead.
+  -- The human's own words, and — since migration-114 — the assistant's reply
+  -- too. 112 deliberately withheld the reply; that was right for an audit
+  -- table and wrong for a chat, because reopening one showed your questions
+  -- above blank bubbles. See the table COMMENT for what that costs.
   content text,
 
   input_tokens integer,
@@ -6417,6 +6438,15 @@ CREATE TABLE IF NOT EXISTS ai_messages (
   cache_write_tokens integer,
   stop_reason text,
   latency_ms integer,
+
+  -- migration-114. Why this turn ended badly: status on the conversation
+  -- carried it when a conversation was a single turn, and one aborted turn
+  -- must not make a whole chat read as aborted.
+  error_code text,
+  -- Set when content was blanked by a delete. Distinguishes "the words are
+  -- gone" from "the assistant produced no text", which is a real state on the
+  -- Stop and budget-exhausted paths.
+  redacted_at timestamptz,
 
   created_at timestamptz NOT NULL DEFAULT now(),
 
@@ -6479,10 +6509,24 @@ CREATE TABLE IF NOT EXISTS ai_query_runs (
   scope_hash text NOT NULL,
   academic_year_id uuid REFERENCES academic_years(id) ON DELETE SET NULL,
 
+  -- migration-114. Which answer owns this run: without it a reopened chat
+  -- cannot put a result chip under the answer that produced it.
+  message_seq integer,
+  -- The model's stated intent, denormalised off ai_tool_calls.args_raw, which
+  -- cannot be read back unambiguously — two parallel report calls in one round
+  -- share (conversation_id, message_seq) and nothing links a tool-call row to
+  -- the run row it produced.
+  purpose text,
+
   created_at timestamptz NOT NULL DEFAULT now(),
   -- Checked lazily at read. There is no cron anywhere in this repo, so
   -- nothing here may depend on a sweeper existing.
-  expires_at timestamptz NOT NULL DEFAULT (now() + interval '2 hours'),
+  --
+  -- migration-114 widened this from 2 hours to 24: two hours is shorter than a
+  -- school working day, so reopening this morning's chat found every result
+  -- already expired. Anything older goes through the explicit re-run path,
+  -- which mints a fresh row under a fresh authorization check.
+  expires_at timestamptz NOT NULL DEFAULT (now() + interval '24 hours'),
   exported_at timestamptz
 );
 
@@ -6490,6 +6534,9 @@ CREATE INDEX IF NOT EXISTS idx_ai_query_runs_conversation
   ON ai_query_runs (conversation_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ai_query_runs_expiry
   ON ai_query_runs (expires_at);
+CREATE INDEX IF NOT EXISTS idx_ai_query_runs_message
+  ON ai_query_runs (conversation_id, message_seq)
+  WHERE conversation_id IS NOT NULL;
 
 -- Close the loop opened in migration 097: an exported sheet points back at the
 -- question that produced it. Added here because the target table exists now.
@@ -6513,9 +6560,19 @@ ALTER TABLE ai_query_runs ENABLE ROW LEVEL SECURITY;
 COMMENT ON TABLE ai_conversations IS
   'RLS enabled with NO policies, intentionally: service-role access only. Any '
   'client credential reads this as empty. Do not add a policy without deciding '
-  'what a non-admin should be able to learn about other people''s questions.';
+  'what a non-admin should be able to learn about other people''s questions. '
+  'Deletion is SOFT (deleted_at): a hard delete would cascade ai_messages and '
+  'ai_tool_calls, letting anyone erase the record of what the assistant read '
+  'by tidying their chat list.';
 COMMENT ON TABLE ai_messages IS
-  'RLS enabled with NO policies, intentionally: service-role access only.';
+  'RLS enabled with NO policies, intentionally: service-role access only. '
+  'CHANGED IN 114: assistant content IS stored, because a chat you cannot '
+  'read back is not a chat. This table therefore holds an unstructured '
+  'partial copy of student facts — names, counts, and, where the caller '
+  'unlocked sensitive columns, quoted contact details. Treat it as student '
+  'data for retention, DSAR and breach purposes. Deleting a conversation '
+  'NULLs content and stamps redacted_at; the audit skeleton (seq, tokens, '
+  'tool calls, query runs) survives, the words do not.';
 COMMENT ON TABLE ai_tool_calls IS
   'RLS enabled with NO policies, intentionally: service-role access only. '
   'args_raw vs args_scoped is the scope-widening signal; keep both.';
