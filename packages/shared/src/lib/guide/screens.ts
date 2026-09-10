@@ -75,6 +75,17 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         gotcha:
           "There is no date-range picker — attendance is fixed to this month and Admissions & Exits to the last six months.",
       },
+      {
+        name: "Read the Fee Collection panel",
+        steps: [
+          "The percentage measures what has been settled against fees that have already fallen due — not against the whole session.",
+          "Settled and Outstanding dues add up to that same 'due so far' figure, so the two always reconcile.",
+          "'Cash banked' below is the separate question of money received: it includes fees paid ahead of schedule and excludes anything waived.",
+          "Paid / Remaining / Total open the Dues register filtered to that group.",
+        ],
+        gotcha:
+          "A waiver clears a family's dues without banking any cash, and an advance banks cash against a fee not yet raised — which is why the cash figure and the settled figure differ. The panel counts only students actively enrolled this session, so a leaver's receipts are not in either.",
+      },
     ],
     related: ["/people/students", "/calendar"],
   },

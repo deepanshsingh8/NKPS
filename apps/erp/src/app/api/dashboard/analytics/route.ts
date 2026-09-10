@@ -4,12 +4,15 @@ import {
   resolveStudentType,
   resolveEffectiveFeeLines,
   computeDuesBreakdown,
+  summariseFeeCollection,
+  type FeeCollectionEntry,
   type StopFeeLookup,
   type DuesPaymentRow,
 } from "@/lib/fees";
 import type { FeeStructure, TransportDirection } from "@nkps/shared/types";
 import type { FeatureKey } from "@nkps/shared/lib/permissions";
 import { todayISO, toISODate } from "@nkps/shared/lib/date";
+import { fetchAllRows, type PagedResult } from "@nkps/shared/lib/fetch-all-rows";
 
 // Each analytics block maps to the permission that gates privileged access to
 // the underlying data. Blocks the caller can't see are simply absent from the
@@ -59,6 +62,61 @@ export async function GET() {
   const wantFees = can("fees");
   const wantStudents = can("students");
 
+  // ── Reads ──────────────────────────────────────────────────────────────
+  //
+  // Every list read below is paged through fetchAllRows(). PostgREST caps a
+  // response at Supabase's db-max-rows (1000); `.range(0, 9999)` asks for more
+  // and is handed 1000 rows with a 200 — no error, no partial-content signal
+  // the caller checks. That is how this endpoint came to publish a fraction of
+  // a session's receipts as the whole of it: 1,994 payments sat in the table,
+  // 1,000 were read, and the difference was reported to the office as unpaid.
+  //
+  // Each read carries an .order() on the primary key. Paging with LIMIT/OFFSET
+  // and no ORDER BY has no stable row order, so a page boundary can repeat one
+  // row while dropping another — on fee_payments that double-counts a receipt.
+  type AttendanceRow = { status: string; date: string };
+  type PaymentRow = DuesPaymentRow & { student_id: string };
+  type StopFeeRow = {
+    bus_stop_id: string;
+    amount: number | string;
+    frequency: string;
+    is_active: boolean;
+    bus_stops: { name: string } | { name: string }[] | null;
+  };
+  type EnrollmentRow = {
+    student_id: string;
+    class_id: string;
+    stream_id: string | null;
+    has_transport: boolean | null;
+    bus_stop_id: string | null;
+    transport_direction: TransportDirection | null;
+    transport_fee_override: number | null;
+    students:
+      | { admission_date: string | null }
+      | { admission_date: string | null }[]
+      | null;
+    classes:
+      | { name: string; section: string }
+      | { name: string; section: string }[]
+      | null;
+    streams:
+      | { name: string; code: string | null }
+      | { name: string; code: string | null }[]
+      | null;
+  };
+  type AdmissionRow = { admission_date: string | null; created_at: string };
+  type ExitRow = {
+    issue_date: string | null;
+    upload_date: string | null;
+    created_at: string;
+  };
+
+  const emptyPage = <T>(): PagedResult<T> => ({
+    data: [],
+    error: null,
+    truncated: false,
+  });
+
   const [
     attendanceRes,
     feePaymentsRes,
@@ -68,13 +126,20 @@ export async function GET() {
     admissionsRes,
     exitsRes,
   ] = await Promise.all([
+      // A month of whole-school attendance is tens of thousands of rows, so
+      // this is the one read that genuinely pages several times. Two narrow
+      // columns per row keep each page cheap.
       wantAttendance
-        ? admin
-            .from("attendance")
-            .select("status, date")
-            .gte("date", monthStartStr)
-            .lte("date", monthEndStr)
-        : Promise.resolve({ data: null }),
+        ? fetchAllRows<AttendanceRow>((from, to) =>
+            admin
+              .from("attendance")
+              .select("status, date")
+              .gte("date", monthStartStr)
+              .lte("date", monthEndStr)
+              .order("id")
+              .range(from, to)
+          )
+        : emptyPage<AttendanceRow>(),
 
       // Filter on fee_payments.academic_year_id directly — the previous
       // !inner join through fee_structures dropped transport-slab payments
@@ -86,76 +151,104 @@ export async function GET() {
       // waiver_amount rides along because a waived fee is settled for dues
       // purposes even though no cash was collected.
       wantFees && currentYearId
-        ? admin
-            .from("fee_payments")
-            .select(
-              "student_id, fee_structure_id, amount_paid, refund_amount, waiver_amount, status"
-            )
-            .eq("academic_year_id", currentYearId)
-            .in("status", ["paid", "partial", "refunded"])
-            // Explicit range: PostgREST caps at 1000 rows by default, and a
-            // year's receipts silently truncated there would under-report
-            // collections with no error to notice.
-            .range(0, 99999)
-        : Promise.resolve({ data: null }),
+        ? fetchAllRows<PaymentRow>((from, to) =>
+            admin
+              .from("fee_payments")
+              .select(
+                "student_id, fee_structure_id, amount_paid, refund_amount, waiver_amount, status"
+              )
+              .eq("academic_year_id", currentYearId)
+              .in("status", ["paid", "partial", "refunded"])
+              .order("id")
+              .range(from, to)
+          )
+        : emptyPage<PaymentRow>(),
 
+      // select("*") rather than a column list: the dues maths reads the
+      // late-fee rule off these rows, and an enumerated list that forgot
+      // late_fee_percent / late_fee_per_day silently priced every surcharge at
+      // zero here while the dues register — which selects "*" — charged it.
+      // The two screens then disagreed about what the same student owed.
       wantFees && currentYearId
-        ? admin
-            .from("fee_structures")
-            .select(
-              "id, academic_year_id, class_name, class_level, stream_id, fee_type, amount, due_date, frequency, is_active, description, instalment_no, instalment_name, month_label, student_type, late_fee_start_date, created_at, updated_at"
-            )
-            .eq("academic_year_id", currentYearId)
-            .eq("is_active", true)
-            .range(0, 9999)
-        : Promise.resolve({ data: null }),
+        ? fetchAllRows<FeeStructure>((from, to) =>
+            admin
+              .from("fee_structures")
+              .select("*")
+              .eq("academic_year_id", currentYearId)
+              .eq("is_active", true)
+              .order("id")
+              .range(from, to)
+          )
+        : emptyPage<FeeStructure>(),
 
       // Stop-based transport pricing (migration 074): each opted-in student's
       // expected transport fee comes from their bus stop's per-year rate, so
       // the expected-total calc needs the active stop fees for the year.
       wantFees && currentYearId
-        ? admin
-            .from("bus_stop_fees")
-            .select("bus_stop_id, amount, frequency, is_active, bus_stops(name)")
-            .eq("academic_year_id", currentYearId)
-            .eq("is_active", true)
-        : Promise.resolve({ data: null }),
+        ? fetchAllRows<StopFeeRow>((from, to) =>
+            admin
+              .from("bus_stop_fees")
+              .select("bus_stop_id, amount, frequency, is_active, bus_stops(name)")
+              .eq("academic_year_id", currentYearId)
+              .eq("is_active", true)
+              .order("id")
+              .range(from, to)
+          )
+        : emptyPage<StopFeeRow>(),
 
       // Enrollments are shared by fees (expected-total calc) and
       // enrollment-by-class — pull them when either block is visible.
       // streams(name) is joined so the senior-secondary breakdown can group
       // XI / XII by Science / Commerce / Arts rather than collapsing into one.
       (wantFees || wantStudents) && currentYearId
-        ? admin
-            .from("student_enrollments")
-            .select(
-              "student_id, class_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, classes!inner(name, section, academic_year_id), streams(name, code), students(admission_date)"
-            )
-            .eq("classes.academic_year_id", currentYearId)
-            .eq("status", "active")
-            .range(0, 9999)
-        : Promise.resolve({ data: null }),
+        ? fetchAllRows<EnrollmentRow>((from, to) =>
+            admin
+              .from("student_enrollments")
+              .select(
+                "student_id, class_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, classes!inner(name, section, academic_year_id), streams(name, code), students(admission_date)"
+              )
+              .eq("classes.academic_year_id", currentYearId)
+              .eq("status", "active")
+              .order("id")
+              .range(from, to)
+          )
+        : emptyPage<EnrollmentRow>(),
 
       // Intake, dated by when the student actually joined rather than when
       // the record happened to be typed in — a bulk import in August would
       // otherwise report the whole session's April intake as August.
       wantStudents
-        ? admin
-            .from("students")
-            .select("admission_date, created_at")
-            .gte("admission_date", sixMonthsAgoStr)
-            .range(0, 9999)
-        : Promise.resolve({ data: null }),
+        ? fetchAllRows<AdmissionRow>((from, to) =>
+            admin
+              .from("students")
+              .select("admission_date, created_at")
+              .gte("admission_date", sixMonthsAgoStr)
+              .order("id")
+              .range(from, to)
+          )
+        : emptyPage<AdmissionRow>(),
 
       // Exits. A transfer certificate is the record of a student leaving, so
       // it is the only dependable outward signal — `student_enrollments`
       // carries an 'exited' status but no date to bucket it by.
+      //
+      // Only the last six months are charted and the table keeps every TC the
+      // school has ever issued, so the window is pushed into the query. It has
+      // to be an OR across all three dates: the bucketing below falls back
+      // issue_date -> upload_date -> created_at, so filtering on any one of
+      // them alone would drop a TC that only carries the others.
       wantStudents
-        ? admin
-            .from("transfer_certificates")
-            .select("issue_date, upload_date, created_at")
-            .range(0, 9999)
-        : Promise.resolve({ data: null }),
+        ? fetchAllRows<ExitRow>((from, to) =>
+            admin
+              .from("transfer_certificates")
+              .select("issue_date, upload_date, created_at")
+              .or(
+                `issue_date.gte.${sixMonthsAgoStr},upload_date.gte.${sixMonthsAgoStr},created_at.gte.${sixMonthsAgoStr}`
+              )
+              .order("id")
+              .range(from, to)
+          )
+        : emptyPage<ExitRow>(),
     ]);
 
   const response: Record<string, unknown> = {
@@ -165,8 +258,11 @@ export async function GET() {
   // ── Attendance: per-day stacked breakdown for current month ──
   // Replaces the useless "93% for the whole month" single-number view with a
   // per-day (present + absent + late) stacked bar the admin can actually read.
-  if (wantAttendance) {
-    const rows = (attendanceRes.data ?? []) as { status: string; date: string }[];
+  //
+  // A failed or short read is left out rather than charted: half a month's
+  // rows draw a plausible picture of a school that stopped marking attendance.
+  if (wantAttendance && !attendanceRes.error && !attendanceRes.truncated) {
+    const rows = attendanceRes.data;
     const daysInMonth = monthEnd.getDate();
     const buckets: {
       date: string;
@@ -218,49 +314,37 @@ export async function GET() {
   }
 
   // ── Fee collection ──
-  const enrollments = (enrollmentRes.data ?? []) as unknown as {
-    student_id: string;
-    class_id: string;
-    stream_id: string | null;
-    has_transport: boolean | null;
-    bus_stop_id: string | null;
-    transport_direction: TransportDirection | null;
-    transport_fee_override: number | null;
-    students:
-      | { admission_date: string | null }
-      | { admission_date: string | null }[]
-      | null;
-    classes:
-      | { name: string; section: string }
-      | { name: string; section: string }[]
-      | null;
-    streams:
-      | { name: string; code: string | null }
-      | { name: string; code: string | null }[]
-      | null;
-  }[];
+  const enrollments = enrollmentRes.data;
 
-  if (wantFees) {
-    const payments = (feePaymentsRes.data ?? []) as (DuesPaymentRow & {
-      student_id: string;
-    })[];
-    // Actual cash the school holds, net of refunds. Drives the collection
-    // percentage — a waived fee was never collected, so waivers are excluded
-    // here even though they count as settled for dues.
-    const collected = payments.reduce(
-      (sum, p) =>
-        sum + Math.max(0, Number(p.amount_paid) - Number(p.refund_amount ?? 0)),
-      0
-    );
+  // A money figure computed from a short read is worse than no figure at all:
+  // it carries the same authority and is quietly wrong. If anything behind
+  // this card failed to read, or stopped at the paging guard, the card says so
+  // rather than publishing a total it knows is incomplete.
+  const feeReadFailure =
+    feePaymentsRes.error ??
+    feeStructuresRes.error ??
+    stopFeesRes.error ??
+    enrollmentRes.error ??
+    (feePaymentsRes.truncated ||
+    feeStructuresRes.truncated ||
+    stopFeesRes.truncated ||
+    enrollmentRes.truncated
+      ? "the read stopped before the end of the table"
+      : null);
 
-    const paymentsByStudent = new Map<string, DuesPaymentRow[]>();
+  if (wantFees && feeReadFailure) {
+    response.feeCollectionError = feeReadFailure;
+  } else if (wantFees) {
+    const payments = feePaymentsRes.data;
+
+    const paymentsByStudent = new Map<string, PaymentRow[]>();
     for (const p of payments) {
       const list = paymentsByStudent.get(p.student_id);
       if (list) list.push(p);
       else paymentsByStudent.set(p.student_id, [p]);
     }
 
-    const structures = (feeStructuresRes.data ?? []) as FeeStructure[];
+    const structures = feeStructuresRes.data;
     const structuresByClass = new Map<string, FeeStructure[]>();
     for (const fs of structures) {
       const list = structuresByClass.get(fs.class_name) ?? [];
@@ -271,15 +355,7 @@ export async function GET() {
     // Stop-based transport fees: one active rate per stop per year. Shape the
     // rows into StopFeeLookup so resolveTransportLine can bill the stop rate
     // (or the per-student override for one-side riders).
-    const stopFees: StopFeeLookup[] = (
-      (stopFeesRes.data ?? []) as unknown as {
-        bus_stop_id: string;
-        amount: number | string;
-        frequency: string;
-        is_active: boolean;
-        bus_stops: { name: string } | { name: string }[] | null;
-      }[]
-    ).map((f) => {
+    const stopFees: StopFeeLookup[] = stopFeesRes.data.map((f) => {
       const stop = Array.isArray(f.bus_stops) ? f.bus_stops[0] : f.bus_stops;
       return {
         bus_stop_id: f.bus_stop_id,
@@ -301,11 +377,13 @@ export async function GET() {
     // summing per-student dues is what the register totals — a school-wide
     // subtraction would let one family's advance payment cancel out another
     // family's arrears and quietly under-report what is owed.
-    let totalExpected = 0;
-    let totalDueToDate = 0;
-    let totalDues = 0;
-    let studentsClear = 0;
-    let studentsWithDues = 0;
+    //
+    // Every money total is then rolled up from these same students, inside
+    // summariseFeeCollection(). Summing receipts separately — over the whole
+    // year's fee_payments — put money from students who have since left the
+    // roll into a numerator whose denominator excluded them, so the card
+    // compared two different schools.
+    const entries: FeeCollectionEntry[] = [];
     for (const e of enrollments) {
       const raw = e.classes;
       const cls = Array.isArray(raw) ? raw[0] : raw;
@@ -326,45 +404,40 @@ export async function GET() {
         feeOverride: e.transport_fee_override,
         stopFees,
       });
-      const breakdown = computeDuesBreakdown({
-        lines,
-        payments: paymentsByStudent.get(e.student_id) ?? [],
-        today,
-        yearStartDate,
+      const receipts = paymentsByStudent.get(e.student_id) ?? [];
+      entries.push({
+        breakdown: computeDuesBreakdown({
+          lines,
+          payments: receipts,
+          today,
+          yearStartDate,
+        }),
+        // The waived slice of what the breakdown counts as paid, so the card
+        // can report cash banked without a write-off inflating it.
+        waived: receipts.reduce(
+          (sum, p) => sum + Number(p.waiver_amount ?? 0),
+          0
+        ),
       });
-      totalExpected += breakdown.expected;
-      totalDueToDate += breakdown.billedToDate;
-      totalDues += breakdown.dues;
-      if (breakdown.dues > 0) studentsWithDues++;
-      else studentsClear++;
     }
 
-    response.feeCollection = {
-      collected,
-      expected: totalExpected,
-      dueToDate: totalDueToDate,
-      // Outstanding as of today — what the office would chase this week.
-      dues: totalDues,
-      // How many families that figure is spread across. `studentsClear`
-      // includes those whose fees were waived rather than paid, which is the
-      // same rule the No-Dues list applies.
-      studentsClear,
-      studentsWithDues,
-      studentsTotal: studentsClear + studentsWithDues,
-      // Progress against what has fallen due, not against the whole session.
-      // Measured on cash so the bar tracks money actually banked.
-      percentage:
-        totalDueToDate > 0
-          ? Math.round((collected / totalDueToDate) * 100)
-          : 0,
-      // Kept separately so the card can still say "x% of the year" if needed.
-      percentageOfYear:
-        totalExpected > 0 ? Math.round((collected / totalExpected) * 100) : 0,
-    };
+    // `studentsClear` counts those whose fees were waived rather than paid,
+    // which is the same rule the No-Dues list applies.
+    response.feeCollection = summariseFeeCollection(entries);
   }
 
   // ── Enrollment by class + Recent admissions (both gated on students) ──
-  if (wantStudents) {
+  // Same rule as above: a roll call built from a short read is worse than no
+  // roll call, because nothing on screen says which classes are missing.
+  if (
+    wantStudents &&
+    !enrollmentRes.error &&
+    !enrollmentRes.truncated &&
+    !admissionsRes.error &&
+    !admissionsRes.truncated &&
+    !exitsRes.error &&
+    !exitsRes.truncated
+  ) {
     // Senior-secondary sections house multiple streams (Science / Commerce /
     // Arts) on the same class+section row, so the key must include the
     // stream short-code for XI / XII or every stream collapses into one bar.
@@ -407,15 +480,8 @@ export async function GET() {
     });
     response.enrollmentByClass = enrollmentByClass;
 
-    const admissions = (admissionsRes.data ?? []) as {
-      admission_date: string | null;
-      created_at: string;
-    }[];
-    const exits = (exitsRes.data ?? []) as {
-      issue_date: string | null;
-      upload_date: string | null;
-      created_at: string;
-    }[];
+    const admissions = admissionsRes.data;
+    const exits = exitsRes.data;
     const monthNames = [
       "Jan", "Feb", "Mar", "Apr", "May", "Jun",
       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",

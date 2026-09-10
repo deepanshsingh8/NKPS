@@ -35,17 +35,29 @@ interface AttendanceData {
 }
 
 interface FeeCollection {
-  /** Cash actually banked this session, net of refunds. */
+  /** Cash banked this session from these students, net of refunds. */
   collected: number;
+  /** Fees written off — settled for dues, but never money in the bank. */
+  waived: number;
+  /** Cash held against instalments that have not fallen due yet. */
+  advance: number;
+  /**
+   * The settled slice of `dueToDate` (cash + waivers, capped per student).
+   * `settled + dues - lateFee === dueToDate`, so the bar and the outstanding
+   * figure below it reconcile on screen.
+   */
+  settled: number;
   /** The session's whole obligation across every enrolled student. */
   expected: number;
   /** The slice of `expected` whose due date has passed. */
   dueToDate: number;
-  /** Outstanding as of today: dueToDate less cash and waivers. */
+  /** Outstanding as of today, late fee included — what the office chases. */
   dues: number;
-  /** Collected as a share of dueToDate — progress against what's payable now. */
+  /** The late-fee part of `dues`. */
+  lateFee: number;
+  /** `settled` as a share of dueToDate — progress against what's payable now. */
   percentage: number;
-  /** Collected as a share of the whole session. */
+  /** The same measure taken over the whole session. */
   percentageOfYear: number;
   /** Students with nothing outstanding — paid in full, or waived. */
   studentsClear: number;
@@ -85,6 +97,12 @@ interface TransportAudit {
 interface AnalyticsData {
   attendance?: AttendanceData;
   feeCollection?: FeeCollection;
+  /**
+   * Set instead of `feeCollection` when a read behind the card came up short.
+   * A money total built on a partial read looks exactly like a correct one, so
+   * the card reports the failure rather than a figure it knows is wrong.
+   */
+  feeCollectionError?: string;
   enrollmentByClass?: EnrollmentItem[];
   admissionTrend?: AdmissionTrend[];
   transportAudit?: TransportAudit;
@@ -488,6 +506,7 @@ export function DashboardAnalytics() {
   const hasAnyBlock =
     data.attendance ||
     data.feeCollection ||
+    data.feeCollectionError ||
     data.enrollmentByClass ||
     data.admissionTrend;
   if (!hasAnyBlock) return null;
@@ -505,7 +524,7 @@ export function DashboardAnalytics() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
       {/* Fee Collection */}
-      {data.feeCollection && (
+      {(data.feeCollection || data.feeCollectionError) && (
         <div className="erp-stat-card">
           <div className="flex items-center gap-3 mb-4">
             <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
@@ -520,21 +539,31 @@ export function DashboardAnalytics() {
               </p>
             </div>
           </div>
-          {!data.hasAcademicYear ? (
+          {data.feeCollectionError ? (
+            /* Better an empty card than a total the server knows is short —
+               a partial figure reads exactly like a complete one. */
+            <p className="text-xs text-red-600 dark:text-red-400 text-center py-4">
+              Figures unavailable — {data.feeCollectionError}. Nothing is shown
+              here rather than a total that would be short.
+            </p>
+          ) : !data.hasAcademicYear ? (
             <p className="text-xs text-gray-400 text-center py-4">
               No active academic year set
             </p>
-          ) : (
+          ) : !data.feeCollection ? null : (
             <>
               {/* Progress is measured against fees that have actually fallen
                   due, not the whole session — otherwise the bar reads near
-                  zero every April however punctually families pay. */}
+                  zero every April however punctually families pay. The
+                  numerator is what has been settled against those fees, so
+                  the bar and the outstanding figure below it add up: money
+                  paid ahead of schedule belongs to neither. */}
               <div className="flex items-end justify-between mb-2">
                 <span className="text-2xl font-bold text-navy-900 dark:text-white">
                   {data.feeCollection.percentage}%
                 </span>
                 <span className="text-xs text-gray-400">
-                  {formatCurrency(data.feeCollection.collected)} /{" "}
+                  {formatCurrency(data.feeCollection.settled)} /{" "}
                   {formatCurrency(data.feeCollection.dueToDate)}
                 </span>
               </div>
@@ -547,13 +576,23 @@ export function DashboardAnalytics() {
                 />
               </div>
               {/* The number the office acts on: what is owed right now. */}
-              <div className="flex items-baseline justify-between rounded-lg bg-red-50 dark:bg-red-950/20 px-3 py-2 mb-3">
-                <span className="text-xs font-medium text-red-700 dark:text-red-400">
-                  Outstanding dues
-                </span>
-                <span className="text-base font-bold text-red-600 dark:text-red-400">
-                  {formatCurrency(data.feeCollection.dues)}
-                </span>
+              <div className="rounded-lg bg-red-50 dark:bg-red-950/20 px-3 py-2 mb-3">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs font-medium text-red-700 dark:text-red-400">
+                    Outstanding dues
+                  </span>
+                  <span className="text-base font-bold text-red-600 dark:text-red-400">
+                    {formatCurrency(data.feeCollection.dues)}
+                  </span>
+                </div>
+                {/* Named rather than folded in silently: the surcharge is the
+                    one part of this figure a family will dispute. */}
+                {data.feeCollection.lateFee > 0 && (
+                  <p className="mt-0.5 text-[11px] text-red-600/80 dark:text-red-400/70">
+                    includes {formatCurrency(data.feeCollection.lateFee)} late
+                    fee
+                  </p>
+                )}
               </div>
 
               {/* Money answers "how much"; these answer "how many families",
@@ -583,7 +622,7 @@ export function DashboardAnalytics() {
                 <div className="flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-blue-500" />
                   <span className="text-gray-500 dark:text-gray-400">
-                    Collected
+                    Paid or waived
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -597,7 +636,18 @@ export function DashboardAnalytics() {
                   year's total and under-budgets what is still to come. */}
               <p className="mt-2 text-[11px] text-gray-400">
                 Full session: {formatCurrency(data.feeCollection.expected)} (
-                {data.feeCollection.percentageOfYear}% collected)
+                {data.feeCollection.percentageOfYear}% settled)
+              </p>
+              {/* Cash is a different question from settlement — a waiver
+                  clears a due without any money arriving, and an advance is
+                  money arriving against a due that hasn't been raised yet.
+                  Both are named here so the bar above needs no reconciling. */}
+              <p className="text-[11px] text-gray-400">
+                Cash banked: {formatCurrency(data.feeCollection.collected)}
+                {data.feeCollection.advance > 0 &&
+                  ` · ${formatCurrency(data.feeCollection.advance)} paid in advance`}
+                {data.feeCollection.waived > 0 &&
+                  ` · ${formatCurrency(data.feeCollection.waived)} waived`}
               </p>
             </>
           )}

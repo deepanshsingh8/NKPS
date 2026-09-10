@@ -426,3 +426,111 @@ export function computeDuesBreakdown(opts: {
     dues: baseDues + effectiveLateFee,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Collection summary
+// ---------------------------------------------------------------------------
+
+/** One student's position, as the dashboard needs it. */
+export interface FeeCollectionEntry {
+  breakdown: DuesBreakdown;
+  /**
+   * The waived slice of `breakdown.paid`. Kept apart because a waiver settles
+   * a due without any money arriving, and a collection figure that counts it
+   * as cash reports money the school does not have.
+   */
+  waived: number;
+}
+
+export interface FeeCollectionSummary {
+  /** Cash banked from these students, net of refunds and of waivers. */
+  collected: number;
+  /** Fees written off. */
+  waived: number;
+  /** Cash received against instalments that have not fallen due yet. */
+  advance: number;
+  /** The settled slice of `dueToDate`: `settled + dues - lateFee === dueToDate`. */
+  settled: number;
+  /** Whole-session obligation. */
+  expected: number;
+  /** The slice of `expected` that has fallen due. */
+  dueToDate: number;
+  /** Outstanding today, late fee included. */
+  dues: number;
+  /** The late-fee part of `dues`. */
+  lateFee: number;
+  studentsClear: number;
+  studentsWithDues: number;
+  studentsTotal: number;
+  /** `settled` over `dueToDate`, 0-100. */
+  percentage: number;
+  /** The same measure over the whole session, 0-100. */
+  percentageOfYear: number;
+}
+
+// Paise are real (fee amounts are numeric(10,2)); anything below them is float
+// noise from summing hundreds of rows and would only make totals look odd.
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Roll a cohort's per-student positions into the figures one card shows.
+ *
+ * Everything is summed per student and nothing is netted across the cohort:
+ * a family paying the whole year in April must not cancel out a family in
+ * arrears. That is why `settled` caps each student's payments at what that
+ * student has been billed, and the excess is reported as `advance` instead —
+ * a school-wide `collected / dueToDate` counts money against an obligation
+ * that has not been raised yet, and reads as progress the school hasn't made.
+ *
+ * The cohort is the caller's choice, but it must be ONE cohort: every figure
+ * here has to come from the same students the obligation was computed for, or
+ * the ratio compares two different schools (receipts from students who have
+ * left the roll over a denominator that excludes them).
+ */
+export function summariseFeeCollection(
+  entries: FeeCollectionEntry[]
+): FeeCollectionSummary {
+  let collected = 0;
+  let waived = 0;
+  let advance = 0;
+  let settled = 0;
+  let settledOfYear = 0;
+  let expected = 0;
+  let dueToDate = 0;
+  let dues = 0;
+  let lateFee = 0;
+  let studentsClear = 0;
+  let studentsWithDues = 0;
+
+  for (const { breakdown, waived: w } of entries) {
+    expected += breakdown.expected;
+    dueToDate += breakdown.billedToDate;
+    dues += breakdown.dues;
+    lateFee += breakdown.lateFee;
+    settled += Math.min(breakdown.paid, breakdown.billedToDate);
+    settledOfYear += Math.min(breakdown.paid, breakdown.expected);
+    advance += Math.max(0, breakdown.paid - breakdown.billedToDate);
+    // breakdown.paid is cash + waivers, both already net of refunds.
+    collected += breakdown.paid - w;
+    waived += w;
+    if (breakdown.dues > 0) studentsWithDues++;
+    else studentsClear++;
+  }
+
+  return {
+    collected: round2(collected),
+    waived: round2(waived),
+    advance: round2(advance),
+    settled: round2(settled),
+    expected: round2(expected),
+    dueToDate: round2(dueToDate),
+    dues: round2(dues),
+    lateFee: round2(lateFee),
+    studentsClear,
+    studentsWithDues,
+    studentsTotal: entries.length,
+    percentage: dueToDate > 0 ? Math.round((settled / dueToDate) * 100) : 0,
+    percentageOfYear:
+      expected > 0 ? Math.round((settledOfYear / expected) * 100) : 0,
+  };
+}
