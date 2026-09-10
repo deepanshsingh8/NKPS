@@ -37,9 +37,18 @@ WITH checks AS (
           WHERE schemaname = 'public' AND tablename = 'school_profile'),
          'exactly 2 policies'
   UNION ALL
+  -- Asserts the DEFAULT, not the current value. The old check read
+  -- `ai_enabled = false` and so failed the moment somebody ran
+  -- _enable-ai-assistant.sql — i.e. it failed because the operator did the
+  -- right thing. A verify script that goes red on correct state teaches
+  -- people to ignore it, which costs more than the check was ever worth.
   SELECT '110 ai_enabled defaults OFF',
-         (SELECT ai_enabled = false FROM school_profile LIMIT 1),
-         'false — assistants are switched on deliberately, not by migration'
+         (SELECT column_default IN ('false', 'false::boolean')
+            FROM information_schema.columns
+           WHERE table_schema = 'public'
+             AND table_name = 'school_profile'
+             AND column_name = 'ai_enabled'),
+         'column defaults to false — switching it on is a deliberate act'
 
   -- ── 111 export_events ─────────────────────────────────────────────────────
   UNION ALL
@@ -48,9 +57,19 @@ WITH checks AS (
                  WHERE table_name = 'export_events' AND column_name = 'source'),
          'column exists'
   UNION ALL
+  -- Same trap as the ai_enabled check above. This used to require EVERY row
+  -- to read 'manual', so the first successful AI export turned it red — the
+  -- check failed precisely because the feature it was verifying worked. What
+  -- 111 actually guarantees is that the column is NOT NULL with a 'manual'
+  -- default, so no pre-existing row was left without an answer.
   SELECT '111 export_events.source defaults to manual',
-         (SELECT count(*) = 0 FROM export_events WHERE source IS DISTINCT FROM 'manual'),
-         'every pre-existing row backfilled as manual'
+         (SELECT count(*) = 0 FROM export_events WHERE source IS NULL)
+         AND (SELECT column_default LIKE '%manual%'
+                FROM information_schema.columns
+               WHERE table_schema = 'public'
+                 AND table_name = 'export_events'
+                 AND column_name = 'source'),
+         'no row without a source; new rows default to manual'
   UNION ALL
   SELECT '111 export_events.ai_run_id column',
          EXISTS (SELECT 1 FROM information_schema.columns
