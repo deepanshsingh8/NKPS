@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import { studentBulkUploadSchema } from "@nkps/shared/lib/validations";
+import { buildStreamLookup } from "@nkps/shared/lib/stream-alias";
 import {
   buildStudentRecord,
   normalizeToken,
@@ -121,24 +122,12 @@ export async function POST(request: Request) {
       .from("streams")
       .select("id, name");
 
-    const streamMap = new Map<string, string>();
-    // Common aliases for stream names
-    const STREAM_ALIASES: Record<string, string[]> = {
-      humanities: ["arts", "humanities stream", "arts stream"],
-      science: ["sci", "science stream"],
-      commerce: ["comm", "commerce stream"],
-    };
-    for (const s of allStreams || []) {
-      const key = s.name.trim().toLowerCase();
-      streamMap.set(key, s.id);
-      // Also register common aliases
-      const aliases = STREAM_ALIASES[key];
-      if (aliases) {
-        for (const alias of aliases) {
-          streamMap.set(alias, s.id);
-        }
-      }
-    }
+    // The alias table used to live here. It is shared now — the fee day-book
+    // importer needed the same "Arts means Humanities" answer, and two copies
+    // would have drifted the moment one of them learned a new spelling.
+    const streamMap = buildStreamLookup(
+      (allStreams || []).map((s) => ({ id: s.id as string, name: String(s.name) }))
+    );
 
     // Fetch all classes for the current academic year
     const { data: allClasses } = await admin

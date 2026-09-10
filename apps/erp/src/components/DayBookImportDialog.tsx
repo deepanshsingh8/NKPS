@@ -779,12 +779,31 @@ function IssueTable({
   onDownload: () => void;
 }) {
   const issues = rows.filter((r) => r.status !== "ok" && r.status !== "already_imported");
+
+  // Errors cluster: an unpublished schedule takes out one whole class at once.
+  // Leading with that turns "34 rows need attention" into "34 of them are
+  // XI-Arts", which is the difference between a list to work through and a
+  // single thing to go and fix.
+  const topErrorClass = (() => {
+    const errs = issues.filter((r) => r.status === "error" && r.raw_class);
+    if (errs.length < 3) return null;
+    const byClass = new Map<string, number>();
+    for (const r of errs) byClass.set(r.raw_class, (byClass.get(r.raw_class) ?? 0) + 1);
+    const [label, count] = [...byClass.entries()].sort((a, b) => b[1] - a[1])[0];
+    return count >= errs.length / 2 ? { label, count } : null;
+  })();
+
   if (issues.length === 0) return null;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">
           {issues.length} row(s) need attention
+          {topErrorClass ? (
+            <span className="ml-1 font-normal text-muted-foreground">
+              — {topErrorClass.count} of them in {topErrorClass.label}
+            </span>
+          ) : null}
         </span>
         <Button variant="outline" size="sm" onClick={onDownload}>
           <Download className="mr-2 h-4 w-4" />
@@ -798,6 +817,7 @@ function IssueTable({
               <TableHead>Row</TableHead>
               <TableHead>Receipt</TableHead>
               <TableHead>Student</TableHead>
+              <TableHead>Class</TableHead>
               <TableHead className="text-right">Amount</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Detail</TableHead>
@@ -820,6 +840,10 @@ function IssueTable({
                   {r.admission_no ? (
                     <span className="text-muted-foreground"> · {r.admission_no}</span>
                   ) : null}
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {r.raw_class}
+                  {r.raw_section ? `-${r.raw_section}` : ""}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{inr(r.total)}</TableCell>
                 <TableCell>{STATUS_LABEL[r.status]}</TableCell>
