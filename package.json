@@ -9,7 +9,8 @@
     "typecheck": "turbo run typecheck",
     "dev:website": "pnpm --filter @nkps/website run dev",
     "dev:cms": "pnpm --filter @nkps/cms run dev",
-    "dev:erp": "pnpm --filter @nkps/erp run dev"
+    "dev:erp": "pnpm --filter @nkps/erp run dev",
+    "check:guide": "node scripts/check-guide-coverage.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
