@@ -33,9 +33,15 @@ import {
   ChevronRight,
   X,
   Pencil,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { formatClassName } from "@nkps/shared/lib/utils";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
+import {
+  describeColumns,
+  type MappingSuggestion,
+} from "@nkps/shared/lib/import-mapping";
 import {
   STUDENT_TEMPLATE_FIELDS,
   type StudentTemplateField,
@@ -218,6 +224,40 @@ function splitSubjects(raw: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Turn the raw sheet into preview rows under a given column mapping.
+ *
+ * Lifted out of the file handler so a mapping the operator accepted after the
+ * fact can be applied without re-reading the file — which also means the file
+ * is parsed exactly once, and a remap is instant.
+ */
+function buildParsedRows(
+  mapping: Record<number, string>,
+  rawRows: string[][]
+): ParsedRow[] {
+  const parsed: ParsedRow[] = [];
+
+  for (let i = 1; i < rawRows.length; i++) {
+    const row = rawRows[i];
+    if (!row || row.every((cell) => !cell || String(cell).trim() === "")) continue;
+
+    const rowData: Record<string, string> = {};
+    const warnings: string[] = [];
+    for (const [colIndex, key] of Object.entries(mapping)) {
+      const field = fieldByKey.get(key);
+      if (!field) continue;
+      const cellValue = String(row[Number(colIndex)] ?? "");
+      const { value, warning } = normalizeCell(field, cellValue);
+      rowData[key] = value;
+      if (warning) warnings.push(warning);
+    }
+
+    parsed.push({ data: rowData, warnings, errors: validateRow(rowData) });
+  }
+
+  return parsed;
+}
+
 export function StudentBulkUpload({
   open,
   onOpenChange,
@@ -228,6 +268,13 @@ export function StudentBulkUpload({
   const [fileName, setFileName] = useState("");
   const [mappedKeys, setMappedKeys] = useState<string[]>([]);
   const [unrecognizedHeaders, setUnrecognizedHeaders] = useState<string[]>([]);
+  // Kept so a mapping accepted later can be applied without re-reading the file.
+  const [rawHeaders, setRawHeaders] = useState<string[]>([]);
+  const [rawRows, setRawRows] = useState<string[][]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<number, string>>({});
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<MappingSuggestion[] | null>(null);
+  const [aiAccepted, setAiAccepted] = useState<Set<number>>(new Set());
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [existingClassKeys, setExistingClassKeys] = useState<Set<string>>(new Set());
@@ -365,32 +412,19 @@ export function StudentBulkUpload({
             return;
           }
 
-          const parsed: ParsedRow[] = [];
-          for (let i = 1; i < rawRows.length; i++) {
-            const row = rawRows[i];
-            if (!row || row.every((cell) => !cell || String(cell).trim() === "")) {
-              continue;
-            }
-
-            const rowData: Record<string, string> = {};
-            const warnings: string[] = [];
-            for (const [colIndex, key] of Object.entries(mapping)) {
-              const field = fieldByKey.get(key);
-              if (!field) continue;
-              const cellValue = String(row[Number(colIndex)] ?? "");
-              const { value, warning } = normalizeCell(field, cellValue);
-              rowData[key] = value;
-              if (warning) warnings.push(warning);
-            }
-
-            parsed.push({ data: rowData, warnings, errors: validateRow(rowData) });
-          }
+          const rows = rawRows.map((r) => (r ?? []).map((c) => String(c ?? "")));
+          const parsed = buildParsedRows(mapping, rows);
 
           if (parsed.length === 0) {
             toast.error("No data rows found in the file");
             return;
           }
 
+          setRawHeaders(headers);
+          setRawRows(rows);
+          setColumnMapping(mapping);
+          setAiSuggestions(null);
+          setAiAccepted(new Set());
           setMappedKeys(keys);
           setUnrecognizedHeaders(unrecognized);
           setParsedRows(parsed);
@@ -478,6 +512,93 @@ export function StudentBulkUpload({
       return updated;
     });
   };
+
+  /**
+   * Ask the assistant to match the columns mapTemplateHeaders could not.
+   *
+   * Only the leftovers are sent, and only as SHAPES — "12 digits, all
+   * distinct" rather than twelve real Aadhaar numbers. describeColumns does
+   * that work; see its header for where the line is drawn and why.
+   */
+  const requestMapping = useCallback(async () => {
+    const claimed = new Set(Object.values(columnMapping));
+    const unmatchedIndexes = rawHeaders
+      .map((_, i) => i)
+      .filter((i) => columnMapping[i] === undefined);
+
+    if (unmatchedIndexes.length === 0) return;
+
+    const profiles = describeColumns(rawHeaders, rawRows.slice(1)).filter((c) =>
+      unmatchedIndexes.includes(c.index)
+    );
+    const candidates = STUDENT_TEMPLATE_FIELDS.filter((f) => !claimed.has(f.key)).map(
+      (f) => ({
+        key: f.key,
+        label: f.label,
+        kind: f.enumValues?.length
+          ? `one of: ${f.enumValues.map((e) => e.label).join(" | ")}`
+          : f.kind,
+      })
+    );
+
+    setAiBusy(true);
+    try {
+      const res = await adminFetch("/api/ai/import-mapping", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ columns: profiles, candidates }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Couldn't match those columns.");
+        return;
+      }
+      const withHome = ((data.suggestions ?? []) as MappingSuggestion[]).filter(
+        (x) => x.fieldKey
+      );
+      setAiSuggestions(withHome);
+      // High-confidence matches start ticked — the operator is confirming,
+      // not doing the work again. Anything less starts unticked, because a
+      // plausible-but-wrong mapping waved through writes the wrong data into
+      // every row of the file.
+      setAiAccepted(
+        new Set(withHome.filter((x) => x.confidence === "high").map((x) => x.index))
+      );
+      toast.success(
+        withHome.length
+          ? `Found a home for ${withHome.length} column${withHome.length === 1 ? "" : "s"}`
+          : "No matches found for the leftover columns"
+      );
+    } catch {
+      toast.error("Couldn't reach the assistant. Map the columns by hand.");
+    } finally {
+      setAiBusy(false);
+    }
+  }, [columnMapping, rawHeaders, rawRows]);
+
+  /** Fold the ticked suggestions into the mapping and rebuild the preview. */
+  const applyAcceptedMapping = useCallback(() => {
+    const accepted = (aiSuggestions ?? []).filter(
+      (x) => x.fieldKey && aiAccepted.has(x.index)
+    );
+    if (accepted.length === 0) return;
+
+    const next = { ...columnMapping };
+    for (const s of accepted) next[s.index] = s.fieldKey as string;
+
+    const rebuilt = buildParsedRows(next, rawRows);
+    setColumnMapping(next);
+    setParsedRows(rebuilt);
+    setMappedKeys(Object.values(next));
+    setUnrecognizedHeaders(
+      rawHeaders.filter((_, i) => next[i] === undefined && rawHeaders[i]?.trim())
+    );
+    setAiSuggestions(null);
+    setAiAccepted(new Set());
+    toast.success(
+      `Added ${accepted.length} column${accepted.length === 1 ? "" : "s"} — check the preview below`
+    );
+  }, [aiSuggestions, aiAccepted, columnMapping, rawRows, rawHeaders]);
 
   const handleSubmit = async () => {
     if (validRows.length === 0) {
@@ -843,9 +964,33 @@ export function StudentBulkUpload({
               </p>
               {unrecognizedHeaders.length > 0 && (
                 <div className="mt-1.5">
-                  <p className="text-xs text-amber-700 mb-1">
-                    Unrecognised columns (ignored):
-                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                    <p className="text-xs text-amber-700">
+                      Unrecognised columns (ignored):
+                    </p>
+                    {!aiSuggestions && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={aiBusy}
+                        onClick={() => void requestMapping()}
+                        className="h-7 text-xs"
+                      >
+                        {aiBusy ? (
+                          <>
+                            <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                            Matching…
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3 w-3 mr-1.5" />
+                            Match these with AI
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {unrecognizedHeaders.map((h) => (
                       <span
@@ -856,6 +1001,101 @@ export function StudentBulkUpload({
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {aiSuggestions && (
+                <div className="mt-2.5 rounded-md border border-blue-200 bg-blue-50/60 p-2.5">
+                  {aiSuggestions.length === 0 ? (
+                    <p className="text-xs text-gray-600">
+                      No home found for those columns — they stay ignored, which
+                      is the right answer when a sheet carries data this template
+                      does not hold.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-xs font-medium text-navy-900 mb-1.5">
+                        Suggested matches — tick the ones that are right
+                      </p>
+                      <div className="space-y-1">
+                        {aiSuggestions.map((sugg) => {
+                          const field = fieldByKey.get(sugg.fieldKey as string);
+                          const on = aiAccepted.has(sugg.index);
+                          return (
+                            <label
+                              key={sugg.index}
+                              className="flex items-start gap-2 rounded px-1.5 py-1 hover:bg-white/70 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={on}
+                                onChange={(e) =>
+                                  setAiAccepted((prev) => {
+                                    const next = new Set(prev);
+                                    if (e.target.checked) next.add(sugg.index);
+                                    else next.delete(sugg.index);
+                                    return next;
+                                  })
+                                }
+                                className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                              />
+                              <span className="text-xs leading-relaxed">
+                                <span className="font-medium text-gray-800">
+                                  {rawHeaders[sugg.index] || `Column ${sugg.index + 1}`}
+                                </span>
+                                <span className="text-gray-400"> → </span>
+                                <span className="font-medium text-navy-900">
+                                  {field?.label ?? sugg.fieldKey}
+                                </span>
+                                <span
+                                  className={
+                                    sugg.confidence === "high"
+                                      ? "ml-1.5 text-green-700"
+                                      : sugg.confidence === "medium"
+                                        ? "ml-1.5 text-amber-700"
+                                        : "ml-1.5 text-gray-500"
+                                  }
+                                >
+                                  ({sugg.confidence})
+                                </span>
+                                <span className="block text-gray-500">{sugg.why}</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 pt-2">
+                        <p className="text-[11px] text-gray-500">
+                          Only the column headers and a description of their
+                          shape were sent — no student data left the school.
+                        </p>
+                        <div className="flex gap-1.5 shrink-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setAiSuggestions(null);
+                              setAiAccepted(new Set());
+                            }}
+                            className="h-7 text-xs"
+                          >
+                            Discard
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={aiAccepted.size === 0}
+                            onClick={applyAcceptedMapping}
+                            className="h-7 text-xs"
+                          >
+                            Add {aiAccepted.size} column
+                            {aiAccepted.size === 1 ? "" : "s"}
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
               <p className="text-[11px] text-gray-400 mt-1.5">
