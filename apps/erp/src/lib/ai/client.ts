@@ -61,6 +61,12 @@ export function getAiClient(): Anthropic {
  *
  * The public website assistant is deliberately not listed here: it stays on
  * Haiku behind its own route until there is a measured comparison.
+ *
+ * `title` is the one deliberate exception to the paragraph above, and it does
+ * not contradict it. That argument is about ANSWERS — a cheap model that needs
+ * three turns to resolve a fee query is not cheap. Naming a chat has no tools,
+ * no scoping, no follow-up turn and no correctness stake: the worst outcome is
+ * a clumsy label on a row the user can rename in one click.
  */
 export const AI_MODELS = {
   /** Natural-language reports: filter synthesis, multi-step tool use. */
@@ -69,6 +75,8 @@ export const AI_MODELS = {
   remarks: "claude-opus-5",
   /** Parent replies over WhatsApp: highest volume, shortest answers. */
   parent: "claude-opus-5",
+  /** Naming a saved chat. One short call, no tools — see above. */
+  title: "claude-haiku-4-5-20251001",
 } as const;
 
 /**

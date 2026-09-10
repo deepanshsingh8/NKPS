@@ -1,10 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import type Anthropic from "@anthropic-ai/sdk";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import { getSchoolProfile } from "@nkps/shared/lib/school-profile";
 import { rateLimit } from "@nkps/shared/lib/rate-limit";
 import { isAiConfigured, AI_MODELS } from "@/lib/ai/client";
 import { startConversation } from "@/lib/ai/audit";
+import {
+  loadOwnedConversation,
+  historyFromDb,
+  toMessageParams,
+} from "@/lib/ai/conversations";
+import { fallbackTitle, generateTitle } from "@/lib/ai/title";
+import { scopeHash } from "@/lib/ai/caller-context";
 import { runAskTurn } from "@/lib/ai/runner";
 import { buildAskSystemPrompt, buildAskContextBlock } from "@/lib/ai/prompts/ask";
 import type { CallerContext, RowScope } from "@/lib/ai/caller-context";
@@ -60,7 +67,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { message?: unknown; history?: unknown; allow_sensitive?: unknown };
+  let body: {
+    message?: unknown;
+    history?: unknown;
+    allow_sensitive?: unknown;
+    conversation_id?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -116,16 +128,58 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const conversationId = await startConversation({
-    admin,
-    channel: "erp_web",
-    feature: "ask",
-    actorId: user.id,
-    actorRole: role,
-    scope,
-    model: AI_MODELS.ask,
-    academicYearId: session.id as string,
-  });
+  // ── Which conversation is this ────────────────────────────────────────────
+  // With an id we APPEND to an existing chat; without one we open a new one.
+  // Two mismatches refuse rather than append, and both are 409 with a code the
+  // UI acts on, because silently doing something reasonable is what makes an
+  // assistant untrustworthy.
+  const requestedId =
+    typeof body.conversation_id === "string" ? body.conversation_id : null;
+
+  let conversationId: string | null;
+  let isNewConversation = false;
+
+  if (requestedId) {
+    const existing = await loadOwnedConversation(admin, requestedId, user.id);
+    if (!existing) {
+      return NextResponse.json(
+        { error: "That chat is no longer available.", code: "NOT_FOUND" },
+        { status: 404 }
+      );
+    }
+    if (existing.scope_hash !== scopeHash(scope)) {
+      // The caller's entitlement genuinely narrowed since the chat began.
+      // Appending would let them inherit the wider context of the earlier
+      // turns without ever having been able to ask for it themselves.
+      return NextResponse.json(
+        { error: "Your access has changed since this chat started.", code: "SCOPE_CHANGED" },
+        { status: 409 }
+      );
+    }
+    if (existing.academic_year_id !== session.id) {
+      // The school rolled over mid-history. Every figure above this point
+      // refers to a different year, and continuing would mix the two inside
+      // one answer without saying so.
+      return NextResponse.json(
+        { error: "This chat is from a previous session.", code: "SESSION_CHANGED" },
+        { status: 409 }
+      );
+    }
+    conversationId = requestedId;
+  } else {
+    conversationId = await startConversation({
+      admin,
+      channel: "erp_web",
+      feature: "ask",
+      actorId: user.id,
+      actorRole: role,
+      scope,
+      model: AI_MODELS.ask,
+      academicYearId: session.id as string,
+      title: fallbackTitle(message),
+    });
+    isNewConversation = conversationId != null;
+  }
 
   const ctx: CallerContext = {
     channel: "erp_web",
@@ -147,24 +201,46 @@ export async function POST(request: NextRequest) {
     allowSensitive,
   });
 
-  // History is capped and shape-checked: it arrives from the client, so it is
-  // input, not state we trust.
-  const history = normaliseHistory(body.history);
+  // Where the conversation's memory comes from.
+  //
+  // With an id, from the database — so the browser stops being the source of
+  // truth for what was said, and can no longer assert a prior turn that never
+  // happened. Without one (a fresh chat, or an edit/regenerate that rewinds
+  // the transcript) it still comes from the client, which is exactly why
+  // normaliseHistory exists. Both paths go through it: the alternation and
+  // length rules apply to database rows just as much, since a turn whose
+  // answer failed leaves a question with no reply.
+  const history = conversationId
+    ? normaliseHistory(
+        toMessageParams(await historyFromDb(admin, conversationId, 8))
+      )
+    : normaliseHistory(body.history);
 
   try {
     const result = await runAskTurn(
       ctx,
       systemPrompt,
       history,
-      `${buildAskContextBlock(session.name as string)}\n\n${message}`
+      message,
+      buildAskContextBlock(session.name as string)
     );
 
     // Every report the turn ran, in call order. The UI shows the last by
     // default and labels each with the model's stated purpose — a single
     // run_id here could not distinguish "the 198 the answer is about" from
     // "the 744 it counted to check the arithmetic".
+    // after(), not a bare `void`: a fire-and-forget promise can be frozen the
+    // instant the response flushes, and because nothing awaits it the failure
+    // would be completely silent. Only on the first turn — later turns keep
+    // the title the chat already has.
+    if (isNewConversation && conversationId) {
+      const id = conversationId;
+      after(() => generateTitle(admin, id, message));
+    }
+
     return NextResponse.json({
       reply: result.text,
+      conversation_id: conversationId,
       runs: result.runs.map((r) => ({
         run_id: r.runId,
         purpose: r.purpose,
