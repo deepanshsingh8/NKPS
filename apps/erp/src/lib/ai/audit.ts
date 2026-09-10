@@ -10,15 +10,22 @@ import { scopeHash } from "./caller-context";
  * timeout or a killed container still leaves evidence that the call was
  * attempted — which is exactly the case where you most want a record.
  *
- * Nothing here stores row contents. Counts, field keys and filter shapes only.
- * An audit table that copies the student data it audits doubles the blast
+ * Nothing here stores query RESULTS. Counts, field keys and filter shapes
+ * only — an audit table that copies the rows it audits doubles the blast
  * radius of the thing it exists to protect.
+ *
+ * Migration 114 qualified that in one place: `ai_messages.content` now holds
+ * the assistant's reply as well as the user's question, because a chat you
+ * cannot read back is not a chat. Replies quote figures and names, so that
+ * column is student data and the table comment says so. Deleting a chat blanks
+ * it; the surrounding skeleton — seq, tokens, tool calls, query runs — stays,
+ * so a user tidying their history cannot erase what the assistant read.
  */
 
 export interface StartConversationArgs {
   admin: SupabaseClient;
   channel: "erp_web" | "portal_web" | "whatsapp";
-  feature: "ask" | "remarks" | "parent";
+  feature: "ask" | "remarks" | "parent" | "guide";
   actorId: string | null;
   actorRole: string;
   parentId?: string | null;
@@ -26,6 +33,15 @@ export interface StartConversationArgs {
   scope: RowScope;
   model: string;
   academicYearId: string | null;
+  /**
+   * Written at creation, never left blank.
+   *
+   * A deterministic title costs nothing and guarantees the chat list can never
+   * show an untitled row — which is what would happen if the only titler were
+   * the model call, and it failed or was still in flight. The good title
+   * overwrites this one later, and only while title_source is still 'auto'.
+   */
+  title?: string | null;
 }
 
 /**
@@ -53,6 +69,8 @@ export async function startConversation(
       model: args.model,
       academic_year_id: args.academicYearId,
       status: "open",
+      title: args.title ?? null,
+      title_source: args.title ? "auto" : null,
     })
     .select("id")
     .single();
@@ -102,23 +120,108 @@ export interface RecordMessageArgs {
   cacheWriteTokens?: number;
   stopReason?: string | null;
   latencyMs?: number;
+  /** Why this turn produced no answer. Per-turn, not per-conversation. */
+  errorCode?: string | null;
 }
 
+/** Long enough for any real answer; short enough that one runaway reply
+ *  cannot bloat a row without bound. */
+const MAX_STORED_CONTENT = 20_000;
+
+/**
+ * Write one message row.
+ *
+ * Retries once at seq + 1 on a unique violation. `nextMessageSeq` reads then
+ * writes, so two tabs posting into the same conversation can both compute the
+ * same seq; before 114 that was unreachable because the conversation id never
+ * left the server, and the only symptom would have been a turn silently losing
+ * its audit row. One retry closes the realistic window without pretending to
+ * be a lock.
+ */
 export async function recordMessage(args: RecordMessageArgs): Promise<void> {
   if (!args.conversationId) return;
-  const { error } = await args.admin.from("ai_messages").insert({
+
+  const content =
+    args.content == null
+      ? null
+      : args.content.slice(0, MAX_STORED_CONTENT) || null;
+
+  const row = {
     conversation_id: args.conversationId,
-    seq: args.seq,
     role: args.role,
-    content: args.content ?? null,
+    content,
     input_tokens: args.inputTokens ?? null,
     output_tokens: args.outputTokens ?? null,
     cache_read_tokens: args.cacheReadTokens ?? null,
     cache_write_tokens: args.cacheWriteTokens ?? null,
     stop_reason: args.stopReason ?? null,
     latency_ms: args.latencyMs ?? null,
+    error_code: args.errorCode ?? null,
+  };
+
+  const first = await args.admin.from("ai_messages").insert({ ...row, seq: args.seq });
+  if (!first.error) return;
+
+  // 23505 = unique_violation.
+  if (first.error.code === "23505") {
+    const retry = await args.admin
+      .from("ai_messages")
+      .insert({ ...row, seq: args.seq + 1 });
+    if (!retry.error) return;
+    console.error("[ai.audit] message (after seq retry):", retry.error.message);
+    return;
+  }
+
+  console.error("[ai.audit] message:", first.error.message);
+}
+
+/**
+ * Record that a turn ended without an answer.
+ *
+ * Without this a reopened chat shows a question above nothing at all, and the
+ * user is left to guess whether they stopped it, it failed, or the page ate
+ * it. `content` is the same sentence the user actually saw on screen, so the
+ * transcript reads back exactly as it happened.
+ */
+export async function recordTurnFailure(args: {
+  admin: SupabaseClient;
+  conversationId: string | null;
+  seq: number;
+  content: string;
+  errorCode: string;
+}): Promise<void> {
+  await recordMessage({
+    admin: args.admin,
+    conversationId: args.conversationId,
+    seq: args.seq,
+    role: "assistant",
+    content: args.content,
+    errorCode: args.errorCode,
   });
-  if (error) console.error("[ai.audit] message:", error.message);
+}
+
+/**
+ * Move a conversation to the top of the list, at turn START.
+ *
+ * `last_at` was previously written only by finishConversation, which the ask
+ * route's outer catch never reaches — so a conversation that crashed kept an
+ * ordering timestamp from whenever it last succeeded. Writing it up front
+ * matches this module's own rule: the row is written before the thing it
+ * describes happens.
+ *
+ * `error_code` is cleared because the conversation is live again; the failure
+ * it referred to is preserved on the message row by recordTurnFailure.
+ */
+export async function touchConversation(
+  admin: SupabaseClient,
+  conversationId: string | null
+): Promise<void> {
+  if (!conversationId) return;
+  const { error } = await admin
+    .from("ai_conversations")
+    .update({ last_at: new Date().toISOString(), status: "open", error_code: null })
+    .eq("id", conversationId);
+  if (error) console.error("[ai.audit] touch:", error.message);
 }
 
 export interface RecordToolCallArgs {
@@ -185,6 +288,13 @@ export interface CreateQueryRunArgs {
   total: number;
   capped: boolean;
   academicYearId: string | null;
+  /**
+   * Which turn produced this run. Reopening a chat has no other way to put a
+   * result chip under the answer it belongs to.
+   */
+  messageSeq?: number | null;
+  /** The model's stated intent — the chip's label after a reload. */
+  purpose?: string | null;
 }
 
 /**
@@ -209,6 +319,8 @@ export async function createQueryRun(
       capped: args.capped,
       scope_hash: scopeHash(args.ctx.scope),
       academic_year_id: args.academicYearId,
+      message_seq: args.messageSeq ?? null,
+      purpose: args.purpose ?? null,
     })
     .select("id")
     .single();

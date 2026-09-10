@@ -316,6 +316,13 @@ export async function executeRunStudentReport(
     total: queryResult.total,
     capped,
     academicYearId: queryResult.session?.id ?? null,
+    // Both of these exist only so a REOPENED chat can rebuild itself: the seq
+    // says which answer owns this result, and the purpose is the chip's label.
+    // Neither is reachable afterwards from anywhere else — args_raw holds the
+    // purpose, but two parallel report calls in one round share a message_seq
+    // and nothing links a tool-call row to the run it produced.
+    messageSeq,
+    purpose: input.purpose,
   });
 
   await recordToolCall({

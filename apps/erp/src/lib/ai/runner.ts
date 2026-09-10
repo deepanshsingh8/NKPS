@@ -1,7 +1,14 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { getAiClient, AI_MODELS, AI_EFFORT, AI_BUDGETS, AI_MAX_TOKENS } from "./client";
 import type { CallerContext } from "./caller-context";
-import { recordMessage, recordToolCall, finishConversation, nextMessageSeq } from "./audit";
+import {
+  recordMessage,
+  recordToolCall,
+  recordTurnFailure,
+  touchConversation,
+  finishConversation,
+  nextMessageSeq,
+} from "./audit";
 import { isRecoverable, renderToolError, type ToolErrorCode } from "./tool-errors";
 import { executeRunStudentReport } from "./tools/report";
 import {
@@ -122,29 +129,42 @@ export interface AskTurnResult {
   stoppedBy: "end_turn" | "budget" | "error";
 }
 
+/**
+ * Run one turn.
+ *
+ * `question` is what the human typed; `contextBlock` is what the server adds
+ * for the model's benefit (the current session name). They are separate
+ * parameters because they have different destinations: the model sees both,
+ * the audit trail sees only the question. Before this they were concatenated
+ * by the caller, so every stored user message began with a sentence the server
+ * wrote and the transcript attributed it to the user.
+ */
 export async function runAskTurn(
   ctx: CallerContext,
   systemPrompt: string,
   history: Anthropic.MessageParam[],
-  userMessage: string
+  question: string,
+  contextBlock?: string
 ): Promise<AskTurnResult> {
   const client = getAiClient();
   const deadline = Date.now() + AI_BUDGETS.maxWallClockMs;
 
+  const modelText = contextBlock ? `${contextBlock}\n\n${question}` : question;
   const messages: Anthropic.MessageParam[] = [
     ...history,
-    { role: "user", content: userMessage },
+    { role: "user", content: modelText },
   ];
 
   // Never history.length: see nextMessageSeq for why the client's idea of
   // history cannot be trusted to produce a unique sequence.
   let seq = await nextMessageSeq(ctx.admin, ctx.conversationId);
+  await touchConversation(ctx.admin, ctx.conversationId);
   await recordMessage({
     admin: ctx.admin,
     conversationId: ctx.conversationId,
     seq,
     role: "user",
-    content: userMessage,
+    content: question,
   });
 
   let toolCalls = 0;
@@ -153,16 +173,21 @@ export async function runAskTurn(
 
   for (;;) {
     if (Date.now() > deadline || toolCalls >= AI_BUDGETS.maxToolCalls) {
+      const text =
+        runs.length > 0
+          ? "That took longer than I allow for one question. I've kept the results I did get — try narrowing the question."
+          : "That took longer than I allow for one question. Try asking for something narrower.";
+      // Store the sentence the user actually saw, so a reopened chat reads
+      // back as it happened rather than as a question with no answer.
+      await recordTurnFailure({
+        admin: ctx.admin,
+        conversationId: ctx.conversationId,
+        seq: seq + 1,
+        content: text,
+        errorCode: "budget_exhausted",
+      });
       await finishConversation(ctx.admin, ctx.conversationId, "aborted", "budget_exhausted");
-      return {
-        text:
-          runs.length > 0
-            ? "That took longer than I allow for one question. I've kept the results I did get — try narrowing the question."
-            : "That took longer than I allow for one question. Try asking for something narrower.",
-        runs,
-        toolCalls,
-        stoppedBy: "budget",
-      };
+      return { text, runs, toolCalls, stoppedBy: "budget" };
     }
 
     const startedAt = Date.now();
@@ -183,14 +208,32 @@ export async function runAskTurn(
       });
     } catch (err) {
       console.error("[ai.runner] model call failed:", err);
+      const text =
+        "I couldn't reach the assistant just now. The report builder under Reports still works.";
+      await recordTurnFailure({
+        admin: ctx.admin,
+        conversationId: ctx.conversationId,
+        seq: seq + 1,
+        content: text,
+        errorCode: "model_error",
+      });
       await finishConversation(ctx.admin, ctx.conversationId, "error", "model_error");
-      return {
-        text: "I couldn't reach the assistant just now. The report builder under Reports still works.",
-        runs,
-        toolCalls,
-        stoppedBy: "error",
-      };
+      return { text, runs, toolCalls, stoppedBy: "error" };
     }
+
+    // Joined with a BLANK line, not a single newline.
+    //
+    // A reply can arrive as several text blocks — thinking and text interleave
+    // once tools are in play. Markdown block elements need a blank line to
+    // start: glue two blocks together with one newline and a table or list
+    // opening the second block is absorbed into the last paragraph of the
+    // first, and renders as literal pipe characters.
+    const replyText = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text.trim())
+      .filter(Boolean)
+      .join("\n\n")
+      .trim();
 
     seq += 1;
     await recordMessage({
@@ -198,6 +241,10 @@ export async function runAskTurn(
       conversationId: ctx.conversationId,
       seq,
       role: "assistant",
+      // Stored on EVERY round, including the tool-use preambles nobody sees.
+      // stop_reason already separates them: the visible answer is the row
+      // where it is not 'tool_use', and rebuilding history skips the rest.
+      content: replyText || null,
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
       cacheReadTokens: response.usage.cache_read_input_tokens ?? undefined,
@@ -213,21 +260,8 @@ export async function runAskTurn(
     );
 
     if (toolUses.length === 0) {
-      // Joined with a BLANK line, not a single newline.
-      //
-      // A reply can arrive as several text blocks — thinking and text
-      // interleave once tools are in play. Markdown block elements need a
-      // blank line to start: glue two blocks together with one newline and a
-      // table or list opening the second block is absorbed into the last
-      // paragraph of the first, and renders as literal pipe characters.
-      const text = response.content
-        .filter((b): b is Anthropic.TextBlock => b.type === "text")
-        .map((b) => b.text.trim())
-        .filter(Boolean)
-        .join("\n\n")
-        .trim();
       await finishConversation(ctx.admin, ctx.conversationId, "completed");
-      return { text, runs, toolCalls, stoppedBy: "end_turn" };
+      return { text: replyText, runs, toolCalls, stoppedBy: "end_turn" };
     }
 
     // Execute in parallel, then return EVERY result in one user message.
