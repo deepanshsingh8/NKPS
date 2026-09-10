@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
     message?: unknown;
     pathname?: unknown;
     history?: unknown;
+    visited?: unknown;
   };
   try {
     body = await request.json();
@@ -77,6 +78,15 @@ export async function POST(request: NextRequest) {
   const pathname = guidePaths().some((p) => raw === p || raw.startsWith(`${p}/`))
     ? raw.slice(0, 200)
     : "/";
+
+  // Every screen validated the same way as the current one — it is browser
+  // input that lands in a prompt.
+  const known = guidePaths();
+  const visited = (Array.isArray(body.visited) ? body.visited : [])
+    .slice(-8)
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => v.split("?")[0])
+    .filter((v) => known.some((p) => v === p || v.startsWith(`${p}/`)));
 
   const school = await getSchoolProfile(admin);
   if (!school.aiEnabled) {
@@ -132,7 +142,7 @@ export async function POST(request: NextRequest) {
           systemPrompt: buildGuideSystemPrompt(school),
           history: normaliseGuideHistory(body.history),
           question: message,
-          contextBlock: buildGuideContext({ pathname, role, features }),
+          contextBlock: buildGuideContext({ pathname, role, features, visited }),
           signal: request.signal,
         })) {
           send(event);
@@ -167,15 +177,19 @@ export async function POST(request: NextRequest) {
  * That is acceptable here in a way it is not for Ask: the worst a fabricated
  * prior turn can achieve is a confused answer about a screen, because there is
  * no tool behind this surface that reaches anything. Alternation is still
- * enforced, and the window is short — a help exchange that has run past three
- * turns has usually gone wrong anyway.
+ * enforced.
  */
 function normaliseGuideHistory(
   raw: unknown
 ): { role: "user" | "assistant"; content: string }[] {
   if (!Array.isArray(raw)) return [];
   const out: { role: "user" | "assistant"; content: string }[] = [];
-  for (const entry of raw.slice(-6)) {
+  // Sixteen, not six. A journey — add the fee structure, find the student,
+  // take the payment, check their record — is four exchanges before anyone has
+  // gone off-topic, and a three-turn window drops the beginning of it while the
+  // user is still in the middle. This history is short text with no tool
+  // blocks, so the cost of remembering it is small.
+  for (const entry of raw.slice(-16)) {
     if (!entry || typeof entry !== "object") continue;
     const { role, content } = entry as { role?: unknown; content?: unknown };
     if (role !== "user" && role !== "assistant") continue;

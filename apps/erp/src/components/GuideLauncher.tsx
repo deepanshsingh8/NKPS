@@ -45,6 +45,14 @@ export function GuideLauncher() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Where they have been while the panel was open.
+  //
+  // The panel is mounted in the layout, so client-side navigation does not
+  // remount it and this trail survives moving between screens — which is the
+  // whole point. On a journey the answer to "now how do I take the payment?"
+  // depends on whether they actually followed the last instruction.
+  const [trail, setTrail] = useState<string[]>([]);
+
   const endRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const paths = useRef(guidePaths()).current;
@@ -52,6 +60,13 @@ export function GuideLauncher() {
   useEffect(() => {
     if (open) endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [turns, open]);
+
+  useEffect(() => {
+    if (!pathname) return;
+    setTrail((prev) =>
+      prev[prev.length - 1] === pathname ? prev : [...prev, pathname].slice(-8)
+    );
+  }, [pathname]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -109,7 +124,7 @@ export function GuideLauncher() {
               ? { Authorization: `Bearer ${session.access_token}` }
               : {}),
           },
-          body: JSON.stringify({ message: trimmed, pathname, history }),
+          body: JSON.stringify({ message: trimmed, pathname, history, visited: trail }),
         });
 
         if (!res.ok || !res.body) {
@@ -167,7 +182,7 @@ export function GuideLauncher() {
         }
       }
     },
-    [pathname, turns]
+    [pathname, turns, trail]
   );
 
   if (!open) {
