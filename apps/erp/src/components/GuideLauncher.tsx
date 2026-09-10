@@ -2,7 +2,16 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
-import { CornerDownLeft, HelpCircle, Loader2, Sparkles, Square, X } from "lucide-react";
+import {
+  CornerDownLeft,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  Sparkles,
+  Square,
+  X,
+} from "lucide-react";
+import { cn } from "@nkps/shared/lib/utils";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { guidePaths, findScreenGuide } from "@nkps/shared/lib/guide/screens";
 import { ChatMarkdown } from "@/components/ChatMarkdown";
@@ -31,6 +40,7 @@ interface Turn {
 export function GuideLauncher() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -165,17 +175,35 @@ export function GuideLauncher() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title="How do I use this screen?"
-        aria-label="Open the in-app guide"
-        className="fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-navy-900 text-white shadow-lg transition hover:bg-navy-800 hover:shadow-xl"
+        title="Ask how to use this screen"
+        aria-label="Ask the in-app guide"
+        // A sparkle, not a question mark. Every other AI affordance in this
+        // ERP is marked with one — "Draft remarks with AI", "Ask your school"
+        // — and a "?" reads as a static help file, which is precisely the
+        // thing people have learned to ignore.
+        className="group fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-gradient-to-br from-navy-900 to-blue-700 px-4 py-3 text-white shadow-lg ring-1 ring-white/10 transition hover:shadow-xl hover:brightness-110 sm:px-4"
       >
-        <HelpCircle className="h-5 w-5" />
+        <Sparkles className="h-5 w-5 shrink-0" />
+        <span className="hidden text-sm font-medium sm:inline">Ask AI</span>
       </button>
     );
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-40 flex max-h-[min(38rem,calc(100dvh-2.5rem))] w-[min(24rem,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border bg-white shadow-2xl">
+    <div
+      className={cn(
+        "fixed z-40 flex flex-col overflow-hidden border bg-white shadow-2xl",
+        // Mobile: a bottom sheet, because a 24rem floating card on a 375px
+        // screen is a letterbox. Expanded takes the whole viewport.
+        expanded
+          ? "inset-0 rounded-none"
+          : "inset-x-0 bottom-0 h-[75dvh] rounded-t-2xl",
+        // Desktop: an anchored card that grows in place rather than moving.
+        expanded
+          ? "sm:inset-auto sm:bottom-5 sm:right-5 sm:h-[min(88dvh,54rem)] sm:w-[min(46rem,calc(100vw-2.5rem))] sm:rounded-xl"
+          : "sm:inset-auto sm:bottom-5 sm:right-5 sm:h-[min(38rem,calc(100dvh-2.5rem))] sm:w-[24rem] sm:rounded-xl"
+      )}
+    >
       <header className="flex shrink-0 items-start justify-between gap-2 border-b bg-navy-900 px-4 py-3 text-white">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 text-sm font-medium">
@@ -186,17 +214,38 @@ export function GuideLauncher() {
             {screen ? `You're on ${screen.title}` : "Ask about any ERP screen"}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          aria-label="Close"
-          className="rounded p-1 text-white/70 transition hover:text-white"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-label={expanded ? "Shrink" : "Expand"}
+            title={expanded ? "Shrink" : "Expand"}
+            className="rounded p-1 text-white/70 transition hover:text-white"
+          >
+            {expanded ? (
+              <Minimize2 className="h-4 w-4" />
+            ) : (
+              <Maximize2 className="h-4 w-4" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Close"
+            className="rounded p-1 text-white/70 transition hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+      <div
+        className={cn(
+          "min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3",
+          // Long answers get a readable measure once the panel is wide.
+          expanded && "mx-auto w-full max-w-3xl"
+        )}
+      >
         {turns.length === 0 && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
@@ -269,7 +318,10 @@ export function GuideLauncher() {
           e.preventDefault();
           void ask(input);
         }}
-        className="flex shrink-0 items-end gap-2 border-t p-2"
+        className={cn(
+          "flex shrink-0 items-end gap-2 border-t p-2",
+          expanded && "mx-auto w-full max-w-3xl"
+        )}
       >
         <textarea
           value={input}
