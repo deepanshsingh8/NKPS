@@ -1312,66 +1312,95 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     }
     setDuesLoading(true);
     try {
-      // Every query below carries an explicit .range(): PostgREST caps at
-      // 1000 rows by default, and a whole-school pass silently truncated at
-      // 1000 would under-report arrears with no error to notice.
-      let enrollmentQuery = supabase
-        .from("student_enrollments")
-        .select(
-          "id, student_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, students(id, full_name, admission_no, father_name, is_active, admission_date), classes(name, section, streams(name))"
-        )
-        .eq("academic_year_id", academicYearId)
-        .in(
-          "status",
-          includeLeavers ? ["active", "exited", "terminated"] : ["active"]
+      // Every read below is paged: PostgREST caps a response at db-max-rows
+      // (1000 on Supabase) and a Range header cannot lift that cap, only ask
+      // for less than it — a whole-school pass truncated there would
+      // under-report arrears with no error to notice.
+      //
+      // Each carries an .order("id") too. LIMIT/OFFSET with no total order
+      // has no stable row order between pages, so a page boundary can hand
+      // back one row twice and skip another — on fee_payments that
+      // double-counts one receipt while losing a real one.
+      const enrollmentPage = (from: number, to: number) => {
+        let q = supabase
+          .from("student_enrollments")
+          .select(
+            "id, student_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, students(id, full_name, admission_no, father_name, is_active, admission_date), classes(name, section, streams(name))"
+          )
+          .eq("academic_year_id", academicYearId)
+          .in(
+            "status",
+            includeLeavers ? ["active", "exited", "terminated"] : ["active"]
+          );
+        if (duesClassId) q = q.eq("class_id", duesClassId);
+        return q.order("id", { ascending: true }).range(from, to);
+      };
+      const {
+        data: enrollments,
+        error: enrollmentError,
+        truncated: enrollmentTruncated,
+      } = await fetchAllRows<Record<string, unknown>>(enrollmentPage);
+      if (enrollmentError || enrollmentTruncated) {
+        throw new Error(
+          `student_enrollments: ${enrollmentError ?? "read stopped at the paging guard"}`
         );
-      if (duesClassId) enrollmentQuery = enrollmentQuery.eq("class_id", duesClassId);
-      const { data: enrollments, error: enrollmentError } = await fetchAllRows<
-        Record<string, unknown>
-      >((from, to) => enrollmentQuery.range(from, to));
-      if (enrollmentError) {
-        throw new Error(`student_enrollments: ${enrollmentError}`);
       }
       // Structures for every class in the year, grouped by class name below.
       // Fetched whole even for a single class: the row count is small, and it
       // keeps one code path for both scopes.
-      const { data: structures, error: structuresError } = await supabase
-        .from("fee_structures")
-        .select("*")
-        .eq("academic_year_id", academicYearId)
-        .eq("is_active", true)
-        .range(0, 9999);
+      const {
+        data: structures,
+        error: structuresError,
+        truncated: structuresTruncated,
+      } = await fetchAllRows<FeeStructure>((from, to) =>
+        supabase
+          .from("fee_structures")
+          .select("*")
+          .eq("academic_year_id", academicYearId)
+          .eq("is_active", true)
+          .order("id", { ascending: true })
+          .range(from, to)
+      );
       // Per-stop fees for the current year (stop-based model, migration 074).
       // Keyed by bus_stop_id so each transport-using enrollment can price its
       // assigned stop.
-      const { data: stopFeeRows, error: stopFeeError } = await supabase
-        .from("bus_stop_fees")
-        .select("bus_stop_id, amount, frequency, is_active")
-        .eq("academic_year_id", academicYearId)
-        .eq("is_active", true)
-        .range(0, 9999);
-      // Same reasoning as the .range() above: a read that fails leaves the
-      // arrears under-reported with nothing on screen to say so. A dropped
-      // bus_stop_fees read would quietly clear the transport charge from every
-      // transport-using student in the register. Throw to the catch below,
-      // which surfaces it, rather than publishing a short total as fact.
-      if (structuresError) {
-        throw new Error(`fee_structures: ${structuresError.message}`);
-      }
-      if (stopFeeError) {
-        throw new Error(`bus_stop_fees: ${stopFeeError.message}`);
-      }
       type StopFeeRow = {
         bus_stop_id: string;
         amount: number;
         frequency: string;
         is_active: boolean;
       };
+      const {
+        data: stopFeeRows,
+        error: stopFeeError,
+        truncated: stopFeeTruncated,
+      } = await fetchAllRows<StopFeeRow>((from, to) =>
+        supabase
+          .from("bus_stop_fees")
+          .select("bus_stop_id, amount, frequency, is_active")
+          .eq("academic_year_id", academicYearId)
+          .eq("is_active", true)
+          .order("id", { ascending: true })
+          .range(from, to)
+      );
+      // Same reasoning as the enrollment read: a read that fails or stops
+      // short leaves the arrears under-reported with nothing on screen to say
+      // so. A dropped bus_stop_fees read would quietly clear the transport
+      // charge from every transport-using student in the register. Throw to
+      // the catch below, which surfaces it, rather than publishing a short
+      // total as fact.
+      if (structuresError || structuresTruncated) {
+        throw new Error(
+          `fee_structures: ${structuresError ?? "read stopped at the paging guard"}`
+        );
+      }
+      if (stopFeeError || stopFeeTruncated) {
+        throw new Error(
+          `bus_stop_fees: ${stopFeeError ?? "read stopped at the paging guard"}`
+        );
+      }
       const stopFeesById = new Map(
-        ((stopFeeRows as StopFeeRow[] | null) ?? []).map((f) => [
-          f.bus_stop_id,
-          f,
-        ])
+        stopFeeRows.map((f) => [f.bus_stop_id, f])
       );
 
       const studentIds = (enrollments ?? []).map((e) => e.student_id as string);
@@ -1394,28 +1423,37 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         // refund flips status to 'refunded' while amount_paid stays put, so
         // dropping them by status erased the whole receipt from paid totals
         // and overstated dues. Each refunded row's net cash is settled below.
-        let payQuery = supabase
-          .from("fee_payments")
-          .select(
-            "student_id, fee_structure_id, amount_paid, waiver_amount, refund_amount, status"
-          )
-          .in("status", ["paid", "partial", "refunded"])
-          .eq("academic_year_id", academicYearId);
-        // Scope by student only for a single class. Across the whole school
-        // the id list would be thousands of UUIDs in a query string, and the
-        // year filter already bounds the result to the same rows.
-        if (duesClassId) payQuery = payQuery.in("student_id", studentIds);
         // Paged, not .range(0, 99999). A Range header cannot lift PostgREST's
         // db-max-rows cap, only ask for less than it — so the old call read
         // the first 1000 payments and returned 200 OK. After the 2026-27 day
         // book put 1,994 rows in this table it reported 432 students as having
         // paid nothing, against Rs 1.02 crore that was in the table all along.
-        const { data: pays, error: payError } = await fetchAllRows<PayRow>(
-          (from, to) => payQuery.range(from, to)
-        );
+        const paymentPage = (from: number, to: number) => {
+          let q = supabase
+            .from("fee_payments")
+            .select(
+              "student_id, fee_structure_id, amount_paid, waiver_amount, refund_amount, status"
+            )
+            .in("status", ["paid", "partial", "refunded"])
+            .eq("academic_year_id", academicYearId);
+          // Scope by student only for a single class. Across the whole school
+          // the id list would be thousands of UUIDs in a query string, and the
+          // year filter already bounds the result to the same rows.
+          if (duesClassId) q = q.in("student_id", studentIds);
+          return q.order("id", { ascending: true }).range(from, to);
+        };
+        const {
+          data: pays,
+          error: payError,
+          truncated: payTruncated,
+        } = await fetchAllRows<PayRow>(paymentPage);
         // A short read here understates what a family has paid and invents
         // arrears. Surface it instead of publishing the number.
-        if (payError) throw new Error(`fee_payments: ${payError}`);
+        if (payError || payTruncated) {
+          throw new Error(
+            `fee_payments: ${payError ?? "read stopped at the paging guard"}`
+          );
+        }
         payments = pays;
       }
 
