@@ -327,12 +327,12 @@ neither changes the data model.
       Covers 15 hot tables; `ALTER POLICY` only, so the policy SET is unchanged. Idempotent.: `public.get_user_role()` →
       `(SELECT public.get_user_role())`, same for the other scalar helpers and `auth.uid()`.
       Leave the `IN (SELECT get_my_class_ids())` sites alone — they are already hoisted.
-- [ ] Mechanical and semantics-preserving; verify by diffing `pg_policies.qual` before/after.
-- [ ] Re-run the benchmark to confirm `students` drops from ~388ms to ~115ms.
+- [x] **DONE** — verified against live `pg_policies`: covered tables show the hoisted `( SELECT get_user_role() AS get_user_role)` form.
+- [x] **DONE** — measured 388ms → 115ms; RLS overhead +277ms → −2ms; the 944-row scan penalty (+209ms) is gone entirely.
 - [ ] Consolidate the 5 permissive SELECT policies on `students` into one where the roles allow it.
 - [x] **DONE** — bug fix included in 099, written defensively to match on the broken predicate
       rather than the policy name.
-- [ ] Mirror into `supabase-schema.sql` in the same commit (next free number is **102**; note the repo
+- [x] **DONE** — 102/103/104 mirrored. Note the repo
       already has collisions on 008/027/044/050-056/061/086, so re-run the `uniq -d` check on merge).
 - **Expected: ~275ms off every `students` / `student_enrollments` query, and it stops scaling with row
   count. This alone is the difference between working at 1,000 students and at 10,000.**
@@ -341,11 +341,11 @@ neither changes the data model.
 - [x] **DONE** — 67 round trips → 2 waves. All 7 stat fields preserved field-for-field (verified
       by diff review). Added `.range(0, ROW_CAP)`: the old per-class reads were silently truncated
       at PostgREST's 1000-row default.
-- [ ] `final-result.ts` — add `loadClassContext(classId, yearId)` fetching the 6 class-level rows once
+- [x] **DONE** — green sheet for 40 students: 887 queries → 18, constant not O(N). Verified by an 861-check differential harness.
       and batching per-student rows via `.in("student_id", ids)`; make `computeFinalResult` pure over
       that context. Share one context between `green-sheet` and `computeRanksForClass`. **~730 → ~10.**
 - [x] **DONE** — N + (classSubjects × examTypes) ≈ 33 → 2 parallel queries.
-- [ ] The 8 parent-portal pages — replace the per-ward enrollment loop with one `.in()`.
+- [x] **DONE** — page cost `3 + N` → flat 4. Also collapsed a duplicate enrollment read in parent/fees.
 - [x] **DONE** — `/api/` early-return moved above `auth.getUser()` in `updateSession`. The cookie
       refresh it also carried is not load-bearing for API routes: Bearer handlers never read the
       session cookie, and every cookie-authed handler calls `getUser()` itself. **1 round trip saved
@@ -360,7 +360,7 @@ neither changes the data model.
       handlers. It would be a provably dead wrapper. Audited every caller: the multi-`verifyAdmin*`
       files are one call per HTTP method, i.e. one per request. The single real double-call is
       `admin-proxy.ts` :84-89, on the `altKey` retry — a failure path only.
-- [ ] Convert the sequential independent `await`s in `AdminFeesContent` and `student/page.tsx` to
+- [x] **PARTLY DONE** — `student/page.tsx` depth 7 → 4 waves. `AdminFeesContent` NOT done.
       `Promise.all`.
 
 ### Phase 2b — Indexes (independent of Phase 2, can ship with Phase 1)
@@ -370,7 +370,7 @@ neither changes the data model.
 - [ ] **Rollout caveat:** `CREATE INDEX` locks against writes. At current table sizes it is sub-second,
       so plain DDL is fine today — but once multi-school data lands, use `CREATE INDEX CONCURRENTLY`,
       which **cannot run inside a transaction block** and must go in a separate non-transactional file.
-- [ ] Verify with `EXPLAIN (ANALYZE, BUFFERS)`: the tell is `get_user_role` collapsing from `rows=N`
+- [x] **DONE differently** — verified by paired service-role/anon timing and by reading live `pg_policies`, which was cheaper and equally conclusive.
       to `InitPlan 1`.
 
 ### Phase 3 — Payload and caching
@@ -382,10 +382,13 @@ neither changes the data model.
 - [ ] Move the heaviest pages' initial payload to server components.
 
 ### Phase 4 — Correctness bugs (§3)
-- [ ] Publish path for `non_scholastic_assessments.is_published`.
-- [ ] Reconcile electives into `student_subjects` on write.
-- [ ] Remove or wire `exam_types.weightage`; wire or drop `effectiveTransport()`.
-- [ ] Mirror `pickup_address` into `supabase-schema.sql`.
+- [x] **DONE** — publishing a class's results now publishes its co-scholastic rows too; no migration needed.
+- [x] **DONE** — picks keep `slot`, the mirror row is what reports read; unmapped subject now hard-fails with a fix-it message.
+- [x] **`exam_types.weightage` DONE** — the Result Master grid now seeds from it; a stored value is
+      never overwritten (production has 60/15/10/15 on exam types vs 20/15/20/45 on a class — both
+      deliberate), only a null is healed.
+- [ ] `effectiveTransport()` still dead — approved temporary transport changes have no effect anywhere.
+- [x] **DONE** — and lost once to a peer session's branch switch, then recovered from the dangling commit.
 - [ ] Recompute `max_marks` / `supplementary_attempts.passed` on master edit, or derive at read time.
 
 ### Phase 5 — Identity de-duplication (§2) — design first, no big-bang
