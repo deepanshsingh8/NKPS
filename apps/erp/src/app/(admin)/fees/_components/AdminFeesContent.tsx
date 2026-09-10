@@ -10,6 +10,10 @@ import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
+import {
+  useTablePagination,
+  TablePaginationBar,
+} from "@nkps/shared/components/ui/data-table";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Dialog,
@@ -388,6 +392,14 @@ function DuesTable({
   );
 
   const table = useTableControls({ rows, columns });
+  // Keyed on the filter summary so applying a column filter lands on page 1
+  // rather than on whatever page number was left over from the wider set.
+  const pagination = useTablePagination(table.rows, {
+    defaultPageSize: 50,
+    resetKey: `${exportName}:${table.filterSummary
+      .map((f) => `${f.label}=${f.value}`)
+      .join("|")}`,
+  });
 
   if (rows.length === 0) {
     return (
@@ -430,7 +442,7 @@ function DuesTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {table.rows.length === 0 && (
+          {pagination.total === 0 && (
             <TableRow>
               <TableCell
                 colSpan={showClass ? 11 : 10}
@@ -440,7 +452,7 @@ function DuesTable({
               </TableCell>
             </TableRow>
           )}
-          {table.rows.map((r) => (
+          {pagination.pageRows.map((r) => (
             <TableRow key={r.student_id}>
               <TableCell className="font-medium">{r.admission_no}</TableCell>
               <TableCell>
@@ -508,6 +520,10 @@ function DuesTable({
           ))}
         </TableBody>
       </Table>
+      {/* Export stays bound to the controller's full row list, not this page:
+          exporting only what is on screen would hand someone a partial
+          arrears report that looks complete. */}
+      <TablePaginationBar ctl={pagination} noun="students" />
     </>
   );
 }

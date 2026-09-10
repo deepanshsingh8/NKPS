@@ -873,3 +873,212 @@ export function TableFilterSummary({
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Pagination
+//
+// These tables render every row they hold. That was fine while a class had
+// forty students in it; the whole-school arrears register is 942 rows, each
+// with eleven cells and a sort/filter header bound to it, and the browser
+// lays out all of them before it paints anything. It also means the answer
+// the office actually wants — the twenty largest defaulters — is somewhere in
+// a page they have to scroll.
+//
+// Paging sits ON TOP of the sort/filter controller, never underneath it:
+// `useTableControls` has already filtered and sorted, so page 1 is the first
+// page of the sorted result rather than an arbitrary slice that then gets
+// sorted. Export stays bound to the controller's full row list — exporting
+// only what happens to be on screen would be a quiet way to hand someone an
+// incomplete arrears report.
+// ---------------------------------------------------------------------------
+
+export const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+export type PageSize = (typeof PAGE_SIZE_OPTIONS)[number];
+
+export interface TablePagination<T> {
+  /** The rows to render — one page of them. */
+  pageRows: T[];
+  page: number;
+  pageCount: number;
+  pageSize: PageSize;
+  setPage: (p: number) => void;
+  setPageSize: (n: PageSize) => void;
+  /** 1-based inclusive bounds of the current page, for "showing 1–50 of 867". */
+  from: number;
+  to: number;
+  total: number;
+}
+
+/**
+ * Page a controller's rows.
+ *
+ * Pass `useTableControls(...).rows` — already filtered and sorted.
+ *
+ * The page is clamped rather than reset on every render: filtering 867 rows
+ * down to 12 while sitting on page 8 should land on the last page that still
+ * has rows, not silently show an empty table. It resets to 1 only when the
+ * result set genuinely changes identity (a new filter, a new class), which is
+ * what `resetKey` is for.
+ */
+export function useTablePagination<T>(
+  rows: T[],
+  opts: { defaultPageSize?: PageSize; resetKey?: string | number } = {}
+): TablePagination<T> {
+  const { defaultPageSize = 50, resetKey } = opts;
+  const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSizeState] = React.useState<PageSize>(defaultPageSize);
+
+  const lastReset = React.useRef(resetKey);
+  if (lastReset.current !== resetKey) {
+    // During render, not in an effect: an effect would paint one frame of the
+    // wrong page first.
+    lastReset.current = resetKey;
+    if (page !== 1) setPage(1);
+  }
+
+  const total = rows.length;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(1, page), pageCount);
+
+  const pageRows = React.useMemo(
+    () => rows.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [rows, safePage, pageSize]
+  );
+
+  const setPageSize = React.useCallback(
+    (n: PageSize) => {
+      // Keep the first visible row visible across a size change, so someone
+      // deep in the list who switches 10 → 100 does not get thrown back to
+      // the top.
+      setPageSizeState((prev) => {
+        const firstRow = (Math.min(Math.max(1, page), Math.max(1, Math.ceil(total / prev))) - 1) * prev;
+        setPage(Math.floor(firstRow / n) + 1);
+        return n;
+      });
+    },
+    [page, total]
+  );
+
+  return {
+    pageRows,
+    page: safePage,
+    pageCount,
+    pageSize,
+    setPage,
+    setPageSize,
+    from: total === 0 ? 0 : (safePage - 1) * pageSize + 1,
+    to: Math.min(safePage * pageSize, total),
+    total,
+  };
+}
+
+/** Page numbers to show, with `null` standing in for a gap. */
+function pageWindow(page: number, pageCount: number): Array<number | null> {
+  if (pageCount <= 7) {
+    return Array.from({ length: pageCount }, (_, i) => i + 1);
+  }
+  const out: Array<number | null> = [1];
+  const start = Math.max(2, page - 1);
+  const end = Math.min(pageCount - 1, page + 1);
+  if (start > 2) out.push(null);
+  for (let i = start; i <= end; i++) out.push(i);
+  if (end < pageCount - 1) out.push(null);
+  out.push(pageCount);
+  return out;
+}
+
+export function TablePaginationBar<T>({
+  ctl,
+  className,
+  noun = "rows",
+}: {
+  ctl: TablePagination<T>;
+  className?: string;
+  /** Plural noun for the count, e.g. "students". */
+  noun?: string;
+}) {
+  const { page, pageCount, pageSize, setPage, setPageSize, from, to, total } = ctl;
+  // One page of results does not need paging controls, but the count and the
+  // size picker still earn their place — the picker is how someone gets OFF
+  // a 10-per-page view they set earlier.
+  const btn =
+    "h-8 min-w-8 rounded-md border border-gray-300 dark:border-border px-2 text-sm " +
+    "disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-muted";
+
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 dark:border-border pt-3 mt-1",
+        className
+      )}
+    >
+      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+        <span>
+          {total === 0 ? `No ${noun}` : `Showing ${from}–${to} of ${total} ${noun}`}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          Rows
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
+            className="rounded-md border border-gray-300 dark:border-border px-2 py-1 text-sm dark:bg-muted"
+            aria-label={`${noun} per page`}
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {pageCount > 1 && (
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className={btn}
+              onClick={() => setPage(page - 1)}
+              disabled={page <= 1}
+              aria-label="Previous page"
+            >
+              Prev
+            </button>
+            {pageWindow(page, pageCount).map((p, i) =>
+              p === null ? (
+                <span key={`gap-${i}`} className="px-1 text-gray-400 select-none">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPage(p)}
+                  aria-current={p === page ? "page" : undefined}
+                  className={cn(
+                    btn,
+                    p === page &&
+                      "bg-navy-900 text-white border-navy-900 hover:bg-navy-900 dark:bg-white dark:text-navy-900"
+                  )}
+                >
+                  {p}
+                </button>
+              )
+            )}
+            <button
+              type="button"
+              className={btn}
+              onClick={() => setPage(page + 1)}
+              disabled={page >= pageCount}
+              aria-label="Next page"
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
