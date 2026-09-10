@@ -8,6 +8,7 @@ import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
+import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import {
   Dialog,
@@ -73,6 +74,8 @@ import type {
   FeeStudentType,
 } from "@nkps/shared/types";
 import { HistoricalFeesImportDialog } from "@/components/HistoricalFeesImportDialog";
+import { DayBookImportDialog } from "@/components/DayBookImportDialog";
+import { ImportHistoryPanel } from "@/components/ImportHistoryPanel";
 import { FeeScheduleGrid } from "./FeeScheduleGrid";
 
 const CLASS_NAMES = [
@@ -192,6 +195,10 @@ interface DuesRow {
   // then summed.
   late_fee: number;
   dues: number;
+  // The enrollment's status. Always 'active' unless "Include students who
+  // left" is on — in which case the register must say which rows are leavers,
+  // or the office cannot tell an arrear it should chase from one it should not.
+  enrollment_status: string;
 }
 
 export type FeesSection = "academic" | "payments" | "dues";
@@ -443,6 +450,13 @@ function DuesTable({
                 >
                   {r.full_name}
                 </Link>
+                {/* Only ever set when "Include students who left" is on. A
+                    leaver's arrears are historical, not something to chase. */}
+                {r.enrollment_status !== "active" && (
+                  <Badge className="ml-2 bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300">
+                    {r.enrollment_status === "terminated" ? "Terminated" : "Left"}
+                  </Badge>
+                )}
               </TableCell>
               {showClass && (
                 <TableCell className="text-gray-600 dark:text-gray-300">
@@ -678,6 +692,8 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     })[]
   >([]);
   const isAdmin = useIsAdmin();
+  // Bumped after an import so the history panel refetches.
+  const [importHistoryKey, setImportHistoryKey] = useState(0);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
 
   // Payments tab: class-driven roster picker. Pick a class → see students →
@@ -691,6 +707,12 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   // Dues tab state
   const [classesList, setClassesList] = useState<ClassEntry[]>([]);
   const [duesClassId, setDuesClassId] = useUrlState("dues_class_id");
+  // Mid-session leavers are excluded from the register by default: chasing
+  // someone who has left for an instalment they will never owe is noise.
+  // But their receipts are part of the session's collection, and after the
+  // day-book backfill a chunk of the money belongs to students no longer on
+  // the roster — so the office needs to be able to see them on demand.
+  const [includeLeavers, setIncludeLeavers] = useState(false);
   // Which side of the register is open, in the URL so the dashboard's
   // "Paid" / "Remaining" tiles can land on the matching list.
   const [duesTab, setDuesTab] = useUrlState("dues_tab", "dues-list");
@@ -1279,7 +1301,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           "id, student_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, students(id, full_name, admission_no, father_name, is_active, admission_date), classes(name, section, streams(name))"
         )
         .eq("academic_year_id", academicYearId)
-        .eq("status", "active")
+        .in(
+          "status",
+          includeLeavers ? ["active", "exited", "terminated"] : ["active"]
+        )
         .range(0, 9999);
       if (duesClassId) enrollmentQuery = enrollmentQuery.eq("class_id", duesClassId);
       const { data: enrollments } = await enrollmentQuery;
@@ -1433,6 +1458,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           father_name: stu?.father_name ?? null,
           class_label: embeddedClassLabel(e.classes as EmbeddedClass),
           has_transport: Boolean(e.has_transport),
+          enrollment_status: (e.status as string) ?? "active",
           expected: breakdown.expected,
           billed_to_date: breakdown.billedToDate,
           paid: breakdown.paid,
@@ -1448,7 +1474,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     } finally {
       setDuesLoading(false);
     }
-  }, [supabase, duesClassId, academicYearId, academicYearRange]);
+  }, [supabase, duesClassId, academicYearId, academicYearRange, includeLeavers]);
 
   useEffect(() => {
     computeDues();
@@ -2266,8 +2292,23 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 }}
               />
             )}
+            <DayBookImportDialog
+              onImported={() => {
+                // A day-book batch moves a whole session's collections, so the
+                // open student's balance and the import history are both stale.
+                if (selectedStudent) selectStudent(selectedStudent);
+                setImportHistoryKey((k) => k + 1);
+              }}
+            />
             <HistoricalFeesImportDialog />
           </div>
+
+          {/* Admin-only, matching the revert endpoint it drives. */}
+          {isAdmin && (
+            <div className="mt-4">
+              <ImportHistoryPanel refreshKey={importHistoryKey} />
+            </div>
+          )}
 
           <Card className="bg-white dark:bg-card rounded-2xl shadow-sm mt-4">
             <CardContent>
@@ -2698,6 +2739,13 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     ))}
                   </select>
                 </div>
+                <label className="flex items-center gap-2 text-sm mt-1 sm:mt-5">
+                  <Checkbox
+                    checked={includeLeavers}
+                    onCheckedChange={(v) => setIncludeLeavers(Boolean(v))}
+                  />
+                  Include students who left
+                </label>
                 {!duesLoading && duesRows.length > 0 && (
                   <div className="flex-1 min-w-[220px]">
                     <Label className="text-xs font-medium">Search</Label>
@@ -2736,8 +2784,8 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
               ) : duesRows.length === 0 ? (
                 <p className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
                   {duesClassId
-                    ? "No active enrolments for this class in the current academic year."
-                    : "No active enrolments in the current academic year."}
+                    ? `No ${includeLeavers ? "" : "active "}enrolments for this class in the current academic year.`
+                    : `No ${includeLeavers ? "" : "active "}enrolments in the current academic year.`}
                 </p>
               ) : (
                 <Tabs

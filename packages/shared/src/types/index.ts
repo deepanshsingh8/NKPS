@@ -769,7 +769,20 @@ export type EffectiveFeeLine =
   | (FeeStructure & { kind: 'fee_structure' })
   | TransportFeeLine;
 
-export type PaymentMethod = 'cash' | 'online' | 'cheque' | 'bank_transfer' | 'upi' | 'gateway' | 'waiver';
+// Mirrors the fee_payments_payment_method_check constraint. 'historical_unknown'
+// (migration 054) is what an import records when the previous software never
+// stored the tender type — the Account-wise Day Book has no mode column. The
+// Head-wise Day Book does, so its rows carry a real method and only an
+// unrecognised spelling falls back to this.
+export type PaymentMethod =
+  | 'cash'
+  | 'online'
+  | 'cheque'
+  | 'bank_transfer'
+  | 'upi'
+  | 'gateway'
+  | 'waiver'
+  | 'historical_unknown';
 export type PaymentStatus = 'pending' | 'processing' | 'paid' | 'partial' | 'failed' | 'refunded';
 
 export interface FeePayment {
@@ -804,6 +817,13 @@ export interface FeePayment {
   payer_name: string | null;
   transaction_ref: string | null;
   payment_provider: string | null;
+  // Migrations 051 + 115 — provenance. `source` separates money the office
+  // keyed in from money backfilled out of the previous ERP;
+  // `source_receipt_no` is that software's own receipt number and is what
+  // makes re-importing an overlapping export idempotent.
+  source: 'erp_native' | 'historical_import';
+  import_batch_id: string | null;
+  source_receipt_no: string | null;
   created_at: string;
   updated_at: string;
 }

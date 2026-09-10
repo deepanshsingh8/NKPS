@@ -137,9 +137,24 @@ export function resolveStudentType(
 // deliberately replaced.
 export function resolveEffectiveFeeStructures(
   structures: FeeStructure[],
-  opts: { studentStreamId: string | null; studentType?: FeeStudentType | null }
+  opts: {
+    studentStreamId: string | null;
+    studentType?: FeeStudentType | null;
+    /**
+     * Skip the student-type rule, keeping only the stream override.
+     *
+     * For anything that decides what a student OWES this must stay false —
+     * that is the whole point of the rule. The historical day-book importer
+     * sets it when placing money that was ALREADY received: 209 students in
+     * the 2026-27 import paid an admission fee, some of them returning
+     * students the schedule would not have billed, and their receipts still
+     * have to land somewhere. It is used there as a per-head fallback, not as
+     * the primary resolution.
+     */
+    ignoreStudentType?: boolean;
+  }
 ): FeeStructure[] {
-  const { studentStreamId, studentType = null } = opts;
+  const { studentStreamId, studentType = null, ignoreStudentType = false } = opts;
 
   const visible = structures.filter((fs) => {
     if (fs.fee_type === "Transport") return false;
@@ -156,7 +171,7 @@ export function resolveEffectiveFeeStructures(
   return visible.filter(
     (fs) =>
       !(fs.stream_id == null && overriddenTypes.has(fs.fee_type)) &&
-      feeAppliesToStudentType(fs.student_type, studentType)
+      (ignoreStudentType || feeAppliesToStudentType(fs.student_type, studentType))
   );
 }
 

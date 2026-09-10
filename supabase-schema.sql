@@ -7103,3 +7103,112 @@ COMMENT ON COLUMN student_enrollments.pickup_address IS
   'Free-text pickup landmark supplied by the parent, to help the driver locate '
   'the child. NOT a pricing input: migration-074 replaced distance-based '
   'transport fees with flat per-stop fees on bus_stop_fees.';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 115 — Day Book (Head wise) import support
+-- (mirrored from scripts/migrations/erp/migration-115-day-book-import.sql)
+--
+-- `source_receipt_no` is the old software's own receipt number, and it is the
+-- idempotency key for the day-book importer. receipt_number cannot be: the
+-- importer splits one source receipt across the instalments it settles, so the
+-- slice suffix moves whenever the fee schedule is edited, and a re-uploaded
+-- overlapping export would insert a duplicate set instead of conflicting.
+--
+-- The unique index keys on COALESCE(fee_structure_id, bus_stop_id) because
+-- fee_payments_target_xor (migration 074) sets exactly one of the two, and a
+-- transport day book lands on bus_stop_id with fee_structure_id NULL — NULLs
+-- compare distinct, so keying on fee_structure_id alone would leave those rows
+-- undeduplicated.
+--
+-- `import_batches` gives the bare import_batch_id uuid on fee_payments,
+-- results and student_enrollments a parent row: what the batch was, who ran
+-- it, what it reconciled to, and whether it has been reverted. Deliberately
+-- NOT an FK — rows predating this migration have no parent, and ON DELETE
+-- semantics would then decide the fate of receipts.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE fee_payments
+  ADD COLUMN IF NOT EXISTS source_receipt_no text;
+
+COMMENT ON COLUMN fee_payments.source_receipt_no IS
+  'Receipt number as printed by the previous ERP software. Stable across '
+  're-imports (unlike receipt_number, whose slice suffix moves when the fee '
+  'schedule changes), so it is the idempotency key for the day-book importer '
+  'and the number the office searches by.';
+
+CREATE UNIQUE INDEX IF NOT EXISTS fee_payments_source_receipt_unique
+  ON fee_payments (
+    academic_year_id,
+    source_receipt_no,
+    COALESCE(fee_structure_id, bus_stop_id)
+  )
+  WHERE source_receipt_no IS NOT NULL;
+
+-- The Day Book records one instrument date for every non-cash receipt: the
+-- date on the cheque, or the date the online transfer went through. Both land
+-- in cheque_date, so widen what the column claims to mean. Nothing reads it as
+-- cheque-only -- the receipt PDF prints it beside whichever reference the row
+-- carries.
+COMMENT ON COLUMN fee_payments.cheque_date IS
+  'Date on the payment instrument: the date written on the cheque, or the '
+  'date an online transfer/UTR was executed. Often differs from payment_date, '
+  'which is always the date the school received the money.';
+
+CREATE INDEX IF NOT EXISTS idx_fee_payments_source_receipt
+  ON fee_payments (academic_year_id, source_receipt_no)
+  WHERE source_receipt_no IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS import_batches (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  kind text NOT NULL CHECK (kind IN (
+    'fees_day_book',
+    'fees_account_wise',
+    'results_greensheet',
+    'students_backfill'
+  )),
+  academic_year_id uuid REFERENCES academic_years(id) ON DELETE SET NULL,
+  file_name        text,
+  file_size_bytes  integer CHECK (file_size_bytes IS NULL OR file_size_bytes >= 0),
+  source_period_start date,
+  source_period_end   date,
+  row_count      integer NOT NULL DEFAULT 0 CHECK (row_count >= 0),
+  created_count  integer NOT NULL DEFAULT 0 CHECK (created_count >= 0),
+  skipped_count  integer NOT NULL DEFAULT 0 CHECK (skipped_count >= 0),
+  amount_total   numeric(14, 2),
+  control_totals jsonb,
+  notes      text,
+  created_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  reverted_at timestamptz,
+  reverted_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  CONSTRAINT import_batches_revert_consistent CHECK (
+    (reverted_at IS NULL AND reverted_by IS NULL)
+    OR reverted_at IS NOT NULL
+  ),
+  CONSTRAINT import_batches_period_ordered CHECK (
+    source_period_start IS NULL
+    OR source_period_end IS NULL
+    OR source_period_end >= source_period_start
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_import_batches_kind_created
+  ON import_batches (kind, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_import_batches_academic_year
+  ON import_batches (academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_import_batches_created_by
+  ON import_batches (created_by);
+CREATE INDEX IF NOT EXISTS idx_import_batches_reverted_by
+  ON import_batches (reverted_by);
+
+ALTER TABLE import_batches ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins have full access to import batches" ON import_batches;
+CREATE POLICY "Admins have full access to import batches"
+  ON import_batches FOR ALL
+  USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');
+
+-- The backfill of parent rows for pre-existing batches lives only in the
+-- migration file: a database built fresh from this schema has no batches to
+-- reconstruct.
