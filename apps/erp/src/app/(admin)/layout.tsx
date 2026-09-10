@@ -5,6 +5,7 @@ import { ErpSidebar } from "@/components/ErpSidebar";
 import { SidebarProvider } from "@nkps/shared/components/providers/SidebarProvider";
 import { SessionProvider } from "@nkps/shared/components/providers/SessionProvider";
 import { AppShell } from "@nkps/shared/components/AppShell";
+import { GuideLauncher } from "@/components/GuideLauncher";
 
 /**
  * Pages that manage their own height and scrolling rather than sitting in a
@@ -30,6 +31,7 @@ export default function ErpLayout({
       <SidebarProvider>
         <AppShell sidebar={<ErpSidebar />} title="NKPS ERP" variant={variant}>
           {children}
+          <GuideLauncher />
         </AppShell>
       </SidebarProvider>
     </SessionProvider>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -23,8 +24,25 @@ import remarkGfm from "remark-gfm";
  * tables, and never has cause to link out. So links render as plain text and
  * images are dropped. react-markdown ignores raw HTML unless rehype-raw is
  * added, which is why that is not a third case.
+ *
+ * ── The one exception: `allowedPaths` ───────────────────────────────────────
+ * The in-app guide DOES have cause to link — "open Students" should be
+ * clickable. It gets a narrower rule rather than a looser one: a link renders
+ * only when its href exactly matches a path the caller passes in, which comes
+ * from the screen registry. Anything else, including every absolute URL, stays
+ * plain text. So the set of linkable destinations is a checked-in list, not
+ * whatever the model wrote, and that stays true even if the guide is later
+ * given a tool that can return text somebody else typed.
  */
-export function ChatMarkdown({ children }: { children: string }) {
+export function ChatMarkdown({
+  children,
+  allowedPaths,
+}: {
+  children: string;
+  allowedPaths?: readonly string[];
+}) {
+  const linkable = new Set(allowedPaths ?? []);
+
   return (
     <div className="ai-prose">
       <ReactMarkdown
@@ -37,7 +55,14 @@ export function ChatMarkdown({ children }: { children: string }) {
               <table>{cells}</table>
             </div>
           ),
-          a: ({ children: label }) => <span>{label}</span>,
+          a: ({ href, children: label }) =>
+            href && linkable.has(href) ? (
+              <Link href={href} className="underline underline-offset-2">
+                {label}
+              </Link>
+            ) : (
+              <span>{label}</span>
+            ),
           img: () => null,
         }}
       >
