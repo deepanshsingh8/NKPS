@@ -5,11 +5,16 @@
 -- Checks the things that actually break silently rather than loudly: a missing
 -- RLS flag, a policy that was never created, an absent foreign key. A table
 -- existing proves very little on its own.
+--
+-- The column is check_name, not check. CHECK is a fully reserved keyword;
+-- Postgres tolerates it as a column LABEL after an explicit AS, so the first
+-- SELECT parsed fine and the final one — which has to reference it bare —
+-- failed with "syntax error at or near check". Do not rename it back.
 
 WITH checks AS (
 
   -- ── 110 school_profile ────────────────────────────────────────────────────
-  SELECT '110 school_profile table' AS check,
+  SELECT '110 school_profile table' AS check_name,
          (to_regclass('public.school_profile') IS NOT NULL) AS ok,
          'table exists' AS expected
   UNION ALL
@@ -104,7 +109,7 @@ WITH checks AS (
   UNION ALL
   SELECT '114 ai_conversations is listable and soft-deletable',
          (SELECT count(*) = 4 FROM information_schema.columns
-          WHERE table_name = 'ai_conversations'
+          WHERE table_schema = 'public' AND table_name = 'ai_conversations'
             AND column_name IN ('title','title_source','deleted_at','deleted_by')),
          'title, title_source, deleted_at, deleted_by'
   UNION ALL
@@ -116,13 +121,13 @@ WITH checks AS (
   UNION ALL
   SELECT '114 ai_messages can carry a per-turn failure and a redaction',
          (SELECT count(*) = 2 FROM information_schema.columns
-          WHERE table_name = 'ai_messages'
+          WHERE table_schema = 'public' AND table_name = 'ai_messages'
             AND column_name IN ('error_code','redacted_at')),
          'error_code, redacted_at'
   UNION ALL
   SELECT '114 a query run knows which answer owns it, and what to call it',
          (SELECT count(*) = 2 FROM information_schema.columns
-          WHERE table_name = 'ai_query_runs'
+          WHERE table_schema = 'public' AND table_name = 'ai_query_runs'
             AND column_name IN ('message_seq','purpose')),
          'message_seq, purpose'
   UNION ALL
@@ -130,7 +135,8 @@ WITH checks AS (
          (SELECT column_default LIKE '%24:00:00%'
                  OR column_default LIKE '%24 hours%'
             FROM information_schema.columns
-           WHERE table_name = 'ai_query_runs' AND column_name = 'expires_at'),
+           WHERE table_schema = 'public'
+             AND table_name = 'ai_query_runs' AND column_name = 'expires_at'),
          'ai_query_runs.expires_at defaults to now() + 24 hours'
   UNION ALL
   SELECT '114 no user message still carries the injected session prefix',
@@ -151,7 +157,7 @@ WITH checks AS (
 )
 SELECT
   CASE WHEN ok THEN 'PASS' ELSE '*** FAIL ***' END AS result,
-  check,
+  check_name,
   expected
 FROM checks
-ORDER BY ok, check;
+ORDER BY ok, check_name;

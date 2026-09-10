@@ -78,3 +78,32 @@ settled second — non-deterministic.
 4. Prompt guidance ("finish with the query your answer is about") is a nudge;
    labelling the table with what it actually is, is the guarantee. Prefer the
    guarantee, add the nudge.
+
+---
+
+## 2026-09-10 — Validate SQL with a parser before handing someone a script
+
+**What happened:** I told the user to run `_verify-ai-feature-migrations.sql`.
+It failed immediately: `ERROR: 42601: syntax error at or near "check"`. The
+script's CTE column was named `check`, a fully reserved Postgres keyword.
+
+**Why it survived review:** Postgres tolerates a reserved word as a column
+*label* after an explicit `AS`, so `SELECT 'x' AS check` parses fine. It only
+fails where the name is referenced bare — 140 lines later in the final SELECT.
+The bug was invisible at the definition and only real at the use site. I had
+also added seven new checks to this file without ever parsing it.
+
+**How to apply next time:**
+1. **`pglast` is the actual Postgres parser (libpg_query) as a Python package.**
+   `pip install pglast`, then `parse_sql(open(f).read())`. No database, no
+   connection string, no credentials. There is now no excuse for shipping a
+   `.sql` file unparsed.
+2. Sweep the whole repo, not just the file you touched — one loop over
+   `scripts/**/*.sql` plus `supabase-schema.sql` took seconds and would have
+   caught this the day it was written.
+3. **A migration is code the user runs by hand.** They cannot iterate on it the
+   way I can, and a syntax error costs them a round trip. Hold SQL to a higher
+   bar than TypeScript, which at least has a typechecker in the loop.
+4. Reserved words that read as ordinary nouns are the trap: `check`, `order`,
+   `user`, `table`, `column`, `default`, `references`. If a column name is one
+   of those, rename it — quoting it just moves the problem.
