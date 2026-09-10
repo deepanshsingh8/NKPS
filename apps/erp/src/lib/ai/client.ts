@@ -77,6 +77,13 @@ export const AI_MODELS = {
   parent: "claude-opus-5",
   /** Naming a saved chat. One short call, no tools — see above. */
   title: "claude-haiku-4-5-20251001",
+  /**
+   * The in-app guide. Opus, not Haiku, despite being the highest-volume
+   * surface: its whole job is to be trusted about which button to press, and
+   * a guide that confidently names a control that does not exist costs more
+   * than the tokens saved. `effort` is the lever here instead.
+   */
+  guide: "claude-opus-5",
 } as const;
 
 /**
@@ -91,6 +98,8 @@ export const AI_EFFORT = {
   ask: "high",
   remarks: "medium",
   parent: "low",
+  /** Retrieval plus a short explanation — the hard part is not reasoning. */
+  guide: "low",
 } as const;
 
 /**
