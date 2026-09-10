@@ -45,9 +45,9 @@ import {
   BarChart3,
 } from "lucide-react";
 import { formatClassName } from "@nkps/shared/lib/utils";
+import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
+import { toast } from "sonner";
 
-/** PostgREST caps a response at 1000 rows unless an explicit range is given. */
-const ROW_CAP = 99999;
 
 interface ClassOption {
   id: string;
@@ -178,22 +178,49 @@ export default function AdminAttendancePage() {
       // TODO: unfiltered by status, so an exited student still counts toward
       // the class roster here — the teacher dashboard counts only 'active'.
       // Left as-is: this refactor is not changing what the numbers mean.
-      supabase
-        .from("student_enrollments")
-        .select("class_id")
-        .in("class_id", classIds)
-        .range(0, ROW_CAP),
-      supabase
-        .from("attendance")
-        .select("class_id, status")
-        .in("class_id", classIds)
-        .gte("date", dateFrom)
-        .lte("date", dateTo)
-        // A term-long range over every class runs to tens of thousands of
-        // rows; truncated at the default 1000 the table would under-report
-        // attendance with no error to notice.
-        .range(0, ROW_CAP),
+      fetchAllRows<{ class_id: string }>((from, to) =>
+        supabase
+          .from("student_enrollments")
+          .select("class_id")
+          .in("class_id", classIds)
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      // A term-long range over every class runs to tens of thousands of rows.
+      // `.range(0, 99999)` did not lift PostgREST's 1000-row cap — a Range
+      // header can only ask for less than the cap — so this table was drawn
+      // from the first thousand marks of the term and under-reported every
+      // class, with no error to notice. Paged, and ordered by id so the pages
+      // are disjoint.
+      fetchAllRows<{ class_id: string; status: string }>((from, to) =>
+        supabase
+          .from("attendance")
+          .select("class_id, status")
+          .in("class_id", classIds)
+          .gte("date", dateFrom)
+          .lte("date", dateTo)
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
     ]);
+
+    // A read that failed or stopped short would show up as a low percentage
+    // rather than as an error, so it is reported and nothing is drawn.
+    if (
+      enrollmentRes.error ||
+      enrollmentRes.truncated ||
+      attendanceRes.error ||
+      attendanceRes.truncated
+    ) {
+      console.error(
+        "Attendance stats read failed:",
+        enrollmentRes.error ?? attendanceRes.error ?? "read stopped at the paging guard"
+      );
+      toast.error("Could not load attendance figures");
+      setClassStats([]);
+      setLoadingStats(false);
+      return;
+    }
 
     const enrolledByClass = new Map<string, number>();
     for (const row of enrollmentRes.data ?? []) {

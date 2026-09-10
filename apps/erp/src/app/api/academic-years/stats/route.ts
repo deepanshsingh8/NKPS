@@ -10,11 +10,19 @@
 
 import { NextResponse } from "next/server";
 import { getCallerAccess } from "@nkps/shared/lib/verify-admin";
+import {
+  fetchAllRows,
+  type PagedResult,
+} from "@nkps/shared/lib/fetch-all-rows";
 
 export const runtime = "nodejs";
 
-/** PostgREST caps a response at 1000 rows unless an explicit range is given. */
-const ROW_CAP = 99999;
+// PostgREST caps a response at Supabase's db-max-rows (1000), and a `Range`
+// header cannot lift that cap — it can only ask for less. These three reads
+// are unfiltered by design (one pass over the whole history, grouped in
+// memory), so they are the reads most certain to cross it: a school in its
+// third session already holds more enrolments than the cap, and the archive
+// was comparing sessions from whatever thousand rows came back first.
 
 /** Payment rows that represent money actually received. */
 const COLLECTED_STATUSES = ["paid", "partial"];
@@ -46,18 +54,44 @@ export async function GET() {
 
   try {
     const [enrollmentsRes, classesRes, paymentsRes] = await Promise.all([
-      admin
-        .from("student_enrollments")
-        .select("academic_year_id, status")
-        .range(0, ROW_CAP),
-      admin.from("classes").select("academic_year_id").range(0, ROW_CAP),
+      // Ordered by id so the pages are disjoint — LIMIT/OFFSET without a total
+      // order can repeat a row at a page boundary while dropping another, and
+      // here that would move a student between two sessions' counts.
+      fetchAllRows<{ academic_year_id: string | null; status: string | null }>(
+        (from, to) =>
+          admin
+            .from("student_enrollments")
+            .select("academic_year_id, status")
+            .order("id", { ascending: true })
+            .range(from, to)
+      ),
+      fetchAllRows<{ academic_year_id: string | null }>((from, to) =>
+        admin
+          .from("classes")
+          .select("academic_year_id")
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
       canSeeFees
-        ? admin
-            .from("fee_payments")
-            .select("academic_year_id, amount_paid, refund_amount, status")
-            .in("status", COLLECTED_STATUSES)
-            .range(0, ROW_CAP)
-        : Promise.resolve({ data: [], error: null }),
+        ? fetchAllRows<{
+            academic_year_id: string | null;
+            amount_paid: number | null;
+            refund_amount: number | null;
+            status: string | null;
+          }>((from, to) =>
+            admin
+              .from("fee_payments")
+              .select("academic_year_id, amount_paid, refund_amount, status")
+              .in("status", COLLECTED_STATUSES)
+              .order("id", { ascending: true })
+              .range(from, to)
+          )
+        : ({ data: [], error: null, truncated: false } as PagedResult<{
+            academic_year_id: string | null;
+            amount_paid: number | null;
+            refund_amount: number | null;
+            status: string | null;
+          }>),
     ]);
 
     for (const [label, res] of [
@@ -65,8 +99,14 @@ export async function GET() {
       ["classes", classesRes],
       ["payments", paymentsRes],
     ] as const) {
-      if (res.error) {
-        console.error(`Session stats: ${label} query failed:`, res.error);
+      // A short read is failed, not published: every figure here is a total,
+      // and a total built from part of the table is wrong in a way nothing on
+      // the screen would show.
+      if (res.error || res.truncated) {
+        console.error(
+          `Session stats: ${label} query failed:`,
+          res.error ?? "read stopped at the paging guard"
+        );
         return NextResponse.json(
           { error: "Failed to build session summary" },
           { status: 500 }
@@ -91,19 +131,14 @@ export async function GET() {
       return row;
     };
 
-    for (const e of (enrollmentsRes.data ?? []) as {
-      academic_year_id: string | null;
-      status: string | null;
-    }[]) {
+    for (const e of enrollmentsRes.data) {
       if (!e.academic_year_id) continue;
       const row = ensure(e.academic_year_id);
       row.students += 1;
       if (e.status === "exited" || e.status === "terminated") row.left += 1;
     }
 
-    for (const c of (classesRes.data ?? []) as {
-      academic_year_id: string | null;
-    }[]) {
+    for (const c of classesRes.data) {
       if (!c.academic_year_id) continue;
       ensure(c.academic_year_id).classes += 1;
     }
@@ -113,11 +148,7 @@ export async function GET() {
     // cannot be attributed to a session. Those are excluded and the response
     // says so, rather than quietly under-reporting a year's collection.
     let unattributed = 0;
-    for (const p of (paymentsRes.data ?? []) as {
-      academic_year_id: string | null;
-      amount_paid: number | null;
-      refund_amount: number | null;
-    }[]) {
+    for (const p of paymentsRes.data) {
       if (!p.academic_year_id) {
         unattributed += 1;
         continue;

@@ -21,8 +21,8 @@ import {
  *  2. report-query.ts was written and tested against a service client. Under
  *     RLS every .in() batch silently shrinks, so `total` becomes "rows I could
  *     see" while still reading as "rows matching your filter".
- *  3. ROW_CAP is 19,999 with no pagination. Per-row policy functions over that
- *     many rows turn an admin query into minutes.
+ *  3. Its reads page a whole cohort's rows into memory. Per-row policy
+ *     functions over that many rows turn an admin query into minutes.
  *  4. The SQL scope helpers do not work under service role anyway:
  *     get_my_parent_id(), get_my_children_ids() and get_my_class_ids() all
  *     resolve through auth.uid(), which is NULL there — so they return empty

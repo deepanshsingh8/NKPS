@@ -19,6 +19,7 @@ import {
 import { cn, dayOfWeekFromDate, formatTime12, timeStringToMinutes, nowMinutes } from "@nkps/shared/lib/utils";
 import { UpcomingEvents } from "@nkps/shared/components/UpcomingEvents";
 import type { Profile } from "@nkps/shared/types";
+import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
 
 interface TeacherStats {
   classCount: number;
@@ -49,8 +50,6 @@ interface PendingResult {
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-/** PostgREST caps a response at 1000 rows unless an explicit range is given. */
-const ROW_CAP = 99999;
 
 export default function TeacherDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -200,22 +199,38 @@ export default function TeacherDashboard() {
           // exam) was 30+ serial round trips before the dashboard rendered.
           // Both lists are a single teacher's assignments, so they stay well
           // inside the URL length an `.in()` filter can carry.
+          // Paged: `.range(0, 99999)` cannot lift PostgREST's 1000-row cap,
+          // it can only ask for less than it. A teacher with several classes
+          // across several exams holds well over a thousand result rows, and
+          // the ones past the cap read as marks still to be entered — the
+          // shortfall table's whole subject. Ordered by id so the pages are
+          // disjoint.
           const [enrollmentRes, resultsRes] = await Promise.all([
-            supabase
-              .from("student_enrollments")
-              .select("class_id")
-              .in("class_id", classIds)
-              .eq("status", "active")
-              .range(0, ROW_CAP),
-            supabase
-              .from("results")
-              .select("class_id, subject_id, exam_type_id")
-              .in("class_id", classIds)
-              // Narrowed to the combinations actually consulted below, so a
-              // class's other subjects never cross the wire.
-              .in("subject_id", subjectIds)
-              .in("exam_type_id", examTypeIds)
-              .range(0, ROW_CAP),
+            fetchAllRows<{ class_id: string }>((from, to) =>
+              supabase
+                .from("student_enrollments")
+                .select("class_id")
+                .in("class_id", classIds)
+                .eq("status", "active")
+                .order("id", { ascending: true })
+                .range(from, to)
+            ),
+            fetchAllRows<{
+              class_id: string;
+              subject_id: string;
+              exam_type_id: string;
+            }>((from, to) =>
+              supabase
+                .from("results")
+                .select("class_id, subject_id, exam_type_id")
+                .in("class_id", classIds)
+                // Narrowed to the combinations actually consulted below, so a
+                // class's other subjects never cross the wire.
+                .in("subject_id", subjectIds)
+                .in("exam_type_id", examTypeIds)
+                .order("id", { ascending: true })
+                .range(from, to)
+            ),
           ]);
 
           // Enrollment counts per class

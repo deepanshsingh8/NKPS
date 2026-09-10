@@ -9,6 +9,7 @@ import {
   studentsInsertKeys,
 } from "@nkps/shared/lib/student-template";
 import { fetchSessionRoster } from "@/lib/student-roster";
+import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
 import {
   logHistoricalCorrection,
   parseHistoricalCorrection,
@@ -74,18 +75,29 @@ export async function GET(request: NextRequest) {
     // main listing deliberately excludes is_alumni rows (they accumulate into
     // the thousands, one cohort per year, and would swamp the working list).
     if (scope === "alumni") {
-      const { data, error } = await admin
-        .from("students")
-        .select(
-          "id, full_name, admission_no, father_name, mother_name, phone, is_active, is_alumni, alumni_passing_year, alumni_academic_year_id"
-        )
-        .eq("is_alumni", true)
-        .order("alumni_passing_year", { ascending: false, nullsFirst: false })
-        .order("full_name", { ascending: true })
-        .range(0, 9999);
+      // Paged, not .range(0, 9999): a Range header cannot lift PostgREST's
+      // 1000-row cap, only ask for less than it, and alumni accumulate a
+      // cohort a year. `id` is the final sort key so the pages are disjoint —
+      // two alumni can share a passing year and a name, and an unstable order
+      // at a page boundary repeats one row while dropping another.
+      const { data, error, truncated } = await fetchAllRows((from, to) =>
+        admin
+          .from("students")
+          .select(
+            "id, full_name, admission_no, father_name, mother_name, phone, is_active, is_alumni, alumni_passing_year, alumni_academic_year_id"
+          )
+          .eq("is_alumni", true)
+          .order("alumni_passing_year", { ascending: false, nullsFirst: false })
+          .order("full_name", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+      );
 
-      if (error) {
-        console.error("Fetch alumni error:", error);
+      if (error || truncated) {
+        console.error(
+          "Fetch alumni error:",
+          error ?? "read stopped at the paging guard"
+        );
         return NextResponse.json(
           { error: "Failed to fetch alumni" },
           { status: 500 }
@@ -133,9 +145,16 @@ export async function GET(request: NextRequest) {
       // by ?scope=alumni above and number in the thousands. `IS NOT TRUE`
       // keeps rows where is_alumni is false OR null (nullable, false default).
       //
-      // .range(0, 9999) pushes past PostgREST's 1000-row default cap so the now
-      // larger list (active + passed/failed + terminated/exited) isn't silently
-      // truncated.
+      // Both list reads are paged. A Range header cannot lift PostgREST's
+      // 1000-row cap — it only asks for less than it — so the old
+      // `.range(0, 9999)` read the first 1000 rows and returned a 200. The
+      // enrollments query is the one that had already crossed it: it spans
+      // every academic year, so a school in its second session holds more
+      // enrollment rows than students, and the students whose row fell past
+      // the cap rendered as "Unassigned" with no class or roll number.
+      //
+      // `id` is the last sort key on each so the pages are disjoint;
+      // LIMIT/OFFSET without a total order can repeat a row and skip another.
       //
       // The three queries below are independent, so they are issued together.
       // Run sequentially they cost three round trips to Postgres before any
@@ -143,29 +162,38 @@ export async function GET(request: NextRequest) {
       //
       // The projection is LIST_STUDENT_COLUMNS, not `*` — see its comment.
       const [studentsRes, currentYearRes, enrollmentsRes] = await Promise.all([
-        admin
-          .from("students")
-          .select(studentColumns)
-          .not("is_alumni", "is", true)
-          .order("full_name", { ascending: true })
-          .range(0, 9999),
+        fetchAllRows((from, to) =>
+          admin
+            .from("students")
+            .select(studentColumns)
+            .not("is_alumni", "is", true)
+            .order("full_name", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to)
+        ),
         admin
           .from("academic_years")
           .select("id")
           .eq("is_current", true)
           .maybeSingle(),
-        admin
-          .from("student_enrollments")
-          .select(
-            "student_id, roll_number, roll_number_manual, id, class_id, stream_id, house_id, status, status_reason, status_changed_at, academic_year_id, updated_at, has_transport, bus_stop_id, transport_direction, classes(name, section)"
-          )
-          .range(0, 9999),
+        fetchAllRows((from, to) =>
+          admin
+            .from("student_enrollments")
+            .select(
+              "student_id, roll_number, roll_number_manual, id, class_id, stream_id, house_id, status, status_reason, status_changed_at, academic_year_id, updated_at, has_transport, bus_stop_id, transport_direction, classes(name, section)"
+            )
+            .order("id", { ascending: true })
+            .range(from, to)
+        ),
       ]);
 
-      const { data: studentsData, error } = studentsRes;
+      const { data: studentsData, error, truncated } = studentsRes;
 
-      if (error) {
-        console.error("Fetch all students error:", error);
+      if (error || truncated) {
+        console.error(
+          "Fetch all students error:",
+          error ?? "read stopped at the paging guard"
+        );
         return NextResponse.json({ error: "Failed to fetch students" }, { status: 500 });
       }
 
@@ -191,9 +219,6 @@ export async function GET(request: NextRequest) {
       // Do NOT pre-filter by student_id either: `.in("student_id", [...])`
       // with a few hundred UUIDs overruns PostgREST's URL length and silently
       // returns nothing.
-      //
-      // Explicit .range(0, 9999) pushes past PostgREST's default 1000-row cap
-      // so schools with long enrollment history aren't silently truncated.
       const currentYearId = currentYearRes.data?.id ?? null;
 
       const { data: enrollments, error: enrollError } = enrollmentsRes;

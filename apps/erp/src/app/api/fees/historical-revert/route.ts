@@ -25,6 +25,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
+import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
 
 export async function POST(req: NextRequest) {
   // Admin-only auth. Read the bearer token + verify role='admin' inline so
@@ -298,18 +299,29 @@ async function countFollowupNativePayments(
   const studentIds = [...new Set(pairs.map((p) => p.student_id))];
 
   let total = 0;
-  // Chunked to keep the PostgREST query string within limits.
+  // Chunked to keep the PostgREST query string within limits, and each chunk
+  // paged: `.range(0, 9999)` cannot lift PostgREST's 1000-row cap, and a short
+  // read here UNDER-counts the follow-up payments that make a revert unsafe.
+  // Every other failure in this function returns Infinity precisely so the
+  // revert is refused rather than allowed on incomplete information; a
+  // truncated read has to do the same.
   for (let i = 0; i < studentIds.length; i += 200) {
     const chunk = studentIds.slice(i, i + 200);
-    const { data, error } = await admin
-      .from("fee_payments")
-      .select("student_id, fee_structure_id")
-      .in("student_id", chunk)
-      .eq("source", "erp_native")
-      .not("fee_structure_id", "is", null)
-      .range(0, 9999);
-    if (error) return Number.POSITIVE_INFINITY;
-    for (const row of data ?? []) {
+    const { data, error, truncated } = await fetchAllRows<{
+      student_id: string;
+      fee_structure_id: string;
+    }>((from, to) =>
+      admin
+        .from("fee_payments")
+        .select("student_id, fee_structure_id")
+        .in("student_id", chunk)
+        .eq("source", "erp_native")
+        .not("fee_structure_id", "is", null)
+        .order("id", { ascending: true })
+        .range(from, to)
+    );
+    if (error || truncated) return Number.POSITIVE_INFINITY;
+    for (const row of data) {
       if (wanted.has(`${row.student_id}::${row.fee_structure_id}`)) total += 1;
     }
   }

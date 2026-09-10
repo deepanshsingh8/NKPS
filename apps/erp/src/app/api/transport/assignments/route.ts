@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
+import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
 
 /**
  * Year-scoped data for /transport/assignments.
@@ -61,16 +62,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ year: null, enrollments: [], fees: [] });
     }
 
-    // .range(0, 9999) pushes past PostgREST's 1000-row default cap — a full
-    // school's enrollments exceed it, and the truncation would be silent.
+    // Paged. `.range(0, 9999)` never pushed past PostgREST's 1000-row cap — a
+    // Range header can only ask for less than it — so a full school's
+    // enrolments stopped at a thousand and the students past that simply were
+    // not on the screen the office assigns stops from. Ordered by id so the
+    // pages are disjoint.
     const [enrollRes, feesRes] = await Promise.all([
-      admin
-        .from("student_enrollments")
-        .select(
-          "id, student_id, class_id, status, has_transport, bus_stop_id, bus_id, transport_direction, transport_fee_override, pickup_address, students(full_name, admission_no), classes(name, section, streams(name))"
-        )
-        .eq("academic_year_id", year.id)
-        .range(0, 9999),
+      fetchAllRows((from, to) =>
+        admin
+          .from("student_enrollments")
+          .select(
+            "id, student_id, class_id, status, has_transport, bus_stop_id, bus_id, transport_direction, transport_fee_override, pickup_address, students(full_name, admission_no), classes(name, section, streams(name))"
+          )
+          .eq("academic_year_id", year.id)
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
       admin
         .from("bus_stop_fees")
         .select("*")
@@ -78,10 +85,10 @@ export async function GET(request: Request) {
         .eq("is_active", true),
     ]);
 
-    if (enrollRes.error) {
+    if (enrollRes.error || enrollRes.truncated) {
       console.error(
         "Transport assignments: fetch enrollments error:",
-        enrollRes.error
+        enrollRes.error ?? "read stopped at the paging guard"
       );
       return NextResponse.json(
         { error: "Failed to load enrollments" },
@@ -91,7 +98,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       year,
-      enrollments: enrollRes.data ?? [],
+      enrollments: enrollRes.data,
       fees: feesRes.data ?? [],
     });
   } catch (err) {

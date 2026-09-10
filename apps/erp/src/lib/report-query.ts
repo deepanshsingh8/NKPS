@@ -22,12 +22,18 @@
  * returning nothing rather than by erroring (the students route carries the
  * same warning). So the two sides are fetched independently and merged here.
  *
- * That caps this at roughly the 20k rows the `.range()` calls allow, which is
- * ~20 years of enrollments at this school's size. Past that the merge should
- * move into a Postgres view or RPC; it is not a rewrite, just a relocation.
+ * Every list read below is paged to completion with fetchAllRows(), so the
+ * merge is bounded by memory rather than by a row cap. It used to carry
+ * `.range(0, 19_999)` in the belief that this lifted PostgREST's limit; it
+ * does not — a Range header can only ask for LESS than the server's
+ * db-max-rows (1000 on Supabase) — so every report was silently built from
+ * the first thousand rows of each table it touched. If the merge ever outgrows
+ * memory it should move into a Postgres view or RPC; that is a relocation, not
+ * a rewrite.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
 import {
   type ReportField,
   type ReportRow,
@@ -59,8 +65,34 @@ const FEE_ENROLLMENT_COLUMNS = [
   "transport_fee_override",
 ];
 
-/** PostgREST's default cap is 1000; every list query here must push past it. */
-const ROW_CAP = 19_999;
+/**
+ * Read a whole table's worth of matching rows, or fail loudly.
+ *
+ * A report that quietly omits students is worse than one that does not print:
+ * the omission is invisible on the page and the sheet gets filed. So both a
+ * failed read and one that stops at the paging guard raise, and every read
+ * carries an `.order("id")` — LIMIT/OFFSET without a total order can repeat a
+ * row at one page boundary while dropping another.
+ */
+async function readAll<Row>(
+  what: string,
+  page: (from: number, to: number) => unknown,
+  opts: { maxRows?: number } = {}
+): Promise<Row[]> {
+  const { data, error, truncated } = await fetchAllRows<Row>(
+    (from, to) =>
+      page(from, to) as PromiseLike<{
+        data: Row[] | null;
+        error: { message: string } | null;
+      }>,
+    opts
+  );
+  if (error) throw new ReportQueryError(`Failed to load ${what}`, 500);
+  if (truncated) {
+    throw new ReportQueryError(`Too many ${what} to build this report`, 400);
+  }
+  return data;
+}
 
 export interface ReportResult {
   rows: ReportRow[];
@@ -123,19 +155,23 @@ export async function runStudentReport(
   // Needed for the class/section columns and to scope the class filter — class
   // rows are themselves year-scoped, so a class id from another year must not
   // match here.
-  let classQuery = admin
-    .from("classes")
-    .select("id, name, section, stream_id, sort_order")
-    .eq("academic_year_id", session.id)
-    .range(0, ROW_CAP);
+  const classes = await readAll<{
+    id: string;
+    name: string;
+    section: string | null;
+    stream_id: string | null;
+    sort_order: number | null;
+  }>("classes", (from, to) => {
+    let q = admin
+      .from("classes")
+      .select("id, name, section, stream_id, sort_order")
+      .eq("academic_year_id", session.id);
+    if (filters.class_ids.length) q = q.in("id", filters.class_ids);
+    if (filters.section) q = q.eq("section", filters.section);
+    return q.order("id", { ascending: true }).range(from, to);
+  });
 
-  if (filters.class_ids.length) classQuery = classQuery.in("id", filters.class_ids);
-  if (filters.section) classQuery = classQuery.eq("section", filters.section);
-
-  const { data: classes, error: classError } = await classQuery;
-  if (classError) throw new ReportQueryError("Failed to load classes", 500);
-
-  const classIds = (classes ?? []).map((c) => c.id as string);
+  const classIds = classes.map((c) => c.id);
   // A class filter that matches nothing in this session is an empty report,
   // not an error — the admin picked a class that did not run that year.
   if (classIds.length === 0) {
@@ -150,37 +186,33 @@ export async function runStudentReport(
   // Only when the caller narrowed to specific classes — listing all 20 on a
   // whole-school report would push the real filters off the page.
   const classLabels = filters.class_ids.length
-    ? (classes ?? []).map((c) =>
-        c.section ? `${c.name}-${c.section}` : String(c.name)
-      )
+    ? classes.map((c) => (c.section ? `${c.name}-${c.section}` : String(c.name)))
     : [];
 
   const classById = new Map(
-    (classes ?? []).map((c) => [
-      c.id as string,
-      { name: c.name as string, section: (c.section as string | null) ?? null },
-    ])
+    classes.map((c) => [c.id, { name: c.name, section: c.section ?? null }])
   );
 
   // ── 3. Enrollments — the driving table ────────────────────────────────────
   const enrollmentColumns = new Set(enrollmentColumnsFor(fields));
   if (joins.fees) for (const c of FEE_ENROLLMENT_COLUMNS) enrollmentColumns.add(c);
 
-  let enrolQuery = admin
-    .from("student_enrollments")
-    .select([...enrollmentColumns].join(", "))
-    .eq("academic_year_id", session.id)
-    .in("class_id", classIds)
-    .in("status", filters.statuses)
-    .range(0, ROW_CAP);
-
-  if (filters.stream_id) enrolQuery = enrolQuery.eq("stream_id", filters.stream_id);
-  if (filters.house_id) enrolQuery = enrolQuery.eq("house_id", filters.house_id);
-  enrolQuery = applyTriState(enrolQuery, "has_transport", filters.has_transport);
-
-  const { data: enrollments, error: enrolError } = await enrolQuery;
-  if (enrolError) throw new ReportQueryError("Failed to load enrollments", 500);
-  if (!enrollments?.length) {
+  const enrollments = await readAll<Record<string, unknown>>(
+    "enrollments",
+    (from, to) => {
+      let q = admin
+        .from("student_enrollments")
+        .select([...enrollmentColumns].join(", "))
+        .eq("academic_year_id", session.id)
+        .in("class_id", classIds)
+        .in("status", filters.statuses);
+      if (filters.stream_id) q = q.eq("stream_id", filters.stream_id);
+      if (filters.house_id) q = q.eq("house_id", filters.house_id);
+      q = applyTriState(q, "has_transport", filters.has_transport);
+      return q.order("id", { ascending: true }).range(from, to);
+    }
+  );
+  if (!enrollments.length) {
     return {
       rows: [],
       total: 0,
@@ -196,48 +228,42 @@ export async function runStudentReport(
   // student for an admission fee would overstate their balance.
   if (joins.fees) studentColumns.add("admission_date");
 
-  let studentQuery = admin
-    .from("students")
-    .select([...studentColumns].join(", "))
-    .range(0, ROW_CAP);
-
   // `ilike` with wrapped wildcards is the "contains" the old screen offered.
   // The escape matters: an admin pasting a name with % or _ would otherwise
   // get a silently different match set.
   const escapeLike = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`);
-  if (filters.name_contains) {
-    studentQuery = studentQuery.ilike("full_name", `%${escapeLike(filters.name_contains)}%`);
-  }
-  if (filters.father_name_contains) {
-    studentQuery = studentQuery.ilike("father_name", `%${escapeLike(filters.father_name_contains)}%`);
-  }
-  if (filters.admission_date_from) studentQuery = studentQuery.gte("admission_date", filters.admission_date_from);
-  if (filters.admission_date_to) studentQuery = studentQuery.lte("admission_date", filters.admission_date_to);
-  if (filters.dob_from) studentQuery = studentQuery.gte("date_of_birth", filters.dob_from);
-  if (filters.dob_to) studentQuery = studentQuery.lte("date_of_birth", filters.dob_to);
-  if (filters.gender) studentQuery = studentQuery.eq("gender", filters.gender);
-  if (filters.category) studentQuery = studentQuery.eq("category", filters.category);
-  if (filters.religion) studentQuery = studentQuery.eq("religion", filters.religion);
-  if (filters.minority_group) studentQuery = studentQuery.eq("minority_group", filters.minority_group);
-  if (filters.area_type) studentQuery = studentQuery.eq("area_type", filters.area_type);
 
-  studentQuery = applyTriState(studentQuery, "is_rte", filters.is_rte);
-  studentQuery = applyTriState(studentQuery, "is_bpl", filters.is_bpl);
-  studentQuery = applyTriState(studentQuery, "is_ews", filters.is_ews);
-  studentQuery = applyTriState(studentQuery, "is_cwsn", filters.is_cwsn);
-  studentQuery = applyTriState(studentQuery, "is_staff_ward", filters.is_staff_ward);
+  const students = await readAll<Record<string, unknown>>(
+    "students",
+    (from, to) => {
+      let q = admin.from("students").select([...studentColumns].join(", "));
+      if (filters.name_contains) {
+        q = q.ilike("full_name", `%${escapeLike(filters.name_contains)}%`);
+      }
+      if (filters.father_name_contains) {
+        q = q.ilike("father_name", `%${escapeLike(filters.father_name_contains)}%`);
+      }
+      if (filters.admission_date_from) q = q.gte("admission_date", filters.admission_date_from);
+      if (filters.admission_date_to) q = q.lte("admission_date", filters.admission_date_to);
+      if (filters.dob_from) q = q.gte("date_of_birth", filters.dob_from);
+      if (filters.dob_to) q = q.lte("date_of_birth", filters.dob_to);
+      if (filters.gender) q = q.eq("gender", filters.gender);
+      if (filters.category) q = q.eq("category", filters.category);
+      if (filters.religion) q = q.eq("religion", filters.religion);
+      if (filters.minority_group) q = q.eq("minority_group", filters.minority_group);
+      if (filters.area_type) q = q.eq("area_type", filters.area_type);
 
-  const { data: students, error: studentError } = await studentQuery;
-  if (studentError) throw new ReportQueryError("Failed to load students", 500);
+      q = applyTriState(q, "is_rte", filters.is_rte);
+      q = applyTriState(q, "is_bpl", filters.is_bpl);
+      q = applyTriState(q, "is_ews", filters.is_ews);
+      q = applyTriState(q, "is_cwsn", filters.is_cwsn);
+      q = applyTriState(q, "is_staff_ward", filters.is_staff_ward);
+      return q.order("id", { ascending: true }).range(from, to);
+    }
+  );
 
   const studentById = new Map(
-    // The select list is built at runtime, so supabase-js widens the row
-    // type to its error union; the query error is checked above, so the row
-    // really is a record by this point.
-    (students ?? []).map((s) => {
-      const row = s as unknown as Record<string, unknown>;
-      return [row.id as string, row] as const;
-    })
+    students.map((row) => [row.id as string, row] as const)
   );
 
   // ── 5. Small lookup tables ────────────────────────────────────────────────
@@ -264,29 +290,45 @@ export async function runStudentReport(
   let studentsWithSubject: Set<string> | null = null;
 
   if (joins.subjects || filters.subject_id) {
-    const { data: classSubjects } = await admin
-      .from("class_subjects")
-      .select("id, subject_id, subjects(name)")
-      .in("class_id", classIds)
-      .range(0, ROW_CAP);
+    const classSubjects = await readAll<{
+      id: string;
+      subject_id: string;
+      subjects: { name: string } | { name: string }[] | null;
+    }>("subjects", (from, to) =>
+      admin
+        .from("class_subjects")
+        .select("id, subject_id, subjects(name)")
+        .in("class_id", classIds)
+        .order("id", { ascending: true })
+        .range(from, to)
+    );
 
     const csMeta = new Map(
-      (classSubjects ?? []).map((cs) => {
-        const rel = cs.subjects as { name: string } | { name: string }[] | null;
+      classSubjects.map((cs) => {
+        const rel = cs.subjects;
         const name = Array.isArray(rel) ? rel[0]?.name : rel?.name;
-        return [cs.id as string, { subjectId: cs.subject_id as string, name: name ?? "" }];
+        return [cs.id, { subjectId: cs.subject_id, name: name ?? "" }];
       })
     );
 
-    const { data: picks } = await admin
-      .from("student_subjects")
-      .select("student_id, class_subject_id")
-      .in("class_subject_id", [...csMeta.keys()])
-      .range(0, ROW_CAP);
+    // One class_subject links every student taking that subject, so this is
+    // the read most likely to run past a thousand rows on a whole-school
+    // report — it was, and the students past the cap printed no subjects.
+    const picks = await readAll<{
+      student_id: string;
+      class_subject_id: string;
+    }>("subject choices", (from, to) =>
+      admin
+        .from("student_subjects")
+        .select("student_id, class_subject_id")
+        .in("class_subject_id", [...csMeta.keys()])
+        .order("id", { ascending: true })
+        .range(from, to)
+    );
 
     subjectsByStudent = new Map();
     studentsWithSubject = new Set();
-    for (const p of picks ?? []) {
+    for (const p of picks) {
       const meta = csMeta.get(p.class_subject_id as string);
       if (!meta) continue;
       const sid = p.student_id as string;
@@ -317,34 +359,54 @@ export async function runStudentReport(
 
   if (joins.fees) {
     const today = todayISO();
-    const [structuresRes, stopFeesRes, paymentsRes] = await Promise.all([
-      admin
-        .from("fee_structures")
-        .select("*")
-        .eq("academic_year_id", sessionInfo.id)
-        .eq("is_active", true)
-        .range(0, ROW_CAP),
-      admin
-        .from("bus_stop_fees")
-        .select("bus_stop_id, amount, frequency, is_active, bus_stops(name)")
-        .eq("academic_year_id", sessionInfo.id)
-        .range(0, ROW_CAP),
+    const [structures, stopFees, sessionPayments] = await Promise.all([
+      readAll<FeeStructure & { class_name: string | null }>(
+        "fee structures",
+        (from, to) =>
+          admin
+            .from("fee_structures")
+            .select("*")
+            .eq("academic_year_id", sessionInfo.id)
+            .eq("is_active", true)
+            .order("id", { ascending: true })
+            .range(from, to)
+      ),
+      readAll<{
+        bus_stop_id: string;
+        amount: number | string;
+        frequency: string;
+        is_active: boolean;
+        bus_stops: { name: string } | { name: string }[] | null;
+      }>("stop fees", (from, to) =>
+        admin
+          .from("bus_stop_fees")
+          .select("bus_stop_id, amount, frequency, is_active, bus_stops(name)")
+          .eq("academic_year_id", sessionInfo.id)
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
       // Scoped to the session on purpose: a report headed "2024-25" must not
       // fold in a payment made towards 2025-26. That is why the columns are
       // labelled "(Session)" — see the note in report-fields.ts.
-      admin
-        .from("fee_payments")
-        .select(
-          "student_id, fee_structure_id, amount_paid, waiver_amount, refund_amount, status, payment_date, receipt_number"
-        )
-        .eq("academic_year_id", sessionInfo.id)
-        .range(0, ROW_CAP),
+      //
+      // A session's receipts run past a thousand rows on their own, so a
+      // report that read only the first thousand printed money the school had
+      // banked as still outstanding.
+      readAll<Record<string, unknown>>("fee payments", (from, to) =>
+        admin
+          .from("fee_payments")
+          .select(
+            "student_id, fee_structure_id, amount_paid, waiver_amount, refund_amount, status, payment_date, receipt_number"
+          )
+          .eq("academic_year_id", sessionInfo.id)
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
     ]);
 
     // fee_structures addresses a class by NAME, not by class id.
     const structuresByClassName = new Map<string, FeeStructure[]>();
-    for (const raw of structuresRes.data ?? []) {
-      const row = raw as unknown as FeeStructure & { class_name: string | null };
+    for (const row of structures) {
       const key = String(row.class_name ?? "");
       const list = structuresByClassName.get(key) ?? [];
       list.push(row);
@@ -352,14 +414,7 @@ export async function runStudentReport(
     }
 
     const stopFeesByStop = new Map<string, StopFeeLookup[]>();
-    for (const raw of stopFeesRes.data ?? []) {
-      const row = raw as unknown as {
-        bus_stop_id: string;
-        amount: number | string;
-        frequency: string;
-        is_active: boolean;
-        bus_stops: { name: string } | { name: string }[] | null;
-      };
+    for (const row of stopFees) {
       const rel = row.bus_stops;
       const list = stopFeesByStop.get(row.bus_stop_id) ?? [];
       list.push({
@@ -383,7 +438,7 @@ export async function runStudentReport(
       receipt_number: string | null;
     }
     const paymentsByStudent = new Map<string, PayRow[]>();
-    for (const raw of paymentsRes.data ?? []) {
+    for (const raw of sessionPayments) {
       const row = raw as unknown as PayRow;
       const list = paymentsByStudent.get(row.student_id) ?? [];
       list.push(row);
@@ -456,16 +511,34 @@ export async function runStudentReport(
   const attendanceByStudent = new Map<string, AttendanceBlock>();
 
   if (joins.attendance) {
-    const { data: marks } = await admin
-      .from("attendance")
-      .select("student_id, status")
-      .in("class_id", classIds)
-      .gte("date", sessionInfo.start_date)
-      .lte("date", sessionInfo.end_date)
-      .range(0, ROW_CAP);
+    // The heaviest read in the file, and the one the old cap distorted most:
+    // a whole school's marks for a whole session is roughly 200,000 rows
+    // (900 students x ~220 school days), of which 1,000 were read — so most
+    // of the school was credited with a handful of marks and given a
+    // percentage computed from them.
+    //
+    // Paging that is ~200 round trips for the widest possible report. The
+    // guard is set above it so a legitimate whole-school request completes
+    // rather than being refused; narrowing to a few classes, which is what
+    // most of these reports do, is a fraction of it. If this becomes slow
+    // enough to matter, the fix is a Postgres aggregate — per-student status
+    // counts are exactly what the database is good at, and it would return a
+    // few hundred rows instead of a few hundred thousand.
+    const marks = await readAll<{ student_id: string; status: string }>(
+      "attendance",
+      (from, to) =>
+        admin
+          .from("attendance")
+          .select("student_id, status")
+          .in("class_id", classIds)
+          .gte("date", sessionInfo.start_date)
+          .lte("date", sessionInfo.end_date)
+          .order("id", { ascending: true })
+          .range(from, to),
+      { maxRows: 500_000 }
+    );
 
-    for (const raw of marks ?? []) {
-      const row = raw as unknown as { student_id: string; status: string };
+    for (const row of marks) {
       const acc = attendanceByStudent.get(row.student_id) ?? {
         present: 0,
         absent: 0,
@@ -496,23 +569,29 @@ export async function runStudentReport(
   const resultsByStudent = new Map<string, ResultBlock>();
 
   if (joins.results) {
-    const { data: marks } = await admin
-      .from("results")
-      .select("student_id, subject_id, exam_type_id, marks_obtained, max_marks")
-      .in("class_id", classIds)
-      .range(0, ROW_CAP);
+    // One row per student per subject per exam — a whole-school report crosses
+    // a thousand inside the first exam of the year, and a full session of
+    // exams runs to tens of thousands.
+    const marks = await readAll<{
+      student_id: string;
+      subject_id: string | null;
+      exam_type_id: string | null;
+      marks_obtained: number | string | null;
+      max_marks: number | string | null;
+    }>("results", (from, to) =>
+      admin
+        .from("results")
+        .select("student_id, subject_id, exam_type_id, marks_obtained, max_marks")
+        .in("class_id", classIds)
+        .order("id", { ascending: true })
+        .range(from, to),
+      { maxRows: 500_000 }
+    );
 
     const seenSubjects = new Map<string, Set<string>>();
     const seenExams = new Map<string, Set<string>>();
 
-    for (const raw of marks ?? []) {
-      const row = raw as unknown as {
-        student_id: string;
-        subject_id: string | null;
-        exam_type_id: string | null;
-        marks_obtained: number | string | null;
-        max_marks: number | string | null;
-      };
+    for (const row of marks) {
       const obtained =
         row.marks_obtained == null ? null : Number(row.marks_obtained);
       const max = row.max_marks == null ? null : Number(row.max_marks);

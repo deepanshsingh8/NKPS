@@ -830,6 +830,10 @@ async function loadLedgerState(admin: AdminClient, academicYearId: string) {
         "student_id, fee_structure_id, bus_stop_id, amount_paid, waiver_amount, refund_amount, status, source, source_receipt_no"
       )
       .eq("academic_year_id", academicYearId)
+      // Ordered by id so the pages are disjoint: LIMIT/OFFSET without a total
+      // order can hand back one row twice and skip another, which here would
+      // double-count a receipt as already imported and drop a real one.
+      .order("id", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) return { importedByReceipt, settledByStudentStructure, nativeByStudent, error: error.message };
     const rows = data ?? [];

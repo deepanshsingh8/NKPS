@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
+import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
 
 /**
  * How many students each bus carries, for /transport/buses.
@@ -53,18 +54,29 @@ export async function GET(request: Request) {
 
     if (!year) return NextResponse.json({ year: null, loads: {} });
 
-    // .range(0, 9999) clears PostgREST's 1000-row default — a full school runs
-    // past it, and the truncation would silently under-report every bus.
-    const { data, error } = await admin
-      .from("student_enrollments")
-      .select("bus_id")
-      .eq("academic_year_id", year.id)
-      .eq("has_transport", true)
-      .not("bus_id", "is", null)
-      .range(0, 9999);
+    // Paged. `.range(0, 9999)` did not clear PostgREST's 1000-row cap — a
+    // Range header can only ask for less than the cap, never more — so a full
+    // school's transport roll stopped at a thousand riders and every bus was
+    // silently under-reported, which is how a full bus reads as having seats.
+    // Ordered by id so the pages are disjoint.
+    const { data, error, truncated } = await fetchAllRows<{
+      bus_id: string | null;
+    }>((from, to) =>
+      admin
+        .from("student_enrollments")
+        .select("bus_id")
+        .eq("academic_year_id", year.id)
+        .eq("has_transport", true)
+        .not("bus_id", "is", null)
+        .order("id", { ascending: true })
+        .range(from, to)
+    );
 
-    if (error) {
-      console.error("Bus load: fetch enrollments error:", error);
+    if (error || truncated) {
+      console.error(
+        "Bus load: fetch enrollments error:",
+        error ?? "read stopped at the paging guard"
+      );
       return NextResponse.json(
         { error: "Failed to load bus occupancy" },
         { status: 500 }
@@ -72,8 +84,8 @@ export async function GET(request: Request) {
     }
 
     const loads: Record<string, number> = {};
-    for (const row of data ?? []) {
-      const busId = (row as { bus_id: string | null }).bus_id;
+    for (const row of data) {
+      const busId = row.bus_id;
       if (busId) loads[busId] = (loads[busId] ?? 0) + 1;
     }
 

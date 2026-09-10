@@ -13,6 +13,7 @@
 // so the two can never disagree about who was in a class.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
 
 /**
  * PostgREST puts `in.(…)` in the URL, and the platform caps a URL at 8KB.
@@ -22,8 +23,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  */
 const ID_CHUNK = 200;
 
-/** PostgREST caps a response at 1000 rows unless an explicit range is given. */
-const ROW_CAP = 9999;
+// PostgREST caps a response at Supabase's db-max-rows (1000) and a `Range`
+// header cannot lift that cap — it can only ask for less. So every read below
+// pages until a short page comes back, and each carries an `.order()` on a
+// unique column: LIMIT/OFFSET without a total order can repeat a row at one
+// page boundary while dropping another. A roll that stops early is the exact
+// failure this module exists to prevent, so a truncated read throws rather
+// than answering with a short roster.
+//
+// `table` and `columns` are runtime strings in selectByIds, so postgrest-js
+// cannot infer a row shape and falls back to its opaque error type; the cast
+// names what the caller already declares through `Row`.
+type PagedQuery<T> = PromiseLike<{
+  data: T[] | null;
+  error: { message: string } | null;
+}>;
 
 function chunkIds(ids: readonly string[]): string[][] {
   const chunks: string[][] = [];
@@ -47,13 +61,28 @@ export async function selectByIds<Row>(
   if (ids.length === 0) return [];
   const results = await Promise.all(
     chunkIds(ids).map((chunk) =>
-      admin.from(table).select(columns).in(column, chunk)
+      // Each chunk is paged as well as chunked. 200 ids is a bound on the URL,
+      // not on the reply: one `class_subject_id` matches every student taking
+      // that subject, so a chunk can answer with thousands of rows and the
+      // first thousand are all PostgREST will hand back.
+      fetchAllRows<Row>(
+        (from, to) =>
+          admin
+            .from(table)
+            .select(columns)
+            .in(column, chunk)
+            .order("id", { ascending: true })
+            .range(from, to) as unknown as PagedQuery<Row>
+      )
     )
   );
   const rows: Row[] = [];
-  for (const { data, error } of results) {
-    if (error) throw new Error(`${table} lookup failed: ${error.message}`);
-    if (data) rows.push(...(data as Row[]));
+  for (const { data, error, truncated } of results) {
+    if (error) throw new Error(`${table} lookup failed: ${error}`);
+    if (truncated) {
+      throw new Error(`${table} lookup stopped at the paging guard`);
+    }
+    rows.push(...data);
   }
   return rows;
 }
@@ -140,29 +169,32 @@ export async function fetchSessionRoster(
     studentColumns = "*",
   }: SessionRosterOptions
 ): Promise<SessionRosterRow[]> {
-  let query = admin
-    .from("student_enrollments")
-    .select(ENROLLMENT_COLUMNS)
-    .eq("academic_year_id", academicYearId)
-    .range(0, ROW_CAP);
+  const enrollmentPage = (from: number, to: number) => {
+    let query = admin
+      .from("student_enrollments")
+      .select(ENROLLMENT_COLUMNS)
+      .eq("academic_year_id", academicYearId);
+    if (classIds) query = query.in("class_id", [...classIds]);
+    if (statuses && statuses.length > 0) {
+      query = query.in("status", [...statuses]);
+    }
+    return query.order("id", { ascending: true }).range(from, to);
+  };
 
-  if (classIds) {
-    if (classIds.length === 0) return [];
-    query = query.in("class_id", [...classIds]);
-  }
-  if (statuses && statuses.length > 0) {
-    query = query.in("status", [...statuses]);
-  }
+  if (classIds && classIds.length === 0) return [];
 
   const [enrollmentsRes, classes] = await Promise.all([
-    query,
+    fetchAllRows<RosterEnrollment>(enrollmentPage),
     fetchSessionClasses(admin, academicYearId),
   ]);
 
   if (enrollmentsRes.error) {
-    throw new Error(`enrollments lookup failed: ${enrollmentsRes.error.message}`);
+    throw new Error(`enrollments lookup failed: ${enrollmentsRes.error}`);
   }
-  const enrollments = (enrollmentsRes.data as RosterEnrollment[]) ?? [];
+  if (enrollmentsRes.truncated) {
+    throw new Error("enrollments lookup stopped at the paging guard");
+  }
+  const enrollments = enrollmentsRes.data;
   if (enrollments.length === 0) return [];
 
   // A student can hold more than one enrollment in a year (the uniqueness
@@ -266,19 +298,27 @@ export async function fetchStudentSubjects(
   };
   if (classIds.length === 0) return empty;
 
-  const { data: classSubjects, error } = await admin
-    .from("class_subjects")
-    .select("id, class_id, subject_id, subjects(name)")
-    .in("class_id", [...classIds])
-    .range(0, ROW_CAP);
-  if (error) throw new Error(`class_subjects lookup failed: ${error.message}`);
-
-  const rows = (classSubjects ?? []) as {
+  const {
+    data: rows,
+    error,
+    truncated,
+  } = await fetchAllRows<{
     id: string;
     class_id: string;
     subject_id: string;
     subjects: { name: string } | { name: string }[] | null;
-  }[];
+  }>((from, to) =>
+    admin
+      .from("class_subjects")
+      .select("id, class_id, subject_id, subjects(name)")
+      .in("class_id", [...classIds])
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
+  if (error) throw new Error(`class_subjects lookup failed: ${error}`);
+  if (truncated) {
+    throw new Error("class_subjects lookup stopped at the paging guard");
+  }
   if (rows.length === 0) return empty;
 
   const byClassSubjectId = new Map(
