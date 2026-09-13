@@ -23,13 +23,24 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    // See apps/erp/src/app/layout.tsx for why "black" and not the other two.
+    statusBarStyle: "black",
     title: "NKPS CMS",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0A1628",
+  width: "device-width",
+  initialScale: 1,
+  // See apps/erp/src/app/layout.tsx — safe-area insets report 0 without this.
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#0A1628" },
+    { media: "(prefers-color-scheme: dark)", color: "#060E1A" },
+  ],
 };
 
 export default function RootLayout({

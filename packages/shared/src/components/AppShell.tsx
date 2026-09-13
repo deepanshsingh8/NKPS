@@ -68,7 +68,15 @@ export function AppShell({
       >
         <MobileTopBar title={title} />
         <main
-          className={cn(full ? "min-h-0 flex-1 overflow-hidden" : "flex-1 p-4 sm:p-8")}
+          className={cn(
+            "app-safe-x",
+            full
+              ? "min-h-0 flex-1 overflow-hidden"
+              : // The bottom inset rides on top of the existing padding so the
+                // last row of a list clears the home indicator instead of
+                // sitting behind it.
+                "flex-1 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:px-8 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
+          )}
         >
           {children}
         </main>
