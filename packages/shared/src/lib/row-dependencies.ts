@@ -71,6 +71,12 @@ export const ROW_DEPENDENCIES: Record<string, DependencySpec[]> = {
     { table: "class_subjects", column: "subject_id", label: "class assignment", severity: "cascade" },
     { table: "stream_subjects", column: "subject_id", label: "stream link", severity: "cascade" },
     {
+      table: "teacher_subjects",
+      column: "subject_id",
+      label: "teacher qualification",
+      severity: "cascade",
+    },
+    {
       table: "timetable_periods",
       column: "subject_id",
       label: "timetable period",

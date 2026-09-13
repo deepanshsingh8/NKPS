@@ -392,7 +392,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
     path: "/academics/subjects",
     title: "Subjects & Assignments",
     purpose:
-      "The subject catalogue, the class-to-subject-to-teacher assignment table, and the stream master.",
+      "The subject catalogue, the class-to-subject-to-teacher assignment table, the stream master, and which subjects each teacher is qualified to teach.",
     tasks: [
       {
         name: "Add a subject",
@@ -446,8 +446,31 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         ],
         needs: "Active subjects must exist first.",
       },
+      {
+        name: "Record which subjects a teacher can teach",
+        steps: [
+          'Open the "Teacher Subjects" tab.',
+          'Find the teacher and click "Manage".',
+          "Tick every subject they are qualified to teach, then Save.",
+        ],
+        gotcha:
+          "This is what makes the teacher dropdown on Class Assignments put the right people first \u2014 pick Mathematics and the maths teachers come to the top. It is not the same as assigning them to a class; that is still the Class Assignments tab.",
+      },
+      {
+        name: "Find every teacher who can take a subject",
+        steps: [
+          'On the "Teacher Subjects" tab, set "Teaches subject" to the one you want.',
+        ],
+        gotcha:
+          'Pick "No subjects yet" in the same dropdown to find teachers nobody has mapped, which is where the Class Assignments dropdown will fall back to listing everyone.',
+      },
     ],
-    related: ["/academics/classes", "/academics/electives", "/people/staff"],
+    related: [
+      "/academics/classes",
+      "/academics/electives",
+      "/people/staff",
+      "/people/teachers",
+    ],
   },
   {
     path: "/academics/electives",

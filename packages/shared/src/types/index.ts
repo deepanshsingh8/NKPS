@@ -378,6 +378,21 @@ export interface ClassSubject {
   teacher_id: string | null;
 }
 
+/**
+ * Which subjects a teacher is qualified to teach (migration 117).
+ *
+ * Not the same question as `ClassSubject`: that says who teaches Maths to VI-B
+ * — one teacher, one class. This says who can teach Maths at all, and is what
+ * lets the assign-subject dropdown put the school's three maths teachers
+ * first instead of listing all sixty staff.
+ */
+export interface TeacherSubject {
+  id: string;
+  teacher_id: string;
+  subject_id: string;
+  created_at: string;
+}
+
 // =============================================================
 // Enrollments
 // =============================================================
