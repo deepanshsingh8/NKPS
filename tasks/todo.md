@@ -19,8 +19,15 @@
 - [x] 5. transport/drivers link → `/people/staff?group=support`
 - [x] 6. guide/screens.ts staff entry updated; `pnpm run check:guide`
 - [x] 7. typecheck + lint
-- [ ] 8. Browser check on dev server
-- [ ] 9. PR → CI green → merge to main
+- [~] 8. Browser check on dev server — skipped: needs an admin sign-in; user chose to merge (typecheck/lint/build/guide all green)
+- [x] 9. PR #52 → CI green → merge to main
 
 ## Review
-(filled in at the end)
+- Tabs derive from `staffCategoryGroup()` next to the login rules — one partition,
+  two consumers, no drift.
+- Detail dialog is a separate component; page.tsx got shorter, not longer.
+- Merged main mid-flight: picked up `teacher_subjects` (117) and retire flow (116)
+  so the Teaching section shows "Can teach" and a retired banner.
+- Lint warning from a `setState` in effect was fixed by keying loaded data on
+  member id instead of resetting — no new warnings introduced.
+- Browser verification not done (auth wall); PR body flags a post-deploy click-through.
