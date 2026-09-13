@@ -261,18 +261,27 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
     path: "/people/staff",
     title: "Staff",
     purpose:
-      "The staff directory — categories, contact details, photos, portal logins, and converting teaching staff into teacher records.",
+      "The staff directory, split into three tabs — Teachers, Management & Office, and Drivers & Helpers — with categories, contact details, photos, portal logins, and converting teaching staff into teacher records.",
     tasks: [
       {
         name: "Add a staff member",
         steps: [
+          "Pick the tab the person belongs on (Teachers, Management & Office, or Drivers & Helpers).",
           'Click "Add Staff".',
           'Fill "Full Name *", "Subject / Designation *" and "Category *".',
           "Add email, phone, qualifications and photo if you have them.",
           "Save.",
         ],
         gotcha:
-          "Category drives what happens next: bus drivers and peons cannot be given a portal login at all.",
+          "Category drives what happens next: bus drivers and peons cannot be given a portal login at all. The category dropdown only offers categories for the tab you are on.",
+      },
+      {
+        name: "See a staff member's full details",
+        steps: [
+          "Click the person's name in the table.",
+        ],
+        gotcha:
+          "For a converted teacher the view also lists their employee ID, joining date, the subjects they can teach, and this year's class-teacher and subject assignments. Use the Edit button in the view (or the pencil on the row) to change anything.",
       },
       {
         name: "Create a portal login for a staff member",

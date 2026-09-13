@@ -175,7 +175,7 @@ export default function TransportDriversPage() {
         <p className="text-xs text-blue-800 dark:text-blue-300">
           Drivers are created under{" "}
           <Link
-            href="/people/staff"
+            href="/people/staff?group=support"
             className="font-medium underline underline-offset-2 hover:text-blue-900 dark:hover:text-blue-200"
           >
             People → Staff
