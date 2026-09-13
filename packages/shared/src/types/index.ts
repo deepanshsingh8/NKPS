@@ -174,6 +174,10 @@ export interface Teacher {
   aadhar_number: string | null;
   photo_url: string | null;
   is_active: boolean;
+  // migration 116 — set when is_active flips to false; kept on reinstatement
+  // so a rejoin stays visible in the record.
+  date_of_leaving?: string | null;
+  leaving_reason?: string | null;
   staff_member_id: string | null;
   created_at: string;
   updated_at: string;
@@ -372,6 +376,21 @@ export interface ClassSubject {
   class_id: string;
   subject_id: string;
   teacher_id: string | null;
+}
+
+/**
+ * Which subjects a teacher is qualified to teach (migration 117).
+ *
+ * Not the same question as `ClassSubject`: that says who teaches Maths to VI-B
+ * — one teacher, one class. This says who can teach Maths at all, and is what
+ * lets the assign-subject dropdown put the school's three maths teachers
+ * first instead of listing all sixty staff.
+ */
+export interface TeacherSubject {
+  id: string;
+  teacher_id: string;
+  subject_id: string;
+  created_at: string;
 }
 
 // =============================================================

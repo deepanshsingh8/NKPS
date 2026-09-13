@@ -35,6 +35,9 @@ export default function AdminTeacherTimetablePage() {
 
   useEffect(() => {
     async function load() {
+      // Active only. This picker starts a fresh look-up rather than editing a
+      // stored value, so there is no selected id to preserve — and a retired
+      // teacher's week is not something anyone needs to schedule against.
       const { data, error } = await supabase
         .from("teachers")
         .select("*")

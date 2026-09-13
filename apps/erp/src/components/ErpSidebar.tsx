@@ -51,6 +51,7 @@ const erpItems: SidebarItem[] = [
       { kind: "link", icon: UserCheck, label: "Students", href: "/people/students" },
       { kind: "link", icon: UserPlus, label: "Registrations", href: "/registrations" },
       { kind: "link", icon: UserCog, label: "Staff", href: "/people/staff" },
+      { kind: "link", icon: UserCog, label: "Teachers", href: "/people/teachers" },
     ],
   },
   {
