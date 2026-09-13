@@ -50,18 +50,42 @@ function DialogContent({
   return (
     <DialogPortal>
       <DialogOverlay />
-      {/* A form taller than the phone is otherwise unreachable at both ends:
-          the popup is centred with a translate, so nothing scrolls it. Capped
-          here rather than at 68 call sites; a call site passing its own
-          `max-h-*` still wins through tailwind-merge. */}
+      {/* Below `sm` this is a bottom sheet; from `sm` up it is the centred
+          dialog it has always been.
+          A centred card on a phone is the desktop pattern shrunk: it lands in
+          the middle of the screen, out of thumb reach, with its actions
+          furthest from the hand. A sheet rises from the bottom edge, which is
+          where the thumb already is, and is what every native control on the
+          device does. Done here rather than at 93 call sites — and the
+          `sm:max-w-*` those call sites pass still wins on desktop, because it
+          is a different variant from the mobile rules below.
+
+          The height cap matters either way: the popup is positioned with a
+          translate, so a form taller than the viewport has nothing scrolling
+          it and is unreachable at both ends. */}
       <DialogPrimitive.Popup
           data-slot="dialog-content"
           className={cn(
-            "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto overscroll-contain gap-5 rounded-2xl bg-white dark:bg-card p-6 text-sm text-popover-foreground shadow-xl shadow-navy-900/10 ring-1 ring-navy-900/5 dark:ring-border duration-200 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-closed:slide-out-to-bottom-2",
+            // Shared
+            "fixed z-50 grid overflow-y-auto overscroll-contain gap-5 bg-white dark:bg-card p-6 text-sm text-popover-foreground shadow-xl shadow-navy-900/10 ring-1 ring-navy-900/5 dark:ring-border duration-200 outline-none",
+            // Mobile: a sheet pinned to the bottom edge, clearing the home
+            // indicator, with only its top corners rounded.
+            "inset-x-0 bottom-0 max-h-[88dvh] w-full max-w-none rounded-t-3xl pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]",
+            "data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-full data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-full",
+            // Desktop: back to the centred card.
+            "sm:inset-x-auto sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:max-h-[calc(100dvh-2rem)] sm:w-full sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:pb-6",
+            "sm:data-open:zoom-in-95 sm:data-open:slide-in-from-bottom-2 sm:data-closed:zoom-out-95 sm:data-closed:slide-out-to-bottom-2",
             className
           )}
           {...props}
         >
+          {/* Grab handle. Decorative — the sheet is dismissed by the backdrop,
+              the close button or Escape — but it is the affordance that tells a
+              phone user this is a sheet rather than a page. */}
+          <div
+            aria-hidden
+            className="mx-auto -mt-3 mb-1 h-1 w-9 shrink-0 rounded-full bg-gray-300 dark:bg-white/20 sm:hidden"
+          />
           {children}
           {showCloseButton && (
             <DialogPrimitive.Close

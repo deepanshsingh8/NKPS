@@ -533,7 +533,7 @@ export default function AdminUsersPage() {
 
       <LinkHealthPanel onChanged={fetchProfiles} />
 
-      <div className="erp-table-container p-6">
+      <div className="erp-table-container p-4 sm:p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList variant="line" className="mb-6">
             <TabsTrigger value="all">

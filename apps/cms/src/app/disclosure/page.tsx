@@ -212,7 +212,7 @@ function TextItemsTab({
   };
 
   return (
-    <div className="erp-table-container p-6">
+    <div className="erp-table-container p-4 sm:p-6">
       <div className="space-y-4">
         {items.map((item) => (
           <div
@@ -430,7 +430,7 @@ function DocumentsTab({
         </div>
       ))}
       {documents.length === 0 && (
-        <div className="erp-table-container p-6">
+        <div className="erp-table-container p-4 sm:p-6">
           <p className="text-center text-gray-500">
             No document slots found. Run the seed SQL to populate.
           </p>
@@ -592,7 +592,7 @@ function ResultAcademicsTab({
       <TextItemsTab items={items} onRefresh={onRefresh} />
 
       {/* Board Results */}
-      <div className="erp-table-container p-6">
+      <div className="erp-table-container p-4 sm:p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-heading text-lg font-bold text-navy-900 dark:text-white">
             Last Three-Year Board Examination Results

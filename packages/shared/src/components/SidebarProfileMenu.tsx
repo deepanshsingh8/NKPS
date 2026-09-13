@@ -28,15 +28,27 @@ export function SidebarProfileMenu({
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
+  // Close on outside press, or Escape.
+  //
+  // `pointerdown` rather than `mousedown`: touch devices only synthesise a
+  // mouse event after the gesture resolves, so on a phone the menu stayed open
+  // through the first tap outside it. Escape had no handler at all.
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
+    if (!open) return;
+    function handlePress(e: Event) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
-    if (open) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", handlePress);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("pointerdown", handlePress);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, [open]);
 
   const handleLogout = async () => {

@@ -1548,7 +1548,7 @@ export default function AdminGalleryPage() {
               <Loader2 className="h-8 w-8 animate-spin text-navy-900 dark:text-white" />
             </div>
           ) : (
-            <div className="erp-table-container p-6">
+            <div className="erp-table-container p-4 sm:p-6">
               {events.length === 0 ? (
                 <div className="text-center py-12 text-gray-400 dark:text-gray-500">
                   <ImageIcon className="h-10 w-10 mx-auto mb-3 opacity-50" />

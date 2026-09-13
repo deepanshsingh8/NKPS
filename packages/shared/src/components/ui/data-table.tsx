@@ -436,9 +436,28 @@ interface PanelPosition {
   maxHeight: number;
 }
 
+/**
+ * On a narrow screen the panel stops being a dropdown and becomes a sheet
+ * across the bottom of the viewport.
+ *
+ * The desktop geometry cannot work there: it anchors a fixed 248px panel to a
+ * header cell that is usually somewhere off-screen inside a sideways-scrolling
+ * table, and the only clamp is against `window.innerWidth`, so on a phone the
+ * panel landed under the wrong column or half outside the screen.
+ */
+const MOBILE_PANEL_BREAKPOINT = 640;
+
+function isNarrowViewport(): boolean {
+  return typeof window !== "undefined" && window.innerWidth < MOBILE_PANEL_BREAKPOINT;
+}
+
 function computePosition(anchor: HTMLElement): PanelPosition {
   const r = anchor.getBoundingClientRect();
   const margin = 8;
+  if (isNarrowViewport()) {
+    // Sentinel: the renderer reads `left < 0` as "lay this out as a sheet".
+    return { top: 0, left: -1, maxHeight: Math.round(window.innerHeight * 0.7) };
+  }
   const left = Math.max(
     margin,
     Math.min(r.left, window.innerWidth - PANEL_WIDTH - margin)
@@ -681,13 +700,21 @@ const FilterPanel = React.forwardRef<HTMLDivElement, FilterPanelProps>(
         ref={ref}
         role="dialog"
         aria-label={`${title} sort and filter`}
-        style={{
-          top: position.top,
-          left: position.left,
-          width: PANEL_WIDTH,
-          maxHeight: position.maxHeight,
-        }}
-        className="fixed z-[60] flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white text-left shadow-xl dark:border-gray-700 dark:bg-gray-900"
+        style={
+          position.left < 0
+            ? { maxHeight: position.maxHeight }
+            : {
+                top: position.top,
+                left: position.left,
+                width: PANEL_WIDTH,
+                maxHeight: position.maxHeight,
+              }
+        }
+        className={
+          position.left < 0
+            ? "fixed inset-x-0 bottom-0 z-[60] flex flex-col overflow-hidden rounded-t-2xl border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom,0px)] text-left shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+            : "fixed z-[60] flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white text-left shadow-xl dark:border-gray-700 dark:bg-gray-900"
+        }
       >
         <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-3 py-2 dark:border-gray-800">
           <span className="truncate text-xs font-semibold text-navy-900 dark:text-white">

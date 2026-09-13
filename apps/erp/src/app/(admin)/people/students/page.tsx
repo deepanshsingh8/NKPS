@@ -1945,7 +1945,7 @@ export default function AdminStudentsPage() {
         </div>
       </div>
 
-      <div className="erp-table-container p-6">
+      <div className="erp-table-container p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="w-full sm:w-64">
             <Select

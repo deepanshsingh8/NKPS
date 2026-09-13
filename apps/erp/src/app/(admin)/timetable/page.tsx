@@ -365,7 +365,7 @@ const session = useAcademicSession();
       </div>
 
       {!selectedClassId ? (
-        <div className="erp-table-container p-6">
+        <div className="erp-table-container p-4 sm:p-6">
           <div className="mx-auto max-w-md text-center py-12">
             <div className="h-14 w-14 rounded-2xl bg-navy-900/5 dark:bg-white/5 flex items-center justify-center mx-auto mb-4">
               <Clock className="h-7 w-7 text-navy-900/70 dark:text-white/70" />

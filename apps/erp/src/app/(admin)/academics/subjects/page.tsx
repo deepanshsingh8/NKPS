@@ -1214,7 +1214,7 @@ export default function AdminSubjectsPage() {
       {/* Subjects Tab                                    */}
       {/* ════════════════════════════════════════════════ */}
       {tab === "subjects" && (
-        <div className="erp-table-container p-6">
+        <div className="erp-table-container p-4 sm:p-6">
           {/* §6 Math review banner */}
           {mathReviewClasses.length > 0 && (
             <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
@@ -1512,7 +1512,7 @@ export default function AdminSubjectsPage() {
 
 
               {/* Table */}
-              <div className="erp-table-container p-6">
+              <div className="erp-table-container p-4 sm:p-6">
                 {filteredAssignments.length === 0 ? (
                   <div className="text-center py-12 text-gray-400 dark:text-gray-500">
                     <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-50" />
@@ -1640,7 +1640,7 @@ export default function AdminSubjectsPage() {
               <Loader2 className="h-8 w-8 animate-spin text-navy-900 dark:text-white" />
             </div>
           ) : streams.length === 0 ? (
-            <div className="erp-table-container p-6">
+            <div className="erp-table-container p-4 sm:p-6">
               <div className="text-center py-12 text-gray-400 dark:text-gray-500">
                 <GraduationCap className="h-10 w-10 mx-auto mb-3 opacity-50" />
                 <p className="text-sm">No streams defined yet</p>
