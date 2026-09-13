@@ -117,6 +117,8 @@ export default function AdminSubstitutionsPage() {
   // Load teachers once.
   useEffect(() => {
     (async () => {
+      // Active only: this list is for marking someone absent today, so there
+      // is no stored value to preserve and a retired teacher cannot be absent.
       const { data } = await supabase
         .from("teachers")
         .select("*")

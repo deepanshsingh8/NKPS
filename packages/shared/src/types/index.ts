@@ -174,6 +174,10 @@ export interface Teacher {
   aadhar_number: string | null;
   photo_url: string | null;
   is_active: boolean;
+  // migration 116 — set when is_active flips to false; kept on reinstatement
+  // so a rejoin stays visible in the record.
+  date_of_leaving?: string | null;
+  leaving_reason?: string | null;
   staff_member_id: string | null;
   created_at: string;
   updated_at: string;

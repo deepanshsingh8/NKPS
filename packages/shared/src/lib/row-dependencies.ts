@@ -139,6 +139,32 @@ export const ROW_DEPENDENCIES: Record<string, DependencySpec[]> = {
     { table: "exam_schedules", column: "class_id", label: "datesheet row", severity: "cascade" },
     { table: "calendar_events", column: "class_id", label: "calendar event", severity: "cascade" },
   ],
+  // Teachers are never deleted from the UI — /people/teachers offers Retire
+  // only, because these three FKs have no ON DELETE rule and a delete either
+  // fails with 23503 or erases who taught what. So every entry here is
+  // `blocking`: the map's job for this table is to power the impact preview on
+  // the retire dialog, telling the admin what work is about to lose its owner.
+  // (migration 116)
+  teachers: [
+    {
+      table: "timetable_periods",
+      column: "teacher_id",
+      label: "timetable period",
+      severity: "blocking",
+    },
+    {
+      table: "class_subjects",
+      column: "teacher_id",
+      label: "subject assignment",
+      severity: "blocking",
+    },
+    {
+      table: "classes",
+      column: "class_teacher_id",
+      label: "class teachership",
+      severity: "blocking",
+    },
+  ],
   academic_years: [
     // Blocking — a year is the spine of every record filed under it.
     { table: "classes", column: "academic_year_id", label: "class", severity: "blocking" },
