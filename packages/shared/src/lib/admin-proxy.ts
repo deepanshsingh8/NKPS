@@ -213,12 +213,39 @@ export function createAdminProxyHandler(config: AdminProxyConfig) {
           result.error
         );
         const errMsg = result.error.message ?? "";
+        // Exclusion-constraint violation. Today the only one in the schema is
+        // timetable_teacher_no_overlap, and hitting it is the single most
+        // likely way an admin learns about parallel groups — so name the fix
+        // rather than leaving them at the generic 500 this used to fall to.
+        if (
+          result.error.code === "23P01" ||
+          /exclusion constraint|timetable_teacher_no_overlap/i.test(errMsg)
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                "That teacher is already booked elsewhere at this time. If they really are with several classes at once — a games period, say — tick \"Shared activity\" on the period.",
+            },
+            { status: 409 }
+          );
+        }
         if (
           result.error.code === "23505" ||
           /duplicate key|unique constraint/i.test(errMsg)
         ) {
+          // The timetable's primary-group index (migration 119) trips this when
+          // a cell already has a group 0, and "this record already exists" sends
+          // the admin hunting for a duplicate that isn't there.
+          const isPrimaryGroup = /timetable_periods_primary_group_uniq/i.test(errMsg);
+          const isCellGroup = /timetable_periods_cell_group_key/i.test(errMsg);
           return NextResponse.json(
-            { error: "This record already exists. Duplicate entries are not allowed." },
+            {
+              error: isPrimaryGroup
+                ? "This period already has a main group. Add another group to it instead of a second period."
+                : isCellGroup
+                  ? "That period already has a group with this number. Give the group a different number, or edit the existing one."
+                  : "This record already exists. Duplicate entries are not allowed.",
+            },
             { status: 409 }
           );
         }

@@ -1489,6 +1489,8 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
       {
         name: "View a teacher's week",
         steps: ['Choose from "Select a teacher...".', "Read the grid."],
+        gotcha:
+          "One slot can show several cards. A coach running a shared activity really is with more than one class at that time; the group name follows the subject.",
       },
       {
         name: "Mark a teacher absent",
@@ -1569,6 +1571,18 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         needs: "Classes, subjects and teachers must exist so the cells resolve.",
         gotcha: "Commit is blocked while ANY row has an error. Warnings do commit.",
       },
+      {
+        name: "Import a period that runs two or more groups",
+        steps: [
+          'Click "Download template" — it ends with a "Group" and a "Shared" column.',
+          "Write one row per group, all carrying the same Section, Day and Period.",
+          'Give each a different Group: a name such as Basketball, or a number. Blank means the main group.',
+          'Put "yes" in Shared on any row whose teacher is taking several classes in that slot.',
+          'Click "Parse & Preview", then "Commit".',
+        ],
+        gotcha:
+          "Both columns are optional, so a sheet written before they existed imports exactly as it always did. Two rows sharing a Section, Day, Period AND Group is still an error, and a teacher in two places at once is still an error unless those rows say Shared.",
+      },
     ],
     related: ["/timetable", "/timetable/generate"],
   },
@@ -1588,7 +1602,29 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         ],
         needs: "Classes for the selected year, and active subjects and teachers.",
         gotcha:
-          "Nothing here checks whether the teacher is already booked in another class at that time — only Auto Generate enforces that.",
+          "A teacher already booked elsewhere at that time is refused on save. The database enforces it, so it holds no matter how the period was created.",
+      },
+      {
+        name: "Run two or more things in one period",
+        steps: [
+          "Open the cell you want to split.",
+          'Click "Add group".',
+          'Type a "Group name" — Basketball, Cricket, P.Ed — and set that group\'s own Subject and Teacher.',
+          'Click "Add", then use the chips along the top of the dialog to move between the cell\'s groups.',
+        ],
+        gotcha:
+          "The grid shows one line per group. Deleting a group leaves the others alone; delete the first one and the next in line becomes the period's main group.",
+      },
+      {
+        name: "Let one teacher take several classes at once",
+        steps: [
+          "Open the group that teacher runs.",
+          'Tick "Shared activity (several classes together)".',
+          'Click "Add" or "Update".',
+          "Repeat for the same period in each of the other classes.",
+        ],
+        gotcha:
+          "Shared is the only way past the double-booking check — a games coach on the field for VI-A, VI-B and VII-A is three shared rows. Every other clash is still refused. Groups added after the first arrive with Shared pre-ticked; untick it if that group is really one class on its own.",
       },
     ],
     related: ["/timetable/generate", "/timetable/import", "/timetable/teachers"],

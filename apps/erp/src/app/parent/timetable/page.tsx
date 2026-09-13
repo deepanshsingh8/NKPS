@@ -28,6 +28,8 @@ interface TimetableEntry {
   start_time: string;
   end_time: string;
   room: string | null;
+  group_no?: number;
+  group_label?: string | null;
   subject: { name: string } | null;
   teacher: { full_name: string } | null;
 }
@@ -177,7 +179,7 @@ export default function ParentTimetablePage() {
       const { data } = await supabase
         .from("timetable_periods")
         .select(
-          "id, day_of_week, period_number, start_time, end_time, room, subject:subjects(name), teacher:teachers(full_name)"
+          "id, day_of_week, period_number, start_time, end_time, room, group_no, group_label, subject:subjects(name), teacher:teachers(full_name)"
         )
         .eq("class_id", enrollment.class_id)
         .order("period_number", { ascending: true });
@@ -219,8 +221,14 @@ export default function ParentTimetablePage() {
 
   const now = nowMinutes();
 
-  const getEntry = (day: number, period: number) =>
-    entries.find((e) => e.day_of_week === day && e.period_number === period);
+  // A cell can hold parallel groups — Games split into basketball/badminton/
+  // cricket, or an XI/XII period running IP alongside P.Ed (migration 119).
+  // This is the class timetable, so it shows every group, the way the printed
+  // one on the noticeboard does.
+  const getEntries = (day: number, period: number) =>
+    entries
+      .filter((e) => e.day_of_week === day && e.period_number === period)
+      .sort((a, b) => (a.group_no ?? 0) - (b.group_no ?? 0));
 
   if (loading) {
     return (
@@ -391,9 +399,9 @@ export default function ParentTimetablePage() {
                         {period === 0 ? "0" : period}
                       </td>
                       {DAY_NUMBERS.map((day) => {
-                        const entry = getEntry(day, period);
+                        const cellEntries = getEntries(day, period);
                         const isToday = day === todayDow;
-                        if (!entry) {
+                        if (cellEntries.length === 0) {
                           return (
                             <td
                               key={day}
@@ -406,29 +414,41 @@ export default function ParentTimetablePage() {
                             </td>
                           );
                         }
-                        const colorClass =
-                          subjectColorMap[entry.subject?.name ?? ""] ??
-                          "bg-gray-50 dark:bg-muted border-gray-200 dark:border-border text-gray-800 dark:text-gray-200";
                         return (
                           <td
                             key={day}
                             className={cn(
-                              "border border-gray-200 dark:border-border p-1",
+                              "border border-gray-200 dark:border-border p-1 align-top",
                               isToday && "ring-2 ring-gold-500/60 ring-inset"
                             )}
                           >
-                            <div
-                              className={`rounded-lg border p-2 text-xs ${colorClass}`}
-                            >
-                              <p className="font-semibold">
-                                {entry.subject?.name ?? "--"}
-                              </p>
-                              <p className="opacity-75">
-                                {entry.teacher?.full_name ?? "--"}
-                              </p>
-                              {entry.room && (
-                                <p className="opacity-60">Room: {entry.room}</p>
-                              )}
+                            <div className="space-y-1">
+                              {cellEntries.map((entry) => {
+                                const colorClass =
+                                  subjectColorMap[entry.subject?.name ?? ""] ??
+                                  "bg-gray-50 dark:bg-muted border-gray-200 dark:border-border text-gray-800 dark:text-gray-200";
+                                return (
+                                  <div
+                                    key={entry.id}
+                                    className={`rounded-lg border p-2 text-xs ${colorClass}`}
+                                  >
+                                    <p className="font-semibold">
+                                      {entry.subject?.name ?? "--"}
+                                      {entry.group_label
+                                        ? ` · ${entry.group_label}`
+                                        : ""}
+                                    </p>
+                                    <p className="opacity-75">
+                                      {entry.teacher?.full_name ?? "--"}
+                                    </p>
+                                    {entry.room && (
+                                      <p className="opacity-60">
+                                        Room: {entry.room}
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           </td>
                         );

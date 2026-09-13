@@ -214,26 +214,58 @@ export async function executeParentTool(
 
       let query = ctx.admin
         .from("timetable_periods")
-        .select("day_of_week, period_number, start_time, end_time, is_break, subjects(name)")
+        .select(
+          "day_of_week, period_number, start_time, end_time, is_break, group_no, group_label, subjects(name)"
+        )
         .eq("class_id", enrollment.class_id)
         .order("day_of_week")
-        .order("period_number");
+        .order("period_number")
+        // Parallel groups tie on period_number; without this their order flips
+        // between calls and the model sees a different answer each time.
+        .order("group_no");
 
       if (typeof input.weekday === "number") {
         query = query.eq("day_of_week", input.weekday);
       }
 
       const { data } = await query;
-      const periods = (data ?? []).map((p) => {
+      // A period can run several groups at once (migration 119): Games split
+      // into basketball/badminton/cricket, or XI/XII running IP alongside P.Ed.
+      // Emitted as separate entries with the same period number, a parent asking
+      // "what's on Wednesday?" gets two period 5s and the model reads it as a
+      // clash — so fold a cell's groups into one entry.
+      const byCell = new Map<
+        string,
+        { day_of_week: number; period: number; from: string; to: string; parts: string[] }
+      >();
+      for (const p of data ?? []) {
         const subject = p.subjects as unknown as { name?: string } | null;
-        return {
-          day_of_week: p.day_of_week as number,
-          period: p.period_number as number,
-          from: p.start_time as string,
-          to: p.end_time as string,
-          subject: p.is_break ? "Break" : (subject?.name ?? null),
-        };
-      });
+        const name = p.is_break ? "Break" : (subject?.name ?? null);
+        const label = p.group_label as string | null;
+        const part = name && label ? `${name} (${label})` : (name ?? label ?? "");
+        const key = `${p.day_of_week}|${p.period_number}`;
+        const existing = byCell.get(key);
+        if (existing) {
+          if (part && !existing.parts.includes(part)) existing.parts.push(part);
+        } else {
+          byCell.set(key, {
+            day_of_week: p.day_of_week as number,
+            period: p.period_number as number,
+            from: p.start_time as string,
+            to: p.end_time as string,
+            parts: part ? [part] : [],
+          });
+        }
+      }
+      const periods = [...byCell.values()].map((c) => ({
+        day_of_week: c.day_of_week,
+        period: c.period,
+        from: c.from,
+        to: c.to,
+        // "Games (Basketball) / Games (Cricket)" reads as one period with
+        // parallel groups, which is what it is.
+        subject: c.parts.length > 0 ? c.parts.join(" / ") : null,
+      }));
       await log(periods.length);
       return { ok: true, data: { periods } };
     }
