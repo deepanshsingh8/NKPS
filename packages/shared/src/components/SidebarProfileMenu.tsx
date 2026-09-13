@@ -4,11 +4,12 @@ import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@nkps/shared/lib/supabase/client";
-import { Settings, LogOut, ChevronUp, ExternalLink } from "lucide-react";
+import { Settings, LogOut, ChevronUp, ExternalLink, Lock } from "lucide-react";
 import { cn } from "@nkps/shared/lib/utils";
 import { getWebsiteUrl } from "@nkps/shared/lib/cross-app";
 import { useSession } from "@nkps/shared/components/providers/SessionProvider";
 import { ThemeToggle } from "@nkps/shared/components/ThemeToggle";
+import { useAppLock } from "@nkps/shared/components/security/AppLockProvider";
 import { toast } from "sonner";
 
 export function SidebarProfileMenu({
@@ -23,6 +24,7 @@ export function SidebarProfileMenu({
   // Shared with the sidebar, the app switcher and useIsAdmin — see
   // SessionProvider. This used to be its own getUser() -> profiles pair.
   const { profile } = useSession();
+  const { settings: lockSettings, lock } = useAppLock();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -95,6 +97,18 @@ export function SidebarProfileMenu({
             <Settings className="h-4 w-4" />
             Settings
           </Link>
+          {lockSettings.enabled && (
+            <button
+              onClick={() => {
+                setOpen(false);
+                lock();
+              }}
+              className="flex w-full items-center gap-3 px-4 py-3 text-sm text-white/70 hover:bg-white/5 hover:text-white transition-colors"
+            >
+              <Lock className="h-4 w-4" />
+              Lock now
+            </button>
+          )}
           <Link
             href={getWebsiteUrl("/")}
             onClick={() => setOpen(false)}

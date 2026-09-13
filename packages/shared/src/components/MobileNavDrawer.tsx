@@ -12,13 +12,14 @@ import {
   useTransform,
   type PanInfo,
 } from "framer-motion";
-import { ChevronDown, LogOut, Search, Settings, X } from "lucide-react";
+import { ChevronDown, Lock, LogOut, Search, Settings, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@nkps/shared/lib/utils";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
 import { useSession } from "@nkps/shared/components/providers/SessionProvider";
 import { ThemeToggle } from "@nkps/shared/components/ThemeToggle";
+import { useAppLock } from "@nkps/shared/components/security/AppLockProvider";
 import {
   flattenSections,
   groupContainsActive,
@@ -89,6 +90,7 @@ export function MobileNavDrawer({
   const pathname = usePathname();
   const { mobileOpen, closeMobile } = useSidebar();
   const { profile } = useSession();
+  const { settings: lockSettings, lock } = useAppLock();
   const panelRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
@@ -415,6 +417,21 @@ export function MobileNavDrawer({
               <div className="px-3 pt-3">
                 <ThemeToggle tone="sidebar" />
               </div>
+              {/* Only offered when App Lock is on — a "Lock now" that does
+                  nothing because the feature is off is worse than no button. */}
+              {lockSettings.enabled && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeMobile();
+                    lock();
+                  }}
+                  className="mx-3 mt-2 flex min-h-11 w-[calc(100%-1.5rem)] items-center gap-3 rounded-xl px-3 text-sm text-white/70 active:bg-white/10"
+                >
+                  <Lock className="h-4 w-4 shrink-0" />
+                  Lock now
+                </button>
+              )}
               <div className="flex items-center gap-2 px-3 py-3">
                 <Link
                   href={settingsHref}
