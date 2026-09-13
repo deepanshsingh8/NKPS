@@ -306,7 +306,52 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Without a Category column every imported row lands in the single category you pick — there is no per-row override at that point.",
       },
     ],
-    related: ["/people/users", "/academics/classes", "/transport/buses"],
+    related: [
+      "/people/users",
+      "/people/teachers",
+      "/academics/classes",
+      "/transport/buses",
+    ],
+  },
+  {
+    path: "/people/teachers",
+    title: "Teachers",
+    purpose:
+      "The teacher records the ERP assigns work to — the rows behind every Class Teacher, subject-teacher and timetable dropdown. Retire someone here and they leave all of them at once.",
+    tasks: [
+      {
+        name: "Retire a teacher who has left the school",
+        steps: [
+          'Find them (the "Active" tab is the default; search by name or employee ID).',
+          'Click "Retire".',
+          "Set the date of leaving and, if you want, a reason.",
+          'Confirm with "Retire teacher".',
+        ],
+        gotcha:
+          "There is no Delete, deliberately. Deleting a teacher who has ever been timetabled fails outright, and would erase who taught what. Retiring keeps the history and removes them from every dropdown.",
+      },
+      {
+        name: "Clear the “Needs review” queue",
+        steps: [
+          'Click "Review these" on the amber banner.',
+          "For each name, decide: retire them if they have left, leave them alone if they simply have no staff entry yet.",
+        ],
+        needs:
+          "The banner only appears when there are active teacher records with no staff entry and no portal login.",
+        gotcha:
+          "This queue is the residue of deleting people from People → Staff before the cascade existed — the staff row went, the teacher row stayed active and kept showing up in dropdowns. New deletions retire the teacher automatically, so the queue should not grow.",
+      },
+      {
+        name: "Bring a teacher back",
+        steps: [
+          'Switch to the "Retired" tab.',
+          'Click "Reinstate" on their row.',
+        ],
+        gotcha:
+          "The date of leaving is kept on purpose, so a rejoin stays visible in the record. The reason is cleared.",
+      },
+    ],
+    related: ["/people/staff", "/academics/classes", "/timetable"],
   },
 
   // ── Academics ─────────────────────────────────────────────────────────────

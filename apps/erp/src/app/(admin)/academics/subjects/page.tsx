@@ -56,6 +56,7 @@ import {
 import { adminApi, fetchRowDependencies } from "@nkps/shared/lib/admin-api";
 import { describeDependencies } from "@nkps/shared/lib/row-dependencies";
 import { cn, formatClassName } from "@nkps/shared/lib/utils";
+import { teacherOptions } from "@nkps/shared/lib/teacher-options";
 import QuickSetupWizard from "@/components/QuickSetupWizard";
 import { SubjectBulkUpload } from "@/components/SubjectBulkUpload";
 import type { Class, Subject, Teacher, Stream } from "@nkps/shared/types";
@@ -255,11 +256,11 @@ export default function AdminSubjectsPage() {
         .select("*")
         .eq("is_active", true)
         .order("name"),
-      supabase
-        .from("teachers")
-        .select("*")
-        .eq("is_active", true)
-        .order("full_name"),
+      // Retired teachers included on purpose: an assignment saved before they
+      // left still names them, and dropping them would render the Select blank
+      // and let the next save clear the teacher. The option builders below
+      // keep them unpickable. (migration 116)
+      supabase.from("teachers").select("*").order("full_name"),
     ]);
 
     setClasses((classesRes.data as Class[]) ?? []);
@@ -1071,6 +1072,27 @@ export default function AdminSubjectsPage() {
     await fetchStreams();
     setStreamSubjectsSubmitting(false);
   };
+
+  // Only active teachers are pickable, but a dialog editing an existing
+  // assignment must still show whoever it already names — otherwise the Select
+  // renders blank and saving silently clears the teacher. (migration 116)
+  const activeTeachers = useMemo(
+    () => teachers.filter((t) => t.is_active),
+    [teachers]
+  );
+  const assignTeacherChoices = useMemo(
+    () => teacherOptions(activeTeachers, newTeacherId, teachers),
+    [activeTeachers, newTeacherId, teachers]
+  );
+  const editTeacherChoices = useMemo(
+    () =>
+      teacherOptions(
+        activeTeachers,
+        editTeacherValue === "none" ? "" : editTeacherValue,
+        teachers
+      ),
+    [activeTeachers, editTeacherValue, teachers]
+  );
 
   // Active subjects for assignment (exclude already-assigned to the selected class)
   const availableSubjectsForAssign = useMemo(() => {
@@ -2100,10 +2122,7 @@ export default function AdminSubjectsPage() {
               <Label className="text-xs font-medium">Teacher (optional)</Label>
               <Select
                 value={newTeacherId || "none"}
-                items={[
-                  { value: "none", label: "None" },
-                  ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.employee_id})` })),
-                ]}
+                items={[{ value: "none", label: "None" }, ...assignTeacherChoices]}
                 onValueChange={(val) =>
                   setNewTeacherId(!val || val === "none" ? "" : val)
                 }
@@ -2115,9 +2134,9 @@ export default function AdminSubjectsPage() {
                   <SelectItem value="none" label="None">
                     None
                   </SelectItem>
-                  {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.employee_id})`}>
-                      {t.full_name} ({t.employee_id})
+                  {assignTeacherChoices.map((t) => (
+                    <SelectItem key={t.value} value={t.value} label={t.label}>
+                      {t.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -2172,10 +2191,7 @@ export default function AdminSubjectsPage() {
               <Label className="text-xs font-medium">Teacher</Label>
               <Select
                 value={editTeacherValue}
-                items={[
-                  { value: "none", label: "None" },
-                  ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.employee_id})` })),
-                ]}
+                items={[{ value: "none", label: "None" }, ...editTeacherChoices]}
                 onValueChange={(val) => val && setEditTeacherValue(val)}
               >
                 <SelectTrigger className="w-full">
@@ -2185,9 +2201,9 @@ export default function AdminSubjectsPage() {
                   <SelectItem value="none" label="None">
                     None
                   </SelectItem>
-                  {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.employee_id})`}>
-                      {t.full_name} ({t.employee_id})
+                  {editTeacherChoices.map((t) => (
+                    <SelectItem key={t.value} value={t.value} label={t.label}>
+                      {t.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
