@@ -85,18 +85,18 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-cream-50 px-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-cream-50 dark:bg-background px-6">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+        <div className="bg-white dark:bg-card rounded-2xl shadow-xl border border-gray-100 dark:border-border p-8">
           {success ? (
             <div className="text-center">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
                 <CheckCircle className="h-8 w-8 text-green-600" />
               </div>
-              <h2 className="font-heading text-2xl font-bold text-navy-900">
+              <h2 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
                 Password Set!
               </h2>
-              <p className="text-gray-500 mt-2 text-sm">
+              <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">
                 Your password has been set successfully. Redirecting to login...
               </p>
             </div>
@@ -106,10 +106,10 @@ export default function ChangePasswordPage() {
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gold-500/10">
                   <ShieldCheck className="h-8 w-8 text-gold-600" />
                 </div>
-                <h2 className="font-heading text-2xl font-bold text-navy-900">
+                <h2 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
                   Set Your Password
                 </h2>
-                <p className="text-gray-500 mt-2 text-sm">
+                <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">
                   You&apos;re using a temporary password. Please create a new one to
                   continue.
                 </p>
@@ -117,7 +117,7 @@ export default function ChangePasswordPage() {
 
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="new-password" className="text-navy-900 font-medium">
+                  <Label htmlFor="new-password" className="text-navy-900 dark:text-white font-medium">
                     New Password
                   </Label>
                   <Input
@@ -126,7 +126,7 @@ export default function ChangePasswordPage() {
                     placeholder="At least 6 characters"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="h-11 border-gray-200 focus:border-navy-900 focus:ring-navy-900"
+                    className="h-11 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900 dark:focus:border-gold-500 dark:focus:ring-gold-500"
                     required
                     minLength={6}
                   />
@@ -135,7 +135,7 @@ export default function ChangePasswordPage() {
                 <div className="space-y-2">
                   <Label
                     htmlFor="confirm-password"
-                    className="text-navy-900 font-medium"
+                    className="text-navy-900 dark:text-white font-medium"
                   >
                     Confirm Password
                   </Label>
@@ -145,7 +145,7 @@ export default function ChangePasswordPage() {
                     placeholder="Re-enter your password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="h-11 border-gray-200 focus:border-navy-900 focus:ring-navy-900"
+                    className="h-11 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900 dark:focus:border-gold-500 dark:focus:ring-gold-500"
                     required
                     minLength={6}
                   />

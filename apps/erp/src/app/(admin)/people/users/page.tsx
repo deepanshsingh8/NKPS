@@ -574,7 +574,7 @@ export default function AdminUsersPage() {
                     placeholder="Search by name or email..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="pl-10 h-10 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900/20"
+                    className="pl-10 h-10 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900 dark:focus:border-gold-500 dark:focus:ring-gold-500/20"
                   />
                 </div>
               </div>
@@ -731,7 +731,7 @@ export default function AdminUsersPage() {
                   placeholder="Search by name or email..."
                   value={regSearch}
                   onChange={(e) => setRegSearch(e.target.value)}
-                  className="pl-10 h-10 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900/20"
+                  className="pl-10 h-10 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900 dark:focus:border-gold-500 dark:focus:ring-gold-500/20"
                 />
               </div>
             </div>

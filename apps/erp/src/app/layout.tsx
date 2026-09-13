@@ -3,6 +3,10 @@ import { Inter, Playfair_Display } from "next/font/google";
 import { Toaster } from "@nkps/shared/components/ui/sonner";
 import { PWARegister } from "@nkps/shared/components/pwa/PWARegister";
 import { InstallPrompt } from "@nkps/shared/components/pwa/InstallPrompt";
+import {
+  ThemeProvider,
+  THEME_INIT_SCRIPT,
+} from "@nkps/shared/components/providers/ThemeProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -57,12 +61,24 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
+    // suppressHydrationWarning because the script below writes to <html>'s
+    // class and style before React sees the document. It suppresses the warning
+    // for this element's attributes only, not for the tree inside it.
+    <html
+      lang="en"
+      className={`${inter.variable} ${playfair.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-screen antialiased">
-        {children}
-        <PWARegister />
-        <InstallPrompt appName="NKPS Portal" />
-        <Toaster position="top-right" richColors />
+        <ThemeProvider>
+          {children}
+          <PWARegister />
+          <InstallPrompt appName="NKPS Portal" />
+          <Toaster position="top-right" richColors />
+        </ThemeProvider>
       </body>
     </html>
   );

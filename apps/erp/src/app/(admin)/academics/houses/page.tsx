@@ -162,7 +162,7 @@ export default function HousesPage() {
     <div className="space-y-6 p-6">
       <div className="erp-page-bar sm:items-end">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-navy-900">
+          <h1 className="font-heading text-2xl font-semibold text-navy-900 dark:text-white">
             Houses
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -176,7 +176,7 @@ export default function HousesPage() {
         </Button>
       </div>
 
-      <div className="rounded-lg border bg-white">
+      <div className="rounded-lg border bg-white dark:bg-card">
         <Table>
           <TableHeader>
             <TableRow>

@@ -4,6 +4,10 @@ import { Toaster } from "@nkps/shared/components/ui/sonner";
 import { PWARegister } from "@nkps/shared/components/pwa/PWARegister";
 import { InstallPrompt } from "@nkps/shared/components/pwa/InstallPrompt";
 import { CmsShell } from "@/components/CmsShell";
+import {
+  ThemeProvider,
+  THEME_INIT_SCRIPT,
+} from "@nkps/shared/components/providers/ThemeProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -47,12 +51,23 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
+    // See apps/erp/src/app/layout.tsx for why the inline script and the
+    // suppressHydrationWarning are here.
+    <html
+      lang="en"
+      className={`${inter.variable} ${playfair.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-screen antialiased">
-        <CmsShell>{children}</CmsShell>
-        <PWARegister />
-        <InstallPrompt appName="NKPS CMS" />
-        <Toaster position="top-right" richColors />
+        <ThemeProvider>
+          <CmsShell>{children}</CmsShell>
+          <PWARegister />
+          <InstallPrompt appName="NKPS CMS" />
+          <Toaster position="top-right" richColors />
+        </ThemeProvider>
       </body>
     </html>
   );

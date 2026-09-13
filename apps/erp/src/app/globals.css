@@ -6,8 +6,10 @@
    classes used only inside @nkps/shared components get tree-shaken away. */
 @source "../../../../packages/shared/src/**/*.{ts,tsx,js,jsx}";
 
-/* Override dark variant: use class-based (.dark) instead of media query (prefers-color-scheme).
-   Since no .dark class is applied anywhere, all dark: utilities become inert. */
+/* Override dark variant: use class-based (.dark) instead of media query
+   (prefers-color-scheme). The class is put on <html> by THEME_INIT_SCRIPT
+   before first paint and maintained by ThemeProvider thereafter, so the theme
+   follows the user's choice in Settings rather than only their OS setting. */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -114,6 +116,55 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.55 0.15 260);
+  color-scheme: light;
+}
+
+/* ── Dark theme ─────────────────────────────────────────────────────────────
+   Grounded in the navy palette above rather than neutral greys: navy IS the
+   brand here — it is what the sidebar, the login panel and the page headers
+   have always been — so dark mode reads as the app turning its own lights
+   down, not as a generic dark skin bolted on.
+
+   Gold takes over as --primary. In light mode the primary action is navy on
+   white; the same navy on a navy ground would disappear, and gold is already
+   the app's second voice (the sidebar rule, the active-nav border, the
+   headings' underline).
+
+   Hex rather than the oklch used above: these are lifted from the navy/gold
+   scale in @theme and it should stay obvious which token each one came from. */
+.dark {
+  --background: #060e1a;         /* navy-950 */
+  --foreground: #e8edf5;
+  --card: #0d1829;               /* a step above the page, between 950 and 900 */
+  --card-foreground: #e8edf5;
+  --popover: #111d35;            /* navy-800 — floats above cards */
+  --popover-foreground: #e8edf5;
+  --primary: #d4a843;            /* gold-500 */
+  --primary-foreground: #0a1628;
+  --secondary: #1a2744;          /* navy-700 */
+  --secondary-foreground: #e8edf5;
+  --muted: #16223c;
+  --muted-foreground: #94a3b8;
+  --accent: #d4a843;
+  --accent-foreground: #0a1628;
+  --destructive: #f87171;        /* lightened: the light-mode red fails on navy */
+  --border: #22304f;
+  --input: #22304f;
+  --ring: #60a5fa;               /* blue-400 */
+  --chart-1: #60a5fa;
+  --chart-2: #e5c06e;
+  --chart-3: #4ade80;
+  --chart-4: #fb923c;
+  --chart-5: #c084fc;
+  --sidebar: #0a1628;            /* navy-900 — unchanged from light, by design */
+  --sidebar-foreground: #e8edf5;
+  --sidebar-primary: #d4a843;
+  --sidebar-primary-foreground: #0a1628;
+  --sidebar-accent: #1a2744;
+  --sidebar-accent-foreground: #e8edf5;
+  --sidebar-border: #22304f;
+  --sidebar-ring: #60a5fa;
+  color-scheme: dark;
 }
 
 
@@ -561,6 +612,13 @@ html {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(10, 22, 40, 0.5);
+}
+/* A navy thumb on a navy page is an invisible scrollbar. */
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(232, 237, 245, 0.22);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(232, 237, 245, 0.38);
 }
 
 @keyframes marquee {

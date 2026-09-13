@@ -96,18 +96,18 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-cream-50 px-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-cream-50 dark:bg-background px-6">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+        <div className="bg-white dark:bg-card rounded-2xl shadow-xl border border-gray-100 dark:border-border p-8">
           {success ? (
             <div className="text-center">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
                 <CheckCircle className="h-8 w-8 text-green-600" />
               </div>
-              <h2 className="font-heading text-2xl font-bold text-navy-900">
+              <h2 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
                 Password Reset!
               </h2>
-              <p className="text-gray-500 mt-2 text-sm">
+              <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">
                 Your password has been reset successfully. Redirecting to login...
               </p>
             </div>
@@ -117,10 +117,10 @@ export default function ResetPasswordPage() {
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gold-500/10">
                   <KeyRound className="h-8 w-8 text-gold-600" />
                 </div>
-                <h2 className="font-heading text-2xl font-bold text-navy-900">
+                <h2 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
                   Set New Password
                 </h2>
-                <p className="text-gray-500 mt-2 text-sm">
+                <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">
                   Enter your new password below.
                 </p>
               </div>
@@ -138,13 +138,13 @@ export default function ResetPasswordPage() {
                 </div>
               ) : !sessionReady ? (
                 <div className="text-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-navy-900 mx-auto mb-3" />
-                  <p className="text-sm text-gray-500">Verifying your reset link...</p>
+                  <Loader2 className="h-6 w-6 animate-spin text-navy-900 dark:text-white mx-auto mb-3" />
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Verifying your reset link...</p>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div className="space-y-2">
-                    <Label htmlFor="new-password" className="text-navy-900 font-medium">
+                    <Label htmlFor="new-password" className="text-navy-900 dark:text-white font-medium">
                       New Password
                     </Label>
                     <Input
@@ -153,14 +153,14 @@ export default function ResetPasswordPage() {
                       placeholder="At least 6 characters"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="h-11 border-gray-200 focus:border-navy-900 focus:ring-navy-900"
+                      className="h-11 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900 dark:focus:border-gold-500 dark:focus:ring-gold-500"
                       required
                       minLength={6}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="confirm-password" className="text-navy-900 font-medium">
+                    <Label htmlFor="confirm-password" className="text-navy-900 dark:text-white font-medium">
                       Confirm Password
                     </Label>
                     <Input
@@ -169,7 +169,7 @@ export default function ResetPasswordPage() {
                       placeholder="Re-enter your password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="h-11 border-gray-200 focus:border-navy-900 focus:ring-navy-900"
+                      className="h-11 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900 dark:focus:border-gold-500 dark:focus:ring-gold-500"
                       required
                       minLength={6}
                     />

@@ -504,7 +504,7 @@ export default function StudentReportPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-navy-900">
+          <h1 className="font-heading text-2xl font-semibold text-navy-900 dark:text-white">
             {isReportFocus(focus) ? REPORT_FOCUSES[focus].label : "Student Custom Report"}
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -568,7 +568,7 @@ export default function StudentReportPage() {
       </div>
 
       {/* ── Presets ── */}
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-white p-3">
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-white dark:bg-card p-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Saved report</Label>
           <Select value={activePresetId} onValueChange={(v) => applyPreset(v ?? "")}>
@@ -634,7 +634,7 @@ export default function StudentReportPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         {/* ── Filters ── */}
-        <div className="min-w-0 rounded-lg border bg-white">
+        <div className="min-w-0 rounded-lg border bg-white dark:bg-card">
           <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
             <TabsList className="w-full justify-start rounded-b-none border-b bg-transparent px-2">
               {FILTER_TABS.map((t) => (
@@ -710,7 +710,7 @@ export default function StudentReportPage() {
                       return (
                         <div
                           key={group.name}
-                          className="flex items-center gap-2 rounded px-1 py-0.5 hover:bg-gray-50"
+                          className="flex items-center gap-2 rounded px-1 py-0.5 hover:bg-gray-50 dark:hover:bg-white/5"
                         >
                           {/* Clicking the class name takes all its sections and
                               streams at once — the common case for XI/XII. */}
@@ -733,7 +733,7 @@ export default function StudentReportPage() {
                             className={`w-16 shrink-0 rounded px-1.5 py-1 text-left text-xs font-medium transition ${
                               allOn
                                 ? "text-blue-700"
-                                : "text-gray-600 hover:text-blue-600"
+                                : "text-gray-600 dark:text-gray-400 hover:text-blue-600"
                             }`}
                             title={`Select all of ${group.name}`}
                           >
@@ -766,7 +766,7 @@ export default function StudentReportPage() {
                                   className={`rounded-full border px-2.5 py-1 text-xs transition ${
                                     on
                                       ? "border-blue-600 bg-blue-600 text-white"
-                                      : "border-gray-300 bg-white hover:border-blue-400"
+                                      : "border-gray-300 dark:border-border bg-white dark:bg-card hover:border-blue-400"
                                   }`}
                                 >
                                   {/* The class name is already the row label. */}
@@ -1143,7 +1143,7 @@ export default function StudentReportPage() {
         </div>
 
         {/* ── Field picker ── */}
-        <div className="min-w-0 flex max-h-[70vh] flex-col rounded-lg border bg-white">
+        <div className="min-w-0 flex max-h-[70vh] flex-col rounded-lg border bg-white dark:bg-card">
           <div className="space-y-2 border-b p-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Display / Print Fields</span>
@@ -1213,7 +1213,7 @@ export default function StudentReportPage() {
                         className={`flex items-center gap-2 rounded px-1 py-0.5 text-sm ${
                           f.always
                             ? "cursor-default opacity-60"
-                            : "cursor-pointer hover:bg-gray-50"
+                            : "cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
                         }`}
                       >
                         <Checkbox
@@ -1242,7 +1242,7 @@ export default function StudentReportPage() {
 
       {/* ── Preview ── */}
       {preview && (
-        <div className="rounded-lg border bg-white">
+        <div className="rounded-lg border bg-white dark:bg-card">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
             <div className="text-sm">
               <span className="font-medium">{preview.total}</span> student

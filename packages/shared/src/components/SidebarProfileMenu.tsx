@@ -8,6 +8,7 @@ import { Settings, LogOut, ChevronUp, ExternalLink } from "lucide-react";
 import { cn } from "@nkps/shared/lib/utils";
 import { getWebsiteUrl } from "@nkps/shared/lib/cross-app";
 import { useSession } from "@nkps/shared/components/providers/SessionProvider";
+import { ThemeToggle } from "@nkps/shared/components/ThemeToggle";
 import { toast } from "sonner";
 
 export function SidebarProfileMenu({
@@ -61,7 +62,9 @@ export function SidebarProfileMenu({
         <div
           className={cn(
             "absolute bottom-full mb-2 bg-navy-800 rounded-xl border border-white/10 shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150",
-            collapsed ? "left-1 w-48" : "left-3 right-3"
+            // w-60, not w-48: the theme control holds three labelled options
+            // and "System" was being clipped in the narrower menu.
+            collapsed ? "left-1 w-60" : "left-3 right-3"
           )}
         >
           {/* User info in popover when collapsed */}
@@ -73,6 +76,17 @@ export function SidebarProfileMenu({
               <p className="text-[11px] text-white/40 capitalize">{profile.role}</p>
             </div>
           )}
+          {/* Theme sits in the menu, not only in Settings: it is the one
+              preference people change on a whim — walking outside, turning the
+              lights off — and making that a two-page trip is how a toggle goes
+              unused. Settings keeps its own copy of the same control. */}
+          <div className="px-3 pt-3 pb-2">
+            <p className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+              Theme
+            </p>
+            <ThemeToggle tone="sidebar" />
+          </div>
+          <div className="border-t border-white/10" />
           <Link
             href={settingsHref}
             onClick={() => setOpen(false)}

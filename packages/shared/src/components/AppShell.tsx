@@ -42,7 +42,7 @@ export function AppShell({
   return (
     <div
       className={cn(
-        "flex bg-gray-50",
+        "flex bg-gray-50 dark:bg-background",
         full ? "h-dvh overflow-hidden" : "min-h-screen"
       )}
     >
