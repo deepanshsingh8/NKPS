@@ -31,6 +31,13 @@ type TeachingDetails = {
   date_of_joining: string | null;
   gender: Gender | null;
   specialization: string | null;
+  // Retired teachers (migration 116) keep their row; the dialog says so
+  // rather than silently listing nothing.
+  is_active: boolean;
+  date_of_leaving: string | null;
+  // Subjects they are qualified for (teacher_subjects, migration 117) —
+  // distinct from what they are timetabled to teach this year.
+  canTeach: string[];
   classTeacherOf: string[];
   teaches: { subject: string; classes: string[] }[];
 };
@@ -41,6 +48,8 @@ type TeacherRow = {
   date_of_joining: string | null;
   gender: Gender | null;
   specialization: string | null;
+  is_active: boolean;
+  date_of_leaving: string | null;
 };
 
 type ClassRow = {
@@ -110,7 +119,9 @@ async function loadTeachingDetails(
   const [teacherRes, yearRes] = await Promise.all([
     supabase
       .from("teachers")
-      .select("id, employee_id, date_of_joining, gender, specialization")
+      .select(
+        "id, employee_id, date_of_joining, gender, specialization, is_active, date_of_leaving"
+      )
       .eq("staff_member_id", staffMemberId)
       .maybeSingle(),
     supabase.from("academic_years").select("id").eq("is_current", true).limit(1),
@@ -139,7 +150,20 @@ async function loadTeachingDetails(
     subjectQuery = subjectQuery.eq("classes.academic_year_id", currentYearId);
   }
 
-  const [classRes, subjectRes] = await Promise.all([classQuery, subjectQuery]);
+  const [classRes, subjectRes, canTeachRes] = await Promise.all([
+    classQuery,
+    subjectQuery,
+    supabase
+      .from("teacher_subjects")
+      .select("subjects:subject_id(name)")
+      .eq("teacher_id", teacher.id),
+  ]);
+  const canTeach = (
+    (canTeachRes.data ?? []) as unknown as { subjects: { name: string } | null }[]
+  )
+    .map((r) => r.subjects?.name)
+    .filter((n): n is string => !!n)
+    .sort();
   const classTeacherOf = ((classRes.data ?? []) as unknown as ClassRow[]).map(
     formatClassName
   );
@@ -162,6 +186,9 @@ async function loadTeachingDetails(
     date_of_joining: teacher.date_of_joining,
     gender: teacher.gender,
     specialization: teacher.specialization,
+    is_active: teacher.is_active,
+    date_of_leaving: teacher.date_of_leaving,
+    canTeach,
     classTeacherOf,
     teaches,
   };
@@ -319,6 +346,15 @@ export function StaffDetailDialog({
                     </p>
                   ) : (
                     <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                      {!teaching.is_active && (
+                        <p className="col-span-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                          Retired
+                          {teaching.date_of_leaving
+                            ? ` on ${formatDate(teaching.date_of_leaving)}`
+                            : ""}{" "}
+                          — no longer offered in teacher dropdowns.
+                        </p>
+                      )}
                       <DetailField
                         label="Employee ID"
                         value={teaching.employee_id}
@@ -335,6 +371,21 @@ export function StaffDetailDialog({
                         label="Specialization"
                         value={teaching.specialization}
                       />
+                      <DetailField label="Can teach" className="col-span-2">
+                        {teaching.canTeach.length === 0 ? (
+                          <p className="text-sm text-gray-400">
+                            No subjects recorded
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {teaching.canTeach.map((s) => (
+                              <Badge key={s} variant="secondary">
+                                {s}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </DetailField>
                       <DetailField label="Class teacher of" className="col-span-2">
                         {teaching.classTeacherOf.length === 0 ? (
                           <p className="text-sm text-gray-400">None this year</p>

@@ -281,7 +281,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Click the person's name in the table.",
         ],
         gotcha:
-          "For a converted teacher the view also lists their employee ID, joining date, and this year's class-teacher and subject assignments. Use the Edit button in the view (or the pencil on the row) to change anything.",
+          "For a converted teacher the view also lists their employee ID, joining date, the subjects they can teach, and this year's class-teacher and subject assignments. Use the Edit button in the view (or the pencil on the row) to change anything.",
       },
       {
         name: "Create a portal login for a staff member",
