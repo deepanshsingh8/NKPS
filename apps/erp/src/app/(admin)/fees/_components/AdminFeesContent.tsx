@@ -803,9 +803,13 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   }, [supabase, sessionId]);
 
   const fetchStreams = useCallback(async () => {
+    // kind='stream' only: this list is both the fee-structure stream picker
+    // and the label map for a stored fee_structures.stream_id, and a wing can
+    // never legitimately be either. (migration 118)
     const { data } = await supabase
       .from("streams")
       .select("*")
+      .eq("kind", "stream")
       .eq("is_active", true)
       .order("sort_order");
     setStreams((data as Stream[]) ?? []);

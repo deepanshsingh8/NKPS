@@ -317,6 +317,9 @@ export interface AcademicYear {
   created_at: string;
 }
 
+/** `stream` is an XI/XII academic stream; `wing` is a band of classes. */
+export type StreamKind = 'stream' | 'wing';
+
 export interface Stream {
   id: string;
   name: string;
@@ -324,6 +327,15 @@ export interface Stream {
   is_active: boolean;
   sort_order: number;
   created_at: string;
+  /**
+   * migration 118. `stream` keeps the original meaning — attachable to
+   * classes.stream_id and read by fee resolution. `wing` is a class band that
+   * exists only to push a subject set onto classes, and is filtered out of
+   * every stream picker and importer name-lookup.
+   */
+  kind?: StreamKind;
+  /** For wings: the class names covered, e.g. {VI,VII,VIII}. Empty for streams. */
+  class_names?: string[];
 }
 
 export interface Class {

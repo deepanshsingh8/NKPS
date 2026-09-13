@@ -56,7 +56,7 @@ export const ALLOWED_COLUMNS: Record<string, string[]> = {
   timetable_periods: ["id", "class_id", "subject_id", "teacher_id", "day_of_week", "period_number", "start_time", "end_time", "room", "created_at"],
   attendance: ["id", "student_id", "class_id", "date", "status", "marked_by", "remarks", "created_at"],
   results: ["id", "student_id", "class_id", "subject_id", "exam_type_id", "marks_obtained", "max_marks", "grade", "remarks", "entered_by", "created_at"],
-  streams: ["id", "name", "code", "is_active", "sort_order", "created_at"],
+  streams: ["id", "name", "code", "is_active", "sort_order", "created_at", "kind", "class_names"],
   houses: ["id", "name", "code", "colour", "sort_order", "is_active", "created_at", "updated_at"],
   stream_subjects: ["id", "stream_id", "subject_id", "is_mandatory", "requirement_type", "sort_order"],
   teacher_subjects: ["id", "teacher_id", "subject_id", "created_at"],

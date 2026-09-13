@@ -171,9 +171,13 @@ export function FeeScheduleGrid() {
           .select("id")
           .eq("is_current", true)
           .maybeSingle(),
+        // kind='stream' only — this picker's value becomes
+        // fee_structures.stream_id. A wing here would change what students are
+        // charged. (migration 118)
         supabase
           .from("streams")
           .select("*")
+          .eq("kind", "stream")
           .eq("is_active", true)
           .order("sort_order"),
       ]);

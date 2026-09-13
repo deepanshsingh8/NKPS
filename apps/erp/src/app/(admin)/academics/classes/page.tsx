@@ -120,9 +120,12 @@ export default function AdminClassesPage() {
       // would render the Select blank and let the next save clear the
       // assignment. teacherChoices keeps them unpickable. (migration 116)
       supabase.from("teachers").select("*").order("full_name"),
+      // kind='stream' only: a wing is a class band, not something a class can
+      // be attached to. classes.stream_id feeds fee resolution. (migration 118)
       supabase
         .from("streams")
         .select("*")
+        .eq("kind", "stream")
         .eq("is_active", true)
         .order("sort_order"),
     ]);

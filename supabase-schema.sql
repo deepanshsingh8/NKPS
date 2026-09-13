@@ -7341,3 +7341,43 @@ CREATE TRIGGER class_subject_learns_teacher_subject
 -- The one-time seed from class_subjects and timetable_periods lives only in
 -- the migration file: a database built fresh from this schema has nothing to
 -- seed from.
+
+-- ============================================================================
+-- MIGRATION 118 — wings (a reusable class band with its own subject set)
+-- Mirrors scripts/migrations/erp/migration-118-stream-wings.sql
+-- ============================================================================
+-- The school groups classes into wings — Middle Wing = VI–VIII and so on — and
+-- wants a subject set defined once and pushed onto every class and section in
+-- the band. `streams` is the only table that already owns a subject set
+-- (stream_subjects), so wings live here under a discriminator.
+--
+-- `kind` is load-bearing, not cosmetic. classes.stream_id,
+-- student_enrollments.stream_id and fee_structures.stream_id all read this
+-- table and fee resolution keys off it, so a wing loose in that machinery would
+-- change what students are charged. Wings are never attached to
+-- classes.stream_id at all — they carry their band in `class_names` — and every
+-- picker and importer name-lookup filters to kind='stream'. The two lookups
+-- that resolve a STORED stream_id back to a name (api/export/students,
+-- lib/report-query) are deliberately left unfiltered so a stored id always
+-- renders.
+
+ALTER TABLE streams
+  ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'stream',
+  ADD COLUMN IF NOT EXISTS class_names text[] NOT NULL DEFAULT '{}';
+
+ALTER TABLE streams DROP CONSTRAINT IF EXISTS streams_kind_check;
+ALTER TABLE streams
+  ADD CONSTRAINT streams_kind_check CHECK (kind IN ('stream', 'wing'));
+
+COMMENT ON COLUMN streams.kind IS
+  'stream = an academic stream for XI/XII (Science, Commerce, Humanities), the '
+  'original meaning: attachable to classes.stream_id and read by fee '
+  'resolution. wing = a band of classes with a shared subject set, used only to '
+  'push subjects onto classes. Wings are filtered out of every stream picker '
+  'and every importer name-lookup.';
+COMMENT ON COLUMN streams.class_names IS
+  'For kind=wing: the class names the wing covers, e.g. {VI,VII,VIII}. Names '
+  'rather than class ids so the wing survives the academic-year rollover. '
+  'Always empty for kind=stream.';
+
+CREATE INDEX IF NOT EXISTS idx_streams_kind ON streams(kind);

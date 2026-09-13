@@ -392,7 +392,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
     path: "/academics/subjects",
     title: "Subjects & Assignments",
     purpose:
-      "The subject catalogue, the class-to-subject-to-teacher assignment table, the stream master, and which subjects each teacher is qualified to teach.",
+      "The subject catalogue, the class-to-subject-to-teacher assignment table, the stream and wing master, and which subjects each teacher is qualified to teach.",
     tasks: [
       {
         name: "Add a subject",
@@ -454,6 +454,30 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Click "Save".',
         ],
         needs: "Active subjects must exist first.",
+        gotcha:
+          "Streams are the XI/XII kind — Science, Commerce, Humanities. They appear in the Classes stream picker and can carry their own fee rows. For a band of classes that just share subjects, make a Wing instead.",
+      },
+      {
+        name: "Set up a wing so a whole band of classes gets its subjects",
+        steps: [
+          'On the "Streams" tab click "Add Wing".',
+          'Name it (e.g. "Middle Wing") and tick the classes it covers — each shows how many sections exist this year.',
+          'Save, then click "Manage" on the wing card and tick its subjects.',
+          'Click "Apply subjects to classes" and review the preview.',
+          "Confirm.",
+        ],
+        needs:
+          "The classes must already exist for this academic year, and the wing must have at least one subject.",
+        gotcha:
+          "This is additive — it never removes a subject and never overwrites a teacher already set on an existing assignment, so re-running it on a band you have part-staffed is safe. The preview tells you how many rows are new and how many are already there.",
+      },
+      {
+        name: "Understand why a wing is not a stream",
+        steps: [
+          'Both live on the "Streams" tab, in separate sections.',
+        ],
+        gotcha:
+          "A wing never appears in the XI/XII stream picker, the fee-schedule stream filter, the student enrolment form or a report filter — it is only a shortcut for allotting subjects. That separation is deliberate: fee resolution reads a student's stream, so a wing loose in there would change what families are charged. You also cannot convert one into the other; delete and recreate.",
       },
       {
         name: "Record which subjects a teacher can teach",

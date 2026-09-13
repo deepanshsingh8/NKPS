@@ -156,7 +156,9 @@ export default function StudentReportPage() {
     (async () => {
       const [yearsRes, streamsRes, housesRes, subjectsRes] = await Promise.all([
         supabase.from("academic_years").select("id, name, is_current").order("name", { ascending: false }),
-        supabase.from("streams").select("id, name").eq("is_active", true).order("sort_order"),
+        // kind='stream' only — a wing is not something a report filters by.
+        // (migration 118)
+        supabase.from("streams").select("id, name").eq("kind", "stream").eq("is_active", true).order("sort_order"),
         supabase.from("houses").select("id, name").eq("is_active", true).order("sort_order"),
         supabase.from("subjects").select("id, name").eq("is_active", true).order("name"),
       ]);
