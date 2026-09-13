@@ -417,23 +417,32 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Existing rows are skipped, never overwritten. Run Setup is disabled when nothing new would be created.",
       },
       {
-        name: "Assign a subject to a class",
+        name: "Set up all of a class's subjects at once",
         steps: [
-          'Open the "Class Assignments" tab and click "Assign Subject".',
-          'Pick "Class", then "Subject", then "Teacher (optional)".',
-          "Save.",
+          'On the "Class Assignments" tab, click the class in the "Manage by class" strip (or pick it from the dropdown beside it).',
+          "Tick every subject the class studies — each category has a Select all.",
+          "Set the teacher beside each ticked subject.",
+          'Click "Save subjects".',
         ],
         gotcha:
-          "The Subject dropdown only lists subjects NOT already assigned to that class. If it is empty, they are all assigned already.",
+          "The teacher list puts the subject's own teachers first, under a \"Teaches …\" heading, from the Teacher Subjects tab. If nobody is mapped to that subject yet it lists everyone instead. Either way \"Show all teachers\" is there when you need someone outside their usual subject.",
       },
       {
-        name: "Change the teacher on an assignment",
+        name: "Remove a subject from a class",
+        steps: [
+          'Open the class from "Manage by class", untick the subject, and save.',
+        ],
+        gotcha:
+          "A subject with marks already recorded for that class is kept, and the dialog says which and why — removing it would leave those marks attached to a subject the class no longer studies. Everything else in the same save still goes through. Deactivate the subject instead if it is genuinely gone.",
+      },
+      {
+        name: "Change the teacher on one assignment",
         steps: [
           'On "Class Assignments", click the teacher name in the row.',
           "Pick the teacher and save.",
         ],
         gotcha:
-          "The whole cell is the control, but the pencil only appears on hover, so it does not look clickable.",
+          "The whole cell is the control, but the pencil only appears on hover, so it does not look clickable. This picker also puts the subject's own teachers first.",
       },
       {
         name: "Create a stream and choose its subjects",
