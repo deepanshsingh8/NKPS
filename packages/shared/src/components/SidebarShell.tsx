@@ -1,57 +1,52 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import type { UserRole } from "@nkps/shared/types";
-import {
-  featureKeyForPath,
-  type FeatureKey,
-} from "@nkps/shared/lib/permissions";
-import {
-  ChevronLeft,
-  ChevronDown,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronLeft, ChevronDown } from "lucide-react";
 import { cn } from "@nkps/shared/lib/utils";
 import { SidebarProfileMenu } from "@nkps/shared/components/SidebarProfileMenu";
 import { SidebarTooltip } from "@nkps/shared/components/SidebarTooltip";
+import { MobileNavDrawer } from "@nkps/shared/components/MobileNavDrawer";
 import { useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
-import { useSession } from "@nkps/shared/components/providers/SessionProvider";
 import { useUnreadCount } from "@nkps/shared/hooks/useUnreadCount";
+import {
+  collectNavHrefs,
+  groupContainsActive,
+  isLinkActive,
+  type SidebarGroup,
+  type SidebarItem,
+  type SidebarLink,
+  type SidebarSection,
+} from "@nkps/shared/components/sidebar/nav";
+import {
+  useVisibleSections,
+  type NavGate,
+} from "@nkps/shared/components/sidebar/useVisibleSections";
 
-export type SidebarLink = {
-  kind: "link";
-  icon: LucideIcon;
-  label: string;
-  href: string;
-};
-
-export type SidebarGroup = {
-  kind: "group";
-  icon: LucideIcon;
-  label: string;
-  landingHref: string;
-  children: SidebarItem[];
-  hideOverview?: boolean;
-};
-
-export type SidebarItem = SidebarLink | SidebarGroup;
-
-export type SidebarSection = {
-  label: string;
-  items: SidebarItem[];
-};
+// Re-exported so the five sidebars that declare nav trees keep importing their
+// types from the component they hand them to.
+export type {
+  SidebarGroup,
+  SidebarItem,
+  SidebarLink,
+  SidebarSection,
+} from "@nkps/shared/components/sidebar/nav";
 
 type SidebarShellProps = {
   sections: SidebarSection[];
   headerTitle: string;
   headerSubtitle: string;
+  /**
+   * "permissions" (default) filters links against the signed-in user's editor
+   * grants. "none" is for the role portals, whose links are all reachable by
+   * anyone the route gate let into the portal in the first place.
+   */
+  gate?: NavGate;
   // Hrefs always shown to staff/teachers regardless of their feature_key
   // permissions (typically the module dashboard, e.g. "/cms" or "/erp").
-  editorAlwaysAllowedHrefs: ReadonlySet<string>;
+  editorAlwaysAllowedHrefs?: ReadonlySet<string>;
   // Where the profile menu's "Settings" link should land.
   settingsHref?: string;
   // Where to send the user after logout (module-specific login page).
@@ -68,30 +63,16 @@ type SidebarShellProps = {
   footerExtra?: React.ReactNode;
 };
 
-// Exact-href lookup covers most sidebar items. Sub-routes that fall under
-// a feature umbrella (e.g. /fees/academic, /fees/transport) aren't in the
-// catalog by themselves — we resolve those by longest-prefix match so the
-// whole tree is gated by a single feature key.
-// Delegates to featureKeyForPath rather than re-deriving the mapping here.
-// This used to be a second copy of the prefix-matching logic, which drifted:
-// routes that do not sit under their feature's href (streams, electives, the
-// timetable tools, the approval queues) resolved to a key in middleware but to
-// null here, so an editor holding the right grant could reach the page and
-// still not see it in the sidebar. One resolver, one answer.
-//
-// featureKeyForPath also returns null for admin-only paths, which is exactly
-// what the filter below wants: hidden from everyone who is not an admin.
-function resolveFeatureKey(href: string): FeatureKey | null {
-  return featureKeyForPath(href);
-}
+const NO_HREFS: ReadonlySet<string> = new Set();
 
 export function SidebarShell({
   sections,
   headerTitle,
   headerSubtitle,
-  editorAlwaysAllowedHrefs,
+  gate = "permissions",
+  editorAlwaysAllowedHrefs = NO_HREFS,
   settingsHref = "/portal/settings",
-  logoutRedirect,
+  logoutRedirect = "/portal/login",
   unreadBadgeHrefs,
   pendingRegistrationBadgeHrefs,
   pendingFeeChangeRequestBadgeHrefs,
@@ -99,7 +80,7 @@ export function SidebarShell({
   footerExtra,
 }: SidebarShellProps) {
   const pathname = usePathname();
-  const { collapsed, toggle, mobileOpen, closeMobile } = useSidebar();
+  const { collapsed, toggle, publishNavHrefs } = useSidebar();
   const {
     unreadCount,
     pendingRegistrationCount,
@@ -116,15 +97,14 @@ export function SidebarShell({
       !!pendingTransportChangeBadgeHrefs &&
       pendingTransportChangeBadgeHrefs.size > 0,
   });
+
   // Role + grants come from the shell-wide session (see SessionProvider).
-  // This used to be a strictly chained getUser() -> profiles ->
-  // editor_permissions of its own, three serial round trips deep, repeated by
-  // the profile menu, the app switcher and useIsAdmin on the same page.
-  const { profile, editorPermissions } = useSession();
-  // Assume admin until the profile lands — the sidebar has always rendered
-  // optimistically and then filtered down, and inverting that would trade a
-  // brief flash of extra links for a brief flash of an empty pane.
-  const userRole: UserRole = (profile?.role as UserRole) || "admin";
+  const { sections: visibleSections, ready } = useVisibleSections({
+    sections,
+    gate,
+    editorAlwaysAllowedHrefs,
+  });
+
   const [groupOverrides, setGroupOverrides] = useState<Record<string, boolean>>(
     {}
   );
@@ -133,72 +113,49 @@ export function SidebarShell({
     setGroupOverrides({});
   }, [pathname]);
 
-  const groupContainsActive = (group: SidebarGroup): boolean => {
-    if (pathname === group.landingHref) return true;
-    return group.children.some((child) => {
-      if (child.kind === "link") {
-        return pathname === child.href || pathname.startsWith(child.href + "/");
-      }
-      return groupContainsActive(child);
-    });
-  };
+  // Tell the app bar which paths are destinations, so it knows when to offer a
+  // back arrow instead of the hamburger. Published from here rather than from
+  // the drawer because the drawer only exists while it is open.
+  const navHrefs = useMemo(
+    () => collectNavHrefs(visibleSections),
+    [visibleSections]
+  );
+  useEffect(() => {
+    publishNavHrefs(navHrefs);
+  }, [navHrefs, publishNavHrefs]);
 
-  const isGroupOpen = (group: SidebarGroup): boolean => {
-    if (group.label in groupOverrides) {
-      return groupOverrides[group.label];
-    }
-    return groupContainsActive(group);
-  };
-
-  const toggleGroup = (group: SidebarGroup) => {
-    const currentlyOpen = isGroupOpen(group);
-    setGroupOverrides((prev) => ({ ...prev, [group.label]: !currentlyOpen }));
-  };
-
-  const isAdmin = userRole === "admin";
-
-  const isCapabilityAllowed = (href: string): boolean => {
-    if (editorAlwaysAllowedHrefs.has(href)) return true;
-    const key = resolveFeatureKey(href);
-    if (!key) return false;
-    return editorPermissions?.has(key) ?? false;
-  };
-
-  // Hide everything until permissions load (for non-admins) to avoid flash of
-  // forbidden links. Admins never consult the grants, so they don't wait on them.
-  const permissionsReady = isAdmin || editorPermissions !== null;
-
-  const filterItem = (item: SidebarItem): SidebarItem | null => {
-    if (item.kind === "link") {
-      return !isAdmin && !isCapabilityAllowed(item.href) ? null : item;
-    }
-    const visibleChildren = item.children
-      .map(filterItem)
-      .filter((c): c is SidebarItem => c !== null);
-    if (visibleChildren.length === 0) return null;
-    return { ...item, children: visibleChildren };
-  };
-
-  const visibleSections = !permissionsReady
-    ? sections.map((s) => ({ ...s, items: [] as SidebarItem[] }))
-    : sections.map((s) => ({
-        ...s,
-        items: s.items
-          .map(filterItem)
-          .filter((x): x is SidebarItem => x !== null),
-      }));
-
-  const renderLink = ({ icon: Icon, label, href }: SidebarLink) => {
-    const isActive =
-      href === pathname ||
-      (href !== "/" && pathname.startsWith(href + "/"));
-
-    const badgeCount =
+  // One answer to "how many on this link?", shared with the drawer so the two
+  // can't disagree and the counts are fetched once for both.
+  const badgeFor = useCallback(
+    (href: string): number =>
       unreadBadgeHrefs?.has(href) ? unreadCount
       : pendingRegistrationBadgeHrefs?.has(href) ? pendingRegistrationCount
       : pendingFeeChangeRequestBadgeHrefs?.has(href) ? pendingFeeChangeRequestCount
       : pendingTransportChangeBadgeHrefs?.has(href) ? pendingTransportChangeCount
-      : 0;
+      : 0,
+    [
+      unreadBadgeHrefs,
+      pendingRegistrationBadgeHrefs,
+      pendingFeeChangeRequestBadgeHrefs,
+      pendingTransportChangeBadgeHrefs,
+      unreadCount,
+      pendingRegistrationCount,
+      pendingFeeChangeRequestCount,
+      pendingTransportChangeCount,
+    ]
+  );
+
+  const isGroupOpen = (group: SidebarGroup): boolean =>
+    group.label in groupOverrides
+      ? groupOverrides[group.label]
+      : groupContainsActive(group, pathname);
+
+  const toggleGroup = (group: SidebarGroup) =>
+    setGroupOverrides((prev) => ({ ...prev, [group.label]: !isGroupOpen(group) }));
+
+  const renderLink = ({ icon: Icon, label, href }: SidebarLink) => {
+    const isActive = isLinkActive(href, pathname);
+    const badgeCount = badgeFor(href);
     const showBadge = badgeCount > 0;
     const badgeLabel = badgeCount > 99 ? "99+" : badgeCount;
 
@@ -246,7 +203,7 @@ export function SidebarShell({
   };
 
   const renderGroup = (group: SidebarGroup) => {
-    const hasActiveDescendant = groupContainsActive(group);
+    const hasActiveDescendant = groupContainsActive(group, pathname);
 
     if (collapsed) {
       const iconContent = (
@@ -320,14 +277,8 @@ export function SidebarShell({
   };
 
   const renderNestedLink = (link: SidebarLink) => {
-    const isActive =
-      pathname === link.href || pathname.startsWith(link.href + "/");
-    const badgeCount =
-      unreadBadgeHrefs?.has(link.href) ? unreadCount
-      : pendingRegistrationBadgeHrefs?.has(link.href) ? pendingRegistrationCount
-      : pendingFeeChangeRequestBadgeHrefs?.has(link.href) ? pendingFeeChangeRequestCount
-      : pendingTransportChangeBadgeHrefs?.has(link.href) ? pendingTransportChangeCount
-      : 0;
+    const isActive = isLinkActive(link.href, pathname);
+    const badgeCount = badgeFor(link.href);
     const showBadge = badgeCount > 0;
     const badgeLabel = badgeCount > 99 ? "99+" : badgeCount;
     return (
@@ -354,7 +305,7 @@ export function SidebarShell({
 
   const renderNestedGroup = (group: SidebarGroup) => {
     const open = isGroupOpen(group);
-    const hasActiveDescendant = groupContainsActive(group);
+    const hasActiveDescendant = groupContainsActive(group, pathname);
     return (
       <div key={group.label}>
         <button
@@ -407,98 +358,104 @@ export function SidebarShell({
     item.kind === "link" ? renderLink(item) : renderGroup(item);
 
   return (
-    <aside
-      className={cn(
-        "fixed left-0 top-0 h-screen bg-navy-900 flex flex-col z-40 transition-all duration-300 ease-in-out w-64",
-        // Desktop: collapse toggles between icon rail and full width.
-        collapsed ? "lg:w-[72px]" : "lg:w-64",
-        // Mobile: slide the drawer off-canvas unless it's open.
-        mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      )}
-    >
-      {/* Header */}
-      <div className={cn("p-4 flex items-center", collapsed ? "justify-center" : "gap-3 px-6")}>
-        {!collapsed && (
-          <>
-            <Image
-              src="/images/logo.png"
-              alt="NKPS Logo"
-              width={36}
-              height={36}
-              className="rounded-full shrink-0"
-            />
-            <div className="min-w-0 flex-1">
-              <h1 className="font-heading text-xl font-bold text-white truncate">
-                {headerTitle}
-              </h1>
-              <p className="text-sm text-gold-500 mt-0.5">{headerSubtitle}</p>
-            </div>
+    <>
+      {/* Desktop pane. Below lg the drawer takes over entirely — this used to
+          be the same element slid off-canvas, which is why a phone was getting
+          a 264px desktop rail with hover affordances and no gesture. */}
+      <aside
+        data-app-chrome
+        className={cn(
+          "fixed left-0 top-0 h-screen bg-navy-900 hidden lg:flex flex-col z-40 transition-all duration-300 ease-in-out",
+          collapsed ? "lg:w-[72px]" : "lg:w-64"
+        )}
+      >
+        {/* Header */}
+        <div className={cn("p-4 flex items-center", collapsed ? "justify-center" : "gap-3 px-6")}>
+          {!collapsed && (
+            <>
+              <Image
+                src="/images/logo.png"
+                alt="NKPS Logo"
+                width={36}
+                height={36}
+                className="rounded-full shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <h1 className="font-heading text-xl font-bold text-white truncate">
+                  {headerTitle}
+                </h1>
+                <p className="text-sm text-gold-500 mt-0.5">{headerSubtitle}</p>
+              </div>
+              <button
+                onClick={toggle}
+                className="flex items-center justify-center h-7 w-7 rounded-lg text-white/40 hover:bg-white/5 hover:text-white transition-colors shrink-0"
+                title="Collapse sidebar"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            </>
+          )}
+          {collapsed && (
             <button
               onClick={toggle}
-              className="hidden lg:flex items-center justify-center h-7 w-7 rounded-lg text-white/40 hover:bg-white/5 hover:text-white transition-colors shrink-0"
-              title="Collapse sidebar"
+              className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-white/5 transition-colors"
+              title="Expand sidebar"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <Image
+                src="/images/logo.png"
+                alt="NKPS Logo"
+                width={32}
+                height={32}
+                className="rounded-full"
+              />
             </button>
-            <button
-              onClick={closeMobile}
-              aria-label="Close menu"
-              className="lg:hidden flex items-center justify-center h-8 w-8 rounded-lg text-white/60 hover:bg-white/5 hover:text-white transition-colors shrink-0"
-              title="Close menu"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </>
-        )}
-        {collapsed && (
-          <button
-            onClick={toggle}
-            className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-white/5 transition-colors"
-            title="Expand sidebar"
-          >
-            <Image
-              src="/images/logo.png"
-              alt="NKPS Logo"
-              width={32}
-              height={32}
-              className="rounded-full"
-            />
-          </button>
-        )}
-      </div>
-
-      {!collapsed && (
-        <div className="px-6 mb-2">
-          <div className="h-0.5 w-12 bg-gold-500 rounded-full" />
+          )}
         </div>
-      )}
 
-      {/* Navigation */}
-      <nav className="flex-1 min-h-0 px-2 overflow-y-auto">
-        {visibleSections.map((section, idx) =>
-          section.items.length === 0 ? null : (
-            <div key={section.label} className={cn(idx === 0 ? "mb-1" : "mt-4 pb-2")}>
-              {!collapsed && (
-                <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
-                  {section.label}
-                </p>
-              )}
-              {collapsed && idx > 0 && <div className="h-px bg-white/10 mx-2 mb-2 mt-3" />}
-              {collapsed && idx === 0 && <div className="h-px bg-white/10 mx-2 mb-2" />}
-              <div className="space-y-0.5">
-                {section.items.map(renderItem)}
-              </div>
-            </div>
-          )
+        {!collapsed && (
+          <div className="px-6 mb-2">
+            <div className="h-0.5 w-12 bg-gold-500 rounded-full" />
+          </div>
         )}
-      </nav>
 
-      {footerExtra}
-      <SidebarProfileMenu
+        {/* Navigation */}
+        <nav className="flex-1 min-h-0 px-2 overflow-y-auto">
+          {visibleSections.map((section, idx) =>
+            section.items.length === 0 ? null : (
+              <div key={section.label} className={cn(idx === 0 ? "mb-1" : "mt-4 pb-2")}>
+                {!collapsed && (
+                  <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                    {section.label}
+                  </p>
+                )}
+                {collapsed && idx > 0 && <div className="h-px bg-white/10 mx-2 mb-2 mt-3" />}
+                {collapsed && idx === 0 && <div className="h-px bg-white/10 mx-2 mb-2" />}
+                <div className="space-y-0.5">
+                  {section.items.map(renderItem)}
+                </div>
+              </div>
+            )
+          )}
+        </nav>
+
+        {footerExtra}
+        <SidebarProfileMenu
+          settingsHref={settingsHref}
+          logoutRedirect={logoutRedirect}
+          collapsed={collapsed}
+        />
+      </aside>
+
+      <MobileNavDrawer
+        sections={visibleSections}
+        ready={ready}
+        headerTitle={headerTitle}
+        headerSubtitle={headerSubtitle}
         settingsHref={settingsHref}
         logoutRedirect={logoutRedirect}
-        collapsed={collapsed}
+        badgeFor={badgeFor}
+        footerExtra={footerExtra}
       />
-    </aside>
+    </>
   );
 }

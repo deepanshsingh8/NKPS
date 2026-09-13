@@ -35,7 +35,7 @@ export function AppShell({
   children: React.ReactNode;
   variant?: "padded" | "full";
 }) {
-  const { collapsed, mobileOpen, closeMobile } = useSidebar();
+  const { collapsed } = useSidebar();
 
   const full = variant === "full";
 
@@ -48,14 +48,9 @@ export function AppShell({
     >
       {sidebar}
 
-      {/* Backdrop behind the open mobile drawer. */}
-      {mobileOpen && (
-        <div
-          onClick={closeMobile}
-          aria-hidden
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
-        />
-      )}
+      {/* No backdrop here any more: MobileNavDrawer portals its own, so that
+          the scrim can fade with the drag gesture rather than sitting at a
+          fixed opacity underneath a panel moving independently of it. */}
 
       <div
         className={cn(

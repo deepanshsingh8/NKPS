@@ -1773,7 +1773,7 @@ export default function AdminStudentsPage() {
         <Button
           type="submit"
           disabled={submitting}
-          className="bg-navy-900 hover:bg-navy-800 text-white"
+          className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
         >
           {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           {isEdit ? "Update Student" : "Add Student"}
@@ -1937,7 +1937,7 @@ export default function AdminStudentsPage() {
           </DropdownMenu>
           <Button
             onClick={openAddDialog}
-            className="bg-navy-900 hover:bg-navy-800 text-white shadow-sm"
+            className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 shadow-sm"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Student
@@ -2043,7 +2043,7 @@ export default function AdminStudentsPage() {
               size="sm"
               disabled={!bulkStatusValue || applyingBulk}
               onClick={handleBulkStatusUpdate}
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {applyingBulk && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
               Apply
@@ -2429,7 +2429,7 @@ export default function AdminStudentsPage() {
                 </Button>
                 <Button
                   onClick={() => setDetailStudent(null)}
-                  className="bg-navy-900 hover:bg-navy-800 text-white"
+                  className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
                 >
                   Close
                 </Button>
@@ -2542,7 +2542,7 @@ export default function AdminStudentsPage() {
                 <Button
                   onClick={handleInvite}
                   disabled={inviting}
-                  className="bg-navy-900 hover:bg-navy-800 text-white"
+                  className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
                 >
                   {inviting ? (
                     <>
@@ -2725,7 +2725,7 @@ export default function AdminStudentsPage() {
                 <Button
                   disabled={promoting || !targetAcademicYearId || (statusCounts.active || 0) > 0}
                   onClick={handlePromote}
-                  className="bg-navy-900 hover:bg-navy-800 text-white"
+                  className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
                 >
                   {promoting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Promote Students

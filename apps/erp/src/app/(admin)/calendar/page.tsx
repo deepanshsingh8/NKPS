@@ -325,7 +325,7 @@ export default function AdminCalendarPage() {
             }
           />
           <Button
-            className="bg-navy-900 hover:bg-navy-800 text-white"
+            className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             onClick={() => setAddEventOpen(true)}
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -578,7 +578,7 @@ export default function AdminCalendarPage() {
             <Button
               onClick={handleAddEvent}
               disabled={submitting}
-              className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white"
+              className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {submitting ? (
                 <>
@@ -712,7 +712,7 @@ export default function AdminCalendarPage() {
             <Button
               onClick={handleEditEvent}
               disabled={submitting}
-              className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white"
+              className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {submitting ? (
                 <>

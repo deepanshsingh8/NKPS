@@ -2178,7 +2178,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                       </select>
                     </div>
                     <Button
-                      className="bg-navy-900 hover:bg-navy-800 text-white"
+                      className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
                       onClick={openAddStructure}
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -3183,7 +3183,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             <Button
               onClick={handleSaveStructure}
               disabled={structureSubmitting}
-              className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white"
+              className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {structureSubmitting ? (
                 <>
@@ -3454,7 +3454,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             <Button
               onClick={handleRecordPayment}
               disabled={paymentSubmitting}
-              className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white"
+              className="w-full h-10 rounded-xl font-medium bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {paymentSubmitting ? (
                 <>

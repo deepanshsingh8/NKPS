@@ -160,7 +160,7 @@ export function EditorPermissionsDialog({
           <Button
             onClick={save}
             disabled={saving || loading}
-            className="bg-navy-900 hover:bg-navy-800 text-white"
+            className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
           >
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Save Permissions

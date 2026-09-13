@@ -334,7 +334,7 @@ export default function AdminClassesPage() {
             resetForm();
             setDialogOpen(true);
           }}
-          className="bg-navy-900 hover:bg-navy-800 text-white"
+          className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
         >
           <Plus className="h-4 w-4 mr-2" />
           Add Class
@@ -559,7 +559,7 @@ export default function AdminClassesPage() {
               <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={submitting} className="bg-navy-900 hover:bg-navy-800 text-white">
+              <Button type="submit" disabled={submitting} className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900">
                 {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Update Class
               </Button>
@@ -628,7 +628,7 @@ export default function AdminClassesPage() {
               type="button"
               disabled={rollSubmitting}
               onClick={handleGenerateRollNumbers}
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {rollSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirm
@@ -766,7 +766,7 @@ export default function AdminClassesPage() {
               <Button
                 type="submit"
                 disabled={submitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {submitting && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

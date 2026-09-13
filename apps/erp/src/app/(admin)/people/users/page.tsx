@@ -523,7 +523,7 @@ export default function AdminUsersPage() {
               resetForm();
               setDialogOpen(true);
             }}
-            className="bg-navy-900 hover:bg-navy-800 text-white shadow-sm"
+            className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 shadow-sm"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add User
@@ -923,7 +923,7 @@ export default function AdminUsersPage() {
                       resetForm();
                       setDialogOpen(false);
                     }}
-                    className="bg-navy-900 hover:bg-navy-800 text-white"
+                    className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
                   >
                     Done
                   </Button>
@@ -1022,7 +1022,7 @@ export default function AdminUsersPage() {
                   <Button
                     type="submit"
                     disabled={submitting}
-                    className="bg-navy-900 hover:bg-navy-800 text-white"
+                    className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
                   >
                     {submitting && (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -1162,7 +1162,7 @@ export default function AdminUsersPage() {
               <Button
                 onClick={submitLink}
                 disabled={!linkResult || linkSubmitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {linkSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Link account
@@ -1235,7 +1235,7 @@ export default function AdminUsersPage() {
                   setApproveDialogOpen(false);
                   setApprovePassword(null);
                 }}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 Done
               </Button>

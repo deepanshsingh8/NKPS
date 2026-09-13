@@ -434,7 +434,7 @@ export default function TeacherAttendancePage() {
               <Button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white px-8"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 px-8"
               >
                 {submitting && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

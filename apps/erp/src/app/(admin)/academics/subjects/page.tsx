@@ -1120,7 +1120,7 @@ export default function AdminSubjectsPage() {
                 resetSubjectForm();
                 setSubjectDialogOpen(true);
               }}
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Subject
@@ -1143,7 +1143,7 @@ export default function AdminSubjectsPage() {
                 setNewTeacherId("");
                 setAssignDialogOpen(true);
               }}
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               <Plus className="h-4 w-4 mr-2" />
               Assign Subject
@@ -1162,7 +1162,7 @@ export default function AdminSubjectsPage() {
               );
               setStreamDialogOpen(true);
             }}
-            className="bg-navy-900 hover:bg-navy-800 text-white"
+            className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Stream
@@ -1891,7 +1891,7 @@ export default function AdminSubjectsPage() {
               <Button
                 type="submit"
                 disabled={submitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {submitting && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -2010,7 +2010,7 @@ export default function AdminSubjectsPage() {
               <Button
                 type="submit"
                 disabled={submitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {submitting && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -2134,7 +2134,7 @@ export default function AdminSubjectsPage() {
             <Button
               onClick={handleAssign}
               disabled={assignSubmitting || !newClassId || !newSubjectId}
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {assignSubmitting && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -2204,7 +2204,7 @@ export default function AdminSubjectsPage() {
             <Button
               onClick={handleUpdateTeacher}
               disabled={editTeacherSubmitting}
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {editTeacherSubmitting && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -2287,7 +2287,7 @@ export default function AdminSubjectsPage() {
               <Button
                 type="submit"
                 disabled={streamSubmitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {streamSubmitting && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -2383,7 +2383,7 @@ export default function AdminSubjectsPage() {
               <Button
                 type="submit"
                 disabled={streamSubmitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {streamSubmitting && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -2488,7 +2488,7 @@ export default function AdminSubjectsPage() {
             <Button
               onClick={handleSaveStreamSubjects}
               disabled={streamSubjectsSubmitting}
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {streamSubjectsSubmitting && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

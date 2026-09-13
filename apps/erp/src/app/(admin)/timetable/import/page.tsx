@@ -183,7 +183,7 @@ export default function TimetableImportPage() {
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="text-sm"
           />
-          <Button onClick={handleParse} disabled={!file || parsing} className="bg-navy-900 hover:bg-navy-800 text-white">
+          <Button onClick={handleParse} disabled={!file || parsing} className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900">
             {parsing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
             <Upload className="h-4 w-4 mr-1.5" />
             Parse & Preview
@@ -215,7 +215,7 @@ export default function TimetableImportPage() {
             <Button
               onClick={handleCommit}
               disabled={committing || !preview || totals.error > 0}
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {committing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Commit {totals.ok + totals.warning} row(s)

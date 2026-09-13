@@ -246,7 +246,7 @@ function TextItemsTab({
           <Button
             onClick={handleSaveAll}
             disabled={saving || !hasChanges}
-            className="bg-navy-900 hover:bg-navy-800 text-white"
+            className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
           >
             {saving ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -417,7 +417,7 @@ function DocumentsTab({
               disabled={
                 !pendingFiles[doc.doc_key] || uploadingKey === doc.doc_key
               }
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {uploadingKey === doc.doc_key ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -599,7 +599,7 @@ function ResultAcademicsTab({
           </h2>
           <Button
             onClick={openAdd}
-            className="bg-navy-900 hover:bg-navy-800 text-white"
+            className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Result
@@ -868,7 +868,7 @@ function ResultAcademicsTab({
               <Button
                 type="submit"
                 disabled={submitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {submitting && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

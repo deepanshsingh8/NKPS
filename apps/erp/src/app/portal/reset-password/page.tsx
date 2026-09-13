@@ -178,7 +178,7 @@ export default function ResetPasswordPage() {
                   <Button
                     type="submit"
                     disabled={loading}
-                    className="w-full h-11 bg-navy-900 hover:bg-navy-800 text-white font-medium"
+                    className="w-full h-11 bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 font-medium"
                   >
                     {loading ? (
                       <>

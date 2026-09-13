@@ -224,7 +224,7 @@ export default function TimetableTemplatesPage() {
             Every template must include a 20-minute lunch slot.
           </p>
         </div>
-        <Button onClick={() => setCloneOpen(true)} className="bg-navy-900 hover:bg-navy-800 text-white">
+        <Button onClick={() => setCloneOpen(true)} className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900">
           <Copy className="h-4 w-4 mr-1.5" />
           Clone Template
         </Button>
@@ -331,7 +331,7 @@ export default function TimetableTemplatesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCloneOpen(false)}>Cancel</Button>
-            <Button onClick={handleClone} className="bg-navy-900 hover:bg-navy-800 text-white">
+            <Button onClick={handleClone} className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900">
               <Copy className="h-4 w-4 mr-1" />
               Clone
             </Button>
@@ -436,7 +436,7 @@ export default function TimetableTemplatesPage() {
             <Button
               onClick={handleSave}
               disabled={saving}
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               <Save className="h-4 w-4 mr-1" />

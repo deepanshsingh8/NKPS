@@ -130,7 +130,7 @@ export default function PortalRegisterPage() {
               </p>
               <Link
                 href="/portal/login"
-                className="inline-flex items-center justify-center w-full h-11 bg-navy-900 hover:bg-navy-800 text-white font-medium rounded-lg transition-colors"
+                className="inline-flex items-center justify-center w-full h-11 bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 font-medium rounded-lg transition-colors"
               >
                 Go to Sign In
               </Link>
@@ -261,7 +261,7 @@ export default function PortalRegisterPage() {
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full h-11 bg-navy-900 hover:bg-navy-800 text-white font-medium transition-colors"
+                  className="w-full h-11 bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 font-medium transition-colors"
                 >
                   {loading ? (
                     <>
