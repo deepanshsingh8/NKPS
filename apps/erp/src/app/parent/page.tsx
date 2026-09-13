@@ -418,28 +418,30 @@ export default function ParentDashboard() {
                       Admission No: {child.student.admission_no}
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="erp-scroll-x -mx-1 px-1">
+                    <div className="flex gap-2">
                     <Link
                       href={`/parent/attendance?child=${child.student_id}`}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors"
+                      className="flex shrink-0 items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors"
                     >
                       <ClipboardCheck className="h-3.5 w-3.5" />
                       Attendance
                     </Link>
                     <Link
                       href={`/parent/results?child=${child.student_id}`}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 text-xs font-medium hover:bg-violet-100 dark:hover:bg-violet-950/50 transition-colors"
+                      className="flex shrink-0 items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 text-xs font-medium hover:bg-violet-100 dark:hover:bg-violet-950/50 transition-colors"
                     >
                       <BarChart3 className="h-3.5 w-3.5" />
                       Results
                     </Link>
                     <Link
                       href={`/parent/fees?child=${child.student_id}`}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-xs font-medium hover:bg-green-100 dark:hover:bg-green-950/50 transition-colors"
+                      className="flex shrink-0 items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-xs font-medium hover:bg-green-100 dark:hover:bg-green-950/50 transition-colors"
                     >
                       <CreditCard className="h-3.5 w-3.5" />
                       Fees
                     </Link>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -451,7 +453,7 @@ export default function ParentDashboard() {
       {/* Quick Links */}
       <div>
         <h2 className="erp-section-title mb-4">Quick Links</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             {
               href: "/parent/attendance",

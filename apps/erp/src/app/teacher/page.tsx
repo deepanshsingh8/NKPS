@@ -364,7 +364,7 @@ export default function TeacherDashboard() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-5">
         <div className="erp-stat-card relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-blue-500/8 to-transparent rounded-bl-full" />
           <div className="relative">
@@ -453,7 +453,7 @@ export default function TeacherDashboard() {
       {/* Quick Actions */}
       <div>
         <h2 className="erp-section-title mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             {
               href: "/teacher/attendance",

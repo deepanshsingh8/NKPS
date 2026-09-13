@@ -13,6 +13,7 @@ import {
   Clock,
 } from "lucide-react";
 import { cn } from "@nkps/shared/lib/utils";
+import { Meter, toneForPercent } from "@nkps/shared/components/charts/Meter";
 import { UpcomingEvents } from "@nkps/shared/components/UpcomingEvents";
 import { StudentLinkPrompt } from "@/components/StudentLinkPrompt";
 import type { Profile } from "@nkps/shared/types";
@@ -166,7 +167,7 @@ export default function StudentDashboard() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-5">
         {/* Attendance */}
         <div className="erp-stat-card relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-blue-500/8 to-transparent rounded-bl-full" />
@@ -182,7 +183,15 @@ export default function StudentDashboard() {
                 ? `${stats.attendancePercent}%`
                 : "--"}
             </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Overall attendance</p>
+            {stats.attendancePercent !== null && (
+              <Meter
+                percent={stats.attendancePercent}
+                tone={toneForPercent(stats.attendancePercent)}
+                className="mt-2"
+                ariaLabel={`Attendance ${stats.attendancePercent}%`}
+              />
+            )}
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Overall attendance</p>
           </div>
         </div>
 
@@ -205,8 +214,8 @@ export default function StudentDashboard() {
 
         {/* Fee Status */}
         <div className={cn(
-          "erp-stat-card relative overflow-hidden group",
-          stats.feeStatus === "pending" && "ring-1 ring-amber-200"
+          "erp-stat-card relative overflow-hidden group col-span-2 md:col-span-1",
+          stats.feeStatus === "pending" && "ring-1 ring-amber-200 dark:ring-amber-500/30"
         )}>
           <div className={cn(
             "absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl rounded-bl-full",
@@ -258,7 +267,7 @@ export default function StudentDashboard() {
       {/* Quick Links */}
       <div>
         <h2 className="erp-section-title mb-4">Quick Links</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { href: "/student/attendance", icon: ClipboardCheck, label: "View Attendance", color: "bg-navy-900 text-white hover:bg-navy-800" },
             { href: "/student/results", icon: BarChart3, label: "View Results", color: "bg-gold-500 text-navy-900 hover:bg-gold-400" },

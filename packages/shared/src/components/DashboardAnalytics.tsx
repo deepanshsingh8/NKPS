@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   CheckSquare,
@@ -10,104 +10,16 @@ import {
   Bus,
   ShieldAlert,
 } from "lucide-react";
-import { adminFetch } from "@nkps/shared/lib/admin-api";
 import { cn } from "@nkps/shared/lib/utils";
 import { todayISO } from "@nkps/shared/lib/date";
 
-interface AttendanceDay {
-  date: string;
-  day: number;
-  present: number;
-  absent: number;
-  late: number;
-  total: number;
-}
+import {
+  type AdmissionTrend,
+  type AnalyticsData,
+  type AttendanceData,
+  type AttendanceDay,
+} from "@nkps/shared/components/dashboard/useDashboardAnalytics";
 
-interface AttendanceData {
-  daily: AttendanceDay[];
-  totals: {
-    present: number;
-    absent: number;
-    late: number;
-    total: number;
-    percentage: number;
-  };
-}
-
-interface FeeCollection {
-  /** Cash banked this session from these students, net of refunds. */
-  collected: number;
-  /** Fees written off — settled for dues, but never money in the bank. */
-  waived: number;
-  /** Cash held against instalments that have not fallen due yet. */
-  advance: number;
-  /**
-   * The settled slice of `dueToDate` (cash + waivers, capped per student).
-   * `settled + dues - lateFee === dueToDate`, so the bar and the outstanding
-   * figure below it reconcile on screen.
-   */
-  settled: number;
-  /** The session's whole obligation across every enrolled student. */
-  expected: number;
-  /** The slice of `expected` whose due date has passed. */
-  dueToDate: number;
-  /** Outstanding as of today, late fee included — what the office chases. */
-  dues: number;
-  /** The late-fee part of `dues`. */
-  lateFee: number;
-  /** `settled` as a share of dueToDate — progress against what's payable now. */
-  percentage: number;
-  /** The same measure taken over the whole session. */
-  percentageOfYear: number;
-  /** Students with nothing outstanding — paid in full, or waived. */
-  studentsClear: number;
-  /** Students still owing something as of today. */
-  studentsWithDues: number;
-  /** Active enrolments the figures above were computed over. */
-  studentsTotal: number;
-}
-
-interface EnrollmentItem {
-  name: string;
-  count: number;
-  // Optional — only present when the server can resolve the bucket to a
-  // single class row (current schema guarantees this for every bucket, but
-  // the field is optional so older payloads don't break the type).
-  class_id?: string;
-}
-
-interface AdmissionTrend {
-  month: string;
-  /** Students whose admission date falls in this month. */
-  admissions: number;
-  /** Transfer certificates issued in this month — students who left. */
-  exits: number;
-  /** `admissions - exits`. Negative months are the ones worth noticing. */
-  net: number;
-}
-
-interface TransportAudit {
-  usingTransport: number;
-  oneSide: number;
-  unassignedBus: number;
-  pendingChangeRequests: number;
-}
-
-// Every block is optional — the server omits blocks the caller can't see.
-interface AnalyticsData {
-  attendance?: AttendanceData;
-  feeCollection?: FeeCollection;
-  /**
-   * Set instead of `feeCollection` when a read behind the card came up short.
-   * A money total built on a partial read looks exactly like a correct one, so
-   * the card reports the failure rather than a figure it knows is wrong.
-   */
-  feeCollectionError?: string;
-  enrollmentByClass?: EnrollmentItem[];
-  admissionTrend?: AdmissionTrend[];
-  transportAudit?: TransportAudit;
-  hasAcademicYear: boolean;
-}
 
 function formatCurrency(amount: number) {
   if (amount >= 100000) return `${(amount / 100000).toFixed(1)}L`;
@@ -341,96 +253,102 @@ function AttendanceBlock({ data }: { data: AttendanceData }) {
             />
           </div>
 
-          {/* Chart area */}
-          <div
-            className="flex items-end gap-[3px] h-40"
-            onMouseLeave={() => setHoverIdx(null)}
-          >
-            {daily.map((d, i) => {
-              const hPresent = (d.present / maxTotal) * 100;
-              const hLate = (d.late / maxTotal) * 100;
-              const hAbsent = (d.absent / maxTotal) * 100;
-              const hasData = d.total > 0;
-              const isActive = i === activeIdx;
-              const isToday = d.date === todayStr;
-              const dimmed = activeIdx >= 0 && !isActive;
+          {/* Chart area.
+              31 flex-1 bars inside a phone-width card come out around 10px
+              each — under half the minimum anyone can reliably tap, with a 9px
+              axis label under it. Below `md` the track keeps each day at a
+              thumb-sized width and scrolls sideways instead; from `md` up the
+              bars go back to sharing the width, which is where they fit. */}
+          <div className="erp-scroll-x -mx-1 px-1">
+            <div className="min-w-full">
+              <div
+                className="flex items-end gap-[3px] h-40"
+                onMouseLeave={() => setHoverIdx(null)}
+              >
+                {daily.map((d, i) => {
+                  const hasData = d.total > 0;
+                  const isActive = i === activeIdx;
+                  const isToday = d.date === todayStr;
+                  const dimmed = activeIdx >= 0 && !isActive;
 
-              return (
-                <button
-                  key={d.date}
-                  type="button"
-                  onMouseEnter={() => setHoverIdx(i)}
-                  onClick={() => setSelectedIdx(i)}
-                  aria-label={`Day ${d.day}${hasData ? ` — ${d.present} present, ${d.late} late, ${d.absent} absent` : " — no records"}`}
-                  className={cn(
-                    "flex-1 flex flex-col justify-end h-full rounded-t-md cursor-pointer outline-none transition-opacity duration-150",
-                    "focus-visible:ring-2 focus-visible:ring-emerald-500/40",
-                    dimmed ? "opacity-40 hover:opacity-100" : "opacity-100",
-                    isToday && "ring-1 ring-emerald-400/40 ring-offset-1 ring-offset-white dark:ring-offset-card"
-                  )}
-                >
-                  {/* Stacked: absent (top) → late → present (bottom). */}
-                  <div
-                    className="w-full bg-rose-400 rounded-t-sm dash-grow-h"
-                    style={{
-                      height: `${hAbsent}%`,
-                      animationDelay: `${i * 12}ms`,
-                    }}
-                  />
-                  <div
-                    className={cn(
-                      "w-full bg-amber-400 dash-grow-h",
-                      hAbsent === 0 && "rounded-t-sm"
-                    )}
-                    style={{
-                      height: `${hLate}%`,
-                      animationDelay: `${i * 12}ms`,
-                    }}
-                  />
-                  <div
-                    className={cn(
-                      "w-full bg-emerald-500 dash-grow-h",
-                      hAbsent === 0 && hLate === 0 && "rounded-t-sm"
-                    )}
-                    style={{
-                      height: `${hPresent}%`,
-                      animationDelay: `${i * 12}ms`,
-                    }}
-                  />
-                  {!hasData && (
-                    <div className="w-full h-1 bg-gray-100 dark:bg-muted/40 rounded-t-sm" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                  // Stacked bottom-up: present, late, absent. Only non-zero
+                  // segments are rendered so the 2px separator between them
+                  // never shows up as a gap above an empty one.
+                  const segments = [
+                    { key: "present", h: (d.present / maxTotal) * 100, cls: "bg-emerald-500" },
+                    { key: "late", h: (d.late / maxTotal) * 100, cls: "bg-amber-400" },
+                    { key: "absent", h: (d.absent / maxTotal) * 100, cls: "bg-rose-400" },
+                  ].filter((s) => s.h > 0);
 
-          {/* Day axis — labels on 1, every 5th, today, and the active day. */}
-          <div className="flex gap-[3px] mt-1.5">
-            {daily.map((d, i) => {
-              const isToday = d.date === todayStr;
-              const isActive = i === activeIdx;
-              const showLabel =
-                d.day === 1 || d.day % 5 === 0 || isToday || isActive;
-              return (
-                <div key={d.date} className="flex-1 text-center">
-                  {showLabel && (
-                    <span
+                  return (
+                    <button
+                      key={d.date}
+                      type="button"
+                      onMouseEnter={() => setHoverIdx(i)}
+                      onClick={() => setSelectedIdx(i)}
+                      aria-label={`Day ${d.day}${hasData ? ` — ${d.present} present, ${d.late} late, ${d.absent} absent` : " — no records"}`}
                       className={cn(
-                        "text-[9px] tabular-nums",
-                        isActive
-                          ? "font-bold text-navy-900 dark:text-white"
-                          : isToday
-                            ? "font-bold text-emerald-600"
-                            : "text-gray-400"
+                        "w-6 shrink-0 md:w-auto md:flex-1 flex flex-col-reverse justify-start gap-[2px] h-full rounded-t-md cursor-pointer outline-none transition-opacity duration-150",
+                        "focus-visible:ring-2 focus-visible:ring-emerald-500/40",
+                        dimmed ? "opacity-40 hover:opacity-100" : "opacity-100",
+                        isToday && "ring-1 ring-emerald-400/40 ring-offset-1 ring-offset-white dark:ring-offset-card"
                       )}
                     >
-                      {d.day}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+                      {segments.map((s, si) => (
+                        <div
+                          key={s.key}
+                          className={cn(
+                            "w-full dash-grow-h",
+                            s.cls,
+                            // The data-end is the top of the stack; the
+                            // baseline end stays square.
+                            si === segments.length - 1 && "rounded-t"
+                          )}
+                          style={{
+                            height: `${s.h}%`,
+                            animationDelay: `${i * 12}ms`,
+                          }}
+                        />
+                      ))}
+                      {!hasData && (
+                        <div className="w-full h-1 bg-gray-100 dark:bg-muted/40 rounded-t" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Day axis — labels on 1, every 5th, today, and the active day. */}
+              <div className="flex gap-[3px] mt-1.5">
+                {daily.map((d, i) => {
+                  const isToday = d.date === todayStr;
+                  const isActive = i === activeIdx;
+                  const showLabel =
+                    d.day === 1 || d.day % 5 === 0 || isToday || isActive;
+                  return (
+                    <div
+                      key={d.date}
+                      className="w-6 shrink-0 md:w-auto md:flex-1 text-center"
+                    >
+                      {showLabel && (
+                        <span
+                          className={cn(
+                            "text-[10px] tabular-nums",
+                            isActive
+                              ? "font-bold text-navy-900 dark:text-white"
+                              : isToday
+                                ? "font-bold text-emerald-600"
+                                : "text-gray-400"
+                          )}
+                        >
+                          {d.day}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Detail strip — updates with hover, persists with click. */}
@@ -468,27 +386,16 @@ function AttendanceBlock({ data }: { data: AttendanceData }) {
   );
 }
 
-export function DashboardAnalytics() {
-  const [data, setData] = useState<AnalyticsData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchAnalytics = async () => {
-      try {
-        const res = await adminFetch("/api/dashboard/analytics");
-        if (res.ok) {
-          const json = await res.json();
-          setData(json);
-        }
-      } catch {
-        // silently fail
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAnalytics();
-  }, []);
-
+// Data comes in as a prop rather than being fetched here: the dashboard above
+// these cards needs the same payload for its headline tiles, and two components
+// asking one endpoint for one page is a round trip nobody gets anything for.
+export function DashboardAnalytics({
+  data,
+  loading,
+}: {
+  data: AnalyticsData | null;
+  loading: boolean;
+}) {
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -811,13 +718,13 @@ export function DashboardAnalytics() {
                         value={item.admissions}
                         max={maxMovement}
                         delay={i * 70}
-                        className="bg-gradient-to-t from-emerald-500 to-emerald-300 group-hover:from-emerald-600"
+                        className="bg-blue-600 group-hover:bg-blue-700 dark:bg-blue-500 dark:group-hover:bg-blue-400"
                       />
                       <MovementBar
                         value={item.exits}
                         max={maxMovement}
                         delay={i * 70 + 35}
-                        className="bg-gradient-to-t from-rose-500 to-rose-300 group-hover:from-rose-600"
+                        className="bg-orange-600 group-hover:bg-orange-700 dark:group-hover:bg-orange-500"
                       />
                     </div>
                     <span className="text-[10px] text-gray-400 group-hover:text-navy-900 dark:group-hover:text-white transition-colors">
@@ -828,11 +735,11 @@ export function DashboardAnalytics() {
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                 <div className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="h-2 w-2 rounded-full bg-blue-600 dark:bg-blue-500" />
                   <span className="text-gray-500 dark:text-gray-400">Joined</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-rose-500" />
+                  <span className="h-2 w-2 rounded-full bg-orange-600" />
                   <span className="text-gray-500 dark:text-gray-400">Left</span>
                 </div>
               </div>
