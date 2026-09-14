@@ -178,6 +178,8 @@ Per-app required vars. Missing one will either fail the build or break a runtime
 | `GMAIL_APP_PASSWORD` | ✅ | – | ✅ | Gmail app password (not the account password) |
 | `FROM_EMAIL` | ✅ | – | ✅ | `NK Public School <noreply@…>` — must use the `GMAIL_USER` mailbox |
 | `REPLY_TO_EMAIL` | ✅ | – | ✅ | Where replies route (e.g. `nkps.rajawas@gmail.com`) |
+| `NEXT_PUBLIC_WEBAUTHN_RP_ID` | – | ✅ | ✅ | Face ID / App Lock. Bare apex domain — `nkpublicschool.com`, no scheme, port or path. Must equal the Relying Party ID under Authentication → Passkeys in Supabase. Leave unset locally to fall back to the current hostname. **Changing it invalidates every passkey already registered.** |
+| `NEXT_PUBLIC_WEBAUTHN_RP_ORIGINS` | – | ✅ | ✅ | Comma-separated app origins, e.g. `https://erp.nkpublicschool.com,https://cms.nkpublicschool.com`. Must match the project's Relying Party Origins. |
 
 Why each app sends mail:
 - **website** — public contact form (`apps/website/src/app/api/contact/route.ts`).

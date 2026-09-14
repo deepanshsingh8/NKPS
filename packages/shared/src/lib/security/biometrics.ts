@@ -137,14 +137,47 @@ function classify(error: unknown): BiometricResult {
   return { ok: false, reason: "error", message };
 }
 
+/**
+ * The relying party these credentials belong to.
+ *
+ * A passkey is bound to its Relying Party ID forever. Left unset, auth-js fills
+ * this in from the browser — `window.location.hostname` and
+ * `[window.location.origin]` — which on this deployment means a credential
+ * registered in the ERP would be bound to `erp.nkpublicschool.com` and simply
+ * would not exist for the CMS, even though the CMS mounts the same App Lock.
+ * It would also disagree with a project configured against the apex domain.
+ *
+ * So it is configuration, not a default: set NEXT_PUBLIC_WEBAUTHN_RP_ID to the
+ * bare apex (`nkpublicschool.com` — no scheme, no port, no path) and list the
+ * app origins in NEXT_PUBLIC_WEBAUTHN_RP_ORIGINS. Both must match what the
+ * Supabase project has under Authentication -> Passkeys.
+ *
+ * Unset, this returns undefined and auth-js keeps its own defaults, so
+ * localhost development is unaffected.
+ *
+ * Changing the RP ID after anyone has enrolled invalidates every passkey
+ * already registered. It is worth getting right once.
+ */
+function relyingParty(): { rpId: string; rpOrigins?: string[] } | undefined {
+  const rpId = process.env.NEXT_PUBLIC_WEBAUTHN_RP_ID;
+  if (!rpId) return undefined;
+  const origins = (process.env.NEXT_PUBLIC_WEBAUTHN_RP_ORIGINS ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  return origins.length > 0 ? { rpId, rpOrigins: origins } : { rpId };
+}
+
 /** Register this device. Prompts for Face ID / fingerprint immediately. */
 export async function registerBiometric(
   friendlyName = describeThisDevice()
 ): Promise<BiometricResult> {
   try {
     const supabase = createClient();
+    const webauthn = relyingParty();
     const { error } = await supabase.auth.mfa.webauthn.register({
       friendlyName,
+      ...(webauthn ? { webauthn } : {}),
     });
     if (error) return classify(error);
     return { ok: true };
@@ -159,8 +192,10 @@ export async function authenticateBiometric(
 ): Promise<BiometricResult> {
   try {
     const supabase = createClient();
+    const webauthn = relyingParty();
     const { error } = await supabase.auth.mfa.webauthn.authenticate({
       factorId,
+      ...(webauthn ? { webauthn } : {}),
     });
     if (error) return classify(error);
     return { ok: true };
