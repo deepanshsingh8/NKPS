@@ -71,7 +71,17 @@ export function LockScreen({
         onUnlock();
         return;
       }
-      if (result.reason !== "cancelled") setError(result.message);
+      if (result.reason === "cancelled") return;
+      if (result.reason === "not-enabled") {
+        // The factor is registered but the project can no longer verify it, so
+        // the Unlock button cannot succeed however many times it is pressed.
+        // Someone staring at a lock screen needs a way in, not a diagnosis:
+        // drop straight to the password field.
+        setShowPassword(true);
+        setError("Face ID can't be used right now. Enter your password to unlock.");
+        return;
+      }
+      setError(result.message);
     },
     [onUnlock]
   );

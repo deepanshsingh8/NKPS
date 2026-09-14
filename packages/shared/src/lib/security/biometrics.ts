@@ -87,17 +87,49 @@ export async function listBiometricFactors(): Promise<BiometricFactor[]> {
 
 export type BiometricResult =
   | { ok: true }
-  | { ok: false; reason: "cancelled" | "unsupported" | "error"; message: string };
+  | {
+      ok: false;
+      reason: "cancelled" | "unsupported" | "not-enabled" | "error";
+      message: string;
+    };
 
-// The browser throws NotAllowedError both when the user dismisses the prompt
-// and when it times out. Neither is worth an error toast — the user knows what
-// they just did — so they are reported separately from real failures.
+// Two unrelated layers can fail here and they need different words.
+//
+// The browser THROWS. NotAllowedError covers both dismissing the prompt and
+// letting it time out; neither is worth an error toast, because the user knows
+// what they just did.
+//
+// GoTrue RETURNS. When WebAuthn MFA is switched off for the Supabase project it
+// replies 422 with `mfa_webauthn_enroll_not_enabled` (registering) or
+// `mfa_webauthn_verify_not_enabled` (unlocking), and that arrives as an
+// AuthApiError — whose `name` is "AuthApiError", so the name matching below
+// never sees it and the old generic branch put the raw string "MFA enroll is
+// disabled for WebAuthn" in front of a school administrator. It is a project
+// setting nobody can fix by tapping the button again, so it gets its own reason
+// and the callers say so.
+//
+// Matched on `code` rather than through auth-js's `isAuthApiError` guard: the
+// guard is itself only `isAuthError(error) && error.name === "AuthApiError"`,
+// so it would tell us nothing that `code` does not, and importing it would add
+// a dependency on @supabase/supabase-js from a package that does not declare
+// one. `code` is undefined on browser DOMExceptions, so there is no overlap.
 function classify(error: unknown): BiometricResult {
   const name = (error as { name?: string })?.name;
+  const code = (error as { code?: string })?.code;
   const message =
     (error as { message?: string })?.message ?? "Could not complete the request";
   if (name === "NotAllowedError" || name === "AbortError") {
     return { ok: false, reason: "cancelled", message: "Cancelled" };
+  }
+  if (
+    code === "mfa_webauthn_enroll_not_enabled" ||
+    code === "mfa_webauthn_verify_not_enabled"
+  ) {
+    return {
+      ok: false,
+      reason: "not-enabled",
+      message: "Face ID isn't switched on for this account yet.",
+    };
   }
   if (name === "NotSupportedError" || name === "SecurityError") {
     return { ok: false, reason: "unsupported", message };

@@ -29,6 +29,10 @@ import {
 export function AppLockSettings() {
   const { settings, update, lock } = useAppLock();
   const [capable, setCapable] = useState<boolean | null>(null);
+  // Set once a registration comes back saying WebAuthn MFA is off for the
+  // project. The device check above cannot see this — it only knows the phone
+  // has a sensor — so it is discoverable only by trying.
+  const [notEnabled, setNotEnabled] = useState(false);
   const [factors, setFactors] = useState<BiometricFactor[] | null>(null);
   const [working, setWorking] = useState(false);
 
@@ -54,6 +58,14 @@ export function AppLockSettings() {
       return;
     }
     if (result.reason === "cancelled") return;
+    if (result.reason === "not-enabled") {
+      // Nothing the person holding the phone can do, and tapping again gets the
+      // same 422. Record it so the row explains itself and the button stops
+      // inviting a second identical failure.
+      setNotEnabled(true);
+      toast.error("Face ID isn't switched on for this account yet.");
+      return;
+    }
     toast.error(
       result.reason === "unsupported"
         ? "This device can't be registered from here. It needs a secure (https) connection and a built-in fingerprint or face sensor."
@@ -145,11 +157,13 @@ export function AppLockSettings() {
       <SettingsRow
         label="Face ID & fingerprint"
         hint={
-          capable === false
-            ? "This device doesn't offer a built-in face or fingerprint sensor, or the page isn't on a secure connection."
-            : registered.length > 0
-              ? "Registered devices can unlock the app without a password."
-              : "Register this device to unlock with Face ID or a fingerprint instead of typing your password."
+          notEnabled
+            ? "Face ID hasn't been enabled for the school's account yet. An administrator needs to switch on WebAuthn (passkeys) for the Supabase project — for both enrolment and verification — before any device can be registered. Your password still unlocks the app."
+            : capable === false
+              ? "This device doesn't offer a built-in face or fingerprint sensor, or the page isn't on a secure connection."
+              : registered.length > 0
+                ? "Registered devices can unlock the app without a password."
+                : "Register this device to unlock with Face ID or a fingerprint instead of typing your password."
         }
         stacked
         control={
@@ -189,14 +203,18 @@ export function AppLockSettings() {
               variant="outline"
               className="w-full"
               onClick={addDevice}
-              disabled={working || capable === false}
+              disabled={working || capable === false || notEnabled}
             >
               {working ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <ScanFace className="mr-2 h-4 w-4" />
               )}
-              {registered.length > 0 ? "Register another device" : "Set up on this device"}
+              {notEnabled
+                ? "Not available yet"
+                : registered.length > 0
+                  ? "Register another device"
+                  : "Set up on this device"}
             </Button>
           </div>
         }
