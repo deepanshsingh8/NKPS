@@ -15,6 +15,7 @@
 //     exam_type_id) so re-imports overwrite rather than duplicate.
 
 import { NextRequest, NextResponse } from "next/server";
+import { classSortOrder } from "@nkps/shared/lib/constants";
 import { randomUUID } from "node:crypto";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import {
@@ -333,7 +334,9 @@ export async function POST(req: NextRequest) {
       section: spec.section,
       academic_year_id: academicYearId,
       stream_id: sid,
-      sort_order: 0,
+      // Was a flat 0, which put every imported class at the very top of the
+      // 27 screens that order by this column, jumbled together.
+      sort_order: classSortOrder(spec.name, spec.section),
     });
   }
   if (classesToCreate.length > 0) {

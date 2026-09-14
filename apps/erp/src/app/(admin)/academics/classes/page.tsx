@@ -4,6 +4,11 @@ import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Input } from "@nkps/shared/components/ui/input";
+import {
+  CLASS_ORDER,
+  CLASS_SECTIONS,
+  classSortOrder,
+} from "@nkps/shared/lib/constants";
 import { Label } from "@nkps/shared/components/ui/label";
 import {
   Dialog,
@@ -50,26 +55,6 @@ const ROLL_SORT_OPTIONS: { value: RollSortKey; label: string }[] = [
   { value: "previous_rank", label: "Previous Result Rank" },
 ];
 
-const CLASS_NAMES = [
-  "Nursery",
-  "LKG",
-  "UKG",
-  "I",
-  "II",
-  "III",
-  "IV",
-  "V",
-  "VI",
-  "VII",
-  "VIII",
-  "IX",
-  "X",
-  "XI",
-  "XII",
-];
-
-const SECTIONS = ["A", "B", "C"];
-
 const SENIOR_CLASSES = ["XI", "XII"];
 
 interface ClassWithRelations extends Class {
@@ -97,8 +82,8 @@ export default function AdminClassesPage() {
   const [rollSubmitting, setRollSubmitting] = useState(false);
 
   // Form state
-  const [className, setClassName] = useState(CLASS_NAMES[0]);
-  const [section, setSection] = useState(SECTIONS[0]);
+  const [className, setClassName] = useState<string>(CLASS_ORDER[0]);
+  const [section, setSection] = useState<string>(CLASS_SECTIONS[0]);
   const [academicYearId, setAcademicYearId] = useState("");
   const [classTeacherId, setClassTeacherId] = useState("");
   const [streamId, setStreamId] = useState("");
@@ -159,8 +144,8 @@ export default function AdminClassesPage() {
   }, []);
 
   const resetForm = () => {
-    setClassName(CLASS_NAMES[0]);
-    setSection(SECTIONS[0]);
+    setClassName(CLASS_ORDER[0]);
+    setSection(CLASS_SECTIONS[0]);
     setAcademicYearId("");
     setClassTeacherId("");
     setStreamId("");
@@ -183,7 +168,7 @@ export default function AdminClassesPage() {
         academic_year_id: academicYearId,
         class_teacher_id: classTeacherId || null,
         stream_id: SENIOR_CLASSES.includes(className) && streamId ? streamId : null,
-        sort_order: CLASS_NAMES.indexOf(className) * 10 + SECTIONS.indexOf(section),
+        sort_order: classSortOrder(className, section),
       },
     });
 
@@ -297,7 +282,7 @@ export default function AdminClassesPage() {
         academic_year_id: academicYearId,
         class_teacher_id: classTeacherId || null,
         stream_id: SENIOR_CLASSES.includes(className) && streamId ? streamId : null,
-        sort_order: CLASS_NAMES.indexOf(className) * 10 + SECTIONS.indexOf(section),
+        sort_order: classSortOrder(className, section),
       },
       match: { column: "id", value: editingClass.id },
     });
@@ -478,7 +463,7 @@ export default function AdminClassesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {CLASS_NAMES.map((name) => (
+                    {CLASS_ORDER.map((name) => (
                       <SelectItem key={name} value={name}>
                         {name}
                       </SelectItem>
@@ -493,7 +478,7 @@ export default function AdminClassesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {SECTIONS.map((s) => (
+                    {CLASS_SECTIONS.map((s) => (
                       <SelectItem key={s} value={s}>
                         {s}
                       </SelectItem>
@@ -674,7 +659,7 @@ export default function AdminClassesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {CLASS_NAMES.map((name) => (
+                    {CLASS_ORDER.map((name) => (
                       <SelectItem key={name} value={name}>
                         {name}
                       </SelectItem>
@@ -689,7 +674,7 @@ export default function AdminClassesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {SECTIONS.map((s) => (
+                    {CLASS_SECTIONS.map((s) => (
                       <SelectItem key={s} value={s}>
                         {s}
                       </SelectItem>
