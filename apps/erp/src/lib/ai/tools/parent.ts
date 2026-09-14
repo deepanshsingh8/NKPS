@@ -2,6 +2,7 @@ import { z } from "zod";
 import { computeFinalResult } from "@/lib/final-result";
 import { getStudentOutstandingDues } from "@/lib/student-dues";
 import { computeAttendanceSummary } from "@nkps/shared/lib/attendance-summary";
+import { buildElectiveFilter } from "@nkps/shared/lib/elective-timetable";
 import type { CallerContext } from "../caller-context";
 import { toolError, NOT_YOUR_CHILD_MESSAGE, type ToolError } from "../tool-errors";
 import { recordToolCall } from "../audit";
@@ -202,7 +203,9 @@ export async function executeParentTool(
     case "get_child_timetable": {
       const { data: enrollment } = await ctx.admin
         .from("student_enrollments")
-        .select("class_id")
+        // The class NAME as well as the id: an elective option is offered to
+        // XI or XII by name, and that decides which groups this child attends.
+        .select("class_id, classes(name)")
         .eq("student_id", studentId)
         .eq("academic_year_id", ctx.sessionId)
         .maybeSingle();
@@ -215,7 +218,7 @@ export async function executeParentTool(
       let query = ctx.admin
         .from("timetable_periods")
         .select(
-          "day_of_week, period_number, start_time, end_time, is_break, group_no, group_label, subjects(name)"
+          "day_of_week, period_number, start_time, end_time, is_break, group_no, group_label, subject_id, subjects(name)"
         )
         .eq("class_id", enrollment.class_id)
         .order("day_of_week")
@@ -229,16 +232,43 @@ export async function executeParentTool(
       }
 
       const { data } = await query;
+
+      // Narrow to this child's own subjects BEFORE folding. Otherwise a parent
+      // asking about Wednesday hears "IP / P.Ed" for period 5 and has to guess
+      // which one their child actually sits in.
+      const clsRel = enrollment.classes as unknown as
+        | { name: string }
+        | { name: string }[]
+        | null;
+      const className = (Array.isArray(clsRel) ? clsRel[0] : clsRel)?.name ?? null;
+      const [{ data: electiveOptions }, { data: electivePicks }] = await Promise.all([
+        ctx.admin
+          .from("elective_slot_options")
+          .select("slot, subject_id, applies_to_classes, is_active")
+          .eq("is_active", true),
+        ctx.admin
+          .from("student_elective_picks")
+          .select("slot, subject_id")
+          .eq("student_id", studentId),
+      ]);
+      const showGroup = buildElectiveFilter({
+        options: electiveOptions ?? [],
+        picks: electivePicks ?? [],
+        className,
+      });
+
       // A period can run several groups at once (migration 119): Games split
       // into basketball/badminton/cricket, or XI/XII running IP alongside P.Ed.
-      // Emitted as separate entries with the same period number, a parent asking
-      // "what's on Wednesday?" gets two period 5s and the model reads it as a
-      // clash — so fold a cell's groups into one entry.
+      // What survives the elective filter is still more than one entry for a
+      // Games cell — nobody picks between the sports — and separate entries
+      // with the same period number read to the model as a clash. So fold
+      // whatever remains of a cell into one.
       const byCell = new Map<
         string,
         { day_of_week: number; period: number; from: string; to: string; parts: string[] }
       >();
       for (const p of data ?? []) {
+        if (!showGroup(p.subject_id as string | null)) continue;
         const subject = p.subjects as unknown as { name?: string } | null;
         const name = p.is_break ? "Break" : (subject?.name ?? null);
         const label = p.group_label as string | null;

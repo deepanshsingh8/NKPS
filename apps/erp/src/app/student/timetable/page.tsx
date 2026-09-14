@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+import { buildElectiveFilter } from "@nkps/shared/lib/elective-timetable";
 import { Card, CardContent, CardHeader, CardTitle } from "@nkps/shared/components/ui/card";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import { Loader2, Clock, Sun } from "lucide-react";
@@ -22,6 +23,8 @@ interface TimetableEntry {
   room: string | null;
   group_no?: number;
   group_label?: string | null;
+  /** Needed to match a group against this student's elective picks. */
+  subject_id: string | null;
   subject: { name: string } | null;
   teacher: { full_name: string } | null;
 }
@@ -72,27 +75,73 @@ export default function StudentTimetablePage() {
         return;
       }
 
-      const { data: enrollment } = await supabase
+      // The class NAME is needed as well as the id: an elective option is
+      // scoped to XI or XII by name (elective_slot_options.applies_to_classes).
+      //
+      // Scoped to the current academic year. It used to be a bare
+      // .limit(1).single() with no year filter and no ordering, so a student
+      // who had been enrolled in two years got whichever row came back first —
+      // and now that the class drives elective filtering, a wrong class would
+      // silently filter the wrong subjects out of the grid.
+      const { data: currentYear } = await supabase
+        .from("academic_years")
+        .select("id")
+        .eq("is_current", true)
+        .maybeSingle();
+
+      let enrollmentQuery = supabase
         .from("student_enrollments")
-        .select("class_id")
-        .eq("student_id", studentId)
+        .select("class_id, classes(name)")
+        .eq("student_id", studentId);
+      if (currentYear?.id) {
+        enrollmentQuery = enrollmentQuery.eq("academic_year_id", currentYear.id);
+      }
+      const { data: enrollment } = await enrollmentQuery
+        .order("enrollment_date", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (!enrollment) {
         setLoading(false);
         return;
       }
 
+      const cls = enrollment.classes as unknown as
+        | { name: string }
+        | { name: string }[]
+        | null;
+      const className = (Array.isArray(cls) ? cls[0] : cls)?.name ?? null;
+
       const { data } = await supabase
         .from("timetable_periods")
         .select(
-          "id, day_of_week, period_number, start_time, end_time, room, group_no, group_label, subject:subjects(name), teacher:teachers(full_name)"
+          "id, day_of_week, period_number, start_time, end_time, room, group_no, group_label, subject_id, subject:subjects(name), teacher:teachers(full_name)"
         )
         .eq("class_id", enrollment.class_id)
         .order("period_number", { ascending: true });
 
-      const timetableData = (data ?? []) as unknown as TimetableEntry[];
+      const rows = (data ?? []) as unknown as TimetableEntry[];
+
+      // An XI period 5 runs IP and P.Ed as parallel groups; this student takes
+      // one of them. Filter here rather than at render time so everything
+      // derived below — today's list, the period rows, the subject colours —
+      // describes the timetable this student actually attends.
+      const [{ data: options }, { data: picks }] = await Promise.all([
+        supabase
+          .from("elective_slot_options")
+          .select("slot, subject_id, applies_to_classes, is_active")
+          .eq("is_active", true),
+        supabase
+          .from("student_elective_picks")
+          .select("slot, subject_id")
+          .eq("student_id", studentId),
+      ]);
+      const showGroup = buildElectiveFilter({
+        options: options ?? [],
+        picks: picks ?? [],
+        className,
+      });
+      const timetableData = rows.filter((e) => showGroup(e.subject_id));
       setEntries(timetableData);
 
       const subjects = [
@@ -131,8 +180,9 @@ export default function StudentTimetablePage() {
 
   // A cell can hold parallel groups — Games split into basketball/badminton/
   // cricket, or an XI/XII period running IP alongside P.Ed (migration 119).
-  // This is the class timetable, so it shows every group, the way the printed
-  // one on the noticeboard does.
+  // `entries` has already had this student's non-electives filtered out, so a
+  // Games cell still shows all three sports (nobody picked between them) while
+  // an optional slot shows only the subject they take.
   const getEntries = (day: number, period: number) =>
     entries
       .filter((e) => e.day_of_week === day && e.period_number === period)
