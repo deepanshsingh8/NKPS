@@ -93,6 +93,21 @@ import type { StaffMember, StaffCategory } from "@nkps/shared/types";
 // One tab per staff family. The grouping itself lives in staff-roles.ts next to
 // the login rules, so a category can never sit on one tab here and be treated
 // as another kind of staff elsewhere.
+/** A staff member's linked `teachers` row, and whether it is still active. */
+interface TeacherLink {
+  id: string;
+  is_active: boolean;
+  date_of_leaving: string | null;
+}
+
+/** A `teachers` row with no staff member behind it. */
+interface OrphanTeacher {
+  id: string;
+  full_name: string;
+  employee_id: string | null;
+  is_active: boolean;
+}
+
 const STAFF_TABS: { key: StaffGroup; label: string }[] = [
   { key: "teaching", label: "Teachers" },
   { key: "office", label: "Management & Office" },
@@ -219,11 +234,25 @@ export default function AdminStaffPage() {
   const [detailMember, setDetailMember] = useState<StaffMember | null>(null);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [portalDialogOpen, setPortalDialogOpen] = useState(false);
-  // H16-B — track which staff_members are already linked to a teachers row
-  // so the "Convert to teacher" action can hide for already-linked rows.
-  const [teacherLinkedIds, setTeacherLinkedIds] = useState<Set<string>>(
-    new Set()
-  );
+  // Every teaching staff member's `teachers` row, keyed by staff_member_id.
+  // This used to be a Set of ids answering only "already linked?", which was
+  // all the Convert action needed. The Teacher record column needs to know
+  // whether that row is active or retired as well.
+  const [teacherByStaffId, setTeacherByStaffId] = useState<
+    Map<string, TeacherLink>
+  >(new Map());
+  // `teachers` rows pointing at no staff member at all. These are the ghosts:
+  // invisible on this page before, still active, still offered in every
+  // timetable and assignment picker. They have no staff row to hang off, so
+  // they get their own banner rather than a table row.
+  const [orphanTeachers, setOrphanTeachers] = useState<OrphanTeacher[]>([]);
+  const [orphanDialogOpen, setOrphanDialogOpen] = useState(false);
+  // The list was hard-filtered to active staff, with no way to see the rest —
+  // so a deactivated staff member could not be found, let alone reactivated,
+  // and the Active column below could only ever print "Yes". Folding the
+  // teacher lifecycle in here made that matter: bringing back a retired
+  // teacher means finding their row first.
+  const [showInactive, setShowInactive] = useState(false);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   // Lowercased emails of staff members who already have a portal login, so the
   // per-row "Create login" action can hide for anyone already provisioned.
@@ -270,20 +299,18 @@ export default function AdminStaffPage() {
 
   const fetchStaff = useCallback(async () => {
     const [staffRes, teacherLinkRes] = await Promise.all([
-      supabase
-        .from("staff_members")
-        .select("*")
-        .eq("is_active", true)
+      (showInactive
+        ? supabase.from("staff_members").select("*")
+        : supabase.from("staff_members").select("*").eq("is_active", true)
+      )
         .order("category")
         .order("sort_order")
         .order("name"),
-      // H16-B — every teacher row links back to a staff_members row via
-      // staff_member_id; this set tells us which staff already have a
-      // linked teacher so we can hide the "Convert to teacher" action.
+      // Every teacher row, linked or not. The linked ones drive the Teacher
+      // record column; the unlinked ones are the ghosts the banner warns about.
       supabase
         .from("teachers")
-        .select("staff_member_id")
-        .not("staff_member_id", "is", null),
+        .select("id, full_name, employee_id, is_active, date_of_leaving, staff_member_id"),
     ]);
 
     if (staffRes.error) {
@@ -320,15 +347,80 @@ export default function AdminStaffPage() {
       }
     }
     if (!teacherLinkRes.error) {
-      const ids = new Set<string>();
+      const byStaff = new Map<string, TeacherLink>();
+      const orphans: OrphanTeacher[] = [];
       for (const row of teacherLinkRes.data ?? []) {
         const sid = row.staff_member_id as string | null;
-        if (sid) ids.add(sid);
+        if (sid) {
+          byStaff.set(sid, {
+            id: row.id as string,
+            is_active: row.is_active !== false,
+            date_of_leaving: (row.date_of_leaving as string | null) ?? null,
+          });
+        } else if (row.is_active !== false) {
+          // Only ACTIVE orphans are worth flagging. A retired one with no staff
+          // row is simply someone who left and was tidied up properly.
+          orphans.push({
+            id: row.id as string,
+            full_name: (row.full_name as string) ?? "—",
+            employee_id: (row.employee_id as string | null) ?? null,
+            is_active: true,
+          });
+        }
       }
-      setTeacherLinkedIds(ids);
+      orphans.sort((a, b) => a.full_name.localeCompare(b.full_name));
+      setTeacherByStaffId(byStaff);
+      setOrphanTeachers(orphans);
     }
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, showInactive]);
+
+  // Retire or bring back a teacher record. This is the lifecycle the standalone
+  // People → Teachers page used to own; it lives here now so one person is one
+  // row on one screen. The route is unchanged, so the rules it enforces —
+  // retire, never delete, because deleting someone who has ever been
+  // timetabled fails outright and would erase who taught what — still apply.
+  const setTeacherActive = async (
+    link: TeacherLink,
+    name: string,
+    active: boolean
+  ) => {
+    if (
+      !active &&
+      !confirm(
+        `Retire ${name}'s teacher record? They stop appearing in every timetable and subject-assignment dropdown. Their history is kept, and you can bring them back here.`
+      )
+    ) {
+      return;
+    }
+    setConvertingId(link.id);
+    try {
+      const res = await adminFetch("/api/teachers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          active
+            ? { id: link.id, is_active: true }
+            : {
+                id: link.id,
+                is_active: false,
+                date_of_leaving: new Date().toISOString().slice(0, 10),
+              }
+        ),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not update the teacher record");
+        return;
+      }
+      toast.success(
+        active ? `${name} is a teacher again` : `${name}'s teacher record retired`
+      );
+      await fetchStaff();
+    } finally {
+      setConvertingId(null);
+    }
+  };
 
   // H16-B — promote a staff_members row to also be a teachers row. The
   // helper is idempotent, so a stale UI click on an already-linked row
@@ -728,6 +820,20 @@ export default function AdminStaffPage() {
         label: "Active",
         value: (m) => m.is_active,
       },
+      // Whether this person can be given classes, subjects and timetable
+      // periods. Distinct from the Active column above, which is about their
+      // employment: `staff_members` is the HR record, `teachers` is the row
+      // every assignment dropdown reads, and they can disagree. That gap is
+      // exactly what let three departed teachers keep appearing in pickers.
+      teacher_record: {
+        label: "Teacher record",
+        value: (m) => {
+          const link = teacherByStaffId.get(m.id);
+          if (!link) return staffPortalRole(m.category) === "teacher" ? "Not created" : null;
+          return link.is_active ? "Active" : "Retired";
+        },
+        filter: "select",
+      },
       date_of_birth: {
         label: "Date of Birth",
         value: (m) =>
@@ -757,7 +863,9 @@ export default function AdminStaffPage() {
         exportOnly: true,
       },
     }),
-    []
+    // teacher_record reads this map; with [] the column would render against
+    // the empty one captured on the first pass.
+    [teacherByStaffId]
   );
 
   const table = useTableControls({ rows: filtered, columns });
@@ -866,6 +974,37 @@ export default function AdminStaffPage() {
         </TabsList>
       </Tabs>
 
+      {/* Teacher records with nobody behind them. These are the ghosts: a staff
+          member was deleted, the ON DELETE SET NULL cut the link, and the
+          teacher row carried on — active, invisible on this page, and still
+          offered in every timetable and assignment dropdown. Three departed
+          teachers were reported by name before anyone worked out why. They have
+          no staff row to sit on, so they get a banner. */}
+      {activeGroup === "teaching" && orphanTeachers.length > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+          <GraduationCap className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-700 dark:text-amber-400" />
+          <div className="text-xs text-amber-900 dark:text-amber-300">
+            <p>
+              <span className="font-medium">
+                {orphanTeachers.length} teacher{" "}
+                {orphanTeachers.length === 1 ? "record has" : "records have"} no
+                staff profile.
+              </span>{" "}
+              They are still offered in every timetable and subject-assignment
+              dropdown. This usually means the staff member was deleted rather
+              than marked inactive.
+            </p>
+            <button
+              type="button"
+              onClick={() => setOrphanDialogOpen(true)}
+              className="mt-1 font-medium underline underline-offset-2 hover:text-amber-950 dark:hover:text-amber-200"
+            >
+              Review {orphanTeachers.length === 1 ? "it" : "them"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -892,6 +1031,16 @@ export default function AdminStaffPage() {
             ))}
           </SelectContent>
         </Select>
+        <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          <Checkbox
+            checked={showInactive}
+            onCheckedChange={(v: boolean) => {
+              setShowInactive(v === true);
+              setSelectedIds(new Set());
+            }}
+          />
+          Show inactive
+        </label>
       </div>
 
       {/* Stats */}
@@ -997,13 +1146,16 @@ export default function AdminStaffPage() {
                 <SortFilterHead ctl={table} col="email" />
                 <SortFilterHead ctl={table} col="phone" />
                 <SortFilterHead ctl={table} col="is_active" />
+                {activeGroup === "teaching" && (
+                  <SortFilterHead ctl={table} col="teacher_record" />
+                )}
                 <TableHead className="w-24 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {visible.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-10 text-center text-gray-500 dark:text-gray-400">
+                  <TableCell colSpan={activeGroup === "teaching" ? 10 : 9} className="py-10 text-center text-gray-500 dark:text-gray-400">
                     No staff match the column filters.
                   </TableCell>
                 </TableRow>
@@ -1052,6 +1204,61 @@ export default function AdminStaffPage() {
                       <span className="text-gray-400">No</span>
                     )}
                   </TableCell>
+                  {/* Can this person be given classes and timetable periods?
+                      Separate from Active above, which is about employment. */}
+                  {activeGroup === "teaching" && (
+                    <TableCell>
+                      {(() => {
+                        const link = teacherByStaffId.get(member.id);
+                        if (!link) {
+                          return (
+                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                              Not created
+                            </span>
+                          );
+                        }
+                        return link.is_active ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">
+                              Active
+                            </Badge>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setTeacherActive(link, member.name, false)
+                              }
+                              disabled={convertingId === link.id}
+                              className="text-[11px] text-gray-500 underline underline-offset-2 hover:text-red-700 disabled:opacity-50 dark:text-gray-400 dark:hover:text-red-400"
+                            >
+                              Retire
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5">
+                            <Badge
+                              variant="outline"
+                              className="text-gray-500 dark:text-gray-400"
+                            >
+                              Retired
+                              {link.date_of_leaving
+                                ? ` ${link.date_of_leaving}`
+                                : ""}
+                            </Badge>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setTeacherActive(link, member.name, true)
+                              }
+                              disabled={convertingId === link.id}
+                              className="text-[11px] text-gray-500 underline underline-offset-2 hover:text-navy-900 disabled:opacity-50 dark:text-gray-400 dark:hover:text-white"
+                            >
+                              Bring back
+                            </button>
+                          </span>
+                        );
+                      })()}
+                    </TableCell>
+                  )}
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       {/* Portal login (admins only, and only for categories
@@ -1100,7 +1307,7 @@ export default function AdminStaffPage() {
                       {/* Convert-to-teacher: only for teaching categories that
                           aren't already linked to a teachers row. */}
                       {isTeachingStaffCategory(member.category) &&
-                        !teacherLinkedIds.has(member.id) && (
+                        !teacherByStaffId.has(member.id) && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -1393,7 +1600,7 @@ export default function AdminStaffPage() {
           openEditDialog(m);
         }}
         hasLogin={detailMember ? hasLogin(detailMember) : false}
-        teacherLinked={detailMember ? teacherLinkedIds.has(detailMember.id) : false}
+        teacherLinked={detailMember ? teacherByStaffId.has(detailMember.id) : false}
         categoryLabel={detailMember ? getCategoryLabel(detailMember.category) : ""}
         categoryBadgeClass={
           detailMember ? categoryBadgeColors[detailMember.category] : undefined
@@ -1424,6 +1631,70 @@ export default function AdminStaffPage() {
           .map((m) => ({ id: m.id, name: m.name, email: m.email, phone: m.phone }))}
         onComplete={fetchStaff}
       />
+
+      {/* The ghosts, listed. Retiring is the only exit offered: deleting a
+          teacher who has ever been timetabled fails outright, and if it
+          succeeded it would erase the record of who taught what. */}
+      <Dialog open={orphanDialogOpen} onOpenChange={setOrphanDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Teacher records with no staff profile</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Each of these can still be picked in the timetable and in subject
+            assignments. Retire anyone who has left — their history stays, and
+            they disappear from every dropdown. If someone here still works at
+            the school, add them back under Staff instead and the records will
+            re-link.
+          </p>
+          <div className="max-h-80 space-y-1.5 overflow-y-auto">
+            {orphanTeachers.map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2 dark:border-border"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-navy-900 dark:text-white">
+                    {t.full_name}
+                  </div>
+                  {t.employee_id && (
+                    <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                      {t.employee_id}
+                    </div>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={convertingId === t.id}
+                  onClick={() =>
+                    setTeacherActive(
+                      { id: t.id, is_active: true, date_of_leaving: null },
+                      t.full_name,
+                      false
+                    )
+                  }
+                >
+                  {convertingId === t.id && (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  )}
+                  Retire
+                </Button>
+              </div>
+            ))}
+            {orphanTeachers.length === 0 && (
+              <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                All clear — every teacher record has a staff profile.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOrphanDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

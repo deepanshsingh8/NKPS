@@ -12,7 +12,7 @@ export const TABLE_FEATURE_KEY: Record<string, FeatureKey> = {
   // Deliberately absent from ALLOWED_COLUMNS below, and therefore NOT writable
   // through the proxy — `allowedTables` is the key set of ALLOWED_COLUMNS, not
   // of this map. The entry exists so /api/admin/dependencies can authorise the
-  // retire-impact preview on /people/teachers. Retiring itself goes through
+  // retire-impact preview on People → Staff. Retiring itself goes through
   // /api/teachers, which has to touch staff_members in the same breath.
   teachers: "staff",
   student_enrollments: "students",

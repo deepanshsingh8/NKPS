@@ -63,12 +63,15 @@ const erpSections: SidebarSection[] = [
   },
   {
     label: "People",
+    // Three entries, not six. There used to be an Overview hub that duplicated
+    // this list (and listed only three of the five), a Registrations link that
+    // was a redirect into a tab of Users, and a Teachers page separate from the
+    // Teachers TAB inside Staff — two different things wearing one name. Each
+    // of those was a menu entry for a piece of plumbing rather than for
+    // something the school thinks of as a thing.
     items: [
-      { kind: "link", icon: LayoutGrid, label: "Overview", href: "/people" },
       { kind: "link", icon: UserCheck, label: "Students", href: "/people/students" },
-      { kind: "link", icon: UserPlus, label: "Registrations", href: "/registrations" },
       { kind: "link", icon: UserCog, label: "Staff", href: "/people/staff" },
-      { kind: "link", icon: GraduationCap, label: "Teachers", href: "/people/teachers" },
       { kind: "link", icon: Users, label: "Users", href: "/people/users" },
     ],
   },
