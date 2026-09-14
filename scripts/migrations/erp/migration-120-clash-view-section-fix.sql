@@ -16,6 +16,24 @@
 
 BEGIN;
 
+-- Migration 119 must be in first — this view reads timetable_periods.is_shared,
+-- which 119 adds. Without this guard you get a bare
+-- "column a.is_shared does not exist", which names the symptom and not the
+-- cause. 119 is wrapped in its own transaction, so if it errored anywhere it
+-- rolled back completely and left none of its columns behind.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'timetable_periods'
+       AND column_name  = 'is_shared'
+  ) THEN
+    RAISE EXCEPTION
+      'migration 120 needs migration 119 first: timetable_periods.is_shared is missing. Apply migration-119-timetable-period-groups.sql, then re-run this.';
+  END IF;
+END $$;
+
 CREATE OR REPLACE VIEW public.timetable_teacher_clashes AS
   SELECT a.teacher_id,
          t.full_name        AS teacher_name,

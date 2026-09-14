@@ -35,6 +35,10 @@
 -- This REMOVES access, so it was checked against a scratch Postgres before
 -- shipping — see the migration's companion notes in the phase commit.
 --
+-- Depends on nothing from 118/119/120 — it only rewrites RLS policies over
+-- class_subjects, results, class_tests and class_test_results, all of which
+-- long predate this work. It can be applied on its own, in any order.
+--
 -- SAFE TO RE-RUN.
 
 BEGIN;
