@@ -681,9 +681,13 @@ export default function AdminStudentsPage() {
     // they're kicked off immediately and awaited later — only the classes
     // query has to wait for the current-year lookup. Previously all four ran
     // back to back, costing four serial round trips on every page load.
+    // kind='stream' only: feeds the enrolment stream picker in
+    // StudentFormFields, whose value becomes student_enrollments.stream_id.
+    // (migration 118)
     const streamsPromise = supabase
       .from("streams")
       .select("*")
+      .eq("kind", "stream")
       .eq("is_active", true)
       .order("sort_order");
     const allYearsPromise = supabase

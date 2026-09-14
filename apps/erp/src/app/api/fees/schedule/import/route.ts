@@ -122,7 +122,13 @@ export async function POST(request: Request) {
 
   // Streams, so "Science" in a sheet resolves to a stream_id. Names only —
   // never make the admin paste a UUID.
-  const { data: streams } = await admin.from("streams").select("id, name");
+  // kind='stream' only: the `streams` table also holds wings (migration 118).
+  // This map decides fee_structures.stream_id, so a wing matched here would
+  // change what students are charged.
+  const { data: streams } = await admin
+    .from("streams")
+    .select("id, name")
+    .eq("kind", "stream");
   const streamByName = new Map(
     (streams ?? []).map((s) => [String(s.name).trim().toLowerCase(), s.id as string])
   );

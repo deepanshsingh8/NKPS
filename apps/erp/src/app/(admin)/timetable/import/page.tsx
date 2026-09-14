@@ -32,6 +32,11 @@ interface PreviewRow {
   room: string | null;
   status: "ok" | "warning" | "error";
   messages: string[];
+  // migration 119 — which parallel group of the cell, and whether the row is a
+  // combined activity across classes.
+  group_no: number;
+  group_label: string | null;
+  is_shared: boolean;
 }
 
 interface PreviewTotals {
@@ -98,6 +103,11 @@ export default function TimetableImportPage() {
           start_time: r.start_time,
           end_time: r.end_time,
           room: r.room,
+          // migration 119 — dropped here, every imported row would land on
+          // group 0 and collide with its own parallel groups.
+          group_no: r.group_no,
+          group_label: r.group_label,
+          is_shared: r.is_shared,
         })),
         replace: replaceExisting,
       }),
@@ -121,7 +131,7 @@ export default function TimetableImportPage() {
       toast.info("No error rows to download");
       return;
     }
-    const header = ["Row", "Day", "Period", "Section", "Subject", "Teacher", "Start", "End", "Room", "Errors"];
+    const header = ["Row", "Day", "Period", "Section", "Subject", "Teacher", "Start", "End", "Room", "Group", "Shared", "Errors"];
     const rows = errored.map((r) => [
       r.row_index,
       r.day != null ? DAY_LABELS[r.day] ?? r.day : "",
@@ -132,6 +142,8 @@ export default function TimetableImportPage() {
       r.start_time ?? "",
       r.end_time ?? "",
       r.room ?? "",
+      r.group_label ?? (r.group_no ? String(r.group_no) : ""),
+      r.is_shared ? "yes" : "",
       r.messages.join("; "),
     ]);
     const csv = [header, ...rows]

@@ -35,6 +35,8 @@ import {
 import type { FeeStructure } from "@nkps/shared/types";
 import {
   buildStreamLookup,
+  buildStreamNameGuard,
+  streamNameTaken,
   resolveStreamId,
   streamIsMissing,
 } from "@nkps/shared/lib/stream-alias";
@@ -176,7 +178,8 @@ export async function POST(req: NextRequest) {
 
   // ── Lookups, all in one round ────────────────────────────────────────────
   const [streamsRes, classesRes, studentsRes, structuresRes] = await Promise.all([
-    admin.from("streams").select("id, name"),
+    // `kind` comes along so buildStreamLookup can skip wings (migration 118).
+    admin.from("streams").select("id, name, kind"),
     admin
       .from("classes")
       .select("id, name, section, stream_id")
@@ -196,9 +199,16 @@ export async function POST(req: NextRequest) {
   // "Humanities". A bare-name lookup misses, which silently drops every one of
   // that class's schedule rows AND makes the commit path create a second
   // stream beside the real one.
-  const streamByName = buildStreamLookup(
-    (streamsRes.data ?? []).map((s) => ({ id: s.id as string, name: String(s.name) }))
-  );
+  const streamRows = (streamsRes.data ?? []).map((s) => ({
+    id: s.id as string,
+    name: String(s.name),
+    kind: s.kind as string | null,
+  }));
+  const streamByName = buildStreamLookup(streamRows);
+  // Names owned by a stream OR a wing. buildStreamLookup deliberately cannot
+  // see wings, so without this the commit path would treat a wing's name as a
+  // missing stream and insert a twin. (migration 118)
+  const streamNameGuard = buildStreamNameGuard(streamRows);
 
   type ClassRow = { id: string; name: string; section: string; stream_id: string | null };
   const classesByKey = new Map<string, ClassRow>();
@@ -553,6 +563,7 @@ export async function POST(req: NextRequest) {
     academicYearId,
     classSpecByKey,
     streamByName,
+    streamNameGuard,
     classesByKey,
   });
   if (materialized.error) {
@@ -880,10 +891,18 @@ async function materializeClasses(
     academicYearId: string;
     classSpecByKey: Map<string, { name: string; section: string; stream_name: string | null }>;
     streamByName: Map<string, string>;
+    /** Names owned by a stream OR a wing — see the call site. (migration 118) */
+    streamNameGuard: Set<string>;
     classesByKey: Map<string, { id: string; name: string; section: string; stream_id: string | null }>;
   }
 ): Promise<{ error: string | null }> {
-  const { academicYearId, classSpecByKey, streamByName, classesByKey } = args;
+  const {
+    academicYearId,
+    classSpecByKey,
+    streamByName,
+    streamNameGuard,
+    classesByKey,
+  } = args;
 
   // streamIsMissing, not a bare `has()`: "Arts" must not spawn a twin of the
   // school's "Humanities".
@@ -891,13 +910,19 @@ async function materializeClasses(
     ...new Set(
       [...classSpecByKey.values()]
         .map((s) => s.stream_name)
-        .filter((n): n is string => streamIsMissing(streamByName, n))
+        .filter(
+          (n): n is string =>
+            streamIsMissing(streamByName, n) &&
+            // …and no wing already owns the name. Creating a second row here
+            // is the twin this whole guard exists to prevent. (migration 118)
+            !streamNameTaken(streamNameGuard, n)
+        )
     ),
   ];
   if (missingStreams.length > 0) {
     const { data, error } = await admin
       .from("streams")
-      .insert(missingStreams.map((name) => ({ name })))
+      .insert(missingStreams.map((name) => ({ name, kind: "stream" })))
       .select("id, name");
     if (error) return { error: `Failed to create streams: ${error.message}` };
     for (const s of data ?? []) {

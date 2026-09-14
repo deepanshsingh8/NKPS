@@ -75,10 +75,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fetch streams
+    // Fetch streams. kind='stream' only — the table also holds wings
+    // (migration 118), which are never attached to a class.
     const { data: streamsData } = await admin
       .from("streams")
-      .select("id, name");
+      .select("id, name")
+      .eq("kind", "stream");
 
     const streamMap = new Map<string, string>();
     for (const s of streamsData ?? []) {

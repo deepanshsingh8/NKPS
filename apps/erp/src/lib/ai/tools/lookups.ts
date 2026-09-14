@@ -135,7 +135,14 @@ export async function executeListLookupValues(
 ): Promise<{ kind: LookupKind; values: { value: string; label?: string }[] }> {
   if (kind === "stream" || kind === "house" || kind === "subject") {
     const table = kind === "stream" ? "streams" : kind === "house" ? "houses" : "subjects";
-    const { data } = await ctx.admin.from(table).select("id, name").order("name");
+    let query = ctx.admin.from(table).select("id, name").order("name");
+    // This is the vocabulary the model is handed for filter.stream_id. The
+    // `streams` table also holds wings (migration 118) — class bands that no
+    // student is ever enrolled in — so offering one would let the model build
+    // a report filtered by "Middle Wing" that always returns nothing.
+    // NB: `kind` here is the lookup kind, not streams.kind.
+    if (kind === "stream") query = query.eq("kind", "stream");
+    const { data } = await query;
     return {
       kind,
       values: (data ?? []).map((row) => ({

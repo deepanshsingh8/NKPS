@@ -2,6 +2,7 @@ import { z } from "zod";
 import { computeFinalResult } from "@/lib/final-result";
 import { getStudentOutstandingDues } from "@/lib/student-dues";
 import { computeAttendanceSummary } from "@nkps/shared/lib/attendance-summary";
+import { buildElectiveFilter } from "@nkps/shared/lib/elective-timetable";
 import type { CallerContext } from "../caller-context";
 import { toolError, NOT_YOUR_CHILD_MESSAGE, type ToolError } from "../tool-errors";
 import { recordToolCall } from "../audit";
@@ -202,7 +203,9 @@ export async function executeParentTool(
     case "get_child_timetable": {
       const { data: enrollment } = await ctx.admin
         .from("student_enrollments")
-        .select("class_id")
+        // The class NAME as well as the id: an elective option is offered to
+        // XI or XII by name, and that decides which groups this child attends.
+        .select("class_id, classes(name)")
         .eq("student_id", studentId)
         .eq("academic_year_id", ctx.sessionId)
         .maybeSingle();
@@ -214,26 +217,85 @@ export async function executeParentTool(
 
       let query = ctx.admin
         .from("timetable_periods")
-        .select("day_of_week, period_number, start_time, end_time, is_break, subjects(name)")
+        .select(
+          "day_of_week, period_number, start_time, end_time, is_break, group_no, group_label, subject_id, subjects(name)"
+        )
         .eq("class_id", enrollment.class_id)
         .order("day_of_week")
-        .order("period_number");
+        .order("period_number")
+        // Parallel groups tie on period_number; without this their order flips
+        // between calls and the model sees a different answer each time.
+        .order("group_no");
 
       if (typeof input.weekday === "number") {
         query = query.eq("day_of_week", input.weekday);
       }
 
       const { data } = await query;
-      const periods = (data ?? []).map((p) => {
-        const subject = p.subjects as unknown as { name?: string } | null;
-        return {
-          day_of_week: p.day_of_week as number,
-          period: p.period_number as number,
-          from: p.start_time as string,
-          to: p.end_time as string,
-          subject: p.is_break ? "Break" : (subject?.name ?? null),
-        };
+
+      // Narrow to this child's own subjects BEFORE folding. Otherwise a parent
+      // asking about Wednesday hears "IP / P.Ed" for period 5 and has to guess
+      // which one their child actually sits in.
+      const clsRel = enrollment.classes as unknown as
+        | { name: string }
+        | { name: string }[]
+        | null;
+      const className = (Array.isArray(clsRel) ? clsRel[0] : clsRel)?.name ?? null;
+      const [{ data: electiveOptions }, { data: electivePicks }] = await Promise.all([
+        ctx.admin
+          .from("elective_slot_options")
+          .select("slot, subject_id, applies_to_classes, is_active")
+          .eq("is_active", true),
+        ctx.admin
+          .from("student_elective_picks")
+          .select("slot, subject_id")
+          .eq("student_id", studentId),
+      ]);
+      const showGroup = buildElectiveFilter({
+        options: electiveOptions ?? [],
+        picks: electivePicks ?? [],
+        className,
       });
+
+      // A period can run several groups at once (migration 119): Games split
+      // into basketball/badminton/cricket, or XI/XII running IP alongside P.Ed.
+      // What survives the elective filter is still more than one entry for a
+      // Games cell — nobody picks between the sports — and separate entries
+      // with the same period number read to the model as a clash. So fold
+      // whatever remains of a cell into one.
+      const byCell = new Map<
+        string,
+        { day_of_week: number; period: number; from: string; to: string; parts: string[] }
+      >();
+      for (const p of data ?? []) {
+        if (!showGroup(p.subject_id as string | null)) continue;
+        const subject = p.subjects as unknown as { name?: string } | null;
+        const name = p.is_break ? "Break" : (subject?.name ?? null);
+        const label = p.group_label as string | null;
+        const part = name && label ? `${name} (${label})` : (name ?? label ?? "");
+        const key = `${p.day_of_week}|${p.period_number}`;
+        const existing = byCell.get(key);
+        if (existing) {
+          if (part && !existing.parts.includes(part)) existing.parts.push(part);
+        } else {
+          byCell.set(key, {
+            day_of_week: p.day_of_week as number,
+            period: p.period_number as number,
+            from: p.start_time as string,
+            to: p.end_time as string,
+            parts: part ? [part] : [],
+          });
+        }
+      }
+      const periods = [...byCell.values()].map((c) => ({
+        day_of_week: c.day_of_week,
+        period: c.period,
+        from: c.from,
+        to: c.to,
+        // "Games (Basketball) / Games (Cricket)" reads as one period with
+        // parallel groups, which is what it is.
+        subject: c.parts.length > 0 ? c.parts.join(" / ") : null,
+      }));
       await log(periods.length);
       return { ok: true, data: { periods } };
     }

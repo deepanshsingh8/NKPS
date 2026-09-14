@@ -564,8 +564,21 @@ CREATE TABLE timetable_periods (
   end_time time NOT NULL,
   room text,
   is_break boolean DEFAULT false,
-  UNIQUE(class_id, day_of_week, period_number)
+  -- migration 119 — parallel teaching groups within one cell. group_no 0 is the
+  -- primary group (everything that existed before), 1..n are the extra tracks
+  -- that make a Games period or an XI/XII optional slot. is_shared marks a
+  -- combined activity running across several classes at once.
+  group_no smallint NOT NULL DEFAULT 0,
+  group_label text,
+  is_shared boolean NOT NULL DEFAULT false,
+  UNIQUE(class_id, day_of_week, period_number, group_no)
 );
+
+-- Still exactly one PRIMARY group per cell, so every reader that assumes a cell
+-- has one main row keeps that guarantee.
+CREATE UNIQUE INDEX IF NOT EXISTS timetable_periods_primary_group_uniq
+  ON timetable_periods(class_id, day_of_week, period_number)
+  WHERE group_no = 0;
 
 -- 2t. Calendar Events
 CREATE TABLE calendar_events (
@@ -776,7 +789,14 @@ ALTER TABLE timetable_periods
     teacher_id WITH =,
     day_of_week WITH =,
     tsrange('2000-01-01'::date + start_time, '2000-01-01'::date + end_time) WITH &&
-  ) WHERE (teacher_id IS NOT NULL AND is_break IS NOT TRUE AND start_time < end_time);
+  -- migration 119: is_shared exempts a combined activity, because a games coach
+  -- genuinely is on the field for four classes at the same time.
+  ) WHERE (
+    teacher_id IS NOT NULL
+    AND is_break IS NOT TRUE
+    AND start_time < end_time
+    AND is_shared IS NOT TRUE
+  );
 
 -- Calendar Events
 CREATE INDEX idx_calendar_events_dates ON calendar_events(start_date, end_date);
@@ -5359,7 +5379,14 @@ CREATE OR REPLACE VIEW public.timetable_assignment_drift AS
   LEFT JOIN public.teachers tt ON tt.id = tp.teacher_id
   LEFT JOIN public.teachers ct ON ct.id = cs.teacher_id
   WHERE tp.is_break IS NOT TRUE
+    -- migration 119: groups 1..n are parallel tracks with their own teachers.
+    -- They differ from the canonical assignment by design, not by drift.
+    AND tp.group_no = 0
     AND tp.teacher_id IS DISTINCT FROM cs.teacher_id;
+
+-- Owner-rights view keyed on a teacher; see timetable_teacher_clashes.
+REVOKE ALL ON public.timetable_assignment_drift FROM PUBLIC, anon;
+GRANT SELECT ON public.timetable_assignment_drift TO authenticated;
 
 COMMENT ON VIEW public.timetable_assignment_drift IS
   'Timetable periods whose teacher differs from the canonical class_subjects '
@@ -7341,3 +7368,97 @@ CREATE TRIGGER class_subject_learns_teacher_subject
 -- The one-time seed from class_subjects and timetable_periods lives only in
 -- the migration file: a database built fresh from this schema has nothing to
 -- seed from.
+
+-- ============================================================================
+-- MIGRATION 118 — wings (a reusable class band with its own subject set)
+-- Mirrors scripts/migrations/erp/migration-118-stream-wings.sql
+-- ============================================================================
+-- The school groups classes into wings — Middle Wing = VI–VIII and so on — and
+-- wants a subject set defined once and pushed onto every class and section in
+-- the band. `streams` is the only table that already owns a subject set
+-- (stream_subjects), so wings live here under a discriminator.
+--
+-- `kind` is load-bearing, not cosmetic. classes.stream_id,
+-- student_enrollments.stream_id and fee_structures.stream_id all read this
+-- table and fee resolution keys off it, so a wing loose in that machinery would
+-- change what students are charged. Wings are never attached to
+-- classes.stream_id at all — they carry their band in `class_names` — and every
+-- picker and importer name-lookup filters to kind='stream'. The two lookups
+-- that resolve a STORED stream_id back to a name (api/export/students,
+-- lib/report-query) are deliberately left unfiltered so a stored id always
+-- renders.
+
+ALTER TABLE streams
+  ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'stream',
+  ADD COLUMN IF NOT EXISTS class_names text[] NOT NULL DEFAULT '{}';
+
+ALTER TABLE streams DROP CONSTRAINT IF EXISTS streams_kind_check;
+ALTER TABLE streams
+  ADD CONSTRAINT streams_kind_check CHECK (kind IN ('stream', 'wing'));
+
+COMMENT ON COLUMN streams.kind IS
+  'stream = an academic stream for XI/XII (Science, Commerce, Humanities), the '
+  'original meaning: attachable to classes.stream_id and read by fee '
+  'resolution. wing = a band of classes with a shared subject set, used only to '
+  'push subjects onto classes. Wings are filtered out of every stream picker '
+  'and every importer name-lookup.';
+COMMENT ON COLUMN streams.class_names IS
+  'For kind=wing: the class names the wing covers, e.g. {VI,VII,VIII}. Names '
+  'rather than class ids so the wing survives the academic-year rollover. '
+  'Always empty for kind=stream.';
+
+CREATE INDEX IF NOT EXISTS idx_streams_kind ON streams(kind);
+
+-- ============================================================================
+-- MIGRATION 119 — parallel teaching groups in one timetable period
+-- Mirrors scripts/migrations/erp/migration-119-timetable-period-groups.sql
+-- ============================================================================
+-- The columns, the four-column unique key, the primary-group index and the
+-- is_shared exemption on timetable_teacher_no_overlap are all applied inline
+-- above, at the timetable_periods definition and at migration 071's constraint.
+-- What remains here is the companion view.
+--
+-- A shared activity is exempt from the double-booking constraint, so what the
+-- constraint no longer blocks has to stay visible somewhere. In a healthy
+-- timetable every row of this view is an intentional combined activity; a row
+-- where neither side is shared is a bug.
+
+CREATE OR REPLACE VIEW public.timetable_teacher_clashes AS
+  SELECT a.teacher_id,
+         t.full_name        AS teacher_name,
+         a.day_of_week,
+         a.id               AS period_a,
+         ca.name || '-' || ca.section AS class_a,
+         a.start_time       AS a_start,
+         a.end_time         AS a_end,
+         a.is_shared        AS a_shared,
+         b.id               AS period_b,
+         cb.name || '-' || cb.section AS class_b,
+         b.start_time       AS b_start,
+         b.end_time         AS b_end,
+         b.is_shared        AS b_shared
+  FROM public.timetable_periods a
+  JOIN public.timetable_periods b
+    ON a.teacher_id = b.teacher_id
+   AND a.day_of_week = b.day_of_week
+   AND a.id < b.id
+  LEFT JOIN public.teachers t  ON t.id  = a.teacher_id
+  LEFT JOIN public.classes  ca ON ca.id = a.class_id
+  LEFT JOIN public.classes  cb ON cb.id = b.class_id
+  WHERE a.teacher_id IS NOT NULL
+    AND a.is_break IS NOT TRUE AND b.is_break IS NOT TRUE
+    AND a.start_time < b.end_time
+    AND a.end_time > b.start_time;
+
+-- A view runs with its OWNER's rights, so it is not held back by the RLS on
+-- timetable_periods and teachers. This diagnostic is keyed on a teacher and
+-- would enumerate staff UUIDs, so name who may read it rather than inheriting
+-- the schema's default grants — the leak migration 098 was written to close.
+REVOKE ALL ON public.timetable_teacher_clashes FROM PUBLIC, anon;
+GRANT SELECT ON public.timetable_teacher_clashes TO authenticated;
+
+COMMENT ON VIEW public.timetable_teacher_clashes IS
+  'Teachers occupying two time-overlapping periods on one weekday. The DB '
+  'constraint blocks these unless a row is marked is_shared, so in a healthy '
+  'timetable every row here is an intentional combined activity. A row where '
+  'neither side is shared is a bug.';
