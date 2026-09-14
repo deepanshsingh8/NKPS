@@ -359,13 +359,12 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
     path: "/academics",
     title: "Academics",
     purpose:
-      "Hub page for the structural setup of the school year — a tile each for Classes, Subjects & Assignments, Class XI–XII Electives, Academic Years and Non-Scholastic Classes.",
+      "Hub page for the structural setup of the school year — a tile each for Classes, Subjects & Assignments, Class XI–XII Electives and Academic Years.",
     tasks: [
       {
         name: "Open an academics area",
         steps: [
           "Click a tile.",
-          "Non-Scholastic Classes is listed here but opens /exams/non-scholastic-assessments — it is filed under Academics because it is about what a class is assessed on.",
         ],
         gotcha:
           "Tiles are filtered to your grants. Set up in order — an Academic Year has to exist before Classes are useful, and Classes before Subjects can be assigned.",
@@ -864,8 +863,9 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
   },
   {
     path: "/exams/non-scholastic-assessments",
-    title: "Non-Scholastic Classes",
-    purpose: "Enter and override co-scholastic grades for any class and exam.",
+    title: "Non-Scholastic Grades",
+    purpose:
+      "Enter and override co-scholastic grades for any class and exam. Lives under Examinations → Marks Entry; it used to be listed under Academics, which is where people still look for it.",
     tasks: [
       {
         name: "Grade a class",

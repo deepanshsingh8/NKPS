@@ -84,47 +84,92 @@ const erpSections: SidebarSection[] = [
       { kind: "link", icon: BookOpen, label: "XI–XII Electives", href: "/academics/electives" },
       { kind: "link", icon: CalendarDays, label: "Academic Years", href: "/academics/years" },
       { kind: "link", icon: Home, label: "Houses", href: "/academics/houses" },
-      { kind: "link", icon: Sparkles, label: "Non-Scholastic Classes", href: "/exams/non-scholastic-assessments" },
+      // Non-Scholastic Classes used to sit here despite living at
+      // /exams/non-scholastic-assessments. It is mark entry, so it moved to
+      // Examinations → Marks Entry.
     ],
   },
   {
     label: "Examinations",
+    // Sixteen destinations under one heading was the hardest section in the ERP
+    // to find anything in. Grouped by the order the office actually works
+    // through a year — set the rules up, run the exam, enter marks, publish and
+    // print, meet parents — rather than alphabetically or by screen type.
+    //
+    // Every group sets hideOverview, so the section keeps exactly ONE route to
+    // /exams: the Overview link below. Without it SidebarShell renders an
+    // Overview child per group and five links point at one page.
     items: [
       { kind: "link", icon: LayoutGrid, label: "Overview", href: "/exams" },
       {
-        // The four screens you configure once a year and then leave alone,
-        // folded away from the ones you open every exam cycle.
+        // Configured once a year and then left alone.
         kind: "group",
         icon: Settings2,
-        label: "Masters",
+        label: "Setup",
         landingHref: "/exams",
         hideOverview: true,
         children: [
+          { kind: "link", icon: ClipboardList, label: "Exam Types", href: "/exams/types" },
           { kind: "link", icon: GraduationCap, label: "Grade Master", href: "/exams/grade-master" },
           { kind: "link", icon: ClipboardCheck, label: "Result Master", href: "/exams/result-master" },
           { kind: "link", icon: Sparkles, label: "Non-Scholastic Masters", href: "/exams/non-scholastic-masters" },
           { kind: "link", icon: FileText, label: "Header / Footer", href: "/exams/header-footer" },
         ],
       },
-      { kind: "link", icon: ClipboardList, label: "Exam Types", href: "/exams/types" },
-      { kind: "link", icon: CalendarClock, label: "Exam Timetable", href: "/exams/timetable" },
-      { kind: "link", icon: IdCard, label: "Admit Cards", href: "/exams/admit-cards" },
-      { kind: "link", icon: ClipboardCheck, label: "Class Tests", href: "/exams/class-tests" },
-      { kind: "link", icon: BarChart3, label: "Results", href: "/exams/results" },
-      { kind: "link", icon: Lock, label: "Publish & Finalize", href: "/exams/publish" },
-      { kind: "link", icon: RefreshCw, label: "Supplementary Exams", href: "/exams/supplementary" },
-      { kind: "link", icon: MessageSquare, label: "PTM Notes", href: "/exams/ptm-notes" },
-      { kind: "link", icon: FileText, label: "PTM Format", href: "/exams/ptm-format" },
       {
+        // Before and during the exam itself. Blank Marks List belongs here
+        // rather than with the sheets: it is the roster an invigilator carries
+        // in, printed before any marks exist.
         kind: "group",
-        icon: FileText,
-        label: "Sheets & Prints",
+        icon: CalendarClock,
+        label: "Conduct",
         landingHref: "/exams",
         hideOverview: true,
         children: [
+          { kind: "link", icon: CalendarClock, label: "Exam Timetable", href: "/exams/timetable" },
+          { kind: "link", icon: IdCard, label: "Admit Cards", href: "/exams/admit-cards" },
           { kind: "link", icon: FileText, label: "Blank Marks List", href: "/exams/blank-marks-list" },
+        ],
+      },
+      {
+        // Where marks actually go in.
+        kind: "group",
+        icon: ClipboardCheck,
+        label: "Marks Entry",
+        landingHref: "/exams",
+        hideOverview: true,
+        children: [
+          { kind: "link", icon: BarChart3, label: "Results", href: "/exams/results" },
+          { kind: "link", icon: ClipboardCheck, label: "Class Tests", href: "/exams/class-tests" },
+          // "Grades", not "Classes" as it read under Academics: it grades
+          // against the areas Non-Scholastic Masters defines in Setup, and the
+          // old name sounded like a class-management screen.
+          { kind: "link", icon: Sparkles, label: "Non-Scholastic Grades", href: "/exams/non-scholastic-assessments" },
+          { kind: "link", icon: RefreshCw, label: "Supplementary Exams", href: "/exams/supplementary" },
+        ],
+      },
+      {
+        // What comes out at the end.
+        kind: "group",
+        icon: FileText,
+        label: "Results & Sheets",
+        landingHref: "/exams",
+        hideOverview: true,
+        children: [
+          { kind: "link", icon: Lock, label: "Publish & Finalize", href: "/exams/publish" },
           { kind: "link", icon: FileText, label: "White Sheet", href: "/exams/white-sheet" },
           { kind: "link", icon: FileText, label: "Green Sheet", href: "/exams/green-sheet" },
+        ],
+      },
+      {
+        kind: "group",
+        icon: MessageSquare,
+        label: "Parent Meetings",
+        landingHref: "/exams",
+        hideOverview: true,
+        children: [
+          { kind: "link", icon: MessageSquare, label: "PTM Notes", href: "/exams/ptm-notes" },
+          { kind: "link", icon: FileText, label: "PTM Format", href: "/exams/ptm-format" },
         ],
       },
     ],
@@ -163,6 +208,11 @@ const erpSections: SidebarSection[] = [
         icon: Clock,
         label: "Timetable",
         landingHref: "/timetable",
+        // Without this the shell adds its own "Overview" to /timetable, which
+        // is the same page as the "Class Timetable" child right below it — two
+        // links, one destination. Masters, Sheets & Prints and Fees were each
+        // patched for this individually; Timetable was missed.
+        hideOverview: true,
         children: [
           { kind: "link", icon: Clock, label: "Class Timetable", href: "/timetable" },
           { kind: "link", icon: UserCog, label: "Teacher Timetable", href: "/timetable/teachers" },
