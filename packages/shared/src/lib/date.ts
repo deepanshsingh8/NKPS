@@ -72,3 +72,57 @@ export function firstDayOfMonthISO(
   const iso = toISODate(date, timeZone);
   return `${iso.slice(0, 7)}-01`;
 }
+
+/**
+ * Format a moment as a long civil date — `Monday 14 September` — in the
+ * given timezone.
+ *
+ * Assembled from parts, not from `toLocaleDateString("en-IN", …)`: whether
+ * `en-IN` puts a comma after the weekday depends on the runtime's ICU build
+ * ("Monday, 14 September" vs "Monday 14 September"), so the server and the
+ * browser can disagree. That was enough to fail hydration on the dashboard
+ * greeting and throw away the whole server-rendered tree on every load.
+ */
+export function formatWeekdayDate(
+  date: Date = new Date(),
+  timeZone: string = SCHOOL_TIME_ZONE
+): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).formatToParts(date);
+
+  let weekday = "";
+  let day = "";
+  let month = "";
+  for (const part of parts) {
+    if (part.type === "weekday") weekday = part.value;
+    else if (part.type === "day") day = part.value;
+    else if (part.type === "month") month = part.value;
+  }
+  return `${weekday} ${day} ${month}`;
+}
+
+/**
+ * The hour of day (0–23) at `date` in the given timezone.
+ *
+ * `Date#getHours()` answers in the runtime's own zone, and the server's zone
+ * is not the school's: Vercel runs in UTC, so 09:00 IST is 03:30 there. A
+ * greeting derived from `getHours()` says "Working late" on the server and
+ * "Good morning" in the browser — another hydration mismatch.
+ */
+export function hourInTimeZone(
+  date: Date = new Date(),
+  timeZone: string = SCHOOL_TIME_ZONE
+): number {
+  const hour = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    hourCycle: "h23",
+  })
+    .formatToParts(date)
+    .find((part) => part.type === "hour")?.value;
+  return Number(hour);
+}
