@@ -147,6 +147,9 @@ const PATH_FEATURE_OVERRIDES: ReadonlyArray<readonly [string, FeatureKey]> = [
   // Houses are class-adjacent master data. Without this the path has no
   // feature key, and per the note above that means any editor can open it.
   ["/academics/houses", "classes"],
+  // The teacher roster and its retire/reinstate action are the ERP-side view
+  // of the same people /people/staff manages, so they take the same grant.
+  ["/people/teachers", "staff"],
   // Elective slots are subject configuration for XI–XII.
   ["/academics/electives", "subjects"],
   // Timetable tooling that lives outside /timetable's own href.

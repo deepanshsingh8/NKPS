@@ -39,6 +39,7 @@ import { Plus, Trash2, Pencil, Loader2, Layers, ListOrdered } from "lucide-react
 import { adminApi, adminFetch, fetchRowDependencies } from "@nkps/shared/lib/admin-api";
 import { describeDependencies } from "@nkps/shared/lib/row-dependencies";
 import { formatClassName } from "@nkps/shared/lib/utils";
+import { teacherOptions } from "@nkps/shared/lib/teacher-options";
 import type { Class, AcademicYear, Teacher, Stream } from "@nkps/shared/types";
 
 type RollSortKey = "name" | "admission_no" | "previous_rank";
@@ -114,11 +115,11 @@ export default function AdminClassesPage() {
         .from("academic_years")
         .select("*")
         .order("start_date", { ascending: false }),
-      supabase
-        .from("teachers")
-        .select("*")
-        .eq("is_active", true)
-        .order("full_name"),
+      // Retired teachers included on purpose: a class saved before they left
+      // still names them as class teacher, and dropping them from the list
+      // would render the Select blank and let the next save clear the
+      // assignment. teacherChoices keeps them unpickable. (migration 116)
+      supabase.from("teachers").select("*").order("full_name"),
       supabase
         .from("streams")
         .select("*")
@@ -308,6 +309,18 @@ export default function AdminClassesPage() {
     }
     setSubmitting(false);
   };
+
+  // Active teachers to pick from, plus the one this class already names even
+  // if they have since been retired. (migration 116)
+  const teacherChoices = useMemo(
+    () =>
+      teacherOptions(
+        teachers.filter((t) => t.is_active),
+        classTeacherId,
+        teachers
+      ),
+    [teachers, classTeacherId]
+  );
 
   // Header sort/filter accessors — mirror what the matching cell renders.
   const columns = useMemo<TableColumns<ClassWithRelations>>(
@@ -535,10 +548,7 @@ export default function AdminClassesPage() {
                 <Label className="text-xs font-medium">Class Teacher (optional)</Label>
                 <Select
                   value={classTeacherId}
-                  items={[
-                    { value: "none", label: "None" },
-                    ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.employee_id})` })),
-                  ]}
+                  items={[{ value: "none", label: "None" }, ...teacherChoices]}
                   onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}
                 >
                   <SelectTrigger className="w-full">
@@ -546,9 +556,9 @@ export default function AdminClassesPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
-                    {teachers.map((t) => (
-                      <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.employee_id})`}>
-                        {t.full_name} ({t.employee_id})
+                    {teacherChoices.map((t) => (
+                      <SelectItem key={t.value} value={t.value} label={t.label}>
+                        {t.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -734,10 +744,7 @@ export default function AdminClassesPage() {
                 <Label className="text-xs font-medium">Class Teacher (optional)</Label>
                 <Select
                   value={classTeacherId}
-                  items={[
-                    { value: "none", label: "None" },
-                    ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.employee_id})` })),
-                  ]}
+                  items={[{ value: "none", label: "None" }, ...teacherChoices]}
                   onValueChange={(val) => setClassTeacherId(!val || val === "none" ? "" : val)}
                 >
                   <SelectTrigger className="w-full">
@@ -745,9 +752,9 @@ export default function AdminClassesPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
-                    {teachers.map((t) => (
-                      <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.employee_id})`}>
-                        {t.full_name} ({t.employee_id})
+                    {teacherChoices.map((t) => (
+                      <SelectItem key={t.value} value={t.value} label={t.label}>
+                        {t.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

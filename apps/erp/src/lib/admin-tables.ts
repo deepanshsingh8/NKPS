@@ -9,6 +9,12 @@ import type { FeatureKey } from "@nkps/shared/lib/permissions";
 // export HTTP handlers.
 export const TABLE_FEATURE_KEY: Record<string, FeatureKey> = {
   students: "students",
+  // Deliberately absent from ALLOWED_COLUMNS below, and therefore NOT writable
+  // through the proxy — `allowedTables` is the key set of ALLOWED_COLUMNS, not
+  // of this map. The entry exists so /api/admin/dependencies can authorise the
+  // retire-impact preview on /people/teachers. Retiring itself goes through
+  // /api/teachers, which has to touch staff_members in the same breath.
+  teachers: "staff",
   student_enrollments: "students",
   classes: "classes",
   class_subjects: "classes",
@@ -16,6 +22,7 @@ export const TABLE_FEATURE_KEY: Record<string, FeatureKey> = {
   stream_subjects: "classes",
   houses: "classes",
   subjects: "subjects",
+  teacher_subjects: "subjects",
   student_elective_picks: "students",
   elective_slot_options: "subjects",
   academic_years: "academic_years",
@@ -52,6 +59,7 @@ export const ALLOWED_COLUMNS: Record<string, string[]> = {
   streams: ["id", "name", "code", "is_active", "sort_order", "created_at"],
   houses: ["id", "name", "code", "colour", "sort_order", "is_active", "created_at", "updated_at"],
   stream_subjects: ["id", "stream_id", "subject_id", "is_mandatory", "requirement_type", "sort_order"],
+  teacher_subjects: ["id", "teacher_id", "subject_id", "created_at"],
   student_elective_picks: ["id", "student_id", "slot", "subject_id", "created_at", "updated_at"],
   elective_slot_options: ["id", "slot", "subject_id", "label", "applies_to_classes", "sort_order", "is_active", "created_at"],
   timetable_templates: ["id", "name", "code", "description", "teaching_period_count", "is_active", "is_system", "created_at", "updated_at"],

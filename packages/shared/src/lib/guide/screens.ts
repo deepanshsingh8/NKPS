@@ -279,18 +279,27 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
     path: "/people/staff",
     title: "Staff",
     purpose:
-      "The staff directory — categories, contact details, photos, portal logins, and converting teaching staff into teacher records.",
+      "The staff directory, split into three tabs — Teachers, Management & Office, and Drivers & Helpers — with categories, contact details, photos, portal logins, and converting teaching staff into teacher records.",
     tasks: [
       {
         name: "Add a staff member",
         steps: [
+          "Pick the tab the person belongs on (Teachers, Management & Office, or Drivers & Helpers).",
           'Click "Add Staff".',
           'Fill "Full Name *", "Subject / Designation *" and "Category *".',
           "Add email, phone, qualifications and photo if you have them.",
           "Save.",
         ],
         gotcha:
-          "Category drives what happens next: bus drivers and peons cannot be given a portal login at all.",
+          "Category drives what happens next: bus drivers and peons cannot be given a portal login at all. The category dropdown only offers categories for the tab you are on.",
+      },
+      {
+        name: "See a staff member's full details",
+        steps: [
+          "Click the person's name in the table.",
+        ],
+        gotcha:
+          "For a converted teacher the view also lists their employee ID, joining date, the subjects they can teach, and this year's class-teacher and subject assignments. Use the Edit button in the view (or the pencil on the row) to change anything.",
       },
       {
         name: "Create a portal login for a staff member",
@@ -324,7 +333,52 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Without a Category column every imported row lands in the single category you pick — there is no per-row override at that point.",
       },
     ],
-    related: ["/people/users", "/academics/classes", "/transport/buses"],
+    related: [
+      "/people/users",
+      "/people/teachers",
+      "/academics/classes",
+      "/transport/buses",
+    ],
+  },
+  {
+    path: "/people/teachers",
+    title: "Teachers",
+    purpose:
+      "The teacher records the ERP assigns work to — the rows behind every Class Teacher, subject-teacher and timetable dropdown. Retire someone here and they leave all of them at once.",
+    tasks: [
+      {
+        name: "Retire a teacher who has left the school",
+        steps: [
+          'Find them (the "Active" tab is the default; search by name or employee ID).',
+          'Click "Retire".',
+          "Set the date of leaving and, if you want, a reason.",
+          'Confirm with "Retire teacher".',
+        ],
+        gotcha:
+          "There is no Delete, deliberately. Deleting a teacher who has ever been timetabled fails outright, and would erase who taught what. Retiring keeps the history and removes them from every dropdown.",
+      },
+      {
+        name: "Clear the “Needs review” queue",
+        steps: [
+          'Click "Review these" on the amber banner.',
+          "For each name, decide: retire them if they have left, leave them alone if they simply have no staff entry yet.",
+        ],
+        needs:
+          "The banner only appears when there are active teacher records with no staff entry and no portal login.",
+        gotcha:
+          "This queue is the residue of deleting people from People → Staff before the cascade existed — the staff row went, the teacher row stayed active and kept showing up in dropdowns. New deletions retire the teacher automatically, so the queue should not grow.",
+      },
+      {
+        name: "Bring a teacher back",
+        steps: [
+          'Switch to the "Retired" tab.',
+          'Click "Reinstate" on their row.',
+        ],
+        gotcha:
+          "The date of leaving is kept on purpose, so a rejoin stays visible in the record. The reason is cleared.",
+      },
+    ],
+    related: ["/people/staff", "/academics/classes", "/timetable"],
   },
 
   // ── Academics ─────────────────────────────────────────────────────────────
@@ -383,7 +437,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
     path: "/academics/subjects",
     title: "Subjects & Assignments",
     purpose:
-      "The subject catalogue, the class-to-subject-to-teacher assignment table, and the stream master.",
+      "The subject catalogue, the class-to-subject-to-teacher assignment table, the stream master, and which subjects each teacher is qualified to teach.",
     tasks: [
       {
         name: "Add a subject",
@@ -408,23 +462,32 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Existing rows are skipped, never overwritten. Run Setup is disabled when nothing new would be created.",
       },
       {
-        name: "Assign a subject to a class",
+        name: "Set up all of a class's subjects at once",
         steps: [
-          'Open the "Class Assignments" tab and click "Assign Subject".',
-          'Pick "Class", then "Subject", then "Teacher (optional)".',
-          "Save.",
+          'On the "Class Assignments" tab, click the class in the "Manage by class" strip (or pick it from the dropdown beside it).',
+          "Tick every subject the class studies — each category has a Select all.",
+          "Set the teacher beside each ticked subject.",
+          'Click "Save subjects".',
         ],
         gotcha:
-          "The Subject dropdown only lists subjects NOT already assigned to that class. If it is empty, they are all assigned already.",
+          "The teacher list puts the subject's own teachers first, under a \"Teaches …\" heading, from the Teacher Subjects tab. If nobody is mapped to that subject yet it lists everyone instead. Either way \"Show all teachers\" is there when you need someone outside their usual subject.",
       },
       {
-        name: "Change the teacher on an assignment",
+        name: "Remove a subject from a class",
+        steps: [
+          'Open the class from "Manage by class", untick the subject, and save.',
+        ],
+        gotcha:
+          "A subject with marks already recorded for that class is kept, and the dialog says which and why — removing it would leave those marks attached to a subject the class no longer studies. Everything else in the same save still goes through. Deactivate the subject instead if it is genuinely gone.",
+      },
+      {
+        name: "Change the teacher on one assignment",
         steps: [
           'On "Class Assignments", click the teacher name in the row.',
           "Pick the teacher and save.",
         ],
         gotcha:
-          "The whole cell is the control, but the pencil only appears on hover, so it does not look clickable.",
+          "The whole cell is the control, but the pencil only appears on hover, so it does not look clickable. This picker also puts the subject's own teachers first.",
       },
       {
         name: "Create a stream and choose its subjects",
@@ -437,8 +500,31 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         ],
         needs: "Active subjects must exist first.",
       },
+      {
+        name: "Record which subjects a teacher can teach",
+        steps: [
+          'Open the "Teacher Subjects" tab.',
+          'Find the teacher and click "Manage".',
+          "Tick every subject they are qualified to teach, then Save.",
+        ],
+        gotcha:
+          "This is what makes the teacher dropdown on Class Assignments put the right people first \u2014 pick Mathematics and the maths teachers come to the top. It is not the same as assigning them to a class; that is still the Class Assignments tab.",
+      },
+      {
+        name: "Find every teacher who can take a subject",
+        steps: [
+          'On the "Teacher Subjects" tab, set "Teaches subject" to the one you want.',
+        ],
+        gotcha:
+          'Pick "No subjects yet" in the same dropdown to find teachers nobody has mapped, which is where the Class Assignments dropdown will fall back to listing everyone.',
+      },
     ],
-    related: ["/academics/classes", "/academics/electives", "/people/staff"],
+    related: [
+      "/academics/classes",
+      "/academics/electives",
+      "/people/staff",
+      "/people/teachers",
+    ],
   },
   {
     path: "/academics/electives",

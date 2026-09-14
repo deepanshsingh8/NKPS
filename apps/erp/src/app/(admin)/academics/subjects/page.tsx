@@ -16,7 +16,9 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@nkps/shared/components/ui/select";
@@ -56,11 +58,13 @@ import {
 import { adminApi, fetchRowDependencies } from "@nkps/shared/lib/admin-api";
 import { describeDependencies } from "@nkps/shared/lib/row-dependencies";
 import { cn, formatClassName } from "@nkps/shared/lib/utils";
+import { teacherLabel } from "@nkps/shared/lib/teacher-options";
 import QuickSetupWizard from "@/components/QuickSetupWizard";
 import { SubjectBulkUpload } from "@/components/SubjectBulkUpload";
+import { ClassSubjectsDialog } from "@/components/ClassSubjectsDialog";
 import type { Class, Subject, Teacher, Stream } from "@nkps/shared/types";
 
-type Tab = "subjects" | "assignments" | "streams";
+type Tab = "subjects" | "assignments" | "streams" | "teachers";
 
 // ── Row types for the consolidated assignments table ──
 interface AssignmentRow {
@@ -76,6 +80,16 @@ interface AssignmentRow {
   subject_code: string | null;
   teacher_name: string | null;
   student_count: number;
+}
+
+// ── One row of the Teachers tab: a teacher plus the subjects they can teach ──
+interface TeacherSubjectRow {
+  id: string;
+  full_name: string;
+  employee_id: string;
+  is_active: boolean;
+  subject_ids: string[];
+  subject_names: string[];
 }
 
 // ── What else in the system points at a stream ──
@@ -98,7 +112,9 @@ interface StreamWithSubjects extends Stream {
 
 export default function AdminSubjectsPage() {
   const supabase = createClient();
-  const [tab, setTab] = useState<Tab>("subjects");
+  // Class Assignments is where the day-to-day work is; the catalogue is
+  // reference material one tab away. Teachers asked to start from a class.
+  const [tab, setTab] = useState<Tab>("assignments");
 
   // ── Subjects state ──
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -127,11 +143,6 @@ export default function AdminSubjectsPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
   const [assignmentsLoading, setAssignmentsLoading] = useState(true);
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [assignSubmitting, setAssignSubmitting] = useState(false);
-  const [newClassId, setNewClassId] = useState("");
-  const [newSubjectId, setNewSubjectId] = useState("");
-  const [newTeacherId, setNewTeacherId] = useState("");
   // Filters
   const [filterClassId, setFilterClassId] = useState("");
   const [filterSubjectId, setFilterSubjectId] = useState("");
@@ -163,6 +174,28 @@ export default function AdminSubjectsPage() {
     Map<string, { checked: boolean; is_mandatory: boolean }>
   >(new Map());
   const [streamSubjectsSubmitting, setStreamSubjectsSubmitting] = useState(false);
+
+  // ── Manage-a-whole-class dialog ──
+  const [classSubjectsOpen, setClassSubjectsOpen] = useState(false);
+  const [manageClassId, setManageClassId] = useState("");
+
+  // ── Teachers tab (migration 117) ──
+  // teacher_id → the subject ids they are qualified to teach.
+  const [teacherSubjectMap, setTeacherSubjectMap] = useState<
+    Map<string, Set<string>>
+  >(new Map());
+  const [teacherSubjectsLoading, setTeacherSubjectsLoading] = useState(true);
+  const [teacherFilterSubjectId, setTeacherFilterSubjectId] = useState("");
+  const [showRetiredTeachers, setShowRetiredTeachers] = useState(false);
+  const [manageTeacherSubjectsOpen, setManageTeacherSubjectsOpen] =
+    useState(false);
+  const [managingTeacher, setManagingTeacher] =
+    useState<TeacherSubjectRow | null>(null);
+  const [selectedTeacherSubjects, setSelectedTeacherSubjects] = useState<
+    Set<string>
+  >(new Set());
+  const [teacherSubjectsSubmitting, setTeacherSubjectsSubmitting] =
+    useState(false);
 
   // ── Quick Setup & Bulk Upload state ──
   const [quickSetupOpen, setQuickSetupOpen] = useState(false);
@@ -255,11 +288,11 @@ export default function AdminSubjectsPage() {
         .select("*")
         .eq("is_active", true)
         .order("name"),
-      supabase
-        .from("teachers")
-        .select("*")
-        .eq("is_active", true)
-        .order("full_name"),
+      // Retired teachers included on purpose: an assignment saved before they
+      // left still names them, and dropping them would render the Select blank
+      // and let the next save clear the teacher. The option builders below
+      // keep them unpickable. (migration 116)
+      supabase.from("teachers").select("*").order("full_name"),
     ]);
 
     setClasses((classesRes.data as Class[]) ?? []);
@@ -385,12 +418,45 @@ export default function AdminSubjectsPage() {
     setStreamsLoading(false);
   }, [supabase]);
 
+  // Which subjects each teacher is qualified to teach (migration 117). Only
+  // the join rows are fetched — the teacher roster itself already arrives with
+  // fetchAssignmentsData, and subject names come from `activeSubjects`.
+  const fetchTeacherSubjects = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("teacher_subjects")
+      .select("teacher_id, subject_id");
+
+    if (error) {
+      // A deployment that has not run migration 117 yet should still be able
+      // to use the other three tabs, so this is not a blocking failure.
+      console.error("Failed to fetch teacher subjects:", error);
+      setTeacherSubjectsLoading(false);
+      return;
+    }
+
+    const map = new Map<string, Set<string>>();
+    for (const row of data ?? []) {
+      const set = map.get(row.teacher_id) ?? new Set<string>();
+      set.add(row.subject_id);
+      map.set(row.teacher_id, set);
+    }
+    setTeacherSubjectMap(map);
+    setTeacherSubjectsLoading(false);
+  }, [supabase]);
+
   useEffect(() => {
     fetchSubjects();
     fetchAssignmentsData();
     fetchStreams();
     fetchMathReviewState();
-  }, [fetchSubjects, fetchAssignmentsData, fetchStreams, fetchMathReviewState]);
+    fetchTeacherSubjects();
+  }, [
+    fetchSubjects,
+    fetchAssignmentsData,
+    fetchStreams,
+    fetchMathReviewState,
+    fetchTeacherSubjects,
+  ]);
 
   // ══════════════════════════════════════════════
   // Subject CRUD
@@ -557,45 +623,6 @@ export default function AdminSubjectsPage() {
   // Assignment Handlers
   // ══════════════════════════════════════════════
 
-  const handleAssign = async () => {
-    if (!newClassId || !newSubjectId) {
-      toast.error("Please select a class and subject");
-      return;
-    }
-
-    // Check for duplicate
-    const existing = assignments.find(
-      (a) => a.class_id === newClassId && a.subject_id === newSubjectId
-    );
-    if (existing) {
-      toast.error("This subject is already assigned to this class");
-      return;
-    }
-
-    setAssignSubmitting(true);
-    const result = await adminApi({
-      action: "insert",
-      table: "class_subjects",
-      data: {
-        class_id: newClassId,
-        subject_id: newSubjectId,
-        teacher_id: newTeacherId || null,
-      },
-    });
-
-    if (!result.success) {
-      toast.error(result.error || "Failed to assign subject");
-    } else {
-      toast.success("Subject assigned to class");
-      setAssignDialogOpen(false);
-      setNewClassId("");
-      setNewSubjectId("");
-      setNewTeacherId("");
-      await fetchAssignmentsData();
-    }
-    setAssignSubmitting(false);
-  };
-
   const handleRemoveAssignment = async (row: AssignmentRow) => {
     if (
       !confirm(
@@ -622,6 +649,7 @@ export default function AdminSubjectsPage() {
   const openEditTeacherDialog = (row: AssignmentRow) => {
     setEditTeacherRow(row);
     setEditTeacherValue(row.teacher_id || "none");
+    setEditTeacherShowAll(false);
     setEditTeacherDialogOpen(true);
   };
 
@@ -1072,16 +1100,244 @@ export default function AdminSubjectsPage() {
     setStreamSubjectsSubmitting(false);
   };
 
-  // Active subjects for assignment (exclude already-assigned to the selected class)
-  const availableSubjectsForAssign = useMemo(() => {
-    if (!newClassId) return activeSubjects;
-    return activeSubjects.filter(
-      (s) =>
-        !assignments.some(
-          (a) => a.class_id === newClassId && a.subject_id === s.id
-        )
-    );
-  }, [activeSubjects, assignments, newClassId]);
+  // Only active teachers are pickable, but a dialog editing an existing
+  // assignment must still show whoever it already names — otherwise the Select
+  // renders blank and saving silently clears the teacher. (migration 116)
+  const activeTeachers = useMemo(
+    () => teachers.filter((t) => t.is_active),
+    [teachers]
+  );
+  // Changing the teacher on a Maths row should surface the maths teachers
+  // first, exactly as the class dialog does. An ordering, not a filter: the
+  // rest stay one click away behind "Show all", or are listed outright when
+  // nobody is mapped to the subject yet. (migration 117)
+  const [editTeacherShowAll, setEditTeacherShowAll] = useState(false);
+
+  const editTeacherSplit = useMemo(() => {
+    const subjectId = editTeacherRow?.subject_id ?? "";
+    const qualified: Teacher[] = [];
+    const others: Teacher[] = [];
+    for (const t of activeTeachers) {
+      if (subjectId && teacherSubjectMap.get(t.id)?.has(subjectId))
+        qualified.push(t);
+      else others.push(t);
+    }
+    const currentId = editTeacherValue === "none" ? "" : editTeacherValue;
+    const retained =
+      currentId && !activeTeachers.some((t) => t.id === currentId)
+        ? teachers.find((t) => t.id === currentId)
+        : undefined;
+    return { qualified, others, retained };
+  }, [
+    activeTeachers,
+    teachers,
+    teacherSubjectMap,
+    editTeacherRow,
+    editTeacherValue,
+  ]);
+
+  const editTeacherShowOthers =
+    editTeacherShowAll || editTeacherSplit.qualified.length === 0;
+
+  const editTeacherChoices = useMemo(() => {
+    const { qualified, others, retained } = editTeacherSplit;
+    return [
+      ...qualified.map((t) => ({ value: t.id, label: teacherLabel(t) })),
+      ...(editTeacherShowOthers
+        ? others.map((t) => ({ value: t.id, label: teacherLabel(t) }))
+        : []),
+      ...(retained
+        ? [{ value: retained.id, label: `${teacherLabel(retained)} — inactive` }]
+        : []),
+    ];
+  }, [editTeacherSplit, editTeacherShowOthers]);
+
+  // ── Class-first view: what each class has, for the "manage by class" panel ──
+  const assignmentsByClass = useMemo(() => {
+    const m = new Map<
+      string,
+      { subject_count: number; unassigned: number }
+    >();
+    for (const c of classes) m.set(c.id, { subject_count: 0, unassigned: 0 });
+    for (const a of assignments) {
+      const entry = m.get(a.class_id);
+      if (!entry) continue;
+      entry.subject_count++;
+      if (!a.teacher_id) entry.unassigned++;
+    }
+    return m;
+  }, [classes, assignments]);
+
+  // What the managed class currently has, in the shape the dialog wants.
+  const manageClassAssignments = useMemo(
+    () =>
+      assignments
+        .filter((a) => a.class_id === manageClassId)
+        .map((a) => ({
+          id: a.id,
+          subject_id: a.subject_id,
+          teacher_id: a.teacher_id,
+        })),
+    [assignments, manageClassId]
+  );
+
+  const manageClassLabel = useMemo(() => {
+    const c = classes.find((c) => c.id === manageClassId);
+    return c ? formatClassName(c) : "";
+  }, [classes, manageClassId]);
+
+  const openClassSubjects = (classId: string) => {
+    setManageClassId(classId);
+    setClassSubjectsOpen(true);
+  };
+
+  // ══════════════════════════════════════════════
+  // Teachers tab — who can teach what (migration 117)
+  // ══════════════════════════════════════════════
+
+  const subjectNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of activeSubjects) m.set(s.id, s.name);
+    return m;
+  }, [activeSubjects]);
+
+  const teacherSubjectRows = useMemo<TeacherSubjectRow[]>(() => {
+    return teachers
+      .filter((t) => showRetiredTeachers || t.is_active)
+      .filter((t) => {
+        if (!teacherFilterSubjectId) return true;
+        if (teacherFilterSubjectId === "none") {
+          return (teacherSubjectMap.get(t.id)?.size ?? 0) === 0;
+        }
+        return teacherSubjectMap.get(t.id)?.has(teacherFilterSubjectId) ?? false;
+      })
+      .map((t) => {
+        const ids = [...(teacherSubjectMap.get(t.id) ?? [])];
+        // A subject the teacher is linked to but which has since been
+        // deactivated has no name in `activeSubjects`. Keep the id out of the
+        // display rather than rendering "undefined"; unticking it is still
+        // possible from the dialog, which lists active subjects only.
+        const names = ids
+          .map((id) => subjectNameById.get(id))
+          .filter((n): n is string => !!n)
+          .sort((a, b) => a.localeCompare(b));
+        return {
+          id: t.id,
+          full_name: t.full_name,
+          employee_id: t.employee_id,
+          is_active: t.is_active,
+          subject_ids: ids,
+          subject_names: names,
+        };
+      });
+  }, [
+    teachers,
+    teacherSubjectMap,
+    subjectNameById,
+    teacherFilterSubjectId,
+    showRetiredTeachers,
+  ]);
+
+  const teacherColumns = useMemo<TableColumns<TeacherSubjectRow>>(
+    () => ({
+      teacher: { label: "Teacher", value: (t) => t.full_name, filter: "text" },
+      employee_id: {
+        label: "Employee ID",
+        value: (t) => t.employee_id,
+        filter: "text",
+      },
+      subjects: {
+        label: "Subjects",
+        value: (t) => t.subject_names.join(", ") || null,
+        emptyLabel: "None yet",
+        filter: "none",
+      },
+      count: {
+        label: "Count",
+        value: (t) => t.subject_names.length,
+        filter: "none",
+      },
+    }),
+    []
+  );
+
+  const teacherTable = useTableControls({
+    rows: teacherSubjectRows,
+    columns: teacherColumns,
+  });
+
+  const openManageTeacherSubjects = (row: TeacherSubjectRow) => {
+    setManagingTeacher(row);
+    setSelectedTeacherSubjects(new Set(row.subject_ids));
+    setManageTeacherSubjectsOpen(true);
+  };
+
+  const toggleTeacherSubject = (subjectId: string) => {
+    setSelectedTeacherSubjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(subjectId)) next.delete(subjectId);
+      else next.add(subjectId);
+      return next;
+    });
+  };
+
+  // Diff-and-save, mirroring handleSaveStreamSubjects. Rows are only added or
+  // removed — there is nothing else on the join row to update.
+  const handleSaveTeacherSubjects = async () => {
+    if (!managingTeacher) return;
+    setTeacherSubjectsSubmitting(true);
+
+    const before = new Set(managingTeacher.subject_ids);
+    const after = selectedTeacherSubjects;
+    const toAdd = [...after].filter((id) => !before.has(id));
+    const toRemove = [...before].filter((id) => !after.has(id));
+
+    let hasError = false;
+
+    for (const subjectId of toAdd) {
+      const result = await adminApi({
+        action: "insert",
+        table: "teacher_subjects",
+        data: { teacher_id: managingTeacher.id, subject_id: subjectId },
+      });
+      if (!result.success) {
+        hasError = true;
+        toast.error(
+          `Failed to add ${subjectNameById.get(subjectId) ?? "subject"}`
+        );
+      }
+    }
+
+    // adminApi matches on a single column, so a delete is scoped by looking
+    // the join row up first — the pair is unique, so this is exact.
+    for (const subjectId of toRemove) {
+      const { data: joinRow } = await supabase
+        .from("teacher_subjects")
+        .select("id")
+        .eq("teacher_id", managingTeacher.id)
+        .eq("subject_id", subjectId)
+        .maybeSingle();
+      if (!joinRow) continue;
+      const result = await adminApi({
+        action: "delete",
+        table: "teacher_subjects",
+        match: { column: "id", value: joinRow.id },
+      });
+      if (!result.success) {
+        hasError = true;
+        toast.error(
+          `Failed to remove ${subjectNameById.get(subjectId) ?? "subject"}`
+        );
+      }
+    }
+
+    if (!hasError) toast.success("Teacher subjects updated");
+
+    setManageTeacherSubjectsOpen(false);
+    setManagingTeacher(null);
+    await fetchTeacherSubjects();
+    setTeacherSubjectsSubmitting(false);
+  };
 
   // ══════════════════════════════════════════════
   // Render
@@ -1102,9 +1358,13 @@ export default function AdminSubjectsPage() {
             </p>
           </div>
         </div>
-        {/* Only the assignments tab is year-scoped — the subject catalogue
-            itself is not — so the picker appears with it. */}
-        {tab !== "subjects" && <AcademicSessionPicker state={session} />}
+        {/* Class assignments and streams are year-scoped; the subject
+            catalogue and the teacher-subject mapping are not. An allow-list
+            rather than `tab !== "subjects"`, so adding a tab does not silently
+            give it a year picker it has no use for. */}
+        {(tab === "assignments" || tab === "streams") && (
+          <AcademicSessionPicker state={session} />
+        )}
         {tab === "subjects" && (
           <div className="erp-page-actions">
             <Button
@@ -1135,18 +1395,6 @@ export default function AdminSubjectsPage() {
             >
               <Upload className="h-4 w-4 mr-2" />
               Upload Excel
-            </Button>
-            <Button
-              onClick={() => {
-                setNewClassId("");
-                setNewSubjectId("");
-                setNewTeacherId("");
-                setAssignDialogOpen(true);
-              }}
-              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Assign Subject
             </Button>
           </div>
         )}
@@ -1207,6 +1455,18 @@ export default function AdminSubjectsPage() {
         >
           <GraduationCap className="h-4 w-4" />
           Streams
+        </button>
+        <button
+          onClick={() => setTab("teachers")}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+            tab === "teachers"
+              ? "bg-white dark:bg-card text-navy-900 dark:text-white shadow-sm"
+              : "text-gray-500 dark:text-gray-400 hover:text-navy-900 dark:hover:text-white"
+          )}
+        >
+          <Users className="h-4 w-4" />
+          Teacher Subjects
         </button>
       </div>
 
@@ -1391,6 +1651,96 @@ export default function AdminSubjectsPage() {
             </div>
           ) : (
             <>
+              {/* ── Manage by class ──
+                  The class-first entry point. Assigning subjects one dialog at
+                  a time meant eleven saves to set up one class; pick a class
+                  here and set its whole list in one pass. */}
+              <div className="erp-table-container p-5">
+                <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <h2 className="text-sm font-semibold text-navy-900 dark:text-white">
+                      Manage by class
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Pick a class to tick all of its subjects and set their
+                      teachers in one go.
+                    </p>
+                  </div>
+                  <div className="w-full sm:w-72">
+                    <Select
+                      value={manageClassId}
+                      items={classes.map((c) => ({
+                        value: c.id,
+                        label: formatClassName(c),
+                      }))}
+                      onValueChange={(val) => val && openClassSubjects(val)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a class..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {classes.map((c) => (
+                          <SelectItem
+                            key={c.id}
+                            value={c.id}
+                            label={formatClassName(c)}
+                          >
+                            {formatClassName(c)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {classes.length === 0 ? (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 italic">
+                    No classes in this academic year yet.
+                  </p>
+                ) : (
+                  <div className="erp-scroll-x flex flex-wrap gap-2">
+                    {classes.map((c) => {
+                      const summary = assignmentsByClass.get(c.id);
+                      const count = summary?.subject_count ?? 0;
+                      const unassigned = summary?.unassigned ?? 0;
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => openClassSubjects(c.id)}
+                          className={cn(
+                            "rounded-lg border px-3 py-2 text-left transition-colors",
+                            count === 0
+                              ? "border-dashed border-gray-300 dark:border-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:hover:bg-muted"
+                              : "border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted"
+                          )}
+                        >
+                          <div className="text-sm font-medium text-navy-900 dark:text-white">
+                            {formatClassName(c)}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {count === 0 ? (
+                              <span className="text-amber-600 dark:text-amber-400">
+                                No subjects yet
+                              </span>
+                            ) : (
+                              <>
+                                {count} subject{count === 1 ? "" : "s"}
+                                {unassigned > 0 && (
+                                  <span className="text-amber-600 dark:text-amber-400">
+                                    {" "}
+                                    · {unassigned} without a teacher
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {/* Filters */}
               <div className="erp-table-container p-4">
                 <div className="flex items-center gap-2 mb-3">
@@ -1786,6 +2136,203 @@ export default function AdminSubjectsPage() {
       )}
 
       {/* ════════════════════════════════════════════════ */}
+      {/* Teacher Subjects Tab                            */}
+      {/* ════════════════════════════════════════════════ */}
+      {tab === "teachers" && (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-blue-100 dark:border-blue-900/40 bg-blue-50/60 dark:bg-blue-950/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-300">
+            Which subjects each teacher is qualified to teach. This is what lets
+            the Class Assignments tab put the right teachers at the top of the
+            list — pick Mathematics for a class and its maths teachers come
+            first. Assigning a teacher to a subject anywhere in the ERP adds it
+            here automatically; removing the assignment does not take it away.
+          </div>
+
+          {/* Filters */}
+          <div className="erp-table-container p-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                <Filter className="h-4 w-4" />
+                <span className="text-xs font-medium">Filter</span>
+              </div>
+              <div className="w-full sm:w-64">
+                <Label className="text-xs font-medium">Teaches subject</Label>
+                <Select
+                  value={teacherFilterSubjectId || "all"}
+                  items={[
+                    { value: "all", label: "Any subject" },
+                    { value: "none", label: "No subjects yet" },
+                    ...activeSubjects.map((s) => ({
+                      value: s.id,
+                      label: s.name,
+                    })),
+                  ]}
+                  onValueChange={(val) =>
+                    setTeacherFilterSubjectId(!val || val === "all" ? "" : val)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Any subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all" label="Any subject">
+                      Any subject
+                    </SelectItem>
+                    <SelectItem value="none" label="No subjects yet">
+                      No subjects yet
+                    </SelectItem>
+                    {activeSubjects.map((s) => (
+                      <SelectItem key={s.id} value={s.id} label={s.name}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer pb-2">
+                <input
+                  type="checkbox"
+                  checked={showRetiredTeachers}
+                  onChange={(e) => setShowRetiredTeachers(e.target.checked)}
+                  className="rounded border-gray-300 dark:border-gray-600 text-navy-900 focus:ring-navy-900"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Include retired teachers
+                </span>
+              </label>
+              <div className="flex items-center ml-auto pb-2">
+                <Badge
+                  variant="secondary"
+                  className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300"
+                >
+                  {teacherSubjectRows.length} teacher
+                  {teacherSubjectRows.length === 1 ? "" : "s"}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="erp-table-container p-6">
+            {teacherSubjectsLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              </div>
+            ) : teacherSubjectRows.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 dark:text-gray-500">
+                <Users className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">
+                  {teacherFilterSubjectId
+                    ? "No teachers match this filter"
+                    : "No teachers yet"}
+                </p>
+                <p className="text-xs text-gray-300 dark:text-gray-600 mt-1">
+                  {teacherFilterSubjectId
+                    ? "Try a different subject, or clear the filter"
+                    : "Add teaching staff on People → Staff first"}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                  <TableFilterSummary
+                    ctl={teacherTable}
+                    total={teacherSubjectRows.length}
+                    shown={teacherTable.rows.length}
+                    className="mb-0 mr-auto"
+                  />
+                  <TableExportButton
+                    ctl={teacherTable}
+                    filename="teacher-subjects"
+                    title="Teacher Subjects"
+                    featureKey="subjects"
+                  />
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <SortFilterHead ctl={teacherTable} col="teacher" />
+                      <SortFilterHead ctl={teacherTable} col="employee_id" />
+                      <SortFilterHead ctl={teacherTable} col="subjects" />
+                      <SortFilterHead
+                        ctl={teacherTable}
+                        col="count"
+                        align="center"
+                      />
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {teacherTable.rows.length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={5}
+                          className="py-10 text-center text-gray-500 dark:text-gray-400"
+                        >
+                          No rows match the column filters.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {teacherTable.rows.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell className="font-medium">
+                          {row.full_name}
+                          {!row.is_active && (
+                            <Badge
+                              variant="secondary"
+                              className="ml-2 text-xs bg-gray-100 dark:bg-muted text-gray-500"
+                            >
+                              Retired
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-500 dark:text-gray-400">
+                          {row.employee_id}
+                        </TableCell>
+                        <TableCell>
+                          {row.subject_names.length === 0 ? (
+                            <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                              None yet
+                            </span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {row.subject_names.map((n) => (
+                                <Badge
+                                  key={n}
+                                  variant="secondary"
+                                  className="text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400"
+                                >
+                                  {n}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center tabular-nums">
+                          {row.subject_names.length}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openManageTeacherSubjects(row)}
+                            className="h-7 text-xs gap-1"
+                          >
+                            <Settings2 className="h-3 w-3" />
+                            Manage
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════ */}
       {/* Dialogs                                         */}
       {/* ════════════════════════════════════════════════ */}
 
@@ -2022,128 +2569,6 @@ export default function AdminSubjectsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Assign Subject to Class Dialog ── */}
-      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-500/10">
-                <Library className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <DialogTitle>Assign Subject to Class</DialogTitle>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Link a subject and teacher to a class
-                </p>
-              </div>
-            </div>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Class</Label>
-              <Select
-                value={newClassId}
-                items={classes.map((c) => ({ value: c.id, label: formatClassName(c) }))}
-                onValueChange={(val) => {
-                  if (val) {
-                    setNewClassId(val);
-                    setNewSubjectId("");
-                  }
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a class..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {classes.map((c) => (
-                    <SelectItem
-                      key={c.id}
-                      value={c.id}
-                      label={formatClassName(c)}
-                    >
-                      {formatClassName(c)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Subject</Label>
-              <Select
-                value={newSubjectId}
-                items={availableSubjectsForAssign.map((s) => ({ value: s.id, label: s.name + (s.code ? ` (${s.code})` : "") }))}
-                onValueChange={(val) => val && setNewSubjectId(val)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a subject..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableSubjectsForAssign.map((s) => (
-                    <SelectItem
-                      key={s.id}
-                      value={s.id}
-                      label={s.name + (s.code ? ` (${s.code})` : "")}
-                    >
-                      {s.name}
-                      {s.code ? ` (${s.code})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {newClassId && availableSubjectsForAssign.length === 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                  All active subjects are already assigned to this class
-                </p>
-              )}
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Teacher (optional)</Label>
-              <Select
-                value={newTeacherId || "none"}
-                items={[
-                  { value: "none", label: "None" },
-                  ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.employee_id})` })),
-                ]}
-                onValueChange={(val) =>
-                  setNewTeacherId(!val || val === "none" ? "" : val)
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a teacher..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none" label="None">
-                    None
-                  </SelectItem>
-                  {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.employee_id})`}>
-                      {t.full_name} ({t.employee_id})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setAssignDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAssign}
-              disabled={assignSubmitting || !newClassId || !newSubjectId}
-              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
-            >
-              {assignSubmitting && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
-              Assign
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* ── Edit Teacher Dialog ── */}
       <Dialog
@@ -2172,10 +2597,7 @@ export default function AdminSubjectsPage() {
               <Label className="text-xs font-medium">Teacher</Label>
               <Select
                 value={editTeacherValue}
-                items={[
-                  { value: "none", label: "None" },
-                  ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.employee_id})` })),
-                ]}
+                items={[{ value: "none", label: "None" }, ...editTeacherChoices]}
                 onValueChange={(val) => val && setEditTeacherValue(val)}
               >
                 <SelectTrigger className="w-full">
@@ -2185,13 +2607,67 @@ export default function AdminSubjectsPage() {
                   <SelectItem value="none" label="None">
                     None
                   </SelectItem>
-                  {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.employee_id})`}>
-                      {t.full_name} ({t.employee_id})
+                  {editTeacherSplit.qualified.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>
+                        Teaches {editTeacherRow?.subject_name}
+                      </SelectLabel>
+                      {editTeacherSplit.qualified.map((t) => (
+                        <SelectItem
+                          key={t.id}
+                          value={t.id}
+                          label={teacherLabel(t)}
+                        >
+                          {teacherLabel(t)}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {editTeacherShowOthers &&
+                    editTeacherSplit.others.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>
+                          {editTeacherSplit.qualified.length > 0
+                            ? "All other teachers"
+                            : "All teachers"}
+                        </SelectLabel>
+                        {editTeacherSplit.others.map((t) => (
+                          <SelectItem
+                            key={t.id}
+                            value={t.id}
+                            label={teacherLabel(t)}
+                          >
+                            {teacherLabel(t)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                  {editTeacherSplit.retained && (
+                    <SelectItem
+                      value={editTeacherSplit.retained.id}
+                      label={`${teacherLabel(editTeacherSplit.retained)} — inactive`}
+                    >
+                      {teacherLabel(editTeacherSplit.retained)} — inactive
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
+              {editTeacherSplit.qualified.length > 0 &&
+                !editTeacherShowOthers && (
+                  <button
+                    type="button"
+                    onClick={() => setEditTeacherShowAll(true)}
+                    className="mt-1 text-xs text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    Show all teachers
+                  </button>
+                )}
+              {editTeacherSplit.qualified.length === 0 && (
+                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  Nobody is mapped to {editTeacherRow?.subject_name} yet — all
+                  teachers listed. Set this up on the Teacher Subjects tab.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -2395,6 +2871,93 @@ export default function AdminSubjectsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Manage Teacher Subjects Dialog ── */}
+      <Dialog
+        open={manageTeacherSubjectsOpen}
+        onOpenChange={setManageTeacherSubjectsOpen}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
+                <Users className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <DialogTitle>
+                  Subjects — {managingTeacher?.full_name}
+                </DialogTitle>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  What this teacher is qualified to teach
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="max-h-80 overflow-y-auto space-y-1 py-2">
+            {activeSubjects.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">
+                No active subjects found. Create subjects first.
+              </p>
+            ) : (
+              activeSubjects.map((subject) => {
+                const isSelected = selectedTeacherSubjects.has(subject.id);
+
+                return (
+                  <div
+                    key={subject.id}
+                    className={cn(
+                      "flex items-center justify-between px-3 py-2 rounded-lg transition-colors",
+                      isSelected
+                        ? "bg-blue-50 dark:bg-blue-950/20"
+                        : "hover:bg-gray-50 dark:hover:bg-muted"
+                    )}
+                  >
+                    <label className="flex items-center gap-3 cursor-pointer flex-1">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleTeacherSubject(subject.id)}
+                        className="rounded border-gray-300 dark:border-gray-600 text-navy-900 focus:ring-navy-900"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {subject.name}
+                        </span>
+                        {subject.code && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400 ml-1.5">
+                            ({subject.code})
+                          </span>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setManageTeacherSubjectsOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveTeacherSubjects}
+              disabled={teacherSubjectsSubmitting}
+              className="bg-navy-900 hover:bg-navy-800 text-white"
+            >
+              {teacherSubjectsSubmitting && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              <Check className="h-4 w-4 mr-1" />
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Manage Stream Subjects Dialog ── */}
       <Dialog
         open={manageStreamSubjectsOpen}
@@ -2514,6 +3077,23 @@ export default function AdminSubjectsPage() {
       />
 
       {/* ── Bulk Upload Assignments ── */}
+      {manageClassId && (
+        <ClassSubjectsDialog
+          open={classSubjectsOpen}
+          onOpenChange={setClassSubjectsOpen}
+          classId={manageClassId}
+          classLabel={manageClassLabel}
+          subjects={activeSubjects}
+          teachers={teachers}
+          teacherSubjectMap={teacherSubjectMap}
+          assignments={manageClassAssignments}
+          onSaved={() => {
+            fetchAssignmentsData();
+            fetchTeacherSubjects();
+          }}
+        />
+      )}
+
       <SubjectBulkUpload
         open={bulkUploadOpen}
         onOpenChange={setBulkUploadOpen}

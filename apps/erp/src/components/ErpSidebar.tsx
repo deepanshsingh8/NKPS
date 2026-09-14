@@ -67,6 +67,7 @@ const erpSections: SidebarSection[] = [
       { kind: "link", icon: UserCheck, label: "Students", href: "/people/students" },
       { kind: "link", icon: UserPlus, label: "Registrations", href: "/registrations" },
       { kind: "link", icon: UserCog, label: "Staff", href: "/people/staff" },
+      { kind: "link", icon: GraduationCap, label: "Teachers", href: "/people/teachers" },
       { kind: "link", icon: Users, label: "Users", href: "/people/users" },
     ],
   },

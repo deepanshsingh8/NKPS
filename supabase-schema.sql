@@ -7212,3 +7212,132 @@ CREATE POLICY "Admins have full access to import batches"
 -- The backfill of parent rows for pre-existing batches lives only in the
 -- migration file: a database built fresh from this schema has no batches to
 -- reconstruct.
+
+-- ============================================================================
+-- MIGRATION 116 — Teacher lifecycle (retire, don't orphan)
+-- Mirrors scripts/migrations/erp/migration-116-teacher-lifecycle.sql
+-- ============================================================================
+-- `teachers.staff_member_id` is ON DELETE SET NULL, so deleting someone from
+-- People → Staff leaves their teacher row behind, still is_active = true, in a
+-- table no ERP screen could edit. Departed staff therefore kept appearing in
+-- every teacher dropdown — the dropdowns filter is_active correctly, the data
+-- was wrong. These columns plus the review view are what /people/teachers
+-- needs to retire a teacher explicitly and reversibly.
+
+ALTER TABLE teachers
+  ADD COLUMN IF NOT EXISTS date_of_leaving date,
+  ADD COLUMN IF NOT EXISTS leaving_reason  text;
+
+COMMENT ON COLUMN teachers.date_of_leaving IS
+  'Date the teacher left the school. Set when is_active flips to false; kept '
+  'when they are reactivated so a rejoin is visible in the record.';
+COMMENT ON COLUMN teachers.leaving_reason IS
+  'Free-text note on why the teacher was retired (resigned, transferred, …).';
+
+CREATE INDEX IF NOT EXISTS idx_teachers_active_name
+  ON teachers(full_name) WHERE is_active;
+
+-- Active teacher rows with neither a staff record nor a portal login: the
+-- shape left behind by a staff deletion. A review queue, not an
+-- auto-deactivate — a teacher created by bulk import and never linked looks
+-- identical, so a human decides.
+CREATE OR REPLACE VIEW public.teachers_needing_review AS
+  SELECT t.id,
+         t.employee_id,
+         t.full_name,
+         t.email,
+         t.phone,
+         t.date_of_joining,
+         t.created_at,
+         (SELECT count(*) FROM public.timetable_periods tp WHERE tp.teacher_id = t.id)
+           AS timetable_period_count,
+         (SELECT count(*) FROM public.class_subjects cs   WHERE cs.teacher_id = t.id)
+           AS class_subject_count,
+         (SELECT count(*) FROM public.classes c    WHERE c.class_teacher_id = t.id)
+           AS class_teacher_count
+  FROM public.teachers t
+  WHERE t.is_active
+    AND t.staff_member_id IS NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM public.profiles p WHERE p.teacher_id = t.id
+    );
+
+COMMENT ON VIEW public.teachers_needing_review IS
+  'Active teacher records with no linked staff_members row and no portal '
+  'profile — the shape left behind when a staff member is deleted from '
+  'People → Staff (teachers.staff_member_id is ON DELETE SET NULL). Review '
+  'queue for /people/teachers; retiring is an explicit admin action, never '
+  'automatic.';
+
+-- ============================================================================
+-- MIGRATION 117 — teacher_subjects (which subjects a teacher can teach)
+-- Mirrors scripts/migrations/erp/migration-117-teacher-subjects.sql
+-- ============================================================================
+-- Distinct from class_subjects: that answers "who teaches Maths to VI-B" (one
+-- teacher per class+subject); this answers "who can teach Maths at all" (many
+-- teachers, no class). It is what lets the assign-subject dropdown surface the
+-- school's three maths teachers instead of all sixty staff.
+
+CREATE TABLE IF NOT EXISTS teacher_subjects (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  teacher_id uuid REFERENCES teachers(id) ON DELETE CASCADE NOT NULL,
+  subject_id uuid REFERENCES subjects(id) ON DELETE CASCADE NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(teacher_id, subject_id)
+);
+
+COMMENT ON TABLE teacher_subjects IS
+  'Which subjects a teacher is qualified to teach. Drives the "teachers of '
+  'this subject first" ordering in the assign-subject dropdown. Distinct from '
+  'class_subjects, which records who actually teaches a subject in one class.';
+
+CREATE INDEX IF NOT EXISTS idx_teacher_subjects_teacher
+  ON teacher_subjects(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_teacher_subjects_subject
+  ON teacher_subjects(subject_id);
+
+-- Authenticated read, not public: keyed on teacher_id, so an anon read would
+-- enumerate every teacher UUID in the school (cf. migration 098). Writes are
+-- admin-only; editors reach the table through the admin proxy's `subjects`
+-- feature gate, as with class_subjects.
+ALTER TABLE teacher_subjects ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated can read teacher_subjects"
+  ON teacher_subjects FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Admins manage teacher_subjects"
+  ON teacher_subjects FOR ALL
+  USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');
+
+-- Assigning a teacher to a class subject teaches the system that they know
+-- that subject. A trigger rather than app code because class_subjects.teacher_id
+-- has five writers and adminApi() is a single-table proxy that cannot carry a
+-- side effect. Add-only: un-assigning someone from VI-B Maths does not mean
+-- they stopped knowing Maths.
+CREATE OR REPLACE FUNCTION public.trg_learn_teacher_subject()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.subject_id IS NOT NULL THEN
+    INSERT INTO public.teacher_subjects (teacher_id, subject_id)
+    VALUES (NEW.teacher_id, NEW.subject_id)
+    ON CONFLICT (teacher_id, subject_id) DO NOTHING;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS class_subject_learns_teacher_subject ON class_subjects;
+CREATE TRIGGER class_subject_learns_teacher_subject
+  AFTER INSERT OR UPDATE OF teacher_id ON class_subjects
+  FOR EACH ROW
+  WHEN (NEW.teacher_id IS NOT NULL)
+  EXECUTE FUNCTION public.trg_learn_teacher_subject();
+
+-- The one-time seed from class_subjects and timetable_periods lives only in
+-- the migration file: a database built fresh from this schema has nothing to
+-- seed from.

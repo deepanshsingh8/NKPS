@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Clock, CalendarRange, Info } from "lucide-react";
 import { adminApi } from "@nkps/shared/lib/admin-api";
 import { formatClassName, formatShortDate } from "@nkps/shared/lib/utils";
+import { teacherOptions } from "@nkps/shared/lib/teacher-options";
 import type { Class, Subject, Teacher, TimetablePeriod } from "@nkps/shared/types";
 
 const DAYS = [
@@ -133,11 +134,11 @@ const session = useAcademicSession();
           .select("*")
           .eq("is_active", true)
           .order("name"),
-        supabase
-          .from("teachers")
-          .select("*")
-          .eq("is_active", true)
-          .order("full_name"),
+        // Retired teachers included on purpose: a period saved before they
+        // left still names them, and dropping them from the list would render
+        // the Select blank and let the next save wipe the assignment.
+        // teacherOptions() keeps them out of the pickable set. (migration 116)
+        supabase.from("teachers").select("*").order("full_name"),
       ]);
 
       setClasses((classesRes.data as Class[]) ?? []);
@@ -305,6 +306,13 @@ const session = useAcademicSession();
       ...extraPeriodNums,
     ])
   ).sort((a, b) => a - b);
+  // Active teachers to pick from, plus whoever this period already names even
+  // if they have since been retired. (migration 116)
+  const teacherChoices = teacherOptions(
+    teachers.filter((t) => t.is_active),
+    formData.teacher_id,
+    teachers
+  );
   const periodRows = allPeriodNums.map((num) => {
     const cell = periods.find((p) => p.period_number === num);
     const def = periodTimeDefaults(num);
@@ -577,10 +585,7 @@ const session = useAcademicSession();
               <Label className="text-xs font-medium">Teacher (optional)</Label>
               <Select
                 value={formData.teacher_id}
-                items={[
-                  { value: "none", label: "None" },
-                  ...teachers.map((t) => ({ value: t.id, label: `${t.full_name} (${t.employee_id})` })),
-                ]}
+                items={[{ value: "none", label: "None" }, ...teacherChoices]}
                 onValueChange={(val) =>
                   setFormData({
                     ...formData,
@@ -593,9 +598,9 @@ const session = useAcademicSession();
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id} label={`${t.full_name} (${t.employee_id})`}>
-                      {t.full_name} ({t.employee_id})
+                  {teacherChoices.map((t) => (
+                    <SelectItem key={t.value} value={t.value} label={t.label}>
+                      {t.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
