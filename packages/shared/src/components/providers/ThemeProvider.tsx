@@ -68,7 +68,7 @@ function readStoredTheme(): Theme | null {
  * unannounced is not a change anyone asked for. Dark is a choice you make in
  * Settings, and "System" is right there for anyone who wants it.
  */
-export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("${THEME_STORAGE_KEY}");var d=t==="dark"||(t==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var e=document.documentElement;e.classList.toggle("dark",d);e.style.colorScheme=d?"dark":"light";}catch(e){}})();`;
+export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("${THEME_STORAGE_KEY}");var d=t==="dark"||(t==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var e=document.documentElement;e.classList.toggle("dark",d);e.style.colorScheme=d?"dark":"light";var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m);}m.setAttribute("content",d?"${THEME_COLORS.dark}":"${THEME_COLORS.light}");}catch(e){}})();`;
 
 /**
  * Owns the theme choice and applies it to <html>.
@@ -112,14 +112,31 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // the caret — for this theme. Without it a dark page gets white dropdowns.
     root.style.colorScheme = resolvedTheme;
 
-    // Every theme-color meta, not one: Next emits a light/dark pair from the
-    // viewport export and the browser honours the first whose media matches.
-    // An explicit in-app choice has to win over the OS preference, so both get
-    // the resolved colour.
+    // The browser paints its own chrome — the address bar on Android, the
+    // status bar in an installed app — from this. It is the one piece of the
+    // theme that lives outside the page, and it used to be the one piece that
+    // did not follow the in-app choice.
+    //
+    // It was previously declared in each app's `viewport` export, as a
+    // light/dark PAIR carrying media queries, and corrected here on the client.
+    // The correction did not survive: Next re-renders the metadata on every
+    // client-side navigation, which put the LIGHT colour back while the app
+    // was still dark. Switching to dark and then opening any page from the
+    // menu was enough to reproduce it.
+    //
+    // So the static declaration is gone from both layouts and this owns the
+    // tag outright: THEME_INIT_SCRIPT creates it before first paint, and this
+    // keeps it in step. Nothing re-renders it, so nothing can revert it. No
+    // media attribute either — the app's own choice is the answer, and an
+    // unmatched media query would hand it back to the OS preference.
     const color = THEME_COLORS[resolvedTheme];
-    document
-      .querySelectorAll('meta[name="theme-color"]')
-      .forEach((meta) => meta.setAttribute("content", color));
+    let meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.setAttribute("name", "theme-color");
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute("content", color);
   }, [hydrated, resolvedTheme]);
 
   const setTheme = useCallback((next: Theme) => {
