@@ -30,6 +30,12 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
+      # A sidebar screen with no entry in the in-app guide registry ships help
+      # text that silently describes a different page. Cheap to check, easy to
+      # forget by hand.
+      - name: Guide coverage
+        run: pnpm run check:guide
+
       - name: Build all apps
         run: pnpm run build
         env:

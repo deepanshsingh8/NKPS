@@ -7428,12 +7428,12 @@ CREATE OR REPLACE VIEW public.timetable_teacher_clashes AS
          t.full_name        AS teacher_name,
          a.day_of_week,
          a.id               AS period_a,
-         ca.name || '-' || ca.section AS class_a,
+         ca.name || COALESCE('-' || ca.section, '') AS class_a,
          a.start_time       AS a_start,
          a.end_time         AS a_end,
          a.is_shared        AS a_shared,
          b.id               AS period_b,
-         cb.name || '-' || cb.section AS class_b,
+         cb.name || COALESCE('-' || cb.section, '') AS class_b,
          b.start_time       AS b_start,
          b.end_time         AS b_end,
          b.is_shared        AS b_shared
@@ -7461,4 +7461,4 @@ COMMENT ON VIEW public.timetable_teacher_clashes IS
   'Teachers occupying two time-overlapping periods on one weekday. The DB '
   'constraint blocks these unless a row is marked is_shared, so in a healthy '
   'timetable every row here is an intentional combined activity. A row where '
-  'neither side is shared is a bug.';
+  'neither side is shared is a bug. Surfaced at /timetable/clashes.';

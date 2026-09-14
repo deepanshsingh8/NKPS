@@ -11,9 +11,10 @@
  * A help assistant that invents a button label is worse than no help assistant.
  * It sends someone hunting for a control that does not exist, and it poisons
  * trust in every other answer. So every label here is quoted from the JSX, and
- * `guide-coverage.test.ts` fails the build when a sidebar route has no entry —
- * a screen that ships without guidance should be a build error, not a shrug at
- * runtime.
+ * `pnpm run check:guide` (scripts/check-guide-coverage.mjs) fails when a
+ * sidebar route has no entry — a screen that ships without guidance should be a
+ * build error, not a shrug at runtime. It runs in CI alongside lint and
+ * typecheck.
  *
  * ── Keep it honest ──────────────────────────────────────────────────────────
  * `gotcha` is the highest-value field and the one that decays fastest. It is
@@ -1600,6 +1601,34 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
       },
     ],
     related: ["/timetable/teachers", "/timetable"],
+  },
+  {
+    path: "/timetable/clashes",
+    title: "Clash Check",
+    purpose:
+      "Every teacher who is in two places at once, and whether anyone meant it.",
+    tasks: [
+      {
+        name: "Check nothing has slipped through",
+        steps: [
+          'Open the page — it lands on "Needs attention".',
+          "Read the list. An empty one is the answer you want.",
+          "For anything listed, open the Class Timetable and fix one of the two cells.",
+        ],
+        gotcha:
+          "A teacher normally cannot be double-booked at all — the database refuses it. So anything under Needs attention got in before that rule existed, or through an import that bypassed it. It will not disappear on its own.",
+      },
+      {
+        name: "Review the deliberate ones",
+        steps: [
+          'Click "Shared activities".',
+          "Each line is one teacher, one time, and every class they take together.",
+        ],
+        gotcha:
+          "One line per booking, not per pair of classes — a coach taking four sections is a single row reading \"VI-A, VI-B, VII-A, VII-B\", not six.",
+      },
+    ],
+    related: ["/timetable", "/timetable/teachers"],
   },
   {
     path: "/timetable/generate",
