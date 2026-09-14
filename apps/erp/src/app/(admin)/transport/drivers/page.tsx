@@ -175,7 +175,7 @@ export default function TransportDriversPage() {
         <p className="text-xs text-blue-800 dark:text-blue-300">
           Drivers are created under{" "}
           <Link
-            href="/people/staff"
+            href="/people/staff?group=support"
             className="font-medium underline underline-offset-2 hover:text-blue-900 dark:hover:text-blue-200"
           >
             People → Staff
@@ -191,7 +191,7 @@ export default function TransportDriversPage() {
         </p>
       </div>
 
-      <div className="erp-table-container p-6">
+      <div className="erp-table-container p-4 sm:p-6">
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />

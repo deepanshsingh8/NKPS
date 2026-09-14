@@ -448,13 +448,13 @@ export default function AdminBusesPage() {
         <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Buses &amp; Routes
         </h1>
-        <Button onClick={openAdd} className="bg-navy-900 hover:bg-navy-800 text-white">
+        <Button onClick={openAdd} className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900">
           <Plus className="h-4 w-4 mr-2" />
           Add Bus
         </Button>
       </div>
 
-      <div className="erp-table-container p-6">
+      <div className="erp-table-container p-4 sm:p-6">
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
@@ -686,7 +686,7 @@ export default function AdminBusesPage() {
               <Button
                 type="submit"
                 disabled={submitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 {editingBus ? "Update Bus" : "Create Bus"}
@@ -748,7 +748,7 @@ export default function AdminBusesPage() {
             {stopsBus && (
               <Button
                 type="button"
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
                 onClick={() => {
                   const bus = stopsBus;
                   setStopsBus(null);
@@ -838,7 +838,7 @@ export default function AdminBusesPage() {
               type="button"
               disabled={routeSubmitting}
               onClick={handleRouteSave}
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {routeSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Save Route

@@ -1347,7 +1347,7 @@ export function StudentBulkUpload({
               <Button
                 onClick={handleSubmit}
                 disabled={validRows.length === 0 || uploading}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {uploading ? (
                   <>

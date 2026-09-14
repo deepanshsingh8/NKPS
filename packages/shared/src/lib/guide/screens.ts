@@ -92,6 +92,24 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
 
   // ── People ────────────────────────────────────────────────────────────────
   {
+    path: "/people",
+    title: "People",
+    purpose:
+      "Hub page for the people areas — a tile each for Users, Students and Staff.",
+    tasks: [
+      {
+        name: "Open a people area",
+        steps: [
+          "Click a tile: Users, Students or Staff.",
+          "Each tile carries a one-line description of what lives behind it.",
+        ],
+        gotcha:
+          "Tiles are filtered to your grants, so a missing tile means you were not granted that feature — not that the area is empty. An editor with none of them sees 'You don't have access to any people features yet'.",
+      },
+    ],
+    related: ["/people/students", "/people/staff", "/people/users"],
+  },
+  {
     path: "/people/users",
     title: "Users",
     purpose:
@@ -261,18 +279,27 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
     path: "/people/staff",
     title: "Staff",
     purpose:
-      "The staff directory — categories, contact details, photos, portal logins, and converting teaching staff into teacher records.",
+      "The staff directory, split into three tabs — Teachers, Management & Office, and Drivers & Helpers — with categories, contact details, photos, portal logins, and converting teaching staff into teacher records.",
     tasks: [
       {
         name: "Add a staff member",
         steps: [
+          "Pick the tab the person belongs on (Teachers, Management & Office, or Drivers & Helpers).",
           'Click "Add Staff".',
           'Fill "Full Name *", "Subject / Designation *" and "Category *".',
           "Add email, phone, qualifications and photo if you have them.",
           "Save.",
         ],
         gotcha:
-          "Category drives what happens next: bus drivers and peons cannot be given a portal login at all.",
+          "Category drives what happens next: bus drivers and peons cannot be given a portal login at all. The category dropdown only offers categories for the tab you are on.",
+      },
+      {
+        name: "See a staff member's full details",
+        steps: [
+          "Click the person's name in the table.",
+        ],
+        gotcha:
+          "For a converted teacher the view also lists their employee ID, joining date, the subjects they can teach, and this year's class-teacher and subject assignments. Use the Edit button in the view (or the pencil on the row) to change anything.",
       },
       {
         name: "Create a portal login for a staff member",
@@ -355,6 +382,24 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
   },
 
   // ── Academics ─────────────────────────────────────────────────────────────
+  {
+    path: "/academics",
+    title: "Academics",
+    purpose:
+      "Hub page for the structural setup of the school year — a tile each for Classes, Subjects & Assignments, Class XI–XII Electives, Academic Years and Non-Scholastic Classes.",
+    tasks: [
+      {
+        name: "Open an academics area",
+        steps: [
+          "Click a tile.",
+          "Non-Scholastic Classes is listed here but opens /exams/non-scholastic-assessments — it is filed under Academics because it is about what a class is assessed on.",
+        ],
+        gotcha:
+          "Tiles are filtered to your grants. Set up in order — an Academic Year has to exist before Classes are useful, and Classes before Subjects can be assigned.",
+      },
+    ],
+    related: ["/academics/years", "/academics/classes", "/academics/subjects"],
+  },
   {
     path: "/academics/classes",
     title: "Classes",
@@ -669,6 +714,25 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
   // Grade Master → Exam Types → Result Master (Basic Rules → Subjects →
   // ADVANCED) → marks entry → Publish. Skipping the Advanced tab is the single
   // most damaging mistake in this module and every entry below says so.
+  {
+    path: "/exams",
+    title: "Exams",
+    purpose:
+      "Hub page for the examination module — a tile each for Exam Types, Grade Master, Result Master, Header / Footer, Non-Scholastic Masters, Exam Timetable, Admit Cards, Results and Class Tests.",
+    tasks: [
+      {
+        name: "Set a new session up in the right order",
+        steps: [
+          "Grade Master first — the bands every result is graded against.",
+          "Then Exam Types, then Result Master (Basic Rules → Subjects → ADVANCED).",
+          "Only then enter marks, and publish last.",
+        ],
+        gotcha:
+          "The tiles are laid out for browsing, not as a running order. Result Master's ADVANCED tab is the step people skip, and skipping it is the single most damaging mistake in this module.",
+      },
+    ],
+    related: ["/exams/grade-master", "/exams/result-master", "/exams/results"],
+  },
   {
     path: "/exams/grade-master",
     title: "Grade Master",
@@ -1631,6 +1695,24 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
   },
 
   // ── Reports ──────────────────────────────────────────────────────────────
+  {
+    path: "/reports",
+    title: "Reports",
+    purpose:
+      "Hub page for the report builder: 'Build a sheet: choose the rows, choose the columns, export it.'",
+    tasks: [
+      {
+        name: "Start from a suggested report",
+        steps: [
+          "Four cards: Student Custom Report, Fee Report, Attendance Report, Result Report.",
+          "Each exports to CSV, Excel and PDF.",
+        ],
+        gotcha:
+          "Fee, Attendance and Result are not separate reports — they open the same builder with a suggested set of columns preselected. Change anything, or combine all three in one sheet.",
+      },
+    ],
+    related: ["/reports/students", "/reports/ask"],
+  },
   {
     path: "/reports/ask",
     title: "Ask your school",

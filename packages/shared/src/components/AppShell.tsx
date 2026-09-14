@@ -35,27 +35,22 @@ export function AppShell({
   children: React.ReactNode;
   variant?: "padded" | "full";
 }) {
-  const { collapsed, mobileOpen, closeMobile } = useSidebar();
+  const { collapsed } = useSidebar();
 
   const full = variant === "full";
 
   return (
     <div
       className={cn(
-        "flex bg-gray-50",
+        "flex bg-gray-50 dark:bg-background",
         full ? "h-dvh overflow-hidden" : "min-h-screen"
       )}
     >
       {sidebar}
 
-      {/* Backdrop behind the open mobile drawer. */}
-      {mobileOpen && (
-        <div
-          onClick={closeMobile}
-          aria-hidden
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
-        />
-      )}
+      {/* No backdrop here any more: MobileNavDrawer portals its own, so that
+          the scrim can fade with the drag gesture rather than sitting at a
+          fixed opacity underneath a panel moving independently of it. */}
 
       <div
         className={cn(
@@ -68,7 +63,15 @@ export function AppShell({
       >
         <MobileTopBar title={title} />
         <main
-          className={cn(full ? "min-h-0 flex-1 overflow-hidden" : "flex-1 p-4 sm:p-8")}
+          className={cn(
+            "app-safe-x",
+            full
+              ? "min-h-0 flex-1 overflow-hidden"
+              : // The bottom inset rides on top of the existing padding so the
+                // last row of a list clears the home indicator instead of
+                // sitting behind it.
+                "flex-1 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:px-8 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
+          )}
         >
           {children}
         </main>

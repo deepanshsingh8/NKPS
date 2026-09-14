@@ -847,7 +847,7 @@ export default function ElectivesPage() {
       </section>
 
       {/* ─────────────── Per-student picker ─────────────── */}
-      <section className="erp-table-container p-6">
+      <section className="erp-table-container p-4 sm:p-6">
         <h2 className="erp-section-title mb-4">
           Class {classTab} students
           {incompleteOnly && (

@@ -350,14 +350,14 @@ export default function AdminClassesPage() {
             resetForm();
             setDialogOpen(true);
           }}
-          className="bg-navy-900 hover:bg-navy-800 text-white"
+          className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
         >
           <Plus className="h-4 w-4 mr-2" />
           Add Class
         </Button>
       </div>
 
-      <div className="erp-table-container p-6">
+      <div className="erp-table-container p-4 sm:p-6">
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
@@ -572,7 +572,7 @@ export default function AdminClassesPage() {
               <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={submitting} className="bg-navy-900 hover:bg-navy-800 text-white">
+              <Button type="submit" disabled={submitting} className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900">
                 {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Update Class
               </Button>
@@ -641,7 +641,7 @@ export default function AdminClassesPage() {
               type="button"
               disabled={rollSubmitting}
               onClick={handleGenerateRollNumbers}
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {rollSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirm
@@ -776,7 +776,7 @@ export default function AdminClassesPage() {
               <Button
                 type="submit"
                 disabled={submitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {submitting && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

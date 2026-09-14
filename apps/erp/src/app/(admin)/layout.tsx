@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { ErpSidebar } from "@/components/ErpSidebar";
 import { SidebarProvider } from "@nkps/shared/components/providers/SidebarProvider";
 import { SessionProvider } from "@nkps/shared/components/providers/SessionProvider";
+import { AppLockProvider } from "@nkps/shared/components/security/AppLockProvider";
 import { AppShell } from "@nkps/shared/components/AppShell";
 import { GuideLauncher } from "@/components/GuideLauncher";
 
@@ -28,12 +29,14 @@ export default function ErpLayout({
 
   return (
     <SessionProvider>
-      <SidebarProvider>
-        <AppShell sidebar={<ErpSidebar />} title="NKPS ERP" variant={variant}>
-          {children}
-          <GuideLauncher />
-        </AppShell>
-      </SidebarProvider>
+      <AppLockProvider logoutRedirect="/login">
+        <SidebarProvider>
+          <AppShell sidebar={<ErpSidebar />} title="NKPS ERP" variant={variant}>
+            {children}
+            <GuideLauncher />
+          </AppShell>
+        </SidebarProvider>
+      </AppLockProvider>
     </SessionProvider>
   );
 }

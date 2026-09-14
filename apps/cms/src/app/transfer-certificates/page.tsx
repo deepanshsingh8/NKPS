@@ -232,7 +232,7 @@ export default function AdminTransferCertificatesPage() {
           Transfer Certificates
         </h1>
 
-        <Button className="bg-navy-900 hover:bg-navy-800 text-white" onClick={() => setDialogOpen(true)}>
+        <Button className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900" onClick={() => setDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Upload TC
         </Button>
@@ -368,7 +368,7 @@ export default function AdminTransferCertificatesPage() {
                 !selectedStudent ||
                 !selectedStudent.date_of_birth
               }
-              className="w-full bg-navy-900 hover:bg-navy-800 text-white h-11 rounded-xl font-medium"
+              className="w-full bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 h-11 rounded-xl font-medium"
             >
               {uploading ? (
                 <>

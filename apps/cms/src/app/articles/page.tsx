@@ -336,7 +336,7 @@ export default function AdminArticlesPage() {
             Publish news, announcements, and long-form posts. Published articles appear on the homepage &ldquo;Latest Updates&rdquo; and at <code className="text-xs">/articles/[slug]</code>.
           </p>
         </div>
-        <Button onClick={openCreate} className="bg-navy-900 hover:bg-navy-800 text-white">
+        <Button onClick={openCreate} className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900">
           <Plus className="h-4 w-4 mr-2" />
           New Article
         </Button>
@@ -677,7 +677,7 @@ export default function AdminArticlesPage() {
               <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={submitting} className="bg-navy-900 hover:bg-navy-800 text-white">
+              <Button type="submit" disabled={submitting} className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900">
                 {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 {editing ? "Save Changes" : "Create Article"}
               </Button>

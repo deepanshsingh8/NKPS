@@ -363,7 +363,7 @@ export function SubjectBulkUpload({
                 <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
                   Upload an Excel file (.xlsx, .xls) with subject assignments
                 </p>
-                <label className="inline-flex items-center gap-2 px-4 py-2 bg-navy-900 hover:bg-navy-800 text-white text-sm font-medium rounded-lg cursor-pointer transition-colors">
+                <label className="inline-flex items-center gap-2 px-4 py-2 bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 text-sm font-medium rounded-lg cursor-pointer transition-colors">
                   <Upload className="h-4 w-4" />
                   Choose File
                   <input
@@ -520,7 +520,7 @@ export function SubjectBulkUpload({
             <Button
               onClick={handleSubmit}
               disabled={validCount === 0}
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               <Upload className="h-4 w-4 mr-2" />
               Upload {validCount} Assignment{validCount === 1 ? "" : "s"}

@@ -523,7 +523,7 @@ export default function AdminUsersPage() {
               resetForm();
               setDialogOpen(true);
             }}
-            className="bg-navy-900 hover:bg-navy-800 text-white shadow-sm"
+            className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 shadow-sm"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add User
@@ -533,7 +533,7 @@ export default function AdminUsersPage() {
 
       <LinkHealthPanel onChanged={fetchProfiles} />
 
-      <div className="erp-table-container p-6">
+      <div className="erp-table-container p-4 sm:p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList variant="line" className="mb-6">
             <TabsTrigger value="all">
@@ -574,7 +574,7 @@ export default function AdminUsersPage() {
                     placeholder="Search by name or email..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="pl-10 h-10 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900/20"
+                    className="pl-10 h-10 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900 dark:focus:border-gold-500 dark:focus:ring-gold-500/20"
                   />
                 </div>
               </div>
@@ -731,7 +731,7 @@ export default function AdminUsersPage() {
                   placeholder="Search by name or email..."
                   value={regSearch}
                   onChange={(e) => setRegSearch(e.target.value)}
-                  className="pl-10 h-10 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900/20"
+                  className="pl-10 h-10 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900 dark:focus:border-gold-500 dark:focus:ring-gold-500/20"
                 />
               </div>
             </div>
@@ -923,7 +923,7 @@ export default function AdminUsersPage() {
                       resetForm();
                       setDialogOpen(false);
                     }}
-                    className="bg-navy-900 hover:bg-navy-800 text-white"
+                    className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
                   >
                     Done
                   </Button>
@@ -1022,7 +1022,7 @@ export default function AdminUsersPage() {
                   <Button
                     type="submit"
                     disabled={submitting}
-                    className="bg-navy-900 hover:bg-navy-800 text-white"
+                    className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
                   >
                     {submitting && (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -1162,7 +1162,7 @@ export default function AdminUsersPage() {
               <Button
                 onClick={submitLink}
                 disabled={!linkResult || linkSubmitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {linkSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Link account
@@ -1235,7 +1235,7 @@ export default function AdminUsersPage() {
                   setApproveDialogOpen(false);
                   setApprovePassword(null);
                 }}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 Done
               </Button>

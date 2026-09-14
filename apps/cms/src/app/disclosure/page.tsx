@@ -212,7 +212,7 @@ function TextItemsTab({
   };
 
   return (
-    <div className="erp-table-container p-6">
+    <div className="erp-table-container p-4 sm:p-6">
       <div className="space-y-4">
         {items.map((item) => (
           <div
@@ -246,7 +246,7 @@ function TextItemsTab({
           <Button
             onClick={handleSaveAll}
             disabled={saving || !hasChanges}
-            className="bg-navy-900 hover:bg-navy-800 text-white"
+            className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
           >
             {saving ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -417,7 +417,7 @@ function DocumentsTab({
               disabled={
                 !pendingFiles[doc.doc_key] || uploadingKey === doc.doc_key
               }
-              className="bg-navy-900 hover:bg-navy-800 text-white"
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
               {uploadingKey === doc.doc_key ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -430,7 +430,7 @@ function DocumentsTab({
         </div>
       ))}
       {documents.length === 0 && (
-        <div className="erp-table-container p-6">
+        <div className="erp-table-container p-4 sm:p-6">
           <p className="text-center text-gray-500">
             No document slots found. Run the seed SQL to populate.
           </p>
@@ -592,14 +592,14 @@ function ResultAcademicsTab({
       <TextItemsTab items={items} onRefresh={onRefresh} />
 
       {/* Board Results */}
-      <div className="erp-table-container p-6">
+      <div className="erp-table-container p-4 sm:p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-heading text-lg font-bold text-navy-900 dark:text-white">
             Last Three-Year Board Examination Results
           </h2>
           <Button
             onClick={openAdd}
-            className="bg-navy-900 hover:bg-navy-800 text-white"
+            className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Result
@@ -868,7 +868,7 @@ function ResultAcademicsTab({
               <Button
                 type="submit"
                 disabled={submitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {submitting && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

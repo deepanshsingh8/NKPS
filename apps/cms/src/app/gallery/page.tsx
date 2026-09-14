@@ -876,13 +876,13 @@ export default function AdminGalleryPage() {
         </h1>
 
         {tab === "images" ? (
-          <Button className="bg-navy-900 hover:bg-navy-800 text-white" onClick={() => setImageDialogOpen(true)}>
+          <Button className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900" onClick={() => setImageDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Add Images
           </Button>
         ) : (
           <Button
-            className="bg-navy-900 hover:bg-navy-800 text-white"
+            className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             onClick={() => {
               resetEventForm();
               setEventDialogOpen(true);
@@ -1036,7 +1036,7 @@ export default function AdminGalleryPage() {
                 <Button
                   onClick={handleImageUpload}
                   disabled={uploading || !files || files.length === 0}
-                  className="w-full bg-navy-900 hover:bg-navy-800 text-white h-11 rounded-xl font-medium"
+                  className="w-full bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 h-11 rounded-xl font-medium"
                 >
                   {uploading ? (
                     <>
@@ -1440,7 +1440,7 @@ export default function AdminGalleryPage() {
                   <Button
                     type="submit"
                     disabled={submitting}
-                    className="bg-navy-900 hover:bg-navy-800 text-white"
+                    className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
                   >
                     {submitting && (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -1524,7 +1524,7 @@ export default function AdminGalleryPage() {
                 <Button
                   onClick={handleEventUpload}
                   disabled={eventUploading || !eventUploadFiles || eventUploadFiles.length === 0}
-                  className="w-full bg-navy-900 hover:bg-navy-800 text-white h-11 rounded-xl font-medium"
+                  className="w-full bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 h-11 rounded-xl font-medium"
                 >
                   {eventUploading ? (
                     <>
@@ -1548,7 +1548,7 @@ export default function AdminGalleryPage() {
               <Loader2 className="h-8 w-8 animate-spin text-navy-900 dark:text-white" />
             </div>
           ) : (
-            <div className="erp-table-container p-6">
+            <div className="erp-table-container p-4 sm:p-6">
               {events.length === 0 ? (
                 <div className="text-center py-12 text-gray-400 dark:text-gray-500">
                   <ImageIcon className="h-10 w-10 mx-auto mb-3 opacity-50" />

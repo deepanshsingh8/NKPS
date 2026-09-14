@@ -472,7 +472,7 @@ export default function AskPage() {
   return (
     <div className="flex h-full min-h-0">
       {/* ── Past chats ────────────────────────────────────────────────────── */}
-      <aside className="hidden w-72 shrink-0 border-r bg-cream-50 md:block">
+      <aside className="hidden w-72 shrink-0 border-r bg-cream-50 dark:bg-card md:block">
         <ConversationList
           conversations={conversations}
           activeId={conversationId}
@@ -492,7 +492,7 @@ export default function AskPage() {
             aria-hidden
             className="fixed inset-0 z-20 bg-black/40 md:hidden"
           />
-          <aside className="fixed inset-y-0 left-0 z-30 w-72 border-r bg-cream-50 md:hidden">
+          <aside className="fixed inset-y-0 left-0 z-30 w-72 border-r bg-cream-50 dark:bg-card md:hidden">
             <ConversationList
               conversations={conversations}
               activeId={conversationId}
@@ -515,12 +515,12 @@ export default function AskPage() {
 
       {/* ── The conversation ──────────────────────────────────────────────── */}
       <section className="flex min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-white px-4 py-2.5 sm:px-6">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-white dark:bg-card px-4 py-2.5 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
             <button
               type="button"
               onClick={() => setListOpen(true)}
-              className="rounded-md p-1.5 text-muted-foreground hover:text-navy-900 md:hidden"
+              className="rounded-md p-1.5 text-muted-foreground hover:text-navy-900 dark:hover:text-white md:hidden"
               title="Past chats"
             >
               <PanelLeft className="h-4 w-4" />
@@ -533,20 +533,20 @@ export default function AskPage() {
                 <ArrowLeft className="h-3 w-3" />
                 Reports
               </Link>
-              <h1 className="truncate font-heading text-base font-semibold text-navy-900">
+              <h1 className="truncate font-heading text-base font-semibold text-navy-900 dark:text-white">
                 {activeTitle ?? "Ask your school"}
               </h1>
             </div>
           </div>
 
-          <label className="flex items-center gap-2 rounded-lg border bg-white px-2.5 py-1.5 text-xs">
+          <label className="flex items-center gap-2 rounded-lg border bg-white dark:bg-card px-2.5 py-1.5 text-xs">
             <input
               type="checkbox"
               checked={allowSensitive}
               onChange={(e) => setAllowSensitive(e.target.checked)}
               className="h-3.5 w-3.5"
             />
-            <span className="font-medium text-navy-900">Include PII</span>
+            <span className="font-medium text-navy-900 dark:text-white">Include PII</span>
             <span className="hidden text-muted-foreground lg:inline">
               Aadhaar, income, addresses, contact numbers
             </span>
@@ -562,8 +562,8 @@ export default function AskPage() {
           )}
 
           {!transcriptLoading && turns.length === 0 && (
-            <div className="mx-auto max-w-2xl rounded-lg border bg-white p-5">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-navy-900">
+            <div className="mx-auto max-w-2xl rounded-lg border bg-white dark:bg-card p-5">
+              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-navy-900 dark:text-white">
                 <Sparkles className="h-4 w-4 text-blue-600" />
                 Ask for a list in plain language
               </div>
@@ -577,7 +577,7 @@ export default function AskPage() {
                     key={example}
                     type="button"
                     onClick={() => submit(example)}
-                    className="rounded-md border px-3 py-2 text-left text-sm text-muted-foreground transition hover:border-blue-400 hover:text-navy-900"
+                    className="rounded-md border px-3 py-2 text-left text-sm text-muted-foreground transition hover:border-blue-400 hover:text-navy-900 dark:hover:text-white"
                   >
                     {example}
                   </button>
@@ -597,7 +597,7 @@ export default function AskPage() {
             turn.role === "user" ? (
               <div key={turn.id} className="group flex justify-end gap-2">
                 {editingId === turn.id ? (
-                  <div className="w-full max-w-[75%] rounded-lg border bg-white p-2">
+                  <div className="w-full max-w-[75%] rounded-lg border bg-white dark:bg-card p-2">
                     <textarea
                       value={editDraft}
                       autoFocus
@@ -610,13 +610,13 @@ export default function AskPage() {
                         if (e.key === "Escape") setEditingId(null);
                       }}
                       rows={2}
-                      className="w-full resize-none bg-transparent px-1 py-0.5 text-sm text-navy-900 outline-none"
+                      className="w-full resize-none bg-transparent px-1 py-0.5 text-sm text-navy-900 dark:text-white outline-none"
                     />
                     <div className="flex justify-end gap-1.5 pt-1">
                       <button
                         type="button"
                         onClick={() => setEditingId(null)}
-                        className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-navy-900"
+                        className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-navy-900 dark:hover:text-white"
                       >
                         Cancel
                       </button>
@@ -640,7 +640,7 @@ export default function AskPage() {
                         setEditDraft(turn.content);
                         setEditingId(turn.id);
                       }}
-                      className="mt-1 self-start rounded-md p-1.5 text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:text-navy-900"
+                      className="mt-1 self-start rounded-md p-1.5 text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:text-navy-900 dark:hover:text-white"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
@@ -666,7 +666,7 @@ export default function AskPage() {
                 )}
 
                 {turn.content && (
-                  <div className="rounded-lg border bg-white px-4 py-3 text-sm text-navy-900">
+                  <div className="rounded-lg border bg-white dark:bg-card px-4 py-3 text-sm text-navy-900 dark:text-white">
                     {/* Plain text while streaming. Re-parsing markdown on every
                         delta makes half-built tables flicker into and out of
                         existence; it becomes markdown the moment it settles. */}
@@ -697,7 +697,7 @@ export default function AskPage() {
                     <button
                       type="button"
                       onClick={() => regenerate(i)}
-                      className="underline underline-offset-2 hover:text-navy-900"
+                      className="underline underline-offset-2 hover:text-navy-900 dark:hover:text-white"
                     >
                       Ask it again
                     </button>
@@ -723,7 +723,7 @@ export default function AskPage() {
                       <button
                         type="button"
                         onClick={() => void copy(turn)}
-                        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition hover:text-navy-900"
+                        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition hover:text-navy-900 dark:hover:text-white"
                       >
                         {copiedId === turn.id ? (
                           <>
@@ -741,7 +741,7 @@ export default function AskPage() {
                     <button
                       type="button"
                       onClick={() => regenerate(i)}
-                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition hover:text-navy-900"
+                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition hover:text-navy-900 dark:hover:text-white"
                     >
                       <RefreshCw className="h-3.5 w-3.5" />
                       Regenerate
@@ -755,7 +755,7 @@ export default function AskPage() {
           <div ref={endRef} />
         </div>
 
-        <div className="shrink-0 border-t bg-white px-4 py-3 sm:px-6">
+        <div className="shrink-0 border-t bg-white dark:bg-card px-4 py-3 sm:px-6">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -782,7 +782,7 @@ export default function AskPage() {
               <button
                 type="button"
                 onClick={() => abortRef.current?.abort()}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-navy-900 transition hover:border-red-400 hover:text-red-700"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-navy-900 dark:text-white transition hover:border-red-400 hover:text-red-700"
               >
                 <Square className="h-3 w-3 fill-current" />
                 Stop

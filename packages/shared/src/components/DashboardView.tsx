@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Image as ImageIcon,
@@ -14,6 +14,10 @@ import {
   ClipboardCheck,
   UserCog,
   Sparkles,
+  CheckSquare,
+  CreditCard,
+  Newspaper,
+  Bus,
 } from "lucide-react";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
 import { createClient } from "@nkps/shared/lib/supabase/client";
@@ -24,6 +28,13 @@ import {
   CmsContentInsights,
   type CmsInsightsData,
 } from "@nkps/shared/components/CmsContentInsights";
+import { StatTile } from "@nkps/shared/components/charts/StatTile";
+import { toneForPercent } from "@nkps/shared/components/charts/Meter";
+import {
+  NeedsAttention,
+  type AttentionItem,
+} from "@nkps/shared/components/dashboard/NeedsAttention";
+import { useDashboardAnalytics } from "@nkps/shared/components/dashboard/useDashboardAnalytics";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@nkps/shared/lib/constants/calendar";
 import type { CalendarEventType } from "@nkps/shared/types";
 
@@ -48,75 +59,6 @@ interface UpcomingEvent {
   start_date: string;
   end_date: string | null;
 }
-
-const cmsStatCards = [
-  {
-    key: "galleryCount" as const,
-    label: "Gallery Images",
-    icon: ImageIcon,
-    iconBg: "bg-amber-100 dark:bg-amber-900/30",
-    iconColor: "text-amber-600",
-    accent: "from-amber-500/10 to-transparent",
-    href: "/gallery",
-  },
-  {
-    key: "tcCount" as const,
-    label: "Transfer Certificates",
-    icon: FileText,
-    iconBg: "bg-gold-300/30 dark:bg-gold-500/20",
-    iconColor: "text-gold-600",
-    accent: "from-gold-500/10 to-transparent",
-    href: "/transfer-certificates",
-  },
-  {
-    key: "unreadCount" as const,
-    label: "Unread Messages",
-    icon: MessageSquare,
-    iconBg: "bg-rose-100 dark:bg-rose-900/30",
-    iconColor: "text-rose-600",
-    accent: "from-rose-500/10 to-transparent",
-    href: "/contact",
-  },
-];
-
-const erpStatCards = [
-  {
-    key: "totalUsers" as const,
-    label: "Total Users",
-    icon: Users,
-    iconBg: "bg-violet-100 dark:bg-violet-900/30",
-    iconColor: "text-violet-600",
-    accent: "from-violet-500/10 to-transparent",
-    href: "/people/users",
-  },
-  {
-    key: "totalStudents" as const,
-    label: "Students",
-    icon: GraduationCap,
-    iconBg: "bg-blue-100 dark:bg-blue-900/30",
-    iconColor: "text-blue-600",
-    accent: "from-blue-500/10 to-transparent",
-    href: "/people/students",
-  },
-  {
-    key: "totalStaff" as const,
-    label: "Staff",
-    icon: UserCog,
-    iconBg: "bg-emerald-100 dark:bg-emerald-900/30",
-    iconColor: "text-emerald-600",
-    accent: "from-emerald-500/10 to-transparent",
-    href: "/people/staff",
-  },
-  {
-    key: "pendingRegistrations" as const,
-    label: "Pending Registrations",
-    icon: ClipboardCheck,
-    iconBg: "bg-orange-100 dark:bg-orange-900/30",
-    iconColor: "text-orange-600",
-    accent: "from-orange-500/10 to-transparent",
-    href: "/registrations",
-  },
-];
 
 function getGreeting(now = new Date()) {
   const h = now.getHours();
@@ -158,47 +100,6 @@ function displayName(fullName: string | null, email: string | null): string {
     .join(" ");
 }
 
-function prefersReducedMotion() {
-  return (
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
-}
-
-function useCountUp(target: number, durationMs = 900) {
-  const safeTarget = Number.isFinite(target) ? target : 0;
-  const [display, setDisplay] = useState(() =>
-    prefersReducedMotion() ? safeTarget : 0
-  );
-  const rafRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (safeTarget === 0 || prefersReducedMotion()) return;
-
-    const start = performance.now();
-    const tick = (t: number) => {
-      const progress = Math.min((t - start) / durationMs, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(Math.round(eased * safeTarget));
-      if (progress < 1) {
-        rafRef.current = requestAnimationFrame(tick);
-      }
-    };
-    rafRef.current = requestAnimationFrame(tick);
-
-    return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    };
-  }, [safeTarget, durationMs]);
-
-  return display;
-}
-
-function CountUp({ value }: { value: number }) {
-  const display = useCountUp(value);
-  return <>{display.toLocaleString("en-IN")}</>;
-}
-
 function getEventCountdown(startDate: string): { label: string; tone: "now" | "soon" | "later" } {
   const target = new Date(startDate + "T00:00:00");
   const now = new Date();
@@ -217,8 +118,16 @@ function getEventCountdown(startDate: string): { label: string; tone: "now" | "s
 const COUNTDOWN_TONES = {
   now: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
   soon: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  later: "bg-gray-100 text-gray-600 dark:bg-muted/50 dark:text-gray-400",
+  later: "bg-gray-100 text-gray-600 dark:bg-muted dark:text-gray-400",
 } as const;
+
+/** ₹ in the units a school office actually says out loud. */
+function rupees(amount: number): string {
+  if (amount >= 10_000_000) return `₹${(amount / 10_000_000).toFixed(1)}Cr`;
+  if (amount >= 100_000) return `₹${(amount / 100_000).toFixed(1)}L`;
+  if (amount >= 1_000) return `₹${(amount / 1_000).toFixed(1)}K`;
+  return `₹${Math.round(amount).toLocaleString("en-IN")}`;
+}
 
 export function DashboardView({ scope }: { scope: Scope }) {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -228,6 +137,12 @@ export function DashboardView({ scope }: { scope: Scope }) {
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  // One fetch, shared: the headline tiles below and the analytics cards
+  // further down read the same payload (see useDashboardAnalytics).
+  const { data: analytics, loading: analyticsLoading } = useDashboardAnalytics(
+    scope === "erp"
+  );
 
   useEffect(() => {
     const fetchData = async () => {
@@ -286,29 +201,232 @@ export function DashboardView({ scope }: { scope: Scope }) {
   });
   const name = displayName(userName, userEmail);
 
-  const cardConfig = scope === "cms" ? cmsStatCards : erpStatCards;
-  const visibleCards = cardConfig.filter(
-    ({ key }) => loading || stats?.[key] !== undefined
-  );
-
   const showAnalytics = scope === "erp";
   const showEvents = scope === "erp";
   const showCmsInsights = scope === "cms";
   const eventsHref = "/calendar";
   const moduleLabel = scope === "cms" ? "Content" : "School operations";
 
+  // ── Headline tiles ────────────────────────────────────────────────────────
+  // Built from what the two endpoints already return. Nothing here is a new
+  // query: the attendance percentage, the collection rate and the month's net
+  // movement were all in the analytics payload already, three screenfuls down.
+  const tiles = useMemo(() => {
+    const out: React.ReactNode[] = [];
+    const key = (k: string) => k;
+
+    if (scope === "cms") {
+      const b = cmsInsights?.breakdown;
+      if (loading || stats?.galleryCount !== undefined) {
+        out.push(
+          <StatTile
+            key={key("gallery")}
+            label="Gallery images"
+            value={stats?.galleryCount ?? 0}
+            icon={ImageIcon}
+            tone="text-amber-600 dark:text-amber-400"
+            iconBg="bg-amber-100 dark:bg-amber-900/30"
+            href="/gallery"
+            loading={loading}
+            delta={
+              b?.gallery
+                ? { value: b.gallery.addedThisMonth, period: "this month" }
+                : undefined
+            }
+          />
+        );
+      }
+      if (b?.articles) {
+        const articles = b.articles;
+        out.push(
+          <StatTile
+            key={key("articles")}
+            label="Published articles"
+            value={articles.published}
+            icon={Newspaper}
+            tone="text-blue-600 dark:text-blue-400"
+            iconBg="bg-blue-100 dark:bg-blue-900/30"
+            href="/articles"
+            loading={loading}
+            delta={{ value: articles.addedThisMonth, period: "this month" }}
+          />
+        );
+      }
+      if (loading || stats?.tcCount !== undefined) {
+        out.push(
+          <StatTile
+            key={key("tc")}
+            label="Transfer certificates"
+            value={stats?.tcCount ?? 0}
+            icon={FileText}
+            tone="text-gold-600 dark:text-gold-400"
+            iconBg="bg-gold-300/30 dark:bg-gold-500/20"
+            href="/transfer-certificates"
+            loading={loading}
+            delta={
+              b?.transferCertificates
+                ? {
+                    value: b.transferCertificates.addedThisMonth,
+                    period: "this month",
+                  }
+                : undefined
+            }
+          />
+        );
+      }
+      return out;
+    }
+
+    // ERP
+    const attendance = analytics?.attendance;
+    const fees = analytics?.feeCollection;
+    const lastMonth = analytics?.admissionTrend?.at(-1);
+
+    if (loading || stats?.totalStudents !== undefined) {
+      out.push(
+        <StatTile
+          key={key("students")}
+          label="Students"
+          value={stats?.totalStudents ?? 0}
+          icon={GraduationCap}
+          tone="text-blue-600 dark:text-blue-400"
+          iconBg="bg-blue-100 dark:bg-blue-900/30"
+          href="/people/students"
+          loading={loading}
+          delta={
+            lastMonth
+              ? { value: lastMonth.net, period: "net this month" }
+              : undefined
+          }
+        />
+      );
+    }
+
+    if (attendance && attendance.totals.total > 0) {
+      const pct = attendance.totals.percentage;
+      out.push(
+        <StatTile
+          key={key("attendance")}
+          label="Attendance"
+          value={pct}
+          unit="%"
+          icon={CheckSquare}
+          tone="text-emerald-600 dark:text-emerald-400"
+          iconBg="bg-emerald-100 dark:bg-emerald-900/30"
+          href="/attendance"
+          loading={analyticsLoading}
+          meter={{
+            percent: pct,
+            tone: toneForPercent(pct),
+            caption: `${attendance.totals.present.toLocaleString("en-IN")} of ${attendance.totals.total.toLocaleString("en-IN")} present this month`,
+          }}
+        />
+      );
+    }
+
+    if (fees) {
+      out.push(
+        <StatTile
+          key={key("fees")}
+          label="Fees settled"
+          value={fees.percentage}
+          unit="%"
+          icon={CreditCard}
+          tone="text-blue-600 dark:text-blue-400"
+          iconBg="bg-blue-100 dark:bg-blue-900/30"
+          href="/fees/dues"
+          loading={analyticsLoading}
+          meter={{
+            percent: fees.percentage,
+            tone: toneForPercent(fees.percentage),
+            // Names the denominator, because "78%" of an unstated total is a
+            // number you cannot check.
+            caption: `${rupees(fees.settled)} of ${rupees(fees.dueToDate)} due so far`,
+          }}
+        />
+      );
+    }
+
+    if (loading || stats?.totalStaff !== undefined) {
+      out.push(
+        <StatTile
+          key={key("staff")}
+          label="Staff"
+          value={stats?.totalStaff ?? 0}
+          icon={UserCog}
+          tone="text-emerald-600 dark:text-emerald-400"
+          iconBg="bg-emerald-100 dark:bg-emerald-900/30"
+          href="/people/staff"
+          loading={loading}
+        />
+      );
+    }
+
+    if (loading || stats?.totalUsers !== undefined) {
+      out.push(
+        <StatTile
+          key={key("users")}
+          label="Portal accounts"
+          value={stats?.totalUsers ?? 0}
+          icon={Users}
+          tone="text-violet-600 dark:text-violet-400"
+          iconBg="bg-violet-100 dark:bg-violet-900/30"
+          href="/people/users"
+          loading={loading}
+        />
+      );
+    }
+
+    return out;
+  }, [scope, stats, loading, cmsInsights, analytics, analyticsLoading]);
+
+  // ── Queues waiting on someone ─────────────────────────────────────────────
+  const attention = useMemo<AttentionItem[]>(() => {
+    const items: AttentionItem[] = [];
+    if (scope === "cms") {
+      items.push({
+        key: "unread",
+        label: "unread messages",
+        detail: "Enquiries from the contact form",
+        count: stats?.unreadCount ?? 0,
+        href: "/contact",
+        icon: MessageSquare,
+      });
+      return items;
+    }
+    items.push({
+      key: "registrations",
+      label: "pending registrations",
+      detail: "Families waiting on a decision",
+      count: stats?.pendingRegistrations ?? 0,
+      href: "/registrations",
+      icon: ClipboardCheck,
+    });
+    items.push({
+      key: "transport",
+      label: "transport change requests",
+      detail: "Route or stop changes from parents",
+      count: analytics?.transportAudit?.pendingChangeRequests ?? 0,
+      href: "/transport/changes",
+      icon: Bus,
+    });
+    return items;
+  }, [scope, stats, analytics]);
+
+  const attentionLoading = loading || (scope === "erp" && analyticsLoading);
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-7">
       {/* Hero header */}
       <div className="relative overflow-hidden rounded-2xl border border-gray-200/80 dark:border-border bg-gradient-to-br from-navy-900 via-navy-800 to-navy-900 dash-fade-up">
         <div className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-gold-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 -left-10 h-52 w-52 rounded-full bg-blue-500/15 blur-3xl" />
 
-        <div className="relative px-6 py-7 md:px-8 md:py-8">
+        <div className="relative px-5 py-6 md:px-8 md:py-8">
           <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2 text-gold-300/90 mb-2">
-                <Sparkles className="h-3.5 w-3.5" />
+                <Sparkles className="h-3.5 w-3.5 shrink-0" />
                 <span className="text-[11px] font-medium uppercase tracking-[0.18em]">
                   {todayLabel}
                 </span>
@@ -325,7 +443,8 @@ export function DashboardView({ scope }: { scope: Scope }) {
                 {`${moduleLabel} dashboard — here's the overview.`}
               </p>
             </div>
-            <div className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2 backdrop-blur-sm">
+            {/* Decorative chip; the first thing to go when width is scarce. */}
+            <div className="hidden sm:flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2 backdrop-blur-sm">
               <div className="h-8 w-8 rounded-lg bg-gold-500/20 flex items-center justify-center">
                 <TrendingUp className="h-4 w-4 text-gold-300" />
               </div>
@@ -333,85 +452,29 @@ export function DashboardView({ scope }: { scope: Scope }) {
                 <p className="text-[10px] uppercase tracking-wider text-white/50">
                   {scope === "cms" ? "CMS" : "ERP"}
                 </p>
-                <p className="text-xs font-semibold text-white">
-                  Live overview
-                </p>
+                <p className="text-xs font-semibold text-white">Live overview</p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {visibleCards.map(
-          ({ key, label, icon: Icon, iconBg, iconColor, accent, href }, i) => {
-            const value = stats?.[key];
-            const cardInner = (
-              <>
-                <div
-                  className={cn(
-                    "absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl rounded-bl-full opacity-60 transition-opacity duration-300 group-hover:opacity-90",
-                    accent
-                  )}
-                />
-                <div className="relative flex items-center gap-4">
-                  <div
-                    className={cn(
-                      "h-12 w-12 rounded-xl flex items-center justify-center transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3",
-                      iconBg
-                    )}
-                  >
-                    <Icon className={cn("h-5.5 w-5.5", iconColor)} />
-                  </div>
-                  <div className="min-w-0">
-                    {loading ? (
-                      <div className="h-8 w-16 bg-gray-100 dark:bg-muted rounded-lg animate-pulse" />
-                    ) : (
-                      <p className="text-3xl font-bold text-navy-900 dark:text-white tracking-tight tabular-nums">
-                        <CountUp value={value ?? 0} />
-                      </p>
-                    )}
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                      {label}
-                    </p>
-                  </div>
-                </div>
-                {!loading && (
-                  <div className="absolute bottom-3 right-4 flex items-center gap-1 text-[11px] font-medium text-gray-400 dark:text-gray-500 opacity-0 translate-x-1 transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-0">
-                    View
-                    <ArrowRight className="h-3 w-3" />
-                  </div>
-                )}
-              </>
-            );
-
-            const baseClass = cn(
-              "erp-stat-card relative overflow-hidden group dash-fade-up",
-              !loading && "hover:border-gray-300/90 dark:hover:border-border"
-            );
-            const baseStyle = { animationDelay: `${i * 60}ms` };
-
-            return loading || !href ? (
-              <div key={key} className={baseClass} style={baseStyle}>
-                {cardInner}
-              </div>
-            ) : (
-              <Link
-                key={key}
-                href={href}
-                className={cn(
-                  baseClass,
-                  "block focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2"
-                )}
-                style={baseStyle}
-              >
-                {cardInner}
-              </Link>
-            );
-          }
-        )}
+      {/* Needs attention */}
+      <div className="dash-fade-up" style={{ animationDelay: "60ms" }}>
+        <h2 className="erp-section-title mb-3">Needs attention</h2>
+        <NeedsAttention items={attention} loading={attentionLoading} />
       </div>
+
+      {/* Headline tiles — two-up on a phone. One number per screenful, which is
+          what grid-cols-1 gave, is not a dashboard. */}
+      {tiles.length > 0 && (
+        <div
+          className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 dash-fade-up"
+          style={{ animationDelay: "120ms" }}
+        >
+          {tiles}
+        </div>
+      )}
 
       {showAnalytics && (
         <div className="dash-fade-up" style={{ animationDelay: "180ms" }}>
@@ -419,7 +482,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
             <TrendingUp className="h-5 w-5 text-gray-400" />
             <h2 className="erp-section-title">Analytics</h2>
           </div>
-          <DashboardAnalytics />
+          <DashboardAnalytics data={analytics} loading={analyticsLoading} />
         </div>
       )}
 

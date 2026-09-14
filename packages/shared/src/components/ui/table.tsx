@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { cn } from "@nkps/shared/lib/utils"
+import { useIsMobile } from "@nkps/shared/hooks/useMediaQuery"
 import {
   ColumnResizeHandle,
   TableHeaderContext,
@@ -30,8 +31,16 @@ function Table({
   ...props
 }: TableProps) {
   const tableRef = React.useRef<HTMLTableElement>(null)
+  // Column resizing is off below `lg`, and so is adopting the widths it saved.
+  //
+  // The drag handles are pointer-edge targets a few pixels wide, which no
+  // finger can hit — but the real problem is the restore: widths are measured
+  // on whatever screen did the dragging and persisted per pathname, so a table
+  // sized on a desktop came back pinned to that pixel width on the phone, where
+  // it could then never reflow. A phone gets the table's natural layout.
+  const isMobile = useIsMobile()
   const { colgroup, tableStyle, sized, controls, guideRef } = useColumnResize({
-    enabled: resizable,
+    enabled: resizable && !isMobile,
     tableRef,
     tableId,
   })
@@ -40,7 +49,9 @@ function Table({
     <TableResizeContext.Provider value={controls}>
       <div
         data-slot="table-container"
-        className="relative w-full overflow-x-auto"
+        // overscroll-x-contain so swiping a wide table sideways doesn't also
+        // trigger the browser's back gesture.
+        className="relative w-full overflow-x-auto overscroll-x-contain"
       >
         <table
           ref={tableRef}

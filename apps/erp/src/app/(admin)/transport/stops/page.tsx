@@ -307,7 +307,7 @@ export default function TransportStopsPage() {
         </div>
         <Button
           onClick={openAddStop}
-          className="bg-navy-900 hover:bg-navy-800 text-white"
+          className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
         >
           <Plus className="h-4 w-4 mr-2" />
           Add Stop
@@ -324,7 +324,7 @@ export default function TransportStopsPage() {
         />
       </div>
 
-      <div className="erp-table-container p-6">
+      <div className="erp-table-container p-4 sm:p-6">
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
@@ -490,7 +490,7 @@ export default function TransportStopsPage() {
               <Button
                 type="submit"
                 disabled={submitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {submitting && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -545,7 +545,7 @@ export default function TransportStopsPage() {
               <Button
                 type="submit"
                 disabled={feeSubmitting}
-                className="bg-navy-900 hover:bg-navy-800 text-white"
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 {feeSubmitting && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

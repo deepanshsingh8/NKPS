@@ -99,9 +99,9 @@ export function UpcomingEvents({
 
   if (loading) {
     return (
-      <Card className="bg-white rounded-xl">
+      <Card className="rounded-xl">
         <CardContent className="flex items-center justify-center py-12">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-navy-900 border-t-transparent" />
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-navy-900 border-t-transparent dark:border-white dark:border-t-transparent" />
         </CardContent>
       </Card>
     );
@@ -109,12 +109,12 @@ export function UpcomingEvents({
 
   if (events.length === 0) {
     return (
-      <Card className="bg-white rounded-xl">
+      <Card className="rounded-xl">
         <CardContent className="flex items-center justify-center py-12">
-          <div className="text-center text-gray-400">
+          <div className="text-center text-gray-400 dark:text-gray-500">
             <CalendarDays className="h-10 w-10 mx-auto mb-3 opacity-50" />
             <p className="text-sm">No upcoming events</p>
-            <p className="text-xs text-gray-300 mt-1">
+            <p className="text-xs text-gray-300 dark:text-gray-600 mt-1">
               Events will appear here when scheduled
             </p>
           </div>
@@ -126,24 +126,24 @@ export function UpcomingEvents({
   return (
     <div className="space-y-3">
       {events.map((evt) => (
-        <Card key={evt.id} className="bg-white rounded-xl">
+        <Card key={evt.id} className="rounded-xl">
           <CardContent className="py-3 px-4">
             <div className="flex items-center gap-3">
               <div className="flex-shrink-0 w-12 text-center">
-                <p className="text-lg font-bold text-navy-900">
+                <p className="text-lg font-bold text-navy-900 dark:text-white">
                   {formatDate(evt.start_date).split(" ")[0]}
                 </p>
-                <p className="text-xs text-gray-500 uppercase">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                   {formatDate(evt.start_date).split(" ")[1]}
                 </p>
               </div>
-              <div className="h-10 w-px bg-gray-200" />
+              <div className="h-10 w-px bg-gray-200 dark:bg-border" />
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-navy-900 text-sm truncate">
+                <p className="font-medium text-navy-900 dark:text-white text-sm truncate">
                   {evt.title}
                 </p>
                 {evt.description && (
-                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
                     {evt.description}
                   </p>
                 )}

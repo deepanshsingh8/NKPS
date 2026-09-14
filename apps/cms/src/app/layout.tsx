@@ -4,6 +4,10 @@ import { Toaster } from "@nkps/shared/components/ui/sonner";
 import { PWARegister } from "@nkps/shared/components/pwa/PWARegister";
 import { InstallPrompt } from "@nkps/shared/components/pwa/InstallPrompt";
 import { CmsShell } from "@/components/CmsShell";
+import {
+  ThemeProvider,
+  THEME_INIT_SCRIPT,
+} from "@nkps/shared/components/providers/ThemeProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -23,25 +27,47 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    // See apps/erp/src/app/layout.tsx for why "black" and not the other two.
+    statusBarStyle: "black",
     title: "NKPS CMS",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0A1628",
+  width: "device-width",
+  initialScale: 1,
+  // See apps/erp/src/app/layout.tsx — safe-area insets report 0 without this.
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#0A1628" },
+    { media: "(prefers-color-scheme: dark)", color: "#060E1A" },
+  ],
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
+    // See apps/erp/src/app/layout.tsx for why the inline script and the
+    // suppressHydrationWarning are here.
+    <html
+      lang="en"
+      className={`${inter.variable} ${playfair.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-screen antialiased">
-        <CmsShell>{children}</CmsShell>
-        <PWARegister />
-        <InstallPrompt appName="NKPS CMS" />
-        <Toaster position="top-right" richColors />
+        <ThemeProvider>
+          <CmsShell>{children}</CmsShell>
+          <PWARegister />
+          <InstallPrompt appName="NKPS CMS" />
+          <Toaster position="top-right" richColors />
+        </ThemeProvider>
       </body>
     </html>
   );

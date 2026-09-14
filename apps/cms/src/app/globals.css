@@ -6,8 +6,10 @@
    classes used only inside @nkps/shared components get tree-shaken away. */
 @source "../../../../packages/shared/src/**/*.{ts,tsx,js,jsx}";
 
-/* Override dark variant: use class-based (.dark) instead of media query (prefers-color-scheme).
-   Since no .dark class is applied anywhere, all dark: utilities become inert. */
+/* Override dark variant: use class-based (.dark) instead of media query
+   (prefers-color-scheme). The class is put on <html> by THEME_INIT_SCRIPT
+   before first paint and maintained by ThemeProvider thereafter, so the theme
+   follows the user's choice in Settings rather than only their OS setting. */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -114,6 +116,48 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.55 0.15 260);
+  color-scheme: light;
+}
+
+/* ── Dark theme ─────────────────────────────────────────────────────────────
+   Kept byte-identical to apps/erp/src/app/globals.css. The two files are a
+   deliberate duplicate (Tailwind v4 is CSS-first and each app compiles its
+   own), and the palette must not drift between them — a user moving from the
+   ERP to the CMS via the app switcher should not see the walls change colour.
+   See the ERP copy for why navy grounds it and why gold becomes --primary. */
+.dark {
+  --background: #060e1a;         /* navy-950 */
+  --foreground: #e8edf5;
+  --card: #0d1829;               /* a step above the page, between 950 and 900 */
+  --card-foreground: #e8edf5;
+  --popover: #111d35;            /* navy-800 — floats above cards */
+  --popover-foreground: #e8edf5;
+  --primary: #d4a843;            /* gold-500 */
+  --primary-foreground: #0a1628;
+  --secondary: #1a2744;          /* navy-700 */
+  --secondary-foreground: #e8edf5;
+  --muted: #16223c;
+  --muted-foreground: #94a3b8;
+  --accent: #d4a843;
+  --accent-foreground: #0a1628;
+  --destructive: #f87171;        /* lightened: the light-mode red fails on navy */
+  --border: #22304f;
+  --input: #22304f;
+  --ring: #60a5fa;               /* blue-400 */
+  --chart-1: #60a5fa;
+  --chart-2: #e5c06e;
+  --chart-3: #4ade80;
+  --chart-4: #fb923c;
+  --chart-5: #c084fc;
+  --sidebar: #0a1628;            /* navy-900 — unchanged from light, by design */
+  --sidebar-foreground: #e8edf5;
+  --sidebar-primary: #d4a843;
+  --sidebar-primary-foreground: #0a1628;
+  --sidebar-accent: #1a2744;
+  --sidebar-accent-foreground: #e8edf5;
+  --sidebar-border: #22304f;
+  --sidebar-ring: #60a5fa;
+  color-scheme: dark;
 }
 
 
@@ -123,12 +167,32 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Don't chain the app's scroll to the document underneath it. Without
+       this, scrolling past the end of a list on a phone drags the whole app
+       and (in a browser tab) fires pull-to-refresh mid-gesture. */
+    overscroll-behavior-y: contain;
   }
   html {
     @apply font-sans scroll-smooth;
+    /* The grey flash Android paints over every tapped element. Fine on a web
+       page, immediately reads as "website" inside an installed app. */
+    -webkit-tap-highlight-color: transparent;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-playfair);
+  }
+  /* Opts these elements out of double-tap-to-zoom, which is what the ~300ms
+     delay between touch and click is waiting for. Applied to controls only —
+     body text stays zoomable, which is an accessibility requirement, not a
+     preference. */
+  button,
+  a,
+  label,
+  select,
+  summary,
+  [role="button"],
+  [role="tab"] {
+    touch-action: manipulation;
   }
 }
 
@@ -270,6 +334,60 @@
     @apply dark:text-gray-400;
   }
 
+  /* ── Installed-app chrome ────────────────────────────────────────────────
+     These apps install to the home screen (display: standalone), which means
+     the OS hands us the entire screen — including the strip behind the status
+     bar and the one the home indicator floats over. env(safe-area-inset-*) is
+     how we get those back; they report 0 everywhere else, so the utilities are
+     safe to apply unconditionally.
+
+     They report 0 *everywhere* without `viewport-fit: cover`, which each app
+     sets in its layout.tsx viewport export. If these ever stop working, check
+     that first. */
+  .app-safe-t {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .app-safe-b {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* Landscape on a notched phone insets the sides, not the top. */
+  .app-safe-x {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  /* For a fixed element that already owns its padding and needs the inset as
+     clearance underneath it instead. */
+  .app-safe-mb {
+    margin-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Bottom-sheet motion, used by the mobile dialog variant. The global
+     prefers-reduced-motion rule at the end of this file disables both. */
+  @keyframes sheet-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  @keyframes sheet-down {
+    from { transform: translateY(0); }
+    to { transform: translateY(100%); }
+  }
+
+  @media (display-mode: standalone) {
+    body {
+      /* Stronger than `contain`: inside an installed app there is no browser
+         to chain to, so the bounce is pure noise. */
+      overscroll-behavior-y: none;
+    }
+    /* Navigation chrome is furniture, not content. Long-pressing it should not
+       start a text selection or raise the iOS copy/define callout. */
+    nav,
+    [data-app-chrome] {
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+  }
+
   /* Dashboard mount animations — staggered fade-up */
   @keyframes dash-fade-up {
     from {
@@ -398,6 +516,13 @@ html {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(10, 22, 40, 0.5);
+}
+/* A navy thumb on a navy page is an invisible scrollbar. */
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(232, 237, 245, 0.22);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(232, 237, 245, 0.38);
 }
 
 @keyframes marquee {

@@ -57,7 +57,7 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="font-heading text-2xl font-semibold text-navy-900">
+        <h1 className="font-heading text-2xl font-semibold text-navy-900 dark:text-white">
           Reports
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -73,7 +73,7 @@ export default function ReportsPage() {
           <Sparkles className="h-5 w-5" />
         </div>
         <div>
-          <h2 className="font-medium text-navy-900 group-hover:text-blue-700">
+          <h2 className="font-medium text-navy-900 dark:text-white group-hover:text-blue-700">
             Ask your school
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -89,12 +89,12 @@ export default function ReportsPage() {
           <Link
             key={report.href}
             href={report.href}
-            className="group rounded-lg border bg-white p-5 transition hover:border-blue-400 hover:shadow-sm"
+            className="group rounded-lg border bg-white dark:bg-card p-5 transition hover:border-blue-400 hover:shadow-sm"
           >
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
               <report.icon className="h-5 w-5" />
             </div>
-            <h2 className="font-medium text-navy-900 group-hover:text-blue-700">
+            <h2 className="font-medium text-navy-900 dark:text-white group-hover:text-blue-700">
               {report.title}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">{report.blurb}</p>

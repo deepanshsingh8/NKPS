@@ -73,12 +73,31 @@ import {
 } from "@nkps/shared/lib/photo-spec";
 import { StaffBulkUpload } from "@/components/StaffBulkUpload";
 import { CreatePortalUsersDialog } from "@/components/CreatePortalUsersDialog";
+import { StaffAvatar } from "@/components/StaffAvatar";
+import { StaffDetailDialog } from "@/components/StaffDetailDialog";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
+import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from "@nkps/shared/components/ui/tabs";
 import {
   staffPortalRole,
   isTeachingStaffCategory,
+  staffCategoryGroup,
+  type StaffGroup,
 } from "@nkps/shared/lib/staff-roles";
 import type { StaffMember, StaffCategory } from "@nkps/shared/types";
+
+// One tab per staff family. The grouping itself lives in staff-roles.ts next to
+// the login rules, so a category can never sit on one tab here and be treated
+// as another kind of staff elsewhere.
+const STAFF_TABS: { key: StaffGroup; label: string }[] = [
+  { key: "teaching", label: "Teachers" },
+  { key: "office", label: "Management & Office" },
+  { key: "support", label: "Drivers & Helpers" },
+];
 
 const CATEGORY_OPTIONS: { value: StaffCategory; label: string }[] = [
   { value: "management", label: "Management" },
@@ -144,12 +163,16 @@ function summarizeErrors(errors: StaffFieldErrors): string {
   return `Please fix: ${labels.join(", ")}`;
 }
 
-// Filter dropdown = the same options plus an "all" sentinel; derive it so the
-// two lists can never drift out of sync.
-const CATEGORIES: { value: StaffCategory | "all"; label: string }[] = [
-  { value: "all", label: "All Categories" },
-  ...CATEGORY_OPTIONS,
-];
+// Filter dropdown = the active tab's categories plus an "all" sentinel; derived
+// from CATEGORY_OPTIONS so the two lists can never drift out of sync.
+function categoriesForGroup(
+  group: StaffGroup
+): { value: StaffCategory | "all"; label: string }[] {
+  return [
+    { value: "all", label: "All Categories" },
+    ...CATEGORY_OPTIONS.filter((c) => staffCategoryGroup(c.value) === group),
+  ];
+}
 
 const categoryBadgeColors: Record<StaffCategory, string> = {
   management: "bg-purple-100 text-purple-700",
@@ -167,31 +190,6 @@ const categoryBadgeColors: Record<StaffCategory, string> = {
   peon: "bg-gray-100 text-gray-700",
 };
 
-const AVATAR_COLORS = [
-  "from-navy-800 to-navy-900",
-  "from-blue-500 to-blue-700",
-  "from-gold-500 to-gold-600",
-  "from-emerald-500 to-emerald-700",
-  "from-violet-500 to-violet-700",
-  "from-rose-500 to-rose-700",
-  "from-cyan-500 to-cyan-700",
-  "from-amber-500 to-amber-700",
-];
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0][0].toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-function getAvatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
 export default function AdminStaffPage() {
   // Creating portal login accounts is admin-only (enforced server-side in
   // /api/portal/bulk-create). Editors granted `staff` can manage staff records
@@ -202,8 +200,23 @@ export default function AdminStaffPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Which staff family is showing. Kept in the URL (?group=) so the tab is
+  // linkable — the transport Drivers page points straight at the drivers tab.
+  const [groupParam, setGroupParam] = useUrlState("group");
+  const activeGroup: StaffGroup = STAFF_TABS.some((t) => t.key === groupParam)
+    ? (groupParam as StaffGroup)
+    : "teaching";
+  const groupCategories = useMemo(
+    () => categoriesForGroup(activeGroup),
+    [activeGroup]
+  );
+  // First real category of the active tab — what "Add Staff" pre-selects, so
+  // adding from the drivers tab doesn't default to PGT.
+  const defaultCategory = (groupCategories[1]?.value ?? "pgt") as StaffCategory;
   const [filterCategory, setFilterCategory] = useState<StaffCategory | "all">("all");
   const [search, setSearch] = useState("");
+  // Row whose read-only detail view is open (opened from the name).
+  const [detailMember, setDetailMember] = useState<StaffMember | null>(null);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [portalDialogOpen, setPortalDialogOpen] = useState(false);
   // H16-B — track which staff_members are already linked to a teachers row
@@ -222,6 +235,14 @@ export default function AdminStaffPage() {
   // Selection & bulk actions
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // A category filter or selection from one tab means nothing on another, so
+  // both reset with the tab.
+  const switchGroup = (group: string) => {
+    setGroupParam(group);
+    setFilterCategory("all");
+    setSelectedIds(new Set());
+  };
 
   // Form state
   const [name, setName] = useState("");
@@ -417,7 +438,7 @@ export default function AdminStaffPage() {
   const resetForm = () => {
     setName("");
     setSubject("");
-    setCategory("pgt");
+    setCategory(defaultCategory);
     setEmail("");
     setPhone("");
     setDateOfBirth("");
@@ -619,6 +640,10 @@ export default function AdminStaffPage() {
         } else {
           toast.success("Staff member added");
         }
+        // Follow the new person to their tab, so a driver added from the
+        // Teachers tab doesn't vanish the moment the dialog closes.
+        const group = staffCategoryGroup(category);
+        if (group !== activeGroup) switchGroup(group);
       }
 
       setDialogOpen(false);
@@ -654,8 +679,19 @@ export default function AdminStaffPage() {
     }
   };
 
+  // Everyone on the active tab, before the category/search filters below.
+  const groupStaff = useMemo(
+    () => staff.filter((m) => staffCategoryGroup(m.category) === activeGroup),
+    [staff, activeGroup]
+  );
+  const tabCounts = useMemo(() => {
+    const counts: Record<StaffGroup, number> = { teaching: 0, office: 0, support: 0 };
+    for (const m of staff) counts[staffCategoryGroup(m.category)]++;
+    return counts;
+  }, [staff]);
+
   // Filter and search
-  const filtered = staff.filter((member) => {
+  const filtered = groupStaff.filter((member) => {
     const matchesCategory = filterCategory === "all" || member.category === filterCategory;
     const matchesSearch = member.name.toLowerCase().includes(search.toLowerCase()) ||
       member.subject.toLowerCase().includes(search.toLowerCase());
@@ -813,6 +849,23 @@ export default function AdminStaffPage() {
         </div>
       </div>
 
+      {/* Group tabs */}
+      <Tabs
+        value={activeGroup}
+        onValueChange={(v: unknown) => v && switchGroup(String(v))}
+      >
+        <TabsList variant="line">
+          {STAFF_TABS.map((t) => (
+            <TabsTrigger key={t.key} value={t.key}>
+              {t.label}
+              <span className="ml-1.5 text-[11px] text-muted-foreground">
+                {tabCounts[t.key]}
+              </span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -832,7 +885,7 @@ export default function AdminStaffPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {CATEGORIES.map((c) => (
+            {groupCategories.map((c) => (
               <SelectItem key={c.value} value={c.value} label={c.label}>
                 {c.label}
               </SelectItem>
@@ -843,7 +896,7 @@ export default function AdminStaffPage() {
 
       {/* Stats */}
       <div className="flex gap-4 text-sm text-gray-500">
-        <span>{filtered.length} of {staff.length} staff members</span>
+        <span>{filtered.length} of {groupStaff.length} on this tab</span>
         {filterCategory !== "all" && (
           <button
             onClick={() => setFilterCategory("all")}
@@ -903,10 +956,10 @@ export default function AdminStaffPage() {
         <div className="flex flex-col items-center justify-center py-20 text-gray-400">
           <Users className="h-10 w-10 mb-3" />
           <p className="text-sm font-medium">
-            {staff.length === 0 ? "No staff members yet" : "No results found"}
+            {groupStaff.length === 0 ? "Nobody on this tab yet" : "No results found"}
           </p>
           <p className="text-xs mt-1">
-            {staff.length === 0
+            {groupStaff.length === 0
               ? "Click 'Add Staff' to get started"
               : "Try adjusting your search or filter"}
           </p>
@@ -964,27 +1017,19 @@ export default function AdminStaffPage() {
                     />
                   </TableCell>
                   <TableCell>
-                    {member.photo_url ? (
-                      <div className="w-10 aspect-[4/5] rounded-md overflow-hidden relative bg-gray-50">
-                        <Image
-                          src={member.photo_url}
-                          alt={member.name}
-                          fill
-                          className="object-contain"
-                          sizes="40px"
-                        />
-                      </div>
-                    ) : (
-                      <div
-                        className={`w-10 aspect-[4/5] rounded-md bg-gradient-to-br flex items-center justify-center ${getAvatarColor(member.name)}`}
-                      >
-                        <span className="text-xs font-bold text-white">
-                          {getInitials(member.name)}
-                        </span>
-                      </div>
-                    )}
+                    <StaffAvatar name={member.name} photoUrl={member.photo_url} />
                   </TableCell>
-                  <TableCell className="font-medium">{member.name}</TableCell>
+                  <TableCell>
+                    {/* The name opens the full read-only profile; Edit stays
+                        on the actions side so viewing never risks a change. */}
+                    <button
+                      type="button"
+                      onClick={() => setDetailMember(member)}
+                      className="text-left font-medium text-navy-900 hover:text-blue-600 hover:underline underline-offset-2 dark:text-gray-100 dark:hover:text-blue-400"
+                    >
+                      {member.name}
+                    </button>
+                  </TableCell>
                   <TableCell className="text-gray-500">{member.subject}</TableCell>
                   <TableCell>
                     <Badge
@@ -1338,6 +1383,22 @@ export default function AdminStaffPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Read-only detail view, opened from the name */}
+      <StaffDetailDialog
+        member={detailMember}
+        onClose={() => setDetailMember(null)}
+        onEdit={(m) => {
+          setDetailMember(null);
+          openEditDialog(m);
+        }}
+        hasLogin={detailMember ? hasLogin(detailMember) : false}
+        teacherLinked={detailMember ? teacherLinkedIds.has(detailMember.id) : false}
+        categoryLabel={detailMember ? getCategoryLabel(detailMember.category) : ""}
+        categoryBadgeClass={
+          detailMember ? categoryBadgeColors[detailMember.category] : undefined
+        }
+      />
 
       {/* Bulk Upload Dialog */}
       <StaffBulkUpload
