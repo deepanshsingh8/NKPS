@@ -29,7 +29,6 @@ import {
   type CmsInsightsData,
 } from "@nkps/shared/components/CmsContentInsights";
 import { StatTile } from "@nkps/shared/components/charts/StatTile";
-import { toneForPercent } from "@nkps/shared/components/charts/Meter";
 import {
   NeedsAttention,
   type AttentionItem,
@@ -121,13 +120,6 @@ const COUNTDOWN_TONES = {
   later: "bg-gray-100 text-gray-600 dark:bg-muted dark:text-gray-400",
 } as const;
 
-/** ₹ in the units a school office actually says out loud. */
-function rupees(amount: number): string {
-  if (amount >= 10_000_000) return `₹${(amount / 10_000_000).toFixed(1)}Cr`;
-  if (amount >= 100_000) return `₹${(amount / 100_000).toFixed(1)}L`;
-  if (amount >= 1_000) return `₹${(amount / 1_000).toFixed(1)}K`;
-  return `₹${Math.round(amount).toLocaleString("en-IN")}`;
-}
 
 export function DashboardView({ scope }: { scope: Scope }) {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -208,84 +200,33 @@ export function DashboardView({ scope }: { scope: Scope }) {
   const moduleLabel = scope === "cms" ? "Content" : "School operations";
 
   // ── Headline tiles ────────────────────────────────────────────────────────
-  // Built from what the two endpoints already return. Nothing here is a new
-  // query: the attendance percentage, the collection rate and the month's net
-  // movement were all in the analytics payload already, three screenfuls down.
+  // Only the figures that do NOT have a card of their own further down.
+  //
+  // This row used to carry attendance and fee collection as well, which put the
+  // same percentage on the screen twice — once here and once in the Analytics
+  // card immediately below it. The card wins both arguments: for fees it also
+  // carries outstanding dues and the paid / remaining / total headcounts, and
+  // for attendance the 31-day chart and the present / late / absent split. The
+  // tile could only ever restate their headline.
+  //
+  // It was worse than redundant for fees. This file formatted in crore above a
+  // card formatting in lakh, so one screen showed "₹1.9Cr" and "192.4L" for the
+  // same money. Deleting the tile deleted the second formatter with it, rather
+  // than leaving two rules to keep in step.
   const tiles = useMemo(() => {
     const out: React.ReactNode[] = [];
-    const key = (k: string) => k;
 
-    if (scope === "cms") {
-      const b = cmsInsights?.breakdown;
-      if (loading || stats?.galleryCount !== undefined) {
-        out.push(
-          <StatTile
-            key={key("gallery")}
-            label="Gallery images"
-            value={stats?.galleryCount ?? 0}
-            icon={ImageIcon}
-            tone="text-amber-600 dark:text-amber-400"
-            iconBg="bg-amber-100 dark:bg-amber-900/30"
-            href="/gallery"
-            loading={loading}
-            delta={
-              b?.gallery
-                ? { value: b.gallery.addedThisMonth, period: "this month" }
-                : undefined
-            }
-          />
-        );
-      }
-      if (b?.articles) {
-        const articles = b.articles;
-        out.push(
-          <StatTile
-            key={key("articles")}
-            label="Published articles"
-            value={articles.published}
-            icon={Newspaper}
-            tone="text-blue-600 dark:text-blue-400"
-            iconBg="bg-blue-100 dark:bg-blue-900/30"
-            href="/articles"
-            loading={loading}
-            delta={{ value: articles.addedThisMonth, period: "this month" }}
-          />
-        );
-      }
-      if (loading || stats?.tcCount !== undefined) {
-        out.push(
-          <StatTile
-            key={key("tc")}
-            label="Transfer certificates"
-            value={stats?.tcCount ?? 0}
-            icon={FileText}
-            tone="text-gold-600 dark:text-gold-400"
-            iconBg="bg-gold-300/30 dark:bg-gold-500/20"
-            href="/transfer-certificates"
-            loading={loading}
-            delta={
-              b?.transferCertificates
-                ? {
-                    value: b.transferCertificates.addedThisMonth,
-                    period: "this month",
-                  }
-                : undefined
-            }
-          />
-        );
-      }
-      return out;
-    }
+    // The CMS has no headline row at all: every count it could show —
+    // gallery, articles, transfer certificates — is already a card in
+    // CmsContentInsights with a breakdown attached.
+    if (scope === "cms") return out;
 
-    // ERP
-    const attendance = analytics?.attendance;
-    const fees = analytics?.feeCollection;
     const lastMonth = analytics?.admissionTrend?.at(-1);
 
     if (loading || stats?.totalStudents !== undefined) {
       out.push(
         <StatTile
-          key={key("students")}
+          key="students"
           label="Students"
           value={stats?.totalStudents ?? 0}
           icon={GraduationCap}
@@ -302,55 +243,10 @@ export function DashboardView({ scope }: { scope: Scope }) {
       );
     }
 
-    if (attendance && attendance.totals.total > 0) {
-      const pct = attendance.totals.percentage;
-      out.push(
-        <StatTile
-          key={key("attendance")}
-          label="Attendance"
-          value={pct}
-          unit="%"
-          icon={CheckSquare}
-          tone="text-emerald-600 dark:text-emerald-400"
-          iconBg="bg-emerald-100 dark:bg-emerald-900/30"
-          href="/attendance"
-          loading={analyticsLoading}
-          meter={{
-            percent: pct,
-            tone: toneForPercent(pct),
-            caption: `${attendance.totals.present.toLocaleString("en-IN")} of ${attendance.totals.total.toLocaleString("en-IN")} present this month`,
-          }}
-        />
-      );
-    }
-
-    if (fees) {
-      out.push(
-        <StatTile
-          key={key("fees")}
-          label="Fees settled"
-          value={fees.percentage}
-          unit="%"
-          icon={CreditCard}
-          tone="text-blue-600 dark:text-blue-400"
-          iconBg="bg-blue-100 dark:bg-blue-900/30"
-          href="/fees/dues"
-          loading={analyticsLoading}
-          meter={{
-            percent: fees.percentage,
-            tone: toneForPercent(fees.percentage),
-            // Names the denominator, because "78%" of an unstated total is a
-            // number you cannot check.
-            caption: `${rupees(fees.settled)} of ${rupees(fees.dueToDate)} due so far`,
-          }}
-        />
-      );
-    }
-
     if (loading || stats?.totalStaff !== undefined) {
       out.push(
         <StatTile
-          key={key("staff")}
+          key="staff"
           label="Staff"
           value={stats?.totalStaff ?? 0}
           icon={UserCog}
@@ -365,7 +261,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
     if (loading || stats?.totalUsers !== undefined) {
       out.push(
         <StatTile
-          key={key("users")}
+          key="users"
           label="Portal accounts"
           value={stats?.totalUsers ?? 0}
           icon={Users}
@@ -378,7 +274,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
     }
 
     return out;
-  }, [scope, stats, loading, cmsInsights, analytics, analyticsLoading]);
+  }, [scope, stats, loading, analytics]);
 
   // ── Queues waiting on someone ─────────────────────────────────────────────
   const attention = useMemo<AttentionItem[]>(() => {
