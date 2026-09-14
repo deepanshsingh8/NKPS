@@ -422,7 +422,7 @@ export default function AdminClassesPage() {
                         onClick={() => openRollDialog(cls)}
                         title="Generate Roll Numbers"
                         aria-label="Generate roll numbers"
-                        className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                        className="text-amber-600 dark:text-amber-400 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
                       >
                         <ListOrdered className="h-4 w-4" />
                       </Button>
@@ -460,7 +460,7 @@ export default function AdminClassesPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
-                <Pencil className="h-5 w-5 text-blue-600" />
+                <Pencil className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <DialogTitle>Edit Class</DialogTitle>
@@ -587,7 +587,7 @@ export default function AdminClassesPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
-                <ListOrdered className="h-5 w-5 text-amber-600" />
+                <ListOrdered className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
                 <DialogTitle>Generate Roll Numbers</DialogTitle>
@@ -656,7 +656,7 @@ export default function AdminClassesPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10">
-                <Layers className="h-5 w-5 text-teal-600" />
+                <Layers className="h-5 w-5 text-teal-600 dark:text-teal-400" />
               </div>
               <div>
                 <DialogTitle>Add New Class</DialogTitle>

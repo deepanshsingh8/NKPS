@@ -237,7 +237,7 @@ export default function HousesPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-red-600"
+                      className="text-red-600 dark:text-red-400"
                       onClick={() => remove(h)}
                     >
                       <Trash2 className="h-4 w-4" />

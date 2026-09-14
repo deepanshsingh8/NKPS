@@ -49,7 +49,7 @@ export function ConversationList({
           New chat
         </button>
 
-        <div className="flex items-center gap-2 rounded-md border bg-white px-2.5 py-1.5">
+        <div className="flex items-center gap-2 rounded-md border bg-white dark:bg-card px-2.5 py-1.5">
           <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <input
             value={query}
@@ -82,7 +82,7 @@ export function ConversationList({
 
             if (editingId === c.id) {
               return (
-                <li key={c.id} className="rounded-md border bg-white p-1.5">
+                <li key={c.id} className="rounded-md border bg-white dark:bg-card p-1.5">
                   <input
                     value={draft}
                     autoFocus
@@ -110,7 +110,7 @@ export function ConversationList({
                         onRename(c.id, draft);
                         setEditingId(null);
                       }}
-                      className="rounded p-1 text-blue-600 hover:text-blue-700"
+                      className="rounded p-1 text-blue-600 dark:text-blue-400 hover:text-blue-700"
                     >
                       <Check className="h-3.5 w-3.5" />
                     </button>
@@ -126,7 +126,7 @@ export function ConversationList({
                   onClick={() => onOpen(c.id)}
                   className={
                     active
-                      ? "block w-full truncate rounded-md bg-blue-50 px-2.5 py-2 pr-14 text-left text-sm font-medium text-navy-900"
+                      ? "block w-full truncate rounded-md bg-blue-50 dark:bg-blue-950/30 px-2.5 py-2 pr-14 text-left text-sm font-medium text-navy-900 dark:text-white"
                       : "block w-full truncate rounded-md px-2.5 py-2 pr-14 text-left text-sm text-muted-foreground transition hover:bg-white hover:text-navy-900"
                   }
                   title={c.title ?? "Untitled chat"}

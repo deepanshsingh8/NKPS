@@ -91,7 +91,7 @@ export default function ReportsPage() {
             href={report.href}
             className="group rounded-lg border bg-white dark:bg-card p-5 transition hover:border-blue-400 hover:shadow-sm"
           >
-            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400">
               <report.icon className="h-5 w-5" />
             </div>
             <h2 className="font-medium text-navy-900 dark:text-white group-hover:text-blue-700">

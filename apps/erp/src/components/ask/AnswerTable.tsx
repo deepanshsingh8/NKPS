@@ -33,9 +33,9 @@ export function AnswerTable({
   const activeRun = runs.find((r) => r.runId === turn.activeRunId) ?? null;
 
   return (
-    <div className="rounded-lg border bg-white">
+    <div className="rounded-lg border bg-white dark:bg-card">
       {runs.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1.5 border-b bg-cream-50 px-4 py-2">
+        <div className="flex flex-wrap items-center gap-1.5 border-b bg-cream-50 dark:bg-background px-4 py-2">
           <span className="mr-1 text-xs text-muted-foreground">
             {runs.length} reports ran — showing:
           </span>
@@ -62,8 +62,8 @@ export function AnswerTable({
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
-        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-navy-900">
-          <Table2 className="h-4 w-4 shrink-0 text-blue-600" />
+        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-navy-900 dark:text-white">
+          <Table2 className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
           {table
             ? `${table.total.toLocaleString("en-IN")} student${table.total === 1 ? "" : "s"}`
             : turn.tableBusy
@@ -86,7 +86,7 @@ export function AnswerTable({
         {table ? (
           <a
             href={`/api/ai/ask/${table.runId}/export`}
-            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-navy-900 transition hover:border-blue-400 hover:text-blue-700"
+            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-navy-900 dark:text-white transition hover:border-blue-400 hover:text-blue-700"
           >
             <Download className="h-3.5 w-3.5" />
             Download CSV
@@ -96,7 +96,7 @@ export function AnswerTable({
             type="button"
             disabled={turn.rerunning}
             onClick={() => onRerun(activeRun.runId)}
-            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-navy-900 transition hover:border-blue-400 hover:text-blue-700 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-navy-900 dark:text-white transition hover:border-blue-400 hover:text-blue-700 disabled:opacity-50"
           >
             <RefreshCw
               className={turn.rerunning ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"}
@@ -108,7 +108,7 @@ export function AnswerTable({
             type="button"
             disabled={turn.tableBusy}
             onClick={() => activeRun && onSelectRun(activeRun.runId)}
-            className="rounded-md border px-3 py-1.5 text-xs font-medium text-navy-900 transition hover:border-blue-400 hover:text-blue-700 disabled:opacity-50"
+            className="rounded-md border px-3 py-1.5 text-xs font-medium text-navy-900 dark:text-white transition hover:border-blue-400 hover:text-blue-700 disabled:opacity-50"
           >
             Show the list
           </button>
@@ -126,7 +126,7 @@ export function AnswerTable({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-cream-50 text-left">
+              <tr className="border-b bg-cream-50 dark:bg-background text-left">
                 {table.headers.map((header) => (
                   <th
                     key={header}
@@ -143,7 +143,7 @@ export function AnswerTable({
                   {row.map((cell, c) => (
                     <td
                       key={c}
-                      className="whitespace-nowrap px-3 py-2 text-navy-900 tabular-nums"
+                      className="whitespace-nowrap px-3 py-2 text-navy-900 dark:text-white tabular-nums"
                     >
                       {cell ?? ""}
                     </td>

@@ -535,7 +535,7 @@ function MessagesPreview({ items }: { items: RecentMessage[] }) {
                   "h-9 w-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
                   m.is_read
                     ? "bg-gray-100 text-gray-400 dark:bg-muted"
-                    : "bg-rose-100 text-rose-600 dark:bg-rose-900/30"
+                    : "bg-rose-100 text-rose-600 dark:text-rose-400 dark:bg-rose-900/30"
                 )}
               >
                 <Mail className="h-4 w-4" />
@@ -674,7 +674,7 @@ export function CmsContentInsights({
               </div>
               <Link
                 href="/contact"
-                className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors group"
+                className="flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors group"
               >
                 View all
                 <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />

@@ -209,7 +209,7 @@ export default function TeachersPage() {
 
       {reviewCount > 0 && (
         <div className="flex flex-wrap items-start gap-3 rounded-lg border border-amber-200 bg-amber-50/70 px-4 py-3 dark:border-amber-900/40 dark:bg-amber-950/20">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
           <div className="min-w-0 flex-1 text-sm text-amber-900 dark:text-amber-200">
             <p className="font-medium">
               {reviewCount} active {reviewCount === 1 ? "teacher" : "teachers"}{" "}

@@ -279,7 +279,7 @@ export function StaffDetailDialog({
                     {/* Login status mirrors the row action: a tick when a
                         login exists, otherwise why there isn't one. */}
                     {hasLogin ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                      <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                         <UserCheck className="h-3.5 w-3.5" />
                         Has portal login
                       </span>

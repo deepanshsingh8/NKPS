@@ -549,7 +549,7 @@ export function StaffBulkUpload({
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10">
-              <Upload className="h-5 w-5 text-violet-600" />
+              <Upload className="h-5 w-5 text-violet-600 dark:text-violet-400" />
             </div>
             <div>
               <DialogTitle>
@@ -574,7 +574,7 @@ export function StaffBulkUpload({
               <Label>Upload Excel or CSV File</Label>
               <div className="mt-2 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-navy-400 transition-colors">
                 <Upload className="h-10 w-10 mx-auto text-gray-400 mb-3" />
-                <p className="text-sm text-gray-600 mb-2">
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
                   Drop your file here or click to browse
                 </p>
                 <p className="text-xs text-gray-400 mb-4">
@@ -608,15 +608,15 @@ export function StaffBulkUpload({
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
                   File: <span className="font-medium">{fileName}</span>
                 </p>
-                <Badge variant="secondary" className="bg-green-100 text-green-700">
+                <Badge variant="secondary" className="bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
                   {validRows.length} valid
                 </Badge>
                 {invalidRows.length > 0 && (
-                  <Badge variant="secondary" className="bg-red-100 text-red-700">
+                  <Badge variant="secondary" className="bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400">
                     <AlertCircle className="h-3 w-3 mr-1" />
                     {invalidRows.length} errors
                   </Badge>
@@ -683,7 +683,7 @@ export function StaffBulkUpload({
                       <TableRow
                         key={i}
                         className={
-                          row.errors.length > 0 ? "bg-red-50" : undefined
+                          row.errors.length > 0 ? "bg-red-50 dark:bg-red-950/30" : undefined
                         }
                       >
                         <TableCell className="text-gray-400 text-xs">
@@ -704,22 +704,22 @@ export function StaffBulkUpload({
                             )}
                           </TableCell>
                         )}
-                        <TableCell className="text-gray-600">
+                        <TableCell className="text-gray-600 dark:text-gray-300">
                           {row.phone || "—"}
                         </TableCell>
-                        <TableCell className="text-gray-600">
+                        <TableCell className="text-gray-600 dark:text-gray-300">
                           {row.email || "—"}
                         </TableCell>
-                        <TableCell className="text-gray-600">
+                        <TableCell className="text-gray-600 dark:text-gray-300">
                           {row.qualifications || "—"}
                         </TableCell>
-                        <TableCell className="text-gray-600">
+                        <TableCell className="text-gray-600 dark:text-gray-300">
                           {row.license_number || "—"}
                         </TableCell>
                         <TableCell>
                           {row.errors.length > 0 ? (
                             <span
-                              className="text-xs text-red-600"
+                              className="text-xs text-red-600 dark:text-red-400"
                               title={row.errors.join(", ")}
                             >
                               {row.errors[0]}

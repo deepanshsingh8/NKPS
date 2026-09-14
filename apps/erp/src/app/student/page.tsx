@@ -174,7 +174,7 @@ export default function StudentDashboard() {
           <div className="relative">
             <div className="flex items-center gap-3 mb-3">
               <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <ClipboardCheck className="h-5 w-5 text-blue-600" />
+                <ClipboardCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Attendance</span>
             </div>
@@ -201,7 +201,7 @@ export default function StudentDashboard() {
           <div className="relative">
             <div className="flex items-center gap-3 mb-3">
               <div className="h-10 w-10 rounded-xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-                <BarChart3 className="h-5 w-5 text-violet-600" />
+                <BarChart3 className="h-5 w-5 text-violet-600 dark:text-violet-400" />
               </div>
               <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Latest Result</span>
             </div>
@@ -233,7 +233,7 @@ export default function StudentDashboard() {
               )}>
                 <CreditCard className={cn(
                   "h-5 w-5",
-                  stats.feeStatus === "paid" ? "text-green-600"
+                  stats.feeStatus === "paid" ? "text-green-600 dark:text-green-400"
                     : stats.feeStatus === "pending" ? "text-amber-600"
                     : "text-gray-400"
                 )} />

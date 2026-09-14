@@ -609,7 +609,7 @@ export default function TransportChangesPage() {
                           href={row.applicationSignedUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm"
+                          className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 text-sm"
                         >
                           View
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -626,7 +626,7 @@ export default function TransportChangesPage() {
                             variant="outline"
                             disabled={reviewingId === row.id}
                             onClick={() => handleReview(row.id, "approve")}
-                            className="text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/30"
+                            className="text-green-600 dark:text-green-400 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/30"
                           >
                             {reviewingId === row.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -640,7 +640,7 @@ export default function TransportChangesPage() {
                             variant="outline"
                             disabled={reviewingId === row.id}
                             onClick={() => handleReview(row.id, "reject")}
-                            className="text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30"
+                            className="text-red-600 dark:text-red-400 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30"
                           >
                             <X className="h-4 w-4" />
                             <span className="ml-1">Reject</span>
@@ -665,7 +665,7 @@ export default function TransportChangesPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10">
-                <Bus className="h-5 w-5 text-teal-600" />
+                <Bus className="h-5 w-5 text-teal-600 dark:text-teal-400" />
               </div>
               <div>
                 <DialogTitle>Record Transport Change</DialogTitle>

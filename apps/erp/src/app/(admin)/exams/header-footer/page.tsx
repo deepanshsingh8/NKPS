@@ -379,7 +379,7 @@ export default function HeaderFooterPage() {
                           size="icon"
                           onClick={() => removeSigLabel(i)}
                           aria-label="Remove signature label"
-                          className="h-9 w-9 text-red-600"
+                          className="h-9 w-9 text-red-600 dark:text-red-400"
                         >
                           <X className="h-4 w-4" />
                         </Button>

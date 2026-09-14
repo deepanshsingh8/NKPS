@@ -527,7 +527,7 @@ export default function AdminAcademicYearsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10">
-                <CalendarDays className="h-5 w-5 text-purple-600" />
+                <CalendarDays className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
                 <DialogTitle>Add Academic Year</DialogTitle>
@@ -601,7 +601,7 @@ export default function AdminAcademicYearsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
-                <Pencil className="h-5 w-5 text-blue-600" />
+                <Pencil className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <DialogTitle>Edit Academic Year</DialogTitle>

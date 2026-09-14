@@ -381,7 +381,7 @@ export function ClassSubjectsDialog({
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => toggle(subject.id)}
-                              className="rounded border-gray-300 dark:border-gray-600 text-navy-900 focus:ring-navy-900"
+                              className="rounded border-gray-300 dark:border-gray-600 text-navy-900 dark:text-white focus:ring-navy-900"
                             />
                             <span className="text-sm font-medium text-gray-900 dark:text-white">
                               {subject.name}

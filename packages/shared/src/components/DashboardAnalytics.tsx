@@ -200,7 +200,7 @@ function AttendanceBlock({ data }: { data: AttendanceData }) {
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-            <CheckSquare className="h-5 w-5 text-emerald-600" />
+            <CheckSquare className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
             <h3 className="text-sm font-semibold text-navy-900 dark:text-white">
@@ -435,7 +435,7 @@ export function DashboardAnalytics({
         <div className="erp-stat-card">
           <div className="flex items-center gap-3 mb-4">
             <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <CreditCard className="h-5 w-5 text-blue-600" />
+              <CreditCard className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <h3 className="text-sm font-semibold text-navy-900 dark:text-white">
@@ -566,7 +566,7 @@ export function DashboardAnalytics({
         <div className="erp-stat-card">
           <div className="flex items-center gap-3 mb-4">
             <div className="h-10 w-10 rounded-xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-              <GraduationCap className="h-5 w-5 text-violet-600" />
+              <GraduationCap className="h-5 w-5 text-violet-600 dark:text-violet-400" />
             </div>
             <div>
               <h3 className="text-sm font-semibold text-navy-900 dark:text-white">
@@ -652,7 +652,7 @@ export function DashboardAnalytics({
         <div className="erp-stat-card">
           <div className="flex items-center gap-3 mb-4">
             <div className="h-10 w-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-              <UserPlus className="h-5 w-5 text-amber-600" />
+              <UserPlus className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-navy-900 dark:text-white">
@@ -755,7 +755,7 @@ export function DashboardAnalytics({
         <div className="erp-stat-card md:col-span-2">
           <div className="flex items-center gap-3 mb-4">
             <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <Bus className="h-5 w-5 text-blue-600" />
+              <Bus className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <h3 className="text-sm font-semibold text-navy-900 dark:text-white">

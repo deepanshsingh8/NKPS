@@ -481,7 +481,7 @@ function DuesTable({
               </TableCell>
               <TableCell>
                 {r.has_transport ? (
-                  <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                  <Badge className="bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200">
                     Yes
                   </Badge>
                 ) : (
@@ -500,9 +500,9 @@ function DuesTable({
               </TableCell>
               <TableCell className="text-right font-medium">
                 {r.dues > 0 ? (
-                  <span className="text-red-600">{inr(r.dues)}</span>
+                  <span className="text-red-600 dark:text-red-400">{inr(r.dues)}</span>
                 ) : (
-                  <span className="text-green-600">Nil</span>
+                  <span className="text-green-600 dark:text-green-400">Nil</span>
                 )}
               </TableCell>
               <TableCell>
@@ -2623,7 +2623,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                   variant="ghost"
                                   size="icon-sm"
                                   onClick={() => downloadReceipt(p.id)}
-                                  className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                                   title="Download fee receipt (school + parent copy)"
                                 >
                                   <Download className="h-4 w-4" />
@@ -2644,7 +2644,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                       setRefundOpen(true);
                                     }}
                                     title="Refund this payment"
-                                    className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/30 h-8 px-2 text-xs"
+                                    className="text-purple-600 dark:text-purple-400 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/30 h-8 px-2 text-xs"
                                   >
                                     Refund
                                   </Button>
@@ -2837,7 +2837,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 )}
                 {!duesLoading && duesRows.length > 0 && (
                   <div className="ml-auto flex items-center gap-2 flex-wrap">
-                    <Badge className="bg-red-100 text-red-700 border-red-200">
+                    <Badge className="bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 border-red-200">
                       Pending:{" "}
                       {new Intl.NumberFormat("en-IN", {
                         style: "currency",
@@ -2845,7 +2845,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                         maximumFractionDigits: 0,
                       }).format(duesSummary.totalDues)}
                     </Badge>
-                    <Badge className="bg-green-100 text-green-700 border-green-200">
+                    <Badge className="bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200">
                       Clear: {duesSummary.clear.length}
                     </Badge>
                   </div>
@@ -2918,7 +2918,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
-                <CreditCard className="h-5 w-5 text-emerald-600" />
+                <CreditCard className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
                 <DialogTitle>
@@ -3210,7 +3210,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-500/10">
-                <Banknote className="h-5 w-5 text-green-600" />
+                <Banknote className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
                 <DialogTitle>Record Payment</DialogTitle>

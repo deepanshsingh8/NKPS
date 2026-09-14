@@ -213,7 +213,7 @@ export default function PortalLoginPage() {
                   </Label>
                   <Link
                     href="/portal/forgot-password"
-                    className="text-xs text-gold-600 hover:text-gold-500 font-medium transition-colors"
+                    className="text-xs text-gold-600 dark:text-gold-400 hover:text-gold-500 font-medium transition-colors"
                   >
                     Forgot password?
                   </Link>
@@ -267,7 +267,7 @@ export default function PortalLoginPage() {
           <div className="mt-4 text-center">
             <Link
               href="/portal/register"
-              className="text-sm text-gold-600 hover:text-gold-500 font-medium transition-colors"
+              className="text-sm text-gold-600 dark:text-gold-400 hover:text-gold-500 font-medium transition-colors"
             >
               Don&apos;t have an account? Register here
             </Link>

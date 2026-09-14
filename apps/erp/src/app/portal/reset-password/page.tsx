@@ -101,8 +101,8 @@ export default function ResetPasswordPage() {
         <div className="bg-white dark:bg-card rounded-2xl shadow-xl border border-gray-100 dark:border-border p-8">
           {success ? (
             <div className="text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/30">
+                <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
                 Password Reset!
@@ -115,7 +115,7 @@ export default function ResetPasswordPage() {
             <>
               <div className="text-center mb-8">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gold-500/10">
-                  <KeyRound className="h-8 w-8 text-gold-600" />
+                  <KeyRound className="h-8 w-8 text-gold-600 dark:text-gold-400" />
                 </div>
                 <h2 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
                   Set New Password
@@ -127,7 +127,7 @@ export default function ResetPasswordPage() {
 
               {linkError ? (
                 <div className="text-center py-6">
-                  <p className="text-sm text-red-600 mb-4">{linkError}</p>
+                  <p className="text-sm text-red-600 dark:text-red-400 mb-4">{linkError}</p>
                   <Button
                     onClick={() => router.push("/portal/forgot-password")}
                     variant="outline"

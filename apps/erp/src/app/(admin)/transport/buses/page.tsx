@@ -552,7 +552,7 @@ export default function AdminBusesPage() {
                         onClick={() => openRouteDialog(bus)}
                         title="Manage Route"
                         aria-label="Manage route"
-                        className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                        className="text-amber-600 dark:text-amber-400 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
                       >
                         <Route className="h-4 w-4" />
                       </Button>
@@ -590,7 +590,7 @@ export default function AdminBusesPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10">
-                <BusIcon className="h-5 w-5 text-teal-600" />
+                <BusIcon className="h-5 w-5 text-teal-600 dark:text-teal-400" />
               </div>
               <div>
                 <DialogTitle>{editingBus ? "Edit Bus" : "Add New Bus"}</DialogTitle>
@@ -702,7 +702,7 @@ export default function AdminBusesPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
-                <Route className="h-5 w-5 text-amber-600" />
+                <Route className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
                 <DialogTitle>Stops Served</DialogTitle>
@@ -769,7 +769,7 @@ export default function AdminBusesPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
-                <Route className="h-5 w-5 text-amber-600" />
+                <Route className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
                 <DialogTitle>Manage Route</DialogTitle>

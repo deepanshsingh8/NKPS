@@ -43,7 +43,7 @@ export function CounterAnimation({ end, suffix = "", label, light }: CounterAnim
       <div
         className={cn(
           "text-4xl md:text-5xl font-bold font-heading",
-          light ? "text-white" : "text-navy-900"
+          light ? "text-white" : "text-navy-900 dark:text-white"
         )}
       >
         {count}
@@ -52,7 +52,7 @@ export function CounterAnimation({ end, suffix = "", label, light }: CounterAnim
       <div
         className={cn(
           "text-sm uppercase tracking-wider mt-2",
-          light ? "text-gray-300" : "text-gray-600"
+          light ? "text-gray-300" : "text-gray-600 dark:text-gray-300"
         )}
       >
         {label}

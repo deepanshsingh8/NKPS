@@ -636,7 +636,7 @@ const session = useAcademicSession();
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10">
-                <Clock className="h-5 w-5 text-cyan-600" />
+                <Clock className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
               </div>
               <div>
                 <DialogTitle>{editingId ? "Edit Period" : "Add Period"}</DialogTitle>
@@ -730,7 +730,7 @@ const session = useAcademicSession();
                       : `Period ${formData.period_number}`
                   }
                   disabled
-                  className="bg-gray-50 h-9"
+                  className="bg-gray-50 dark:bg-muted h-9"
                 />
               </div>
             </div>
@@ -840,7 +840,7 @@ const session = useAcademicSession();
                 onChange={(e) =>
                   setFormData({ ...formData, is_shared: e.target.checked })
                 }
-                className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-navy-900 focus:ring-navy-900"
+                className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-navy-900 dark:text-white focus:ring-navy-900"
               />
               <span className="text-xs text-gray-700 dark:text-gray-300">
                 <span className="font-medium">Shared activity</span> — this

@@ -395,7 +395,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
             </div>
             <Link
               href={eventsHref}
-              className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors group"
+              className="flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors group"
             >
               View All
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />

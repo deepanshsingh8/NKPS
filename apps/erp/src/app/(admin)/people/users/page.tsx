@@ -844,7 +844,7 @@ export default function AdminUsersPage() {
                                     size="sm"
                                     onClick={() => openRejectDialog(req.id)}
                                     disabled={processingId === req.id}
-                                    className="text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                    className="text-red-600 dark:text-red-400 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/20"
                                   >
                                     <XCircle className="h-4 w-4 mr-1" />
                                     Reject
@@ -887,7 +887,7 @@ export default function AdminUsersPage() {
               <DialogHeader>
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl bg-green-100 dark:bg-green-950/30 flex items-center justify-center">
-                    <ShieldCheck className="h-5 w-5 text-green-600" />
+                    <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
                   </div>
                   <div>
                     <DialogTitle>User Created Successfully</DialogTitle>
@@ -909,7 +909,7 @@ export default function AdminUsersPage() {
                       toast.success("Password copied");
                     }}
                     aria-label="Copy password"
-                    className="text-amber-700 hover:bg-amber-100"
+                    className="text-amber-700 dark:text-amber-400 hover:bg-amber-100"
                   >
                     <Copy className="h-4 w-4" />
                   </Button>
@@ -1192,7 +1192,7 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-green-100 dark:bg-green-950/30 flex items-center justify-center">
-                <ShieldCheck className="h-5 w-5 text-green-600" />
+                <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
                 <DialogTitle>Registration Approved</DialogTitle>
@@ -1221,7 +1221,7 @@ export default function AdminUsersPage() {
                   }
                 }}
                 aria-label="Copy password"
-                className="text-amber-700 hover:bg-amber-100"
+                className="text-amber-700 dark:text-amber-400 hover:bg-amber-100"
               >
                 <Copy className="h-4 w-4" />
               </Button>

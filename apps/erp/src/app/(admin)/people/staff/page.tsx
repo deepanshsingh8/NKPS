@@ -140,7 +140,7 @@ const ERROR_INPUT = "border-red-500 focus-visible:ring-red-500";
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
-  return <p className="text-xs text-red-600">{message}</p>;
+  return <p className="text-xs text-red-600 dark:text-red-400">{message}</p>;
 }
 
 // Zod's flatten() gives every message per field; the form has room for one, so
@@ -819,7 +819,7 @@ export default function AdminStaffPage() {
       {/* Header */}
       <div className="erp-page-bar">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <UserCog className="h-6 w-6" />
             Staff Management
           </h1>
@@ -900,7 +900,7 @@ export default function AdminStaffPage() {
         {filterCategory !== "all" && (
           <button
             onClick={() => setFilterCategory("all")}
-            className="text-blue-600 hover:underline"
+            className="text-blue-600 dark:text-blue-400 hover:underline"
           >
             Clear filter
           </button>
@@ -909,8 +909,8 @@ export default function AdminStaffPage() {
 
       {/* Bulk action bar */}
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
-          <span className="text-sm font-medium text-red-700">
+        <div className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200">
+          <span className="text-sm font-medium text-red-700 dark:text-red-400">
             {selectedIds.size} selected
           </span>
           {isAdmin && (
@@ -924,7 +924,7 @@ export default function AdminStaffPage() {
                 <UserPlus className="h-3.5 w-3.5" />
                 Create Users
               </Button>
-              <div className="w-px h-6 bg-red-200" />
+              <div className="w-px h-6 bg-red-200 dark:bg-red-900/30" />
             </>
           )}
           <Button
@@ -1063,7 +1063,7 @@ export default function AdminStaffPage() {
                       {hasLogin(member) ? (
                         <span
                           title="Has a portal login"
-                          className="inline-flex h-9 w-9 items-center justify-center text-green-600"
+                          className="inline-flex h-9 w-9 items-center justify-center text-green-600 dark:text-green-400"
                         >
                           <UserCheck className="h-4 w-4" />
                         </span>
@@ -1080,7 +1080,7 @@ export default function AdminStaffPage() {
                                 ? "teacher"
                                 : "staff"
                             } login (sends a welcome email)`}
-                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50"
                           >
                             {creatingLoginId === member.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1108,7 +1108,7 @@ export default function AdminStaffPage() {
                           disabled={convertingId === member.id}
                           aria-label="Convert to teacher"
                           title="Convert to teacher (creates a linked teachers record)"
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-50"
                         >
                           {convertingId === member.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1311,7 +1311,7 @@ export default function AdminStaffPage() {
                   {/* Show cropped preview or existing photo at 4:5 portrait */}
                   {photoFile && croppedPreviewUrl ? (
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-16 aspect-[4/5] overflow-hidden relative border-2 border-green-400 rounded-md bg-gray-50">
+                      <div className="w-16 aspect-[4/5] overflow-hidden relative border-2 border-green-400 rounded-md bg-gray-50 dark:bg-muted">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={croppedPreviewUrl}
@@ -1320,7 +1320,7 @@ export default function AdminStaffPage() {
                         />
                       </div>
                       <div>
-                        <p className="text-xs text-green-600 font-medium">Photo cropped & ready</p>
+                        <p className="text-xs text-green-600 dark:text-green-400 font-medium">Photo cropped & ready</p>
                         <button
                           type="button"
                           onClick={() => {
@@ -1337,7 +1337,7 @@ export default function AdminStaffPage() {
                     </div>
                   ) : editingId && existingPhotoUrl ? (
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-14 aspect-[4/5] overflow-hidden relative rounded-md bg-gray-50">
+                      <div className="w-14 aspect-[4/5] overflow-hidden relative rounded-md bg-gray-50 dark:bg-muted">
                         <Image
                           src={existingPhotoUrl}
                           alt="Current photo"
