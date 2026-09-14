@@ -187,3 +187,50 @@ export function classSortIndex(name: string | null | undefined): number {
   const i = (CLASS_ORDER as readonly string[]).indexOf(name.trim());
   return i === -1 ? Number.MAX_SAFE_INTEGER : i;
 }
+
+/**
+ * Every letter, because for XI and XII the section is not a serial number — it
+ * says which stream the class is. S for Science, C for Commerce, H for
+ * Humanities, A for Arts. A teacher reading "XI-S" on their timetable knows
+ * what they are walking into, which is the whole point of offering the letters.
+ */
+export const CLASS_SECTIONS = [
+  "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+  "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+] as const;
+
+/**
+ * Anything outside A–Z sorts after Z of its own class rather than before A.
+ * The old inline `SECTIONS.indexOf(section)` returned -1 here, which put an
+ * unrecognised section AHEAD of that class's A — and the importers can write
+ * any text they like into the column.
+ */
+const UNKNOWN_SECTION = 98;
+
+export function sectionSortIndex(section: string | null | undefined): number {
+  if (!section) return UNKNOWN_SECTION;
+  const i = (CLASS_SECTIONS as readonly string[]).indexOf(
+    section.trim().toUpperCase()
+  );
+  return i === -1 ? UNKNOWN_SECTION : i;
+}
+
+/**
+ * The single source of `classes.sort_order`, which 27 screens order by.
+ *
+ * The multiplier has to exceed the number of sections or classes bleed into
+ * each other: the previous formula multiplied by 10, so with 26 letters
+ * Nursery-Z (25) would have sorted after LKG-A (10). 100 leaves headroom and
+ * keeps the numbers readable — XI-S is 1318.
+ *
+ * An unknown class name is bounded rather than passed through as
+ * MAX_SAFE_INTEGER, which would overflow once multiplied.
+ */
+export function classSortOrder(
+  name: string | null | undefined,
+  section: string | null | undefined
+): number {
+  const ci = classSortIndex(name);
+  const bounded = ci === Number.MAX_SAFE_INTEGER ? UNKNOWN_SECTION : ci;
+  return bounded * 100 + sectionSortIndex(section);
+}
