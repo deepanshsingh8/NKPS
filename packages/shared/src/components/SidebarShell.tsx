@@ -15,6 +15,7 @@ import {
   collectNavHrefs,
   groupContainsActive,
   isLinkActive,
+  sectionContainsActive,
   type SidebarGroup,
   type SidebarItem,
   type SidebarLink,
@@ -108,9 +109,13 @@ export function SidebarShell({
   const [groupOverrides, setGroupOverrides] = useState<Record<string, boolean>>(
     {}
   );
+  const [sectionOverrides, setSectionOverrides] = useState<
+    Record<string, boolean>
+  >({});
 
   useEffect(() => {
     setGroupOverrides({});
+    setSectionOverrides({});
   }, [pathname]);
 
   // Tell the app bar which paths are destinations, so it knows when to offer a
@@ -144,6 +149,32 @@ export function SidebarShell({
       pendingTransportChangeCount,
     ]
   );
+
+  // Sections collapse, and start collapsed apart from the one holding the
+  // current route — six categories over 54 destinations is a lot of pane to
+  // read past when you already know where you are going. Only in the expanded
+  // pane: the icon rail below has no section headers to click.
+  const isSectionOpen = (section: SidebarSection): boolean =>
+    section.label in sectionOverrides
+      ? sectionOverrides[section.label]
+      : sectionContainsActive(section, pathname);
+
+  const toggleSection = (section: SidebarSection) =>
+    setSectionOverrides((prev) => ({
+      ...prev,
+      [section.label]: !isSectionOpen(section),
+    }));
+
+  /** Badges of every descendant, for a section that is shut. */
+  const sectionBadgeCount = (section: SidebarSection): number => {
+    const walk = (items: readonly SidebarItem[]): number =>
+      items.reduce(
+        (sum, item) =>
+          sum + (item.kind === "link" ? badgeFor(item.href) : walk(item.children)),
+        0
+      );
+    return walk(section.items);
+  };
 
   const isGroupOpen = (group: SidebarGroup): boolean =>
     group.label in groupOverrides
@@ -420,22 +451,45 @@ export function SidebarShell({
 
         {/* Navigation */}
         <nav className="flex-1 min-h-0 px-2 overflow-y-auto">
-          {visibleSections.map((section, idx) =>
-            section.items.length === 0 ? null : (
-              <div key={section.label} className={cn(idx === 0 ? "mb-1" : "mt-4 pb-2")}>
+          {visibleSections.map((section, idx) => {
+            if (section.items.length === 0) return null;
+            // The rail has no headers, so nothing to collapse and nothing to
+            // label — it keeps showing every icon, as before.
+            const open = collapsed || isSectionOpen(section);
+            const rolledUp = sectionBadgeCount(section);
+            return (
+              <div key={section.label} className={cn(idx === 0 ? "mb-1" : "mt-1 pb-1")}>
                 {!collapsed && (
-                  <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
-                    {section.label}
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section)}
+                    aria-expanded={open}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/40 transition-colors hover:bg-white/5 hover:text-white/70"
+                  >
+                    <span className="flex-1 text-left">{section.label}</span>
+                    {!open && rolledUp > 0 && (
+                      <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                        {rolledUp > 99 ? "99+" : rolledUp}
+                      </span>
+                    )}
+                    <ChevronDown
+                      className={cn(
+                        "h-3 w-3 shrink-0 transition-transform duration-200",
+                        !open && "-rotate-90"
+                      )}
+                    />
+                  </button>
                 )}
                 {collapsed && idx > 0 && <div className="h-px bg-white/10 mx-2 mb-2 mt-3" />}
                 {collapsed && idx === 0 && <div className="h-px bg-white/10 mx-2 mb-2" />}
-                <div className="space-y-0.5">
-                  {section.items.map(renderItem)}
-                </div>
+                {open && (
+                  <div className="space-y-0.5">
+                    {section.items.map(renderItem)}
+                  </div>
+                )}
               </div>
-            )
-          )}
+            );
+          })}
         </nav>
 
         {footerExtra}

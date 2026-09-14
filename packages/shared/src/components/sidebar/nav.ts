@@ -56,6 +56,24 @@ export function groupContainsActive(
   );
 }
 
+/**
+ * Is the current route anywhere inside this section?
+ *
+ * Which is what decides whether a collapsible section starts open. Built from
+ * the two helpers above so the desktop pane and the mobile drawer cannot
+ * disagree about which section you are standing in.
+ */
+export function sectionContainsActive(
+  section: SidebarSection,
+  pathname: string
+): boolean {
+  return section.items.some((item) =>
+    item.kind === "link"
+      ? isLinkActive(item.href, pathname)
+      : groupContainsActive(item, pathname)
+  );
+}
+
 /** A leaf destination plus the category path that leads to it. */
 export type FlatDestination = {
   href: string;

@@ -25,6 +25,7 @@ import {
   groupContainsActive,
   isLinkActive,
   searchDestinations,
+  sectionContainsActive,
   type SidebarGroup,
   type SidebarItem,
   type SidebarSection,
@@ -94,6 +95,9 @@ export function MobileNavDrawer({
   const panelRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+  const [sectionOverrides, setSectionOverrides] = useState<
+    Record<string, boolean>
+  >({});
   const [mounted, setMounted] = useState(false);
 
   const x = useMotionValue(0);
@@ -114,6 +118,8 @@ export function MobileNavDrawer({
     setQuery("");
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOverrides({});
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSectionOverrides({});
     x.set(0);
   }, [mobileOpen, x]);
 
@@ -134,6 +140,39 @@ export function MobileNavDrawer({
 
   const toggleGroup = (group: SidebarGroup) =>
     setOverrides((prev) => ({ ...prev, [group.label]: !isGroupOpen(group) }));
+
+  // Sections collapse too, and start collapsed apart from the one you are
+  // standing in. Six categories holding 54 destinations meant opening the
+  // drawer put ~2,600px of scroll in front of someone looking for one link;
+  // categorising them made that navigable but not short.
+  const isSectionOpen = useCallback(
+    (section: SidebarSection) =>
+      section.label in sectionOverrides
+        ? sectionOverrides[section.label]
+        : sectionContainsActive(section, pathname),
+    [sectionOverrides, pathname]
+  );
+
+  const toggleSection = (section: SidebarSection) =>
+    setSectionOverrides((prev) => ({
+      ...prev,
+      [section.label]: !isSectionOpen(section),
+    }));
+
+  /** Badges of every descendant, for a section that is shut. */
+  const sectionBadgeCount = useCallback(
+    (section: SidebarSection): number => {
+      const walk = (items: readonly SidebarItem[]): number =>
+        items.reduce(
+          (sum, item) =>
+            sum +
+            (item.kind === "link" ? badgeFor(item.href) : walk(item.children)),
+          0
+        );
+      return walk(section.items);
+    },
+    [badgeFor]
+  );
 
   const handleDragEnd = (_: unknown, info: PanInfo) => {
     if (info.offset.x < -CLOSE_OFFSET_PX || info.velocity.x < -CLOSE_VELOCITY) {
@@ -396,18 +435,37 @@ export function MobileNavDrawer({
                   </div>
                 )
               ) : (
-                sections.map((section) =>
-                  section.items.length === 0 ? null : (
-                    <div key={section.label} className="mb-4 last:mb-0">
-                      <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
-                        {section.label}
-                      </p>
-                      <div className="space-y-0.5">
-                        {section.items.map((item) => renderItem(item))}
-                      </div>
+                sections.map((section) => {
+                  if (section.items.length === 0) return null;
+                  const open = isSectionOpen(section);
+                  const rolledUp = sectionBadgeCount(section);
+                  return (
+                    <div key={section.label} className="mb-2 last:mb-0">
+                      <button
+                        type="button"
+                        onClick={() => toggleSection(section)}
+                        aria-expanded={open}
+                        className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-[11px] font-semibold uppercase tracking-wider text-white/50 transition-colors active:bg-white/10"
+                      >
+                        <span className="flex-1 text-left">{section.label}</span>
+                        {/* A shut section must not swallow the reason to open
+                            it, so its descendants' badges surface here. */}
+                        {!open && <Badge count={rolledUp} />}
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+                            !open && "-rotate-90"
+                          )}
+                        />
+                      </button>
+                      {open && (
+                        <div className="mt-0.5 space-y-0.5">
+                          {section.items.map((item) => renderItem(item))}
+                        </div>
+                      )}
                     </div>
-                  )
-                )
+                  );
+                })
               )}
             </nav>
 
