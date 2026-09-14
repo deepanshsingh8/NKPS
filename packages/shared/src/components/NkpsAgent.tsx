@@ -181,7 +181,7 @@ export function NkpsAgent() {
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
             className={cn(
-              "absolute bottom-16 right-0 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-navy-900/10 transition-all duration-300",
+              "absolute bottom-16 right-0 bg-white dark:bg-card rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-navy-900/10 transition-all duration-300",
               isExpanded && view === "chat"
                 ? "w-[90vw] md:w-[600px] h-[80vh] md:h-[700px]"
                 : "w-[calc(100vw-2rem)] sm:w-80 md:w-96 h-[70vh] sm:h-[500px]"
@@ -259,7 +259,7 @@ export function NkpsAgent() {
                     </span>
                     <span className="flex-1">
                       <span className="flex items-center justify-between">
-                        <span className="font-heading font-semibold text-sm text-navy-900">
+                        <span className="font-heading font-semibold text-sm text-navy-900 dark:text-white">
                           Ask a question
                         </span>
                         <ChevronRight className="w-4 h-4 text-navy-900/30 group-hover:text-gold-500 transition-colors" />
@@ -284,7 +284,7 @@ export function NkpsAgent() {
                     </span>
                     <span className="flex-1">
                       <span className="flex items-center justify-between">
-                        <span className="font-heading font-semibold text-sm text-navy-900">
+                        <span className="font-heading font-semibold text-sm text-navy-900 dark:text-white">
                           Message on WhatsApp
                         </span>
                         <ChevronRight className="w-4 h-4 text-navy-900/30 group-hover:text-[#25D366] transition-colors" />
@@ -305,7 +305,7 @@ export function NkpsAgent() {
                     </span>
                     <span className="flex-1">
                       <span className="flex items-center justify-between">
-                        <span className="font-heading font-semibold text-sm text-navy-900">
+                        <span className="font-heading font-semibold text-sm text-navy-900 dark:text-white">
                           Talk to a person
                         </span>
                         <ChevronRight className="w-4 h-4 text-navy-900/30 group-hover:text-blue-600 transition-colors" />
@@ -326,7 +326,7 @@ export function NkpsAgent() {
                         <button
                           key={q}
                           onClick={() => openChatWith(q)}
-                          className="rounded-full border border-navy-900/15 bg-white px-3 py-1.5 text-xs text-navy-900/80 hover:border-gold-500 hover:text-navy-900 transition-colors"
+                          className="rounded-full border border-navy-900/15 bg-white dark:bg-card px-3 py-1.5 text-xs text-navy-900/80 hover:border-gold-500 hover:text-navy-900 transition-colors"
                         >
                           {q}
                         </button>
@@ -350,8 +350,8 @@ export function NkpsAgent() {
                           "px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap",
                           isExpanded ? "max-w-[70%]" : "max-w-[80%]",
                           msg.role === "user"
-                            ? "bg-gold-500 text-navy-900 rounded-br-sm"
-                            : "bg-cream-50 text-navy-900 rounded-bl-sm"
+                            ? "bg-gold-500 text-navy-900 dark:text-white rounded-br-sm"
+                            : "bg-cream-50 dark:bg-background text-navy-900 rounded-bl-sm"
                         )}
                       >
                         {msg.role === "assistant" ? formatMessage(msg.content) : msg.content}
@@ -361,7 +361,7 @@ export function NkpsAgent() {
 
                   {isLoading && (
                     <div className="flex justify-start">
-                      <div className="bg-cream-50 text-navy-900 px-4 py-3 rounded-2xl rounded-bl-sm">
+                      <div className="bg-cream-50 dark:bg-background text-navy-900 dark:text-white px-4 py-3 rounded-2xl rounded-bl-sm">
                         <div className="flex gap-1">
                           <span className="w-2 h-2 bg-navy-900/40 rounded-full animate-bounce [animation-delay:0ms]" />
                           <span className="w-2 h-2 bg-navy-900/40 rounded-full animate-bounce [animation-delay:150ms]" />
@@ -385,7 +385,7 @@ export function NkpsAgent() {
                       onKeyDown={handleKeyDown}
                       placeholder="Type your question..."
                       disabled={isLoading}
-                      className="flex-1 px-3 py-2 text-sm rounded-full border border-navy-900/20 focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 disabled:opacity-50 text-navy-900 placeholder:text-navy-900/40"
+                      className="flex-1 px-3 py-2 text-sm rounded-full border border-navy-900/20 focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 disabled:opacity-50 text-navy-900 dark:text-white placeholder:text-navy-900/40"
                     />
                     <button
                       onClick={() => sendMessage()}

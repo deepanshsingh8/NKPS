@@ -238,7 +238,7 @@ export default function TimetableTemplatesPage() {
                 <h3 className="font-semibold text-navy-900 dark:text-white">
                   {t.name}
                   {t.is_system && (
-                    <span className="ml-2 text-[10px] uppercase tracking-wide rounded-full bg-blue-100 text-blue-700 px-2 py-0.5">
+                    <span className="ml-2 text-[10px] uppercase tracking-wide rounded-full bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 px-2 py-0.5">
                       Built-in
                     </span>
                   )}

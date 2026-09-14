@@ -709,7 +709,7 @@ export default function AdminExamTypesPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10">
-                <ClipboardList className="h-5 w-5 text-orange-600" />
+                <ClipboardList className="h-5 w-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
                 <DialogTitle>

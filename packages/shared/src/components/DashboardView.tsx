@@ -22,6 +22,7 @@ import {
 import { adminFetch } from "@nkps/shared/lib/admin-api";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { cn } from "@nkps/shared/lib/utils";
+import { formatWeekdayDate, hourInTimeZone } from "@nkps/shared/lib/date";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import { DashboardAnalytics } from "@nkps/shared/components/DashboardAnalytics";
 import {
@@ -59,8 +60,11 @@ interface UpcomingEvent {
   end_date: string | null;
 }
 
+// Hour in the school's timezone, not the runtime's: this renders on the
+// server too, and Vercel is in UTC. Anything time-dependent here must
+// evaluate identically on both sides or hydration throws the tree away.
 function getGreeting(now = new Date()) {
-  const h = now.getHours();
+  const h = hourInTimeZone(now);
   if (h < 5) return "Working late";
   if (h < 12) return "Good morning";
   if (h < 17) return "Good afternoon";
@@ -186,11 +190,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
   };
 
   const greeting = getGreeting();
-  const todayLabel = new Date().toLocaleDateString("en-IN", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+  const todayLabel = formatWeekdayDate();
   const name = displayName(userName, userEmail);
 
   const showAnalytics = scope === "erp";
@@ -395,7 +395,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
             </div>
             <Link
               href={eventsHref}
-              className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors group"
+              className="flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors group"
             >
               View All
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />

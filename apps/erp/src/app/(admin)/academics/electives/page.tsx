@@ -1103,7 +1103,7 @@ export default function ElectivesPage() {
                                         label={`${current.subject_name} (no longer offered)`}
                                       >
                                         {current.subject_name}
-                                        <span className="ml-1 text-[10px] text-amber-600">
+                                        <span className="ml-1 text-[10px] text-amber-600 dark:text-amber-400">
                                           no longer offered
                                         </span>
                                       </SelectItem>
@@ -1114,7 +1114,7 @@ export default function ElectivesPage() {
                                   <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
                                 ) : saved ? (
                                   <Check
-                                    className="h-3.5 w-3.5 text-green-600"
+                                    className="h-3.5 w-3.5 text-green-600 dark:text-green-400"
                                     aria-label="Saved"
                                   />
                                 ) : current ? (

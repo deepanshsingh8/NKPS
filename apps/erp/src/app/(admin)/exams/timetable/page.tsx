@@ -502,7 +502,7 @@ export default function TimetablePage() {
                               size="icon"
                               onClick={() => openEdit(s)}
                               aria-label="Edit timetable slot"
-                              className="h-7 w-7 text-blue-600"
+                              className="h-7 w-7 text-blue-600 dark:text-blue-400"
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
@@ -511,7 +511,7 @@ export default function TimetablePage() {
                               size="icon"
                               onClick={() => setDeleteTarget(s)}
                               aria-label="Delete timetable slot"
-                              className="h-7 w-7 text-red-600"
+                              className="h-7 w-7 text-red-600 dark:text-red-400"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>

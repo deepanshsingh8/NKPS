@@ -549,7 +549,7 @@ const session = useAcademicSession();
                             <span
                               className={
                                 sub.pass_percentage >= 80
-                                  ? "text-green-600"
+                                  ? "text-green-600 dark:text-green-400"
                                   : sub.pass_percentage >= 60
                                     ? "text-yellow-600"
                                     : "text-red-600"

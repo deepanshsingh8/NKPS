@@ -207,7 +207,7 @@ export function GuideLauncher() {
   return (
     <div
       className={cn(
-        "fixed z-40 flex flex-col overflow-hidden border bg-white shadow-2xl",
+        "fixed z-40 flex flex-col overflow-hidden border bg-white dark:bg-card shadow-2xl",
         // Mobile: a bottom sheet, because a 24rem floating card on a 375px
         // screen is a letterbox. Expanded takes the whole viewport.
         expanded
@@ -267,7 +267,7 @@ export function GuideLauncher() {
               Ask how to do something and I&apos;ll give you the steps for this
               screen. I can&apos;t look up any student, fee or exam record —
               that&apos;s{" "}
-              <span className="font-medium text-navy-900">Ask your school</span>{" "}
+              <span className="font-medium text-navy-900 dark:text-white">Ask your school</span>{" "}
               under Reports.
             </p>
             {/* Seeded from the registry, so the suggestions are always things
@@ -298,7 +298,7 @@ export function GuideLauncher() {
               {turn.content}
             </div>
           ) : (
-            <div key={i} className="space-y-1.5 text-sm text-navy-900">
+            <div key={i} className="space-y-1.5 text-sm text-navy-900 dark:text-white">
               {turn.tool && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -318,7 +318,7 @@ export function GuideLauncher() {
                 </div>
               )}
               {turn.error && (
-                <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
+                <p className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-amber-900 dark:text-amber-300">
                   {turn.error}
                 </p>
               )}
@@ -356,7 +356,7 @@ export function GuideLauncher() {
             type="button"
             onClick={() => abortRef.current?.abort()}
             aria-label="Stop"
-            className="shrink-0 rounded-md border p-2 text-navy-900 transition hover:border-red-400 hover:text-red-700"
+            className="shrink-0 rounded-md border p-2 text-navy-900 dark:text-white transition hover:border-red-400 hover:text-red-700"
           >
             <Square className="h-3 w-3 fill-current" />
           </button>

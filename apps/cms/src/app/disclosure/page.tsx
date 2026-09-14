@@ -103,7 +103,7 @@ export default function AdminDisclosurePage() {
     <div>
       <div className="flex items-center gap-3 mb-6">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
-          <ScrollText className="h-5 w-5 text-amber-600" />
+          <ScrollText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
         </div>
         <div>
           <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
@@ -341,7 +341,7 @@ function DocumentsTab({
           <div className="flex items-start justify-between gap-4 mb-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-                <FileText className="h-4 w-4 text-blue-600" />
+                <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-navy-900 dark:text-white truncate">
@@ -349,7 +349,7 @@ function DocumentsTab({
                 </p>
                 {doc.file_url ? (
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
+                    <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
                       <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
                       Uploaded
                     </span>
@@ -779,7 +779,7 @@ function ResultAcademicsTab({
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
-                <ScrollText className="h-5 w-5 text-amber-600" />
+                <ScrollText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
                 <DialogTitle>

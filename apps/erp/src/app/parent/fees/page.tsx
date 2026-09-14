@@ -471,7 +471,7 @@ export default function ParentFeesPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold text-green-600">
+                <p className="text-3xl font-bold text-green-600 dark:text-green-400">
                   {formatCurrency(totalPaid)}
                 </p>
               </CardContent>
@@ -485,7 +485,7 @@ export default function ParentFeesPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold text-red-600">
+                <p className="text-3xl font-bold text-red-600 dark:text-red-400">
                   {formatCurrency(pending)}
                 </p>
                 {/* Name the surcharge rather than letting it inflate the
@@ -512,7 +512,7 @@ export default function ParentFeesPage() {
               <CardContent className="p-6 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl bg-gold-100 dark:bg-gold-900/30 flex items-center justify-center">
-                    <Wallet className="h-5 w-5 text-gold-600" />
+                    <Wallet className="h-5 w-5 text-gold-600 dark:text-gold-400" />
                   </div>
                   <div>
                     <p className="font-medium text-navy-900 dark:text-white">

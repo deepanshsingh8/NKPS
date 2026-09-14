@@ -365,7 +365,7 @@ export default function AdminCalendarPage() {
         <CardContent>
           {loading ? (
             <div className="flex justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-navy-900" />
+              <Loader2 className="h-6 w-6 animate-spin text-navy-900 dark:text-white" />
             </div>
           ) : events.length === 0 ? (
             <div className="text-center py-12 text-gray-400 dark:text-gray-500">
@@ -465,7 +465,7 @@ export default function AdminCalendarPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10">
-                <CalendarDays className="h-5 w-5 text-rose-600" />
+                <CalendarDays className="h-5 w-5 text-rose-600 dark:text-rose-400" />
               </div>
               <div>
                 <DialogTitle>Add Calendar Event</DialogTitle>
@@ -561,7 +561,7 @@ export default function AdminCalendarPage() {
             <label className="flex items-start gap-2.5 rounded-lg border border-gray-200 dark:border-border p-3 cursor-pointer">
               <input
                 type="checkbox"
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-navy-900 focus:ring-navy-900"
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-navy-900 dark:text-white focus:ring-navy-900"
                 checked={newEvent.is_public}
                 onChange={(e) =>
                   setNewEvent({ ...newEvent, is_public: e.target.checked })
@@ -599,7 +599,7 @@ export default function AdminCalendarPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
-                <Pencil className="h-5 w-5 text-blue-600" />
+                <Pencil className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <DialogTitle>Edit Calendar Event</DialogTitle>
@@ -695,7 +695,7 @@ export default function AdminCalendarPage() {
             <label className="flex items-start gap-2.5 rounded-lg border border-gray-200 dark:border-border p-3 cursor-pointer">
               <input
                 type="checkbox"
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-navy-900 focus:ring-navy-900"
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-navy-900 dark:text-white focus:ring-navy-900"
                 checked={editData.is_public}
                 onChange={(e) =>
                   setEditData({ ...editData, is_public: e.target.checked })

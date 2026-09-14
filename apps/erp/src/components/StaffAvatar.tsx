@@ -52,7 +52,7 @@ export function StaffAvatar({
     return (
       <div
         className={cn(
-          "aspect-[4/5] rounded-md overflow-hidden relative bg-gray-50",
+          "aspect-[4/5] rounded-md overflow-hidden relative bg-gray-50 dark:bg-muted",
           s.frame,
           className
         )}

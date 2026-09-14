@@ -46,8 +46,8 @@ export default function ForgotPasswordPage() {
         <div className="bg-white dark:bg-card rounded-2xl shadow-xl border border-gray-100 dark:border-border p-8">
           {sent ? (
             <div className="text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/30">
+                <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
                 Check Your Email
@@ -81,7 +81,7 @@ export default function ForgotPasswordPage() {
             <>
               <div className="text-center mb-8">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gold-500/10">
-                  <Mail className="h-8 w-8 text-gold-600" />
+                  <Mail className="h-8 w-8 text-gold-600 dark:text-gold-400" />
                 </div>
                 <h2 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
                   Forgot Password?

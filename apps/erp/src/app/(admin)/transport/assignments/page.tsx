@@ -959,7 +959,7 @@ export default function StudentTransportAssignmentsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10">
-                <BusIcon className="h-5 w-5 text-teal-600" />
+                <BusIcon className="h-5 w-5 text-teal-600 dark:text-teal-400" />
               </div>
               <div>
                 <DialogTitle>Transport Assignment</DialogTitle>
@@ -1030,7 +1030,7 @@ export default function StudentTransportAssignmentsPage() {
                     </p>
                   )}
                   {errors.stop && (
-                    <p className="text-xs text-red-600">{errors.stop}</p>
+                    <p className="text-xs text-red-600 dark:text-red-400">{errors.stop}</p>
                   )}
                 </div>
 
@@ -1150,7 +1150,7 @@ export default function StudentTransportAssignmentsPage() {
                       covers both legs.
                     </p>
                     {errors.override && (
-                      <p className="text-xs text-red-600">{errors.override}</p>
+                      <p className="text-xs text-red-600 dark:text-red-400">{errors.override}</p>
                     )}
                   </div>
                 )}
@@ -1202,7 +1202,7 @@ export default function StudentTransportAssignmentsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10">
-                <Trash2 className="h-5 w-5 text-red-600" />
+                <Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
               </div>
               <div>
                 <DialogTitle>Remove from transport</DialogTitle>

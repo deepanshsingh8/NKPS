@@ -117,8 +117,8 @@ export default function PortalRegisterPage() {
           {submitted ? (
             /* Success State */
             <div className="bg-white dark:bg-card rounded-2xl shadow-xl border border-gray-100 dark:border-border p-8 text-center">
-              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                <CheckCircle2 className="h-8 w-8 text-green-600" />
+              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/30">
+                <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-navy-900 dark:text-white mb-3">
                 Registration Submitted!
@@ -280,7 +280,7 @@ export default function PortalRegisterPage() {
           <div className="mt-4 text-center">
             <Link
               href="/portal/login"
-              className="text-sm text-gold-600 hover:text-gold-500 font-medium transition-colors"
+              className="text-sm text-gold-600 dark:text-gold-400 hover:text-gold-500 font-medium transition-colors"
             >
               Already have an account? Sign in
             </Link>

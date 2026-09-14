@@ -17,24 +17,53 @@
   --font-heading: var(--font-playfair);
   --font-mono: var(--font-geist-mono);
 
-  /* Navy palette */
+  /* Navy palette.
+
+     The ramp used to stop at 600, but a light-tint rung is exactly what a
+     badge or chip on a white card wants — so `bg-navy-100 text-navy-800` was
+     written anyway, in a dozen places. Tailwind emits nothing for an undefined
+     shade, silently: in light mode the missing tint just fell back to the
+     Badge's own background and looked fine, so nobody noticed. In dark mode
+     the SAME omission hid `dark:text-navy-200`, leaving navy-800 ink on a
+     navy-900 ground — the class chips in Subjects & Assignments were there,
+     coloured #111D35 on #0C1729, at a contrast ratio of 1.06:1.
+
+     Filling the ramp in fixes every one of those call sites in both themes at
+     once, and means the next one written cannot fail the same way. Hue is held
+     near 220 with saturation easing off as it lightens, to match the
+     600-950 rungs above. */
   --color-navy-950: #060E1A;
   --color-navy-900: #0A1628;
   --color-navy-800: #111D35;
   --color-navy-700: #1A2744;
   --color-navy-600: #243358;
+  --color-navy-500: #324B7B;
+  --color-navy-400: #4966A2;
+  --color-navy-300: #768DBC;
+  --color-navy-200: #ABB8D4;
+  --color-navy-100: #D6DDEB;
+  --color-navy-50: #EFF2F8;
 
   /* Blue accent */
   --color-blue-600: #2563EB;
   --color-blue-500: #3B82F6;
   --color-blue-400: #60A5FA;
 
-  /* Gold accent */
-  --color-gold-700: #8A6D12; /* AA-contrast (>=4.5:1) gold for text on white/cream */
+  /* Gold accent. Same story as navy: the tints and shades below 300 / above
+     600 were in use before they existed. gold-700 is the AA-contrast value
+     (>=4.5:1 on white and on cream) and was already defined in the website
+     app only — which is how `text-gold-700` came to render as inherited body
+     colour in the ERP and the CMS. */
+  --color-gold-900: #4A3A0D;
+  --color-gold-800: #715814;
+  --color-gold-700: #8A6D12;
   --color-gold-600: #B8941F;
   --color-gold-500: #D4A843;
   --color-gold-400: #E5C06E;
   --color-gold-300: #F0D99A;
+  --color-gold-200: #F6E9C6;
+  --color-gold-100: #FCF7E9;
+  --color-gold-50: #FDFAF1;
 
   /* Cream backgrounds */
   --color-cream-50: #FDFBF7;

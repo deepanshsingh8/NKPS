@@ -418,7 +418,7 @@ export default function AdminArticlesPage() {
                 <TableRow key={article.id}>
                   <TableCell>
                     {article.cover_image_url ? (
-                      <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 relative">
+                      <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 dark:bg-muted relative">
                         <Image
                           src={article.cover_image_url}
                           alt={article.title}
@@ -443,7 +443,7 @@ export default function AdminArticlesPage() {
                   </TableCell>
                   <TableCell>
                     {article.is_published ? (
-                      <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-transparent">
+                      <Badge className="bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 hover:bg-green-100 border-transparent">
                         Published
                       </Badge>
                     ) : (
@@ -452,7 +452,7 @@ export default function AdminArticlesPage() {
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-gray-600">
+                  <TableCell className="text-sm text-gray-600 dark:text-gray-300">
                     {formatDate(article.published_at)}
                   </TableCell>
                   <TableCell className="text-right">
@@ -529,11 +529,11 @@ export default function AdminArticlesPage() {
                 <>
                   {file && file.length > 0 ? (
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-24 h-14 rounded-lg overflow-hidden bg-gray-100 relative border-2 border-green-400">
+                      <div className="w-24 h-14 rounded-lg overflow-hidden bg-gray-100 dark:bg-muted relative border-2 border-green-400">
                         <Image src={URL.createObjectURL(file[0])} alt="Cover preview" fill className="object-cover" sizes="96px" />
                       </div>
                       <div>
-                        <p className="text-xs text-green-600 font-medium">Cropped & ready</p>
+                        <p className="text-xs text-green-600 dark:text-green-400 font-medium">Cropped & ready</p>
                         <button type="button" onClick={() => setFile(null)} className="text-xs text-gray-500 hover:text-red-500 mt-0.5">
                           Remove
                         </button>
@@ -541,7 +541,7 @@ export default function AdminArticlesPage() {
                     </div>
                   ) : form.cover_image_url ? (
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-24 h-14 rounded-lg overflow-hidden bg-gray-100 relative">
+                      <div className="w-24 h-14 rounded-lg overflow-hidden bg-gray-100 dark:bg-muted relative">
                         <Image src={form.cover_image_url} alt="Current cover" fill className="object-cover" sizes="96px" />
                       </div>
                       <span className="text-xs text-gray-500">Current (upload new to replace)</span>

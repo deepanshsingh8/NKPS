@@ -895,13 +895,13 @@ export default function AdminGalleryPage() {
       </div>
 
       {/* Toggle Tabs */}
-      <div className="flex items-center gap-1 mb-6 bg-gray-100 rounded-xl p-1 w-fit">
+      <div className="flex items-center gap-1 mb-6 bg-gray-100 dark:bg-muted rounded-xl p-1 w-fit">
         <button
           onClick={() => setTab("images")}
           className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
             tab === "images"
-              ? "bg-white text-navy-900 shadow-sm"
+              ? "bg-white dark:bg-card text-navy-900 dark:text-white shadow-sm"
               : "text-gray-500 hover:text-navy-900"
           )}
         >
@@ -916,7 +916,7 @@ export default function AdminGalleryPage() {
           className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
             tab === "events"
-              ? "bg-white text-navy-900 shadow-sm"
+              ? "bg-white dark:bg-card text-navy-900 dark:text-white shadow-sm"
               : "text-gray-500 hover:text-navy-900"
           )}
         >
@@ -934,7 +934,7 @@ export default function AdminGalleryPage() {
               <DialogHeader>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
-                    <LucideImage className="h-5 w-5 text-blue-600" />
+                    <LucideImage className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
                     <DialogTitle>Upload Gallery Images</DialogTitle>
@@ -1226,7 +1226,7 @@ export default function AdminGalleryPage() {
                           />
                         </TableCell>
                         <TableCell className="w-16">
-                          <div className="relative h-12 w-12 rounded-md overflow-hidden bg-navy-100 border border-gray-200 dark:border-border">
+                          <div className="relative h-12 w-12 rounded-md overflow-hidden bg-navy-100 dark:bg-navy-900/30 border border-gray-200 dark:border-border">
                             {image.src && (
                               <Image
                                 src={image.src}
@@ -1295,7 +1295,7 @@ export default function AdminGalleryPage() {
                         : "border-gray-200 dark:border-border hover:border-gray-300 hover:shadow-md"
                     )}
                   >
-                    <div className="aspect-square bg-navy-100 flex items-center justify-center relative">
+                    <div className="aspect-square bg-navy-100 dark:bg-navy-900/30 flex items-center justify-center relative">
                       {image.src ? (
                         <Image
                           src={image.src}
@@ -1371,7 +1371,7 @@ export default function AdminGalleryPage() {
               <DialogHeader>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
-                    <FolderOpen className="h-5 w-5 text-amber-600" />
+                    <FolderOpen className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                   </div>
                   <div>
                     <DialogTitle>{editingId ? "Edit Gallery Event" : "Add Gallery Event"}</DialogTitle>
@@ -1458,13 +1458,13 @@ export default function AdminGalleryPage() {
               <DialogHeader>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
-                    <Upload className="h-5 w-5 text-emerald-600" />
+                    <Upload className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                   </div>
                   <div>
                     <DialogTitle>Upload Photos to Event</DialogTitle>
                     <p className="text-xs text-gray-500 mt-0.5">
                       Bulk upload images for{" "}
-                      <span className="font-medium text-gray-700">
+                      <span className="font-medium text-gray-700 dark:text-gray-300">
                         {events.find((e) => e.id === uploadEventId)?.title}
                       </span>
                     </p>
@@ -1685,7 +1685,7 @@ export default function AdminGalleryPage() {
                                       No photos in this event yet.
                                       <button
                                         onClick={() => openEventUpload(evt.id)}
-                                        className="text-emerald-600 hover:text-emerald-700 font-medium underline underline-offset-2"
+                                        className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 font-medium underline underline-offset-2"
                                       >
                                         Upload photos
                                       </button>

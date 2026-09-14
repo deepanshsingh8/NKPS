@@ -393,7 +393,7 @@ export default function TransportStopsPage() {
                         onClick={() => openFeeDialog(stop)}
                         title="Set monthly fee"
                         aria-label="Set monthly fee"
-                        className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
+                        className="text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
                       >
                         <IndianRupee className="h-4 w-4" />
                       </Button>
@@ -431,7 +431,7 @@ export default function TransportStopsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10">
-                <MapPin className="h-5 w-5 text-teal-600" />
+                <MapPin className="h-5 w-5 text-teal-600 dark:text-teal-400" />
               </div>
               <div>
                 <DialogTitle>
@@ -508,7 +508,7 @@ export default function TransportStopsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-500/10">
-                <IndianRupee className="h-5 w-5 text-green-600" />
+                <IndianRupee className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
                 <DialogTitle>Set Monthly Fee</DialogTitle>

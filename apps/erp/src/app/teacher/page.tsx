@@ -378,7 +378,7 @@ export default function TeacherDashboard() {
           <div className="relative">
             <div className="flex items-center gap-3 mb-3">
               <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <BookOpen className="h-5 w-5 text-blue-600" />
+                <BookOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <span className="text-sm font-medium text-gray-500 dark:text-gray-400">My Classes</span>
             </div>
@@ -394,7 +394,7 @@ export default function TeacherDashboard() {
           <div className="relative">
             <div className="flex items-center gap-3 mb-3">
               <div className="h-10 w-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                <Users className="h-5 w-5 text-emerald-600" />
+                <Users className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Students</span>
             </div>
@@ -432,7 +432,7 @@ export default function TeacherDashboard() {
                 <ClipboardCheck
                   className={cn(
                     "h-5 w-5",
-                    stats.pendingAttendance ? "text-amber-600" : "text-green-600"
+                    stats.pendingAttendance ? "text-amber-600 dark:text-amber-400" : "text-green-600"
                   )}
                 />
               </div>
@@ -516,7 +516,7 @@ export default function TeacherDashboard() {
           </h2>
           <Link
             href="/teacher/timetable"
-            className="text-xs text-gold-600 hover:text-gold-500 font-medium inline-flex items-center gap-1"
+            className="text-xs text-gold-600 dark:text-gold-400 hover:text-gold-500 font-medium inline-flex items-center gap-1"
           >
             Full timetable
             <ArrowRight className="h-3 w-3" />
@@ -596,7 +596,7 @@ export default function TeacherDashboard() {
             </div>
             <Link
               href="/teacher/results"
-              className="text-xs text-gold-600 hover:text-gold-500 font-medium inline-flex items-center gap-1"
+              className="text-xs text-gold-600 dark:text-gold-400 hover:text-gold-500 font-medium inline-flex items-center gap-1"
             >
               Open results
               <ArrowRight className="h-3 w-3" />

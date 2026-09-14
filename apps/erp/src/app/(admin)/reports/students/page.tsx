@@ -620,7 +620,7 @@ export default function StudentReportPage() {
           <Button
             variant="outline"
             onClick={deletePreset}
-            className="text-red-600 hover:text-red-700"
+            className="text-red-600 dark:text-red-400 hover:text-red-700"
           >
             <Trash2 className="mr-2 h-4 w-4" />
             Delete
@@ -682,7 +682,7 @@ export default function StudentReportPage() {
                       <div className="flex gap-3 text-xs">
                         <button
                           type="button"
-                          className="text-blue-600 hover:underline"
+                          className="text-blue-600 dark:text-blue-400 hover:underline"
                           onClick={() => set("class_ids", classes.map((c) => c.id))}
                         >
                           Select all
@@ -1174,7 +1174,7 @@ export default function StudentReportPage() {
               </button>
             )}
             {columnWarning && (
-              <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
+              <p className="rounded bg-amber-50 dark:bg-amber-950/30 px-2 py-1 text-xs text-amber-800 dark:text-amber-300">
                 {totalColumns} columns — fine for Excel
                 {tooWideToPrint ? ", too wide for PDF" : ", tight in print"}.
               </p>
@@ -1202,7 +1202,7 @@ export default function StudentReportPage() {
                       <button
                         type="button"
                         onClick={() => toggleGroup(group, !allOn)}
-                        className="text-xs text-blue-600 hover:underline"
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                       >
                         {allOn ? "None" : "All"}
                       </button>
@@ -1227,7 +1227,7 @@ export default function StudentReportPage() {
                         {f.sensitive && (
                           <span
                             title="Restricted — admins only"
-                            className="text-[10px] uppercase text-amber-600"
+                            className="text-[10px] uppercase text-amber-600 dark:text-amber-400"
                           >
                             PII
                           </span>
@@ -1257,7 +1257,7 @@ export default function StudentReportPage() {
               )}
             </div>
             {preview.withheld > 0 && (
-              <Badge variant="secondary" className="bg-amber-100 text-amber-900">
+              <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-950/30 text-amber-900 dark:text-amber-300">
                 {preview.withheld} column(s) withheld
               </Badge>
             )}

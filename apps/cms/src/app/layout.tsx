@@ -41,10 +41,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   // See apps/erp/src/app/layout.tsx — safe-area insets report 0 without this.
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#0A1628" },
-    { media: "(prefers-color-scheme: dark)", color: "#060E1A" },
-  ],
+  // themeColor is deliberately NOT declared here. Next re-renders the viewport
+  // metadata on client-side navigation, which reverted the browser chrome to
+  // the light colour mid-session; ThemeProvider owns the tag instead.
 };
 
 export default function RootLayout({

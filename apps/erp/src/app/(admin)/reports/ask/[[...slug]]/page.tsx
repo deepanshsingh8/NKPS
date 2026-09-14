@@ -564,7 +564,7 @@ export default function AskPage() {
           {!transcriptLoading && turns.length === 0 && (
             <div className="mx-auto max-w-2xl rounded-lg border bg-white dark:bg-card p-5">
               <div className="mb-3 flex items-center gap-2 text-sm font-medium text-navy-900 dark:text-white">
-                <Sparkles className="h-4 w-4 text-blue-600" />
+                <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 Ask for a list in plain language
               </div>
               <p className="mb-4 text-sm text-muted-foreground">
@@ -587,7 +587,7 @@ export default function AskPage() {
           )}
 
           {error && (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-300">
               <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -705,7 +705,7 @@ export default function AskPage() {
                 )}
 
                 {turn.error && (
-                  <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-300">
                     <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>{turn.error}</span>
                   </div>

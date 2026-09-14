@@ -424,9 +424,9 @@ export function DayBookImportDialog({
           >
             <div className="mb-2 flex items-center gap-2 font-medium">
               {rec.parse_matches_file ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               ) : (
-                <AlertTriangle className="h-4 w-4 text-red-600" />
+                <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
               )}
               Reconciliation
               {s?.period_start ? (
@@ -486,7 +486,7 @@ export function DayBookImportDialog({
         {/* ── Counters ───────────────────────────────────────────────────── */}
         {s ? (
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className="border-emerald-400 text-emerald-700">
+            <Badge variant="outline" className="border-emerald-400 text-emerald-700 dark:text-emerald-400">
               {s.ok} will import
             </Badge>
             {s.already_imported > 0 ? (
@@ -496,17 +496,17 @@ export function DayBookImportDialog({
               <Badge variant="outline">{s.skip_zero} zero value</Badge>
             ) : null}
             {s.needs_review > 0 ? (
-              <Badge variant="outline" className="border-amber-400 text-amber-700">
+              <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-400">
                 {s.needs_review} need review
               </Badge>
             ) : null}
             {s.conflict > 0 ? (
-              <Badge variant="outline" className="border-red-400 text-red-700">
+              <Badge variant="outline" className="border-red-400 text-red-700 dark:text-red-400">
                 {s.conflict} conflicts
               </Badge>
             ) : null}
             {s.error > 0 ? (
-              <Badge variant="outline" className="border-red-400 text-red-700">
+              <Badge variant="outline" className="border-red-400 text-red-700 dark:text-red-400">
                 {s.error} errors
               </Badge>
             ) : null}
@@ -516,17 +516,17 @@ export function DayBookImportDialog({
               </Badge>
             ) : null}
             {s.over_allocated_rows ? (
-              <Badge variant="outline" className="border-amber-400 text-amber-700">
+              <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-400">
                 {s.over_allocated_rows} paid beyond the schedule
               </Badge>
             ) : null}
             {s.students_to_create ? (
-              <Badge variant="outline" className="border-blue-400 text-blue-700">
+              <Badge variant="outline" className="border-blue-400 text-blue-700 dark:text-blue-400">
                 {s.students_to_create} students to create
               </Badge>
             ) : null}
             {s.will_create_classes?.length ? (
-              <Badge variant="outline" className="border-blue-400 text-blue-700">
+              <Badge variant="outline" className="border-blue-400 text-blue-700 dark:text-blue-400">
                 {s.will_create_classes.length} classes to create
               </Badge>
             ) : null}
@@ -608,7 +608,7 @@ export function DayBookImportDialog({
         {result && result.summary.needs_review > 0 && !result.summary.committed ? (
           <div className="rounded-lg border border-amber-300 bg-amber-50/60 p-3 dark:bg-amber-950/10">
             <div className="mb-1 flex items-center gap-2 text-sm font-medium">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               {result.summary.needs_review} receipt(s) belong to students who already
               have payments entered directly in the ERP
             </div>
@@ -698,7 +698,7 @@ export function DayBookImportDialog({
         {result?.summary.committed ? (
           <div className="rounded-lg border border-emerald-300 bg-emerald-50/60 p-3 text-sm dark:bg-emerald-950/10">
             <div className="flex items-center gap-2 font-medium">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               Imported {result.summary.payments_created ?? 0} payment row(s),{" "}
               {inr(result.summary.amount_total ?? 0)}
               {result.summary.students_created
@@ -758,7 +758,7 @@ function MappingPanel({
   return (
     <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50/60 p-3 dark:bg-amber-950/10">
       <div className="flex items-center gap-2 text-sm font-medium">
-        <AlertTriangle className="h-4 w-4 text-amber-600" />
+        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
         {title}
       </div>
       {children}

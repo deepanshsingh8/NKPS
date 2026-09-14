@@ -51,10 +51,9 @@ export const viewport: Viewport = {
   // the app is letterboxed inside the safe area on a notched phone and the
   // insets the layout reads are all zero.
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#0A1628" },
-    { media: "(prefers-color-scheme: dark)", color: "#060E1A" },
-  ],
+  // themeColor is deliberately NOT declared here. Next re-renders the viewport
+  // metadata on client-side navigation, which reverted the browser chrome to
+  // the light colour mid-session; ThemeProvider owns the tag instead.
 };
 
 export default function RootLayout({

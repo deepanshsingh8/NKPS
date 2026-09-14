@@ -330,7 +330,7 @@ export default function StudentFeesPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-green-600">
+            <p className="text-3xl font-bold text-green-600 dark:text-green-400">
               {formatCurrency(totalPaid)}
             </p>
           </CardContent>
@@ -344,7 +344,7 @@ export default function StudentFeesPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-red-600">
+            <p className="text-3xl font-bold text-red-600 dark:text-red-400">
               {formatCurrency(pending)}
             </p>
             {/* Name the surcharge rather than letting it inflate the headline

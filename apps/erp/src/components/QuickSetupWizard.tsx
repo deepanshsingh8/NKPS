@@ -366,7 +366,7 @@ export default function QuickSetupWizard({
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
-              <Sparkles className="h-5 w-5 text-amber-600" />
+              <Sparkles className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
               <DialogTitle>Quick Setup — CBSE Curriculum</DialogTitle>
@@ -774,7 +774,7 @@ function SubjectRow({
         type="checkbox"
         checked={entry.selected}
         onChange={onToggle}
-        className="rounded border-gray-300 dark:border-gray-600 text-navy-900 focus:ring-navy-900"
+        className="rounded border-gray-300 dark:border-gray-600 text-navy-900 dark:text-white focus:ring-navy-900"
       />
       <span className="text-sm font-medium text-gray-900 dark:text-white flex-1 min-w-0">
         {entry.name}

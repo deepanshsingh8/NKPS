@@ -474,7 +474,7 @@ const StudentTableRow = memo(function StudentTableRow({
               onClick={() => actions.onUnlock(student)}
               disabled={!isAdmin}
               aria-label="Unlock this record for correction"
-              className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+              className="text-amber-600 dark:text-amber-400 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
               title={
                 isAdmin
                   ? "This session is closed — unlock to correct this record"
@@ -491,7 +491,7 @@ const StudentTableRow = memo(function StudentTableRow({
               aria-label="Edit student"
               className={
                 unlocked
-                  ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                  ? "text-amber-600 dark:text-amber-400 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
                   : "text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
               }
               title={unlocked ? "Edit (correcting a closed session)" : "Edit student"}
@@ -508,7 +508,7 @@ const StudentTableRow = memo(function StudentTableRow({
             size="icon-sm"
             onClick={() => actions.onFees(student.id)}
             aria-label="View fees / record payment"
-            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+            className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
             title="View fees / record payment"
           >
             <Receipt className="h-4 w-4" />
@@ -2241,7 +2241,7 @@ export default function AdminStudentsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
-                <GraduationCap className="h-5 w-5 text-emerald-600" />
+                <GraduationCap className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
                 <DialogTitle>Add New Student</DialogTitle>
@@ -2259,7 +2259,7 @@ export default function AdminStudentsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
-                <Pencil className="h-5 w-5 text-blue-600" />
+                <Pencil className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <DialogTitle>Edit Student</DialogTitle>
@@ -2456,7 +2456,7 @@ export default function AdminStudentsPage() {
               <DialogHeader>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10">
-                    <UserPlus className="h-5 w-5 text-violet-600" />
+                    <UserPlus className="h-5 w-5 text-violet-600 dark:text-violet-400" />
                   </div>
                   <div>
                     <DialogTitle>Invite a guardian</DialogTitle>
@@ -2572,7 +2572,7 @@ export default function AdminStudentsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10">
-                <ArrowUpCircle className="h-5 w-5 text-purple-600" />
+                <ArrowUpCircle className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
                 <DialogTitle>Promote Class</DialogTitle>

@@ -1542,7 +1542,7 @@ export default function AdminSubjectsPage() {
         <div className="erp-table-container p-4 sm:p-6">
           {/* §6 Math review banner */}
           {mathReviewClasses.length > 0 && (
-            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-900 dark:text-amber-300">
               <strong>Action needed:</strong> {mathReviewClasses.join(", ")}{" "}
               {mathReviewClasses.length === 1 ? "is" : "are"} still carrying the
               generic <span className="font-mono">Mathematics</span> subject. From
@@ -1637,7 +1637,7 @@ export default function AdminSubjectsPage() {
                            "Co-curricular"}
                         </Badge>
                       ) : (
-                        <Badge variant="secondary" className="bg-amber-100 text-amber-700">
+                        <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400">
                           Uncategorized
                         </Badge>
                       )}
@@ -2327,7 +2327,7 @@ export default function AdminSubjectsPage() {
                   type="checkbox"
                   checked={showRetiredTeachers}
                   onChange={(e) => setShowRetiredTeachers(e.target.checked)}
-                  className="rounded border-gray-300 dark:border-gray-600 text-navy-900 focus:ring-navy-900"
+                  className="rounded border-gray-300 dark:border-gray-600 text-navy-900 dark:text-white focus:ring-navy-900"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
                   Include retired teachers
@@ -2475,7 +2475,7 @@ export default function AdminSubjectsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10">
-                <BookOpen className="h-5 w-5 text-indigo-600" />
+                <BookOpen className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
               </div>
               <div>
                 <DialogTitle>Add New Subject</DialogTitle>
@@ -2553,7 +2553,7 @@ export default function AdminSubjectsPage() {
                 type="checkbox"
                 checked={isElective}
                 onChange={(e) => setIsElective(e.target.checked)}
-                className="rounded border-gray-300 dark:border-gray-600 text-navy-900 focus:ring-navy-900"
+                className="rounded border-gray-300 dark:border-gray-600 text-navy-900 dark:text-white focus:ring-navy-900"
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">
                 Elective subject
@@ -2589,7 +2589,7 @@ export default function AdminSubjectsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
-                <Pencil className="h-5 w-5 text-blue-600" />
+                <Pencil className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <DialogTitle>Edit Subject</DialogTitle>
@@ -2672,7 +2672,7 @@ export default function AdminSubjectsPage() {
                 type="checkbox"
                 checked={editIsElective}
                 onChange={(e) => setEditIsElective(e.target.checked)}
-                className="rounded border-gray-300 dark:border-gray-600 text-navy-900 focus:ring-navy-900"
+                className="rounded border-gray-300 dark:border-gray-600 text-navy-900 dark:text-white focus:ring-navy-900"
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">
                 Elective subject
@@ -2712,7 +2712,7 @@ export default function AdminSubjectsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
-                <Pencil className="h-5 w-5 text-blue-600" />
+                <Pencil className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <DialogTitle>Change Teacher</DialogTitle>
@@ -2830,7 +2830,7 @@ export default function AdminSubjectsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
-                <GraduationCap className="h-5 w-5 text-emerald-600" />
+                <GraduationCap className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
                 <DialogTitle>
@@ -2936,7 +2936,7 @@ export default function AdminSubjectsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
-                <Pencil className="h-5 w-5 text-blue-600" />
+                <Pencil className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <DialogTitle>Edit Stream</DialogTitle>
@@ -3043,7 +3043,7 @@ export default function AdminSubjectsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
-                <Users className="h-5 w-5 text-blue-600" />
+                <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <DialogTitle>
@@ -3080,7 +3080,7 @@ export default function AdminSubjectsPage() {
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleTeacherSubject(subject.id)}
-                        className="rounded border-gray-300 dark:border-gray-600 text-navy-900 focus:ring-navy-900"
+                        className="rounded border-gray-300 dark:border-gray-600 text-navy-900 dark:text-white focus:ring-navy-900"
                       />
                       <div>
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -3130,7 +3130,7 @@ export default function AdminSubjectsPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10">
-                <Settings2 className="h-5 w-5 text-purple-600" />
+                <Settings2 className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
                 <DialogTitle>
@@ -3168,7 +3168,7 @@ export default function AdminSubjectsPage() {
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleStreamSubject(subject.id)}
-                        className="rounded border-gray-300 dark:border-gray-600 text-navy-900 focus:ring-navy-900"
+                        className="rounded border-gray-300 dark:border-gray-600 text-navy-900 dark:text-white focus:ring-navy-900"
                       />
                       <div>
                         <span className="text-sm font-medium text-gray-900 dark:text-white">

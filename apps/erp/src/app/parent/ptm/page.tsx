@@ -200,7 +200,7 @@ export default function ParentPtmPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-navy-900" />
+        <Loader2 className="h-8 w-8 animate-spin text-navy-900 dark:text-white" />
       </div>
     );
   }
@@ -286,7 +286,7 @@ export default function ParentPtmPage() {
               <CardContent>
                 {loadingNotes ? (
                   <div className="flex items-center justify-center h-32">
-                    <Loader2 className="h-6 w-6 animate-spin text-navy-900" />
+                    <Loader2 className="h-6 w-6 animate-spin text-navy-900 dark:text-white" />
                   </div>
                 ) : notes.length === 0 ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400 py-4">

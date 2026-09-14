@@ -145,7 +145,7 @@ const BOOLEAN_ITEMS = [
 
 function FieldError({ error }: { error?: string }) {
   if (!error) return null;
-  return <p className="text-[11px] text-red-600 mt-1">{error}</p>;
+  return <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{error}</p>;
 }
 
 const StudentTextField = memo(function StudentTextField({

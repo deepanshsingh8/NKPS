@@ -207,13 +207,13 @@ export default function TimetableImportPage() {
         <div className="erp-table-container p-4 space-y-3">
           <div className="flex flex-wrap gap-3 items-center">
             <span className="inline-flex items-center gap-1.5 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-600" /> {totals.ok} ready
+              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" /> {totals.ok} ready
             </span>
             <span className="inline-flex items-center gap-1.5 text-sm">
-              <AlertTriangle className="h-4 w-4 text-amber-600" /> {totals.warning} warnings
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" /> {totals.warning} warnings
             </span>
             <span className="inline-flex items-center gap-1.5 text-sm">
-              <XCircle className="h-4 w-4 text-red-600" /> {totals.error} errors
+              <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" /> {totals.error} errors
             </span>
             {totals.error > 0 && (
               <Button variant="outline" size="sm" onClick={downloadErrorReport}>
@@ -264,11 +264,11 @@ export default function TimetableImportPage() {
                   <td className="px-2 py-1.5 font-mono">{r.row_index}</td>
                   <td className="px-2 py-1.5">
                     {r.status === "error" ? (
-                      <XCircle className="h-3.5 w-3.5 text-red-600" />
+                      <XCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
                     ) : r.status === "warning" ? (
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                     ) : (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
                     )}
                   </td>
                   <td className="px-2 py-1.5">{r.day != null ? DAY_LABELS[r.day] ?? r.day : "—"}</td>
@@ -280,7 +280,7 @@ export default function TimetableImportPage() {
                     {r.start_time && r.end_time ? `${r.start_time}–${r.end_time}` : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-2 py-1.5">{r.room ?? <span className="text-gray-400">—</span>}</td>
-                  <td className="px-2 py-1.5 text-[11px] text-gray-600">
+                  <td className="px-2 py-1.5 text-[11px] text-gray-600 dark:text-gray-300">
                     {r.messages.join("; ") || <span className="text-gray-400">—</span>}
                   </td>
                 </tr>
