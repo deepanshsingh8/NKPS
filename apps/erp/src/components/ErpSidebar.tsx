@@ -32,6 +32,7 @@ import {
   FileSpreadsheet,
   UserPlus,
   LayoutGrid,
+  TriangleAlert,
 } from "lucide-react";
 import {
   SidebarShell,
@@ -163,6 +164,7 @@ const erpSections: SidebarSection[] = [
           { kind: "link", icon: Clock, label: "Class Timetable", href: "/timetable" },
           { kind: "link", icon: UserCog, label: "Teacher Timetable", href: "/timetable/teachers" },
           { kind: "link", icon: RefreshCw, label: "Substitutions", href: "/timetable/substitutions" },
+      { kind: "link", icon: TriangleAlert, label: "Clash Check", href: "/timetable/clashes" },
           { kind: "link", icon: Sparkles, label: "Auto Generate", href: "/timetable/generate" },
           { kind: "link", icon: FileSpreadsheet, label: "Import from Excel", href: "/timetable/import" },
           { kind: "link", icon: FileText, label: "Period Templates", href: "/timetable/templates" },

@@ -24,8 +24,8 @@ import {
   SelectValue,
 } from "@nkps/shared/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Clock, CalendarRange, Info } from "lucide-react";
-import { adminApi } from "@nkps/shared/lib/admin-api";
+import { Plus, Trash2, Loader2, Clock, CalendarRange, Info, Printer } from "lucide-react";
+import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import { formatClassName, formatShortDate } from "@nkps/shared/lib/utils";
 import { teacherOptions } from "@nkps/shared/lib/teacher-options";
 import type { Class, Subject, Teacher, TimetablePeriod } from "@nkps/shared/types";
@@ -425,6 +425,22 @@ const session = useAcademicSession();
     };
   });
 
+  const handlePrint = async () => {
+    if (!selectedClassId) return;
+    const res = await adminFetch(
+      `/api/timetable/sheet?class_id=${selectedClassId}`
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast.error(body.error ?? "Failed to generate the timetable");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener");
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
@@ -451,6 +467,14 @@ const session = useAcademicSession();
           >
             Import (Excel)
           </Link>
+          <Button
+            variant="outline"
+            onClick={handlePrint}
+            disabled={!selectedClassId}
+          >
+            <Printer className="h-4 w-4 mr-1" />
+            Print
+          </Button>
         </div>
       </div>
 

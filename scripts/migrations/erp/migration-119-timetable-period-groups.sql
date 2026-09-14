@@ -39,21 +39,27 @@
 
 BEGIN;
 
+-- Every object below is public-qualified, and the path is pinned as well: a
+-- session whose search_path puts another schema first would otherwise add the
+-- columns to a different table of the same name, and the migration would
+-- report success while the app still saw nothing. (Diagnosed the hard way.)
+SET LOCAL search_path = public;
+
 -- ─── 1. The columns ─────────────────────────────────────────────────────────
 
-ALTER TABLE timetable_periods
+ALTER TABLE public.timetable_periods
   ADD COLUMN IF NOT EXISTS group_no    smallint NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS group_label text,
   ADD COLUMN IF NOT EXISTS is_shared   boolean  NOT NULL DEFAULT false;
 
-COMMENT ON COLUMN timetable_periods.group_no IS
+COMMENT ON COLUMN public.timetable_periods.group_no IS
   'Which parallel track within the cell. 0 is the primary group — every row '
   'that existed before migration 119 is one — and 1,2,… are the extra groups '
   'that make a Games or optional-subject period.';
-COMMENT ON COLUMN timetable_periods.group_label IS
+COMMENT ON COLUMN public.timetable_periods.group_label IS
   'What this group actually is, when the subject does not say it: '
   '"Basketball", "Badminton", "Cricket".';
-COMMENT ON COLUMN timetable_periods.is_shared IS
+COMMENT ON COLUMN public.timetable_periods.is_shared IS
   'A combined activity running across several classes at once. Exempts the row '
   'from the teacher double-booking constraint, because a games coach genuinely '
   'is with four classes simultaneously.';
@@ -67,7 +73,7 @@ DECLARE c text;
 BEGIN
   SELECT con.conname INTO c
   FROM pg_constraint con
-  WHERE con.conrelid = 'timetable_periods'::regclass
+  WHERE con.conrelid = 'public.timetable_periods'::regclass
     AND con.contype = 'u'
     AND (SELECT array_agg(att.attname::text ORDER BY att.attname)
          FROM unnest(con.conkey) k
@@ -75,20 +81,20 @@ BEGIN
            ON att.attrelid = con.conrelid AND att.attnum = k)
         = ARRAY['class_id','day_of_week','period_number'];
   IF c IS NOT NULL THEN
-    EXECUTE format('ALTER TABLE timetable_periods DROP CONSTRAINT %I', c);
+    EXECUTE format('ALTER TABLE public.timetable_periods DROP CONSTRAINT %I', c);
   END IF;
 END $$;
 
-ALTER TABLE timetable_periods
+ALTER TABLE public.timetable_periods
   DROP CONSTRAINT IF EXISTS timetable_periods_cell_group_key;
-ALTER TABLE timetable_periods
+ALTER TABLE public.timetable_periods
   ADD CONSTRAINT timetable_periods_cell_group_key
   UNIQUE (class_id, day_of_week, period_number, group_no);
 
 -- …but still exactly one PRIMARY group per cell, so the old invariant survives
 -- for every reader that assumes a cell has one main row.
 CREATE UNIQUE INDEX IF NOT EXISTS timetable_periods_primary_group_uniq
-  ON timetable_periods(class_id, day_of_week, period_number)
+  ON public.timetable_periods(class_id, day_of_week, period_number)
   WHERE group_no = 0;
 
 -- ─── 3. Let a shared activity span classes ──────────────────────────────────
@@ -97,9 +103,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS timetable_periods_primary_group_uniq
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
-ALTER TABLE timetable_periods
+ALTER TABLE public.timetable_periods
   DROP CONSTRAINT IF EXISTS timetable_teacher_no_overlap;
-ALTER TABLE timetable_periods
+ALTER TABLE public.timetable_periods
   ADD CONSTRAINT timetable_teacher_no_overlap
   EXCLUDE USING gist (
     teacher_id WITH =,
