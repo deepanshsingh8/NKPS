@@ -1557,6 +1557,12 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "One slot can show several cards. A coach running a shared activity really is with more than one class at that time; the group name follows the subject.",
       },
       {
+        name: "Print a teacher's timetable",
+        steps: ['Choose from "Select a teacher...".', 'Click "Print".'],
+        gotcha:
+          "A coach running a shared activity appears once per class in the same slot, so their sheet shows all of those sections stacked in that cell.",
+      },
+      {
         name: "Mark a teacher absent",
         steps: [
           'Click "Mark absent" on the day header.',
@@ -1678,6 +1684,16 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         ],
         gotcha:
           "The grid shows one line per group. Deleting a group leaves the others alone; delete the first one and the next in line becomes the period's main group.",
+      },
+      {
+        name: "Print the class timetable",
+        steps: [
+          'Pick the class in "Select a class...".',
+          'Click "Print".',
+        ],
+        needs: "A class with periods on it — an empty timetable prints a sheet that says so.",
+        gotcha:
+          "The PDF opens in a new tab. It shows every parallel group, one line per group, so a Games period names all three coaches — which is the whole reason it is worth printing rather than screenshotting.",
       },
       {
         name: "Let one teacher take several classes at once",

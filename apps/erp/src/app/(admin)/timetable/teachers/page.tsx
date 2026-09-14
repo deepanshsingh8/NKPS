@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
+import { Button } from "@nkps/shared/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -10,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@nkps/shared/components/ui/select";
-import { Loader2, UserCog } from "lucide-react";
+import { Loader2, UserCog, Printer } from "lucide-react";
 import { toast } from "sonner";
 import type { Teacher } from "@nkps/shared/types";
 import {
@@ -87,12 +88,36 @@ export default function AdminTeacherTimetablePage() {
     );
   }
 
+  const handlePrint = async () => {
+    if (!selectedTeacherId) return;
+    const res = await adminFetch(
+      `/api/timetable/sheet?teacher_id=${selectedTeacherId}`
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast.error(body.error ?? "Failed to generate the timetable");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener");
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  };
+
   return (
     <div>
       <div className="erp-page-bar mb-6">
         <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Teacher Timetable
         </h1>
+        <Button
+          variant="outline"
+          onClick={handlePrint}
+          disabled={!selectedTeacherId}
+        >
+          <Printer className="h-4 w-4 mr-1" />
+          Print
+        </Button>
       </div>
 
       <div className="mb-6 w-full sm:w-80">
