@@ -30,6 +30,8 @@ interface TeacherStats {
 interface TimetablePeriodRow {
   id: string;
   period_number: number;
+  group_no?: number;
+  group_label?: string | null;
   start_time: string;
   end_time: string;
   room: string | null;
@@ -147,7 +149,7 @@ export default function TeacherDashboard() {
       const { data: ttRows } = await supabase
         .from("timetable_periods")
         .select(
-          "id, period_number, start_time, end_time, room, day_of_week, subject:subjects(name), class:classes(name, section)"
+          "id, period_number, start_time, end_time, room, day_of_week, group_no, group_label, subject:subjects(name), class:classes(name, section)"
         )
         .eq("teacher_id", teacherId)
         .order("day_of_week", { ascending: true })
@@ -166,7 +168,13 @@ export default function TeacherDashboard() {
           if (dow === 7) continue;
           const pick = allRows
             .filter((r) => r.day_of_week === dow)
-            .sort((a, b) => a.period_number - b.period_number)[0];
+            // Parallel groups share a period number (migration 119), so break
+            // the tie on group_no rather than leaving the pick to fetch order.
+            .sort(
+              (a, b) =>
+                a.period_number - b.period_number ||
+                (a.group_no ?? 0) - (b.group_no ?? 0)
+            )[0];
           if (pick) {
             setNextWeekPeriod(pick);
             break;

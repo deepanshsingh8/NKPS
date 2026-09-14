@@ -84,9 +84,32 @@ Adds content-management tables: `gallery_images`, `gallery_events`, `articles`, 
 Storage buckets: `gallery`, `transfer-certificates`, `site-media`, `staff-photos`, `disclosure-documents`.
 
 ### ERP (Tier 3)
-Adds `academic_years`, `streams`, `classes`, `subjects`, `class_subjects`, `stream_subjects`, `students`, `student_subjects`, `student_enrollments`, `parents`, `student_parents`, `teachers`, `attendance`, `exam_types`, `exam_schedules`, `result_masters`, `result_master_subjects`, `class_grade_scales`, `grade_scales`, `grade_bands`, `class_exam_configs`, `results`, `marksheet_publications`, `class_tests`, `class_test_results`, `non_scholastic_*`, `student_remarks`, `ptm_notes`, `ptm_formats`, `supplementary_attempts`, `fee_structures`, `fee_payments`, `payment_orders`, `timetable_periods`, `substitutions`, `teacher_absences`, `school_meeting_counts`, `pdf_header_configs`, `pdf_footer_configs`, `admit_card_templates`, `registration_requests`, `publish_events`.
+Adds `academic_years`, `streams`, `classes`, `subjects`, `class_subjects`, `stream_subjects`, `teacher_subjects`, `houses`, `students`, `student_subjects`, `student_enrollments`, `parents`, `student_parents`, `teachers`, `attendance`, `exam_types`, `exam_schedules`, `result_masters`, `result_master_subjects`, `class_grade_scales`, `grade_scales`, `grade_bands`, `class_exam_configs`, `results`, `marksheet_publications`, `class_tests`, `class_test_results`, `non_scholastic_*`, `student_remarks`, `ptm_notes`, `ptm_formats`, `supplementary_attempts`, `fee_structures`, `fee_payments`, `payment_orders`, `timetable_periods`, `substitutions`, `teacher_absences`, `school_meeting_counts`, `pdf_header_configs`, `pdf_footer_configs`, `admit_card_templates`, `registration_requests`, `publish_events`.
 
 Storage bucket: `avatars`.
+
+Two ERP tables have a shape worth knowing before you query them:
+
+- **`teacher_subjects`** *(migration 117)* — which subjects a teacher is
+  qualified to teach, `UNIQUE(teacher_id, subject_id)`. It drives the
+  qualified-teachers-first dropdown when assigning a subject to a class. Seeded
+  from `class_subjects` and the timetable, and kept current by an
+  insert-only trigger on `class_subjects.teacher_id`: assigning a teacher adds
+  the subject, un-assigning never removes it. Read access is `TO authenticated`,
+  not public — the table is keyed on a person.
+- **`timetable_periods`** *(migration 119)* — one row per **(class, day, period,
+  group)**, not per cell. `group_no = 0` is the primary group and 1..n are
+  parallel tracks: a Games period split into basketball, badminton and cricket,
+  or an XI/XII period running two optional subjects side by side. The key is
+  `UNIQUE(class_id, day_of_week, period_number, group_no)`, with a partial unique
+  index allowing exactly one primary group per cell. `is_shared` exempts a row
+  from the `timetable_teacher_no_overlap` exclusion constraint, which is how one
+  coach can be with four sections at once.
+
+  Two diagnostic views come with it, both readable by `authenticated` only:
+  `timetable_teacher_clashes` (in a healthy timetable every row is an intentional
+  shared activity) and `timetable_assignment_drift` (compares primary groups
+  against the canonical `class_subjects` teacher).
 
 ### Cross-module FKs
 
@@ -113,6 +136,9 @@ pnpm run build
 # typecheck and lint
 pnpm run typecheck
 pnpm run lint
+
+# every sidebar link must have a guide entry (not run by CI — run it yourself)
+pnpm run check:guide
 ```
 
 Each app needs its own `.env.local` with `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. For local dev, symlink them all to a root `.env.local`:
@@ -171,9 +197,12 @@ pnpm install --frozen-lockfile
 pnpm run lint
 pnpm run typecheck
 pnpm exec turbo run build
+pnpm run check:guide
 ```
 
-All four must pass. CI (`.github/workflows/ci.yml`) runs the same gates on PRs to `main`.
+All five must pass. CI (`.github/workflows/ci.yml`) runs lint, typecheck and
+build on PRs to `main` — `check:guide` is not in CI, so run it locally whenever
+you add a sidebar screen or change a screen's controls.
 
 Also make sure no uncommitted changes are sitting in your working tree (`git status`).
 

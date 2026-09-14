@@ -48,6 +48,7 @@ import {
   BookOpen,
   Library,
   GraduationCap,
+  Layers,
   Settings2,
   Check,
   Users,
@@ -62,6 +63,8 @@ import { teacherLabel } from "@nkps/shared/lib/teacher-options";
 import QuickSetupWizard from "@/components/QuickSetupWizard";
 import { SubjectBulkUpload } from "@/components/SubjectBulkUpload";
 import { ClassSubjectsDialog } from "@/components/ClassSubjectsDialog";
+import { ClassBandPicker } from "@/components/ClassBandPicker";
+import { WingApplyDialog } from "@/components/WingApplyDialog";
 import type { Class, Subject, Teacher, Stream } from "@nkps/shared/types";
 
 type Tab = "subjects" | "assignments" | "streams" | "teachers";
@@ -167,6 +170,14 @@ export default function AdminSubjectsPage() {
   const [editStreamName, setEditStreamName] = useState("");
   const [editStreamCode, setEditStreamCode] = useState("");
   const [editStreamSortOrder, setEditStreamSortOrder] = useState(0);
+  // ── Wings (migration 118) ──
+  // A wing is a `streams` row with kind='wing': a band of classes carrying a
+  // subject set, never attached to classes.stream_id.
+  const [streamKind, setStreamKind] = useState<"stream" | "wing">("stream");
+  const [streamClassNames, setStreamClassNames] = useState<string[]>([]);
+  const [editStreamClassNames, setEditStreamClassNames] = useState<string[]>([]);
+  const [applyWing, setApplyWing] = useState<StreamWithSubjects | null>(null);
+
   // Manage stream subjects dialog
   const [manageStreamSubjectsOpen, setManageStreamSubjectsOpen] = useState(false);
   const [managingStream, setManagingStream] = useState<StreamWithSubjects | null>(null);
@@ -850,6 +861,10 @@ export default function AdminSubjectsPage() {
         code: streamCode.trim() || null,
         is_active: true,
         sort_order: Number(streamSortOrder) || 0,
+        kind: streamKind,
+        // A stream's band is always empty — it reaches classes through
+        // classes.stream_id instead. (migration 118)
+        class_names: streamKind === "wing" ? streamClassNames : [],
       },
     });
 
@@ -871,6 +886,7 @@ export default function AdminSubjectsPage() {
     setEditStreamName(stream.name);
     setEditStreamCode(stream.code || "");
     setEditStreamSortOrder(stream.sort_order ?? 0);
+    setEditStreamClassNames(stream.class_names ?? []);
     setEditStreamDialogOpen(true);
   };
 
@@ -896,6 +912,12 @@ export default function AdminSubjectsPage() {
         name,
         code: editStreamCode.trim() || null,
         sort_order: Number(editStreamSortOrder) || 0,
+        // kind is not editable: a stream that became a wing would keep any
+        // classes and fee rows already pointing at it, which is the leak the
+        // discriminator exists to prevent. Delete and recreate instead.
+        ...(editingStream.kind === "wing"
+          ? { class_names: editStreamClassNames }
+          : {}),
       },
       match: { column: "id", value: editingStream.id },
     });
@@ -1152,6 +1174,27 @@ export default function AdminSubjectsPage() {
     ];
   }, [editTeacherSplit, editTeacherShowOthers]);
 
+  // ── Streams vs wings ──
+  // One table, two meanings (migration 118). Rows written before the migration
+  // have kind defaulted to 'stream', so the absence of the column reads as a
+  // stream — which is what it was.
+  const academicStreams = useMemo(
+    () => streams.filter((s) => s.kind !== "wing"),
+    [streams]
+  );
+  const wings = useMemo(
+    () => streams.filter((s) => s.kind === "wing"),
+    [streams]
+  );
+
+  // How many sections each class name has this year, so the band picker can
+  // show "VI · 3 sections" and flag a band that would apply to nothing.
+  const sectionCountsByClassName = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of classes) m.set(c.name, (m.get(c.name) ?? 0) + 1);
+    return m;
+  }, [classes]);
+
   // ── Class-first view: what each class has, for the "manage by class" panel ──
   const assignmentsByClass = useMemo(() => {
     const m = new Map<
@@ -1399,22 +1442,44 @@ export default function AdminSubjectsPage() {
           </div>
         )}
         {tab === "streams" && (
-          <Button
-            onClick={() => {
-              setStreamName("");
-              setStreamCode("");
-              setStreamSortOrder(
-                streams.length
-                  ? Math.max(...streams.map((s) => s.sort_order ?? 0)) + 1
-                  : 0
-              );
-              setStreamDialogOpen(true);
-            }}
-            className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Stream
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setStreamKind("wing");
+                setStreamName("");
+                setStreamCode("");
+                setStreamClassNames([]);
+                setStreamSortOrder(
+                  streams.length
+                    ? Math.max(...streams.map((s) => s.sort_order ?? 0)) + 1
+                    : 0
+                );
+                setStreamDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Wing
+            </Button>
+            <Button
+              onClick={() => {
+                setStreamKind("stream");
+                setStreamName("");
+                setStreamCode("");
+                setStreamClassNames([]);
+                setStreamSortOrder(
+                  streams.length
+                    ? Math.max(...streams.map((s) => s.sort_order ?? 0)) + 1
+                    : 0
+                );
+                setStreamDialogOpen(true);
+              }}
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Stream
+            </Button>
+          </div>
         )}
       </div>
 
@@ -1989,20 +2054,45 @@ export default function AdminSubjectsPage() {
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-navy-900 dark:text-white" />
             </div>
-          ) : streams.length === 0 ? (
-            <div className="erp-table-container p-4 sm:p-6">
-              <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-                <GraduationCap className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">No streams defined yet</p>
-                <p className="text-xs text-gray-300 dark:text-gray-600 mt-1">
-                  Streams are used for higher classes (XI/XII) to group subjects
-                  by academic track
+          ) : (
+            // Streams and wings are the same table with different meanings
+            // (migration 118), so they render as two labelled sections rather
+            // than one undifferentiated grid.
+            [
+              {
+                key: "stream" as const,
+                title: "Academic streams",
+                blurb:
+                  "Science, Commerce, Humanities — attached to a class in XI/XII, and read by fee resolution.",
+                rows: academicStreams,
+                empty: "No streams defined yet.",
+              },
+              {
+                key: "wing" as const,
+                title: "Wings",
+                blurb:
+                  "A band of classes that share a subject set. Apply one and every section in the band gets its subjects.",
+                rows: wings,
+                empty:
+                  "No wings yet. A wing saves setting the same subjects on nine classes by hand.",
+              },
+            ].map((section) => (
+            <div key={section.key} className="space-y-3">
+              <div>
+                <h2 className="text-sm font-semibold text-navy-900 dark:text-white">
+                  {section.title}
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {section.blurb}
                 </p>
               </div>
-            </div>
-          ) : (
+              {section.rows.length === 0 ? (
+                <p className="text-xs text-gray-400 dark:text-gray-500 italic">
+                  {section.empty}
+                </p>
+              ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {streams.map((stream) => (
+              {section.rows.map((stream) => (
                 <div
                   key={stream.id}
                   className="erp-table-container p-5 space-y-3"
@@ -2077,16 +2167,49 @@ export default function AdminSubjectsPage() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-2 border-t border-gray-100 dark:border-border text-xs text-gray-500 dark:text-gray-400">
-                    <span>
-                      {streamUsage[stream.id]?.classes ?? 0} class
-                      {(streamUsage[stream.id]?.classes ?? 0) === 1 ? "" : "es"}
-                    </span>
-                    <span>
-                      {streamUsage[stream.id]?.fee_structures ?? 0} fee row
-                      {(streamUsage[stream.id]?.fee_structures ?? 0) === 1 ? "" : "s"}
-                    </span>
+                    {stream.kind === "wing" ? (
+                      // A wing is never attached to a class or a fee row, so
+                      // those counts would always read zero. Its band is the
+                      // useful thing to show. (migration 118)
+                      (stream.class_names ?? []).length === 0 ? (
+                        <span className="text-amber-600 dark:text-amber-400">
+                          No classes selected
+                        </span>
+                      ) : (
+                        <span>
+                          Classes {(stream.class_names ?? []).join(", ")}
+                        </span>
+                      )
+                    ) : (
+                      <>
+                        <span>
+                          {streamUsage[stream.id]?.classes ?? 0} class
+                          {(streamUsage[stream.id]?.classes ?? 0) === 1 ? "" : "es"}
+                        </span>
+                        <span>
+                          {streamUsage[stream.id]?.fee_structures ?? 0} fee row
+                          {(streamUsage[stream.id]?.fee_structures ?? 0) === 1 ? "" : "s"}
+                        </span>
+                      </>
+                    )}
                     <span className="ml-auto">Order {stream.sort_order ?? 0}</span>
                   </div>
+
+                  {stream.kind === "wing" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setApplyWing(stream)}
+                      disabled={
+                        (stream.class_names ?? []).length === 0 ||
+                        stream.subjects.length === 0
+                      }
+                      className="w-full text-xs"
+                    >
+                      <Layers className="h-3.5 w-3.5 mr-1.5" />
+                      Apply subjects to classes
+                    </Button>
+                  )}
 
                   <div className="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-border">
                     <Button
@@ -2119,17 +2242,27 @@ export default function AdminSubjectsPage() {
                 </div>
               ))}
             </div>
+              )}
+            </div>
+            ))
           )}
 
           {/* Info box about streams */}
           <div className="rounded-xl border border-blue-200 dark:border-blue-900/30 bg-blue-50/50 dark:bg-blue-950/10 p-4">
             <p className="text-sm text-blue-800 dark:text-blue-300">
-              <strong>How streams work:</strong> Streams (Science, Commerce,
-              Humanities) apply to higher classes (XI & XII). When a student
-              is enrolled in a higher class and assigned a stream, they
-              automatically receive only the subjects mapped to that stream.
-              Lower classes (I-X) don&apos;t use streams — students get all
-              subjects assigned to their class.
+              <strong>Streams</strong> (Science, Commerce, Humanities) apply to
+              XI &amp; XII. A student enrolled in a higher class and assigned a
+              stream receives only that stream&apos;s subjects, and fee
+              structures can be priced per stream. Lower classes don&apos;t use
+              them.
+            </p>
+            <p className="mt-2 text-sm text-blue-800 dark:text-blue-300">
+              <strong>Wings</strong> are a shortcut, not a stream. A wing names
+              a band of classes — Middle Wing is VI, VII and VIII — and holds
+              the subjects they all study. Applying it gives every section in
+              the band those subjects in one go, instead of setting up nine
+              classes by hand. Wings are never attached to a class or a fee
+              row, so they never appear in a stream dropdown.
             </p>
           </div>
         </div>
@@ -2700,9 +2833,13 @@ export default function AdminSubjectsPage() {
                 <GraduationCap className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
-                <DialogTitle>Add New Stream</DialogTitle>
+                <DialogTitle>
+                  {streamKind === "wing" ? "Add New Wing" : "Add New Stream"}
+                </DialogTitle>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Create an academic stream for higher classes
+                  {streamKind === "wing"
+                    ? "A band of classes that share a subject set"
+                    : "Create an academic stream for higher classes"}
                 </p>
               </div>
             </div>
@@ -2751,6 +2888,21 @@ export default function AdminSubjectsPage() {
                 </p>
               </div>
             </div>
+
+            {streamKind === "wing" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Classes in this wing</Label>
+                <ClassBandPicker
+                  value={streamClassNames}
+                  onChange={setStreamClassNames}
+                  sectionCounts={sectionCountsByClassName}
+                />
+                <p className="text-[11px] text-gray-400">
+                  Every section of these classes gets the wing&apos;s subjects
+                  when you apply it.
+                </p>
+              </div>
+            )}
 
             <DialogFooter>
               <Button
@@ -2847,6 +2999,17 @@ export default function AdminSubjectsPage() {
                 </p>
               </div>
             </div>
+
+            {editingStream?.kind === "wing" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Classes in this wing</Label>
+                <ClassBandPicker
+                  value={editStreamClassNames}
+                  onChange={setEditStreamClassNames}
+                  sectionCounts={sectionCountsByClassName}
+                />
+              </div>
+            )}
 
             <DialogFooter>
               <Button
@@ -3090,6 +3253,20 @@ export default function AdminSubjectsPage() {
           onSaved={() => {
             fetchAssignmentsData();
             fetchTeacherSubjects();
+          }}
+        />
+      )}
+
+      {applyWing && (
+        <WingApplyDialog
+          open={applyWing !== null}
+          onOpenChange={(open) => !open && setApplyWing(null)}
+          wingId={applyWing.id}
+          wingName={applyWing.name}
+          academicYearId={sessionId ?? undefined}
+          onApplied={() => {
+            fetchAssignmentsData();
+            fetchStreams();
           }}
         />
       )}

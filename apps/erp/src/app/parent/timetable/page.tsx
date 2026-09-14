@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+import { buildElectiveFilter } from "@nkps/shared/lib/elective-timetable";
 import { Card, CardContent, CardHeader, CardTitle } from "@nkps/shared/components/ui/card";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import { Loader2, Clock, Users, Sun } from "lucide-react";
@@ -28,6 +29,10 @@ interface TimetableEntry {
   start_time: string;
   end_time: string;
   room: string | null;
+  group_no?: number;
+  group_label?: string | null;
+  /** Needed to match a group against this child's elective picks. */
+  subject_id: string | null;
   subject: { name: string } | null;
   teacher: { full_name: string } | null;
 }
@@ -159,10 +164,23 @@ export default function ParentTimetablePage() {
       setLoadingTimetable(true);
       const supabase = createClient();
 
-      const { data: enrollment } = await supabase
+      // The class NAME as well as the id: an elective option is scoped to XI
+      // or XII by name. Year-scoped too — a child enrolled in more than one
+      // year would otherwise be filtered against the wrong class.
+      const { data: currentYear } = await supabase
+        .from("academic_years")
+        .select("id")
+        .eq("is_current", true)
+        .maybeSingle();
+
+      let enrollmentQuery = supabase
         .from("student_enrollments")
-        .select("class_id")
-        .eq("student_id", selectedChild)
+        .select("class_id, classes(name)")
+        .eq("student_id", selectedChild);
+      if (currentYear?.id) {
+        enrollmentQuery = enrollmentQuery.eq("academic_year_id", currentYear.id);
+      }
+      const { data: enrollment } = await enrollmentQuery
         .order("enrollment_date", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -177,12 +195,39 @@ export default function ParentTimetablePage() {
       const { data } = await supabase
         .from("timetable_periods")
         .select(
-          "id, day_of_week, period_number, start_time, end_time, room, subject:subjects(name), teacher:teachers(full_name)"
+          "id, day_of_week, period_number, start_time, end_time, room, group_no, group_label, subject_id, subject:subjects(name), teacher:teachers(full_name)"
         )
         .eq("class_id", enrollment.class_id)
         .order("period_number", { ascending: true });
 
-      const timetableData = (data ?? []) as unknown as TimetableEntry[];
+      const rows = (data ?? []) as unknown as TimetableEntry[];
+
+      // Show this child's own optional subject, not both sides of the slot.
+      // Filtered on the way into state so today's list, the period rows and
+      // the subject colours all describe the timetable they actually attend.
+      // This effect re-runs on selectedChild, so switching child re-filters.
+      const clsRel = enrollment.classes as unknown as
+        | { name: string }
+        | { name: string }[]
+        | null;
+      const className =
+        (Array.isArray(clsRel) ? clsRel[0] : clsRel)?.name ?? null;
+      const [{ data: options }, { data: picks }] = await Promise.all([
+        supabase
+          .from("elective_slot_options")
+          .select("slot, subject_id, applies_to_classes, is_active")
+          .eq("is_active", true),
+        supabase
+          .from("student_elective_picks")
+          .select("slot, subject_id")
+          .eq("student_id", selectedChild),
+      ]);
+      const showGroup = buildElectiveFilter({
+        options: options ?? [],
+        picks: picks ?? [],
+        className,
+      });
+      const timetableData = rows.filter((e) => showGroup(e.subject_id));
       setEntries(timetableData);
 
       const subjects = [
@@ -219,8 +264,15 @@ export default function ParentTimetablePage() {
 
   const now = nowMinutes();
 
-  const getEntry = (day: number, period: number) =>
-    entries.find((e) => e.day_of_week === day && e.period_number === period);
+  // A cell can hold parallel groups — Games split into basketball/badminton/
+  // cricket, or an XI/XII period running IP alongside P.Ed (migration 119).
+  // `entries` has already had this child's non-electives filtered out, so a
+  // Games cell still shows all three sports (nobody picks between them) while
+  // an optional slot shows only the subject they take.
+  const getEntries = (day: number, period: number) =>
+    entries
+      .filter((e) => e.day_of_week === day && e.period_number === period)
+      .sort((a, b) => (a.group_no ?? 0) - (b.group_no ?? 0));
 
   if (loading) {
     return (
@@ -391,9 +443,9 @@ export default function ParentTimetablePage() {
                         {period === 0 ? "0" : period}
                       </td>
                       {DAY_NUMBERS.map((day) => {
-                        const entry = getEntry(day, period);
+                        const cellEntries = getEntries(day, period);
                         const isToday = day === todayDow;
-                        if (!entry) {
+                        if (cellEntries.length === 0) {
                           return (
                             <td
                               key={day}
@@ -406,29 +458,41 @@ export default function ParentTimetablePage() {
                             </td>
                           );
                         }
-                        const colorClass =
-                          subjectColorMap[entry.subject?.name ?? ""] ??
-                          "bg-gray-50 dark:bg-muted border-gray-200 dark:border-border text-gray-800 dark:text-gray-200";
                         return (
                           <td
                             key={day}
                             className={cn(
-                              "border border-gray-200 dark:border-border p-1",
+                              "border border-gray-200 dark:border-border p-1 align-top",
                               isToday && "ring-2 ring-gold-500/60 ring-inset"
                             )}
                           >
-                            <div
-                              className={`rounded-lg border p-2 text-xs ${colorClass}`}
-                            >
-                              <p className="font-semibold">
-                                {entry.subject?.name ?? "--"}
-                              </p>
-                              <p className="opacity-75">
-                                {entry.teacher?.full_name ?? "--"}
-                              </p>
-                              {entry.room && (
-                                <p className="opacity-60">Room: {entry.room}</p>
-                              )}
+                            <div className="space-y-1">
+                              {cellEntries.map((entry) => {
+                                const colorClass =
+                                  subjectColorMap[entry.subject?.name ?? ""] ??
+                                  "bg-gray-50 dark:bg-muted border-gray-200 dark:border-border text-gray-800 dark:text-gray-200";
+                                return (
+                                  <div
+                                    key={entry.id}
+                                    className={`rounded-lg border p-2 text-xs ${colorClass}`}
+                                  >
+                                    <p className="font-semibold">
+                                      {entry.subject?.name ?? "--"}
+                                      {entry.group_label
+                                        ? ` · ${entry.group_label}`
+                                        : ""}
+                                    </p>
+                                    <p className="opacity-75">
+                                      {entry.teacher?.full_name ?? "--"}
+                                    </p>
+                                    {entry.room && (
+                                      <p className="opacity-60">
+                                        Room: {entry.room}
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           </td>
                         );

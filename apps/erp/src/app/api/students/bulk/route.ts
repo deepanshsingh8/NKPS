@@ -118,15 +118,22 @@ export async function POST(request: Request) {
     const backfillStatus = requestedStatus ?? "passed";
 
     // Fetch streams for stream_id lookup (Science, Commerce, etc.)
+    // `kind` comes along so buildStreamLookup can skip wings (migration 118):
+    // the table also holds class bands, and one named "Science" must not answer
+    // a sheet that means the Science stream.
     const { data: allStreams } = await admin
       .from("streams")
-      .select("id, name");
+      .select("id, name, kind");
 
     // The alias table used to live here. It is shared now — the fee day-book
     // importer needed the same "Arts means Humanities" answer, and two copies
     // would have drifted the moment one of them learned a new spelling.
     const streamMap = buildStreamLookup(
-      (allStreams || []).map((s) => ({ id: s.id as string, name: String(s.name) }))
+      (allStreams || []).map((s) => ({
+        id: s.id as string,
+        name: String(s.name),
+        kind: s.kind as string | null,
+      }))
     );
 
     // Fetch all classes for the current academic year

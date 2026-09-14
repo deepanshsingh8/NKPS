@@ -53,10 +53,13 @@ export const ALLOWED_COLUMNS: Record<string, string[]> = {
   fee_payments: ["id", "student_id", "fee_structure_id", "amount_paid", "payment_date", "payment_method", "receipt_number", "month", "status", "recorded_by", "remarks", "cheque_number", "cheque_date", "bank_name", "payer_name", "transaction_ref", "payment_provider", "created_at"],
   exam_types: ["id", "name", "academic_year_id", "max_marks", "weightage", "sort_order", "kind", "upper_header", "class_level", "created_at"],
   calendar_events: ["id", "title", "description", "event_type", "start_date", "end_date", "class_id", "is_public", "is_school_wide", "created_by", "created_at"],
-  timetable_periods: ["id", "class_id", "subject_id", "teacher_id", "day_of_week", "period_number", "start_time", "end_time", "room", "created_at"],
+  // `is_break` was missing here until migration 119 went in, which meant the
+  // admin grid could not create a lunch row at all — only the service-role
+  // generate route could. group_no/group_label/is_shared are the new columns.
+  timetable_periods: ["id", "class_id", "subject_id", "teacher_id", "day_of_week", "period_number", "start_time", "end_time", "room", "is_break", "group_no", "group_label", "is_shared", "created_at"],
   attendance: ["id", "student_id", "class_id", "date", "status", "marked_by", "remarks", "created_at"],
   results: ["id", "student_id", "class_id", "subject_id", "exam_type_id", "marks_obtained", "max_marks", "grade", "remarks", "entered_by", "created_at"],
-  streams: ["id", "name", "code", "is_active", "sort_order", "created_at"],
+  streams: ["id", "name", "code", "is_active", "sort_order", "created_at", "kind", "class_names"],
   houses: ["id", "name", "code", "colour", "sort_order", "is_active", "created_at", "updated_at"],
   stream_subjects: ["id", "stream_id", "subject_id", "is_mandatory", "requirement_type", "sort_order"],
   teacher_subjects: ["id", "teacher_id", "subject_id", "created_at"],
