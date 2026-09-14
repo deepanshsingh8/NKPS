@@ -1813,9 +1813,11 @@ CREATE POLICY "Teachers can insert results for their class-subject combos"
   ON results FOR INSERT
   WITH CHECK (
     public.get_user_role() = 'teacher'
-    AND class_id IN (SELECT public.get_my_class_ids())
-    AND subject_id IN (
-      SELECT subject_id FROM class_subjects WHERE teacher_id = public.get_my_teacher_id()
+    AND EXISTS (
+      SELECT 1 FROM public.class_subjects cs
+       WHERE cs.class_id   = results.class_id
+         AND cs.subject_id = results.subject_id
+         AND cs.teacher_id = public.get_my_teacher_id()
     )
   );
 
@@ -1823,9 +1825,11 @@ CREATE POLICY "Teachers can update results for their class-subject combos"
   ON results FOR UPDATE
   USING (
     public.get_user_role() = 'teacher'
-    AND class_id IN (SELECT public.get_my_class_ids())
-    AND subject_id IN (
-      SELECT subject_id FROM class_subjects WHERE teacher_id = public.get_my_teacher_id()
+    AND EXISTS (
+      SELECT 1 FROM public.class_subjects cs
+       WHERE cs.class_id   = results.class_id
+         AND cs.subject_id = results.subject_id
+         AND cs.teacher_id = public.get_my_teacher_id()
     )
   );
 
@@ -2942,9 +2946,11 @@ CREATE POLICY "Teachers can insert class_tests for their class-subject combos"
   ON class_tests FOR INSERT
   WITH CHECK (
     public.get_user_role() = 'teacher'
-    AND class_id IN (SELECT public.get_my_class_ids())
-    AND subject_id IN (
-      SELECT subject_id FROM class_subjects WHERE teacher_id = public.get_my_teacher_id()
+    AND EXISTS (
+      SELECT 1 FROM public.class_subjects cs
+       WHERE cs.class_id   = class_tests.class_id
+         AND cs.subject_id = class_tests.subject_id
+         AND cs.teacher_id = public.get_my_teacher_id()
     )
   );
 
@@ -2953,9 +2959,11 @@ CREATE POLICY "Teachers can update class_tests for their class-subject combos"
   ON class_tests FOR UPDATE
   USING (
     public.get_user_role() = 'teacher'
-    AND class_id IN (SELECT public.get_my_class_ids())
-    AND subject_id IN (
-      SELECT subject_id FROM class_subjects WHERE teacher_id = public.get_my_teacher_id()
+    AND EXISTS (
+      SELECT 1 FROM public.class_subjects cs
+       WHERE cs.class_id   = class_tests.class_id
+         AND cs.subject_id = class_tests.subject_id
+         AND cs.teacher_id = public.get_my_teacher_id()
     )
   );
 
@@ -2964,9 +2972,11 @@ CREATE POLICY "Teachers can delete class_tests for their class-subject combos"
   ON class_tests FOR DELETE
   USING (
     public.get_user_role() = 'teacher'
-    AND class_id IN (SELECT public.get_my_class_ids())
-    AND subject_id IN (
-      SELECT subject_id FROM class_subjects WHERE teacher_id = public.get_my_teacher_id()
+    AND EXISTS (
+      SELECT 1 FROM public.class_subjects cs
+       WHERE cs.class_id   = class_tests.class_id
+         AND cs.subject_id = class_tests.subject_id
+         AND cs.teacher_id = public.get_my_teacher_id()
     )
   );
 
@@ -3017,12 +3027,14 @@ CREATE POLICY "Teachers can insert class_test_results for their class-subject co
   ON class_test_results FOR INSERT
   WITH CHECK (
     public.get_user_role() = 'teacher'
-    AND class_test_id IN (
-      SELECT id FROM class_tests
-      WHERE class_id IN (SELECT public.get_my_class_ids())
-        AND subject_id IN (
-          SELECT subject_id FROM class_subjects WHERE teacher_id = public.get_my_teacher_id()
-        )
+    AND EXISTS (
+      SELECT 1
+        FROM public.class_tests ct
+        JOIN public.class_subjects cs
+          ON cs.class_id   = ct.class_id
+         AND cs.subject_id = ct.subject_id
+       WHERE ct.id = class_test_results.class_test_id
+         AND cs.teacher_id = public.get_my_teacher_id()
     )
   );
 
@@ -3031,12 +3043,14 @@ CREATE POLICY "Teachers can update class_test_results for their class-subject co
   ON class_test_results FOR UPDATE
   USING (
     public.get_user_role() = 'teacher'
-    AND class_test_id IN (
-      SELECT id FROM class_tests
-      WHERE class_id IN (SELECT public.get_my_class_ids())
-        AND subject_id IN (
-          SELECT subject_id FROM class_subjects WHERE teacher_id = public.get_my_teacher_id()
-        )
+    AND EXISTS (
+      SELECT 1
+        FROM public.class_tests ct
+        JOIN public.class_subjects cs
+          ON cs.class_id   = ct.class_id
+         AND cs.subject_id = ct.subject_id
+       WHERE ct.id = class_test_results.class_test_id
+         AND cs.teacher_id = public.get_my_teacher_id()
     )
   );
 
