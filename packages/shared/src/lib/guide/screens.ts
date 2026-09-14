@@ -93,24 +93,6 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
 
   // ── People ────────────────────────────────────────────────────────────────
   {
-    path: "/people",
-    title: "People",
-    purpose:
-      "Hub page for the people areas — a tile each for Users, Students and Staff.",
-    tasks: [
-      {
-        name: "Open a people area",
-        steps: [
-          "Click a tile: Users, Students or Staff.",
-          "Each tile carries a one-line description of what lives behind it.",
-        ],
-        gotcha:
-          "Tiles are filtered to your grants, so a missing tile means you were not granted that feature — not that the area is empty. An editor with none of them sees 'You don't have access to any people features yet'.",
-      },
-    ],
-    related: ["/people/students", "/people/staff", "/people/users"],
-  },
-  {
     path: "/people/users",
     title: "Users",
     purpose:
@@ -280,7 +262,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
     path: "/people/staff",
     title: "Staff",
     purpose:
-      "The staff directory, split into three tabs — Teachers, Management & Office, and Drivers & Helpers — with categories, contact details, photos, portal logins, and converting teaching staff into teacher records.",
+      "The staff directory, split into three tabs — Teachers, Management & Office, and Drivers & Helpers — with categories, contact details, photos, portal logins, and the teacher records that make someone selectable in every class, subject and timetable dropdown.",
     tasks: [
       {
         name: "Add a staff member",
@@ -324,6 +306,42 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "This is the step people miss. Until a staff member is converted to a teacher record they do not appear in the Class Teacher or subject-teacher dropdowns anywhere.",
       },
       {
+        name: "Find someone who has been deactivated",
+        steps: ['Tick "Show inactive".'],
+        gotcha:
+          "The list shows only active staff until you do. That is also the only way to reach a deactivated person's row — and the only way the Active column ever prints \"No\".",
+      },
+      {
+        name: "Retire a teacher who has left the school",
+        steps: [
+          'Open the "Teachers" tab.',
+          'Find them and click "Retire" in the Teacher record column.',
+          "Confirm.",
+        ],
+        gotcha:
+          "There is no Delete, deliberately. Deleting a teacher who has ever been timetabled fails outright, and would erase who taught what. Retiring keeps the history and takes them out of every Class Teacher, subject-teacher and timetable dropdown at once.",
+      },
+      {
+        name: "Bring a retired teacher back",
+        steps: [
+          'On the "Teachers" tab, find the row showing "Retired".',
+          'Click "Bring back".',
+        ],
+        gotcha:
+          "The date of leaving is kept on purpose, so a rejoin stays visible in the record.",
+      },
+      {
+        name: "Clear the amber “no staff profile” banner",
+        steps: [
+          'Click "Review them" on the banner above the Teachers tab.',
+          "For each name: retire them if they have left, or add them back under Staff if they still work here — the records re-link by themselves.",
+        ],
+        needs:
+          "The banner only appears when an active teacher record has no staff profile behind it.",
+        gotcha:
+          "These are the residue of deleting people from Staff before the cascade existed: the staff row went, the teacher row stayed active, and it kept appearing in dropdowns where nobody could see it to fix it. Deleting a staff member now retires their teacher record automatically, so the list should not grow.",
+      },
+      {
         name: "Bulk-upload staff",
         steps: [
           'Open "Actions" → "Upload Excel".',
@@ -334,54 +352,8 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Without a Category column every imported row lands in the single category you pick — there is no per-row override at that point.",
       },
     ],
-    related: [
-      "/people/users",
-      "/people/teachers",
-      "/academics/classes",
-      "/transport/buses",
-    ],
+    related: ["/people/users", "/academics/classes", "/timetable", "/transport/buses"],
   },
-  {
-    path: "/people/teachers",
-    title: "Teachers",
-    purpose:
-      "The teacher records the ERP assigns work to — the rows behind every Class Teacher, subject-teacher and timetable dropdown. Retire someone here and they leave all of them at once.",
-    tasks: [
-      {
-        name: "Retire a teacher who has left the school",
-        steps: [
-          'Find them (the "Active" tab is the default; search by name or employee ID).',
-          'Click "Retire".',
-          "Set the date of leaving and, if you want, a reason.",
-          'Confirm with "Retire teacher".',
-        ],
-        gotcha:
-          "There is no Delete, deliberately. Deleting a teacher who has ever been timetabled fails outright, and would erase who taught what. Retiring keeps the history and removes them from every dropdown.",
-      },
-      {
-        name: "Clear the “Needs review” queue",
-        steps: [
-          'Click "Review these" on the amber banner.',
-          "For each name, decide: retire them if they have left, leave them alone if they simply have no staff entry yet.",
-        ],
-        needs:
-          "The banner only appears when there are active teacher records with no staff entry and no portal login.",
-        gotcha:
-          "This queue is the residue of deleting people from People → Staff before the cascade existed — the staff row went, the teacher row stayed active and kept showing up in dropdowns. New deletions retire the teacher automatically, so the queue should not grow.",
-      },
-      {
-        name: "Bring a teacher back",
-        steps: [
-          'Switch to the "Retired" tab.',
-          'Click "Reinstate" on their row.',
-        ],
-        gotcha:
-          "The date of leaving is kept on purpose, so a rejoin stays visible in the record. The reason is cleared.",
-      },
-    ],
-    related: ["/people/staff", "/academics/classes", "/timetable"],
-  },
-
   // ── Academics ─────────────────────────────────────────────────────────────
   {
     path: "/academics",
@@ -544,12 +516,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Pick "No subjects yet" in the same dropdown to find teachers nobody has mapped, which is where the Class Assignments dropdown will fall back to listing everyone.',
       },
     ],
-    related: [
-      "/academics/classes",
-      "/academics/electives",
-      "/people/staff",
-      "/people/teachers",
-    ],
+    related: ["/academics/classes", "/academics/electives", "/people/staff"],
   },
   {
     path: "/academics/electives",

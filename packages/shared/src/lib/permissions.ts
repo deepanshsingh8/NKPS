@@ -149,6 +149,9 @@ const PATH_FEATURE_OVERRIDES: ReadonlyArray<readonly [string, FeatureKey]> = [
   ["/academics/houses", "classes"],
   // The teacher roster and its retire/reinstate action are the ERP-side view
   // of the same people /people/staff manages, so they take the same grant.
+  // Now a redirect into People → Staff rather than a page of its own, but the
+  // route still exists for old bookmarks and an UNMAPPED admin path is open to
+  // any editor (see the note above) — so the mapping stays.
   ["/people/teachers", "staff"],
   // Elective slots are subject configuration for XI–XII.
   ["/academics/electives", "subjects"],
