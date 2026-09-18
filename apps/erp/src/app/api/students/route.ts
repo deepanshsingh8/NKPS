@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
           admin
             .from("student_enrollments")
             .select(
-              "student_id, roll_number, roll_number_manual, id, class_id, stream_id, house_id, status, status_reason, status_changed_at, academic_year_id, updated_at, has_transport, bus_stop_id, transport_direction, classes(name, section)"
+              "student_id, roll_number, roll_number_manual, id, class_id, stream_id, house_id, status, status_reason, status_changed_at, exit_date, academic_year_id, updated_at, has_transport, bus_stop_id, transport_direction, classes(name, section)"
             )
             .order("id", { ascending: true })
             .range(from, to)
@@ -269,6 +269,7 @@ export async function GET(request: NextRequest) {
               roll_number_manual?: boolean;
               status_reason?: string | null;
               status_changed_at?: string | null;
+              exit_date?: string | null;
             })
           | undefined;
         return {
@@ -291,6 +292,9 @@ export async function GET(request: NextRequest) {
           // student is exited/terminated without a per-row history join.
           status_reason: e?.status_reason ?? null,
           status_changed_at: e?.status_changed_at ?? null,
+          // The billing cutoff for a leaver (migration 123), so the roster can
+          // show it and offer the correction dialog.
+          exit_date: e?.exit_date ?? null,
           class_name: cls?.name ?? null,
           class_section: cls?.section ?? null,
           has_transport: e?.has_transport ?? false,
@@ -306,7 +310,7 @@ export async function GET(request: NextRequest) {
     const { data: enrollments, error: enrollError } = await admin
       .from("student_enrollments")
       .select(
-        "id, student_id, roll_number, roll_number_manual, class_id, stream_id, house_id, status, status_reason, status_changed_at, has_transport, bus_stop_id, transport_direction"
+        "id, student_id, roll_number, roll_number_manual, class_id, stream_id, house_id, status, status_reason, status_changed_at, exit_date, has_transport, bus_stop_id, transport_direction"
       )
       .eq("class_id", classId);
 
@@ -369,6 +373,7 @@ export async function GET(request: NextRequest) {
             roll_number_manual?: boolean;
             status_reason?: string | null;
             status_changed_at?: string | null;
+            exit_date?: string | null;
           })
         | undefined;
       return {
@@ -382,6 +387,7 @@ export async function GET(request: NextRequest) {
         enrollment_status: enrollment?.status ?? null,
         status_reason: e?.status_reason ?? null,
         status_changed_at: e?.status_changed_at ?? null,
+        exit_date: e?.exit_date ?? null,
         has_transport: e?.has_transport ?? false,
         bus_stop_id: e?.bus_stop_id ?? null,
         transport_direction: e?.transport_direction ?? null,
