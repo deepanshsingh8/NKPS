@@ -1384,15 +1384,21 @@ export default function AdminStudentsPage() {
   };
 
   // Applies a status change. `reason` is required by the API for
-  // terminated/exited; the dialog collects it before we get here.
+  // terminated/exited, and `exitDate` is where their fee billing stops; the
+  // dialog collects both before we get here.
   const applyStatusChange = async (
     updates: { enrollment_id: string; status: EnrollmentStatus }[],
-    reason?: string
+    reason?: string,
+    exitDate?: string
   ): Promise<boolean> => {
     const res = await adminFetch("/api/students/status", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(reason ? { updates, reason } : { updates }),
+      body: JSON.stringify({
+        updates,
+        ...(reason ? { reason } : {}),
+        ...(exitDate ? { exit_date: exitDate } : {}),
+      }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -1491,7 +1497,7 @@ export default function AdminStudentsPage() {
   };
 
   // Confirm handler for the reason dialog — covers both single and bulk.
-  const handleStatusReasonConfirm = async (reason: string) => {
+  const handleStatusReasonConfirm = async (reason: string, exitDate: string) => {
     if (!statusRequest) return;
     const { status, student, enrollmentIds } = statusRequest;
     const ids = enrollmentIds ?? (student ? [student.enrollment_id] : []);
@@ -1500,7 +1506,8 @@ export default function AdminStudentsPage() {
     try {
       const ok = await applyStatusChange(
         ids.map((enrollment_id) => ({ enrollment_id, status })),
-        reason
+        reason,
+        exitDate
       );
       if (!ok) return;
 

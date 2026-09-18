@@ -60,10 +60,12 @@ import {
   resolveEffectiveFeeLines,
   resolveStudentType,
   computeDuesBreakdown,
+  resolveBillingCutoff,
   computeLateFee,
   annualizedAmount,
   settledAmount,
   feeLineLabel,
+  type BillableEnrollment,
   type DuesBreakdown,
   type StopFeeLookup,
 } from "@/lib/fees";
@@ -187,10 +189,12 @@ interface DuesRow {
   class_label: string;
   has_transport: boolean;
   // Whole-year obligation — what the class's schedule totals for this student.
+  // For a leaver it is the obligation up to `billing_cutoff` instead: their
+  // year ended when they did.
   expected: number;
-  // The slice of `expected` that has actually fallen due as of today. Dues are
-  // measured against this, not the annual figure: an instalment due in January
-  // is not an arrear in August.
+  // The slice of `expected` that has actually fallen due as of today (or as of
+  // `billing_cutoff`, for a leaver). Dues are measured against this, not the
+  // annual figure: an instalment due in January is not an arrear in August.
   billed_to_date: number;
   paid: number;
   // Late-fee surcharge auto-applied when at least one applicable fee
@@ -204,6 +208,10 @@ interface DuesRow {
   // left" is on — in which case the register must say which rows are leavers,
   // or the office cannot tell an arrear it should chase from one it should not.
   enrollment_status: string;
+  // The leaving date this row was priced to, for leavers. Shown on the badge:
+  // an operator looking at a frozen figure should be able to see the date it
+  // froze on without opening the student.
+  billing_cutoff: string | null;
 }
 
 export type FeesSection = "academic" | "payments" | "dues";
@@ -312,6 +320,7 @@ function DuesTable({
   rows,
   emptyMessage,
   showClass,
+  showLeftOn,
   exportName,
   exportTitle,
 }: {
@@ -319,6 +328,11 @@ function DuesTable({
   emptyMessage: string;
   /** Off when a single class is selected — the column would repeat one value. */
   showClass: boolean;
+  /**
+   * On only when "Include students who left" is on. Off it would be a column
+   * of dashes, since every row is then a student still on the roll.
+   */
+  showLeftOn: boolean;
   exportName: string;
   exportTitle: string;
 }) {
@@ -344,6 +358,19 @@ function DuesTable({
         label: "Transport",
         value: (r) => (r.has_transport ? "Yes" : "No"),
       },
+      // A leaver's money columns are frozen on this date. Without it a
+      // downloaded register reads as if every figure were priced to today,
+      // which is exactly the wrong impression for a student who left in June.
+      ...(showLeftOn
+        ? {
+            billing_cutoff: {
+              label: "Left On",
+              value: (r: DuesRow) => r.billing_cutoff,
+              sortValue: (r: DuesRow) => r.billing_cutoff ?? "",
+              emptyLabel: "On roll",
+            },
+          }
+        : {}),
       // `sortValue` already holds the raw rupee amount for each of these, so
       // `exportFormat` is all it takes for the exported column to be a number
       // Excel can total — rather than the "₹1,23,456" text it shows on screen.
@@ -388,7 +415,7 @@ function DuesTable({
         value: (r) => (r.dues > 0 ? "Has dues" : "Cleared"),
       },
     }),
-    []
+    [showLeftOn]
   );
 
   const table = useTableControls({ rows, columns });
@@ -466,8 +493,16 @@ function DuesTable({
                 {/* Only ever set when "Include students who left" is on. A
                     leaver's arrears are historical, not something to chase. */}
                 {r.enrollment_status !== "active" && (
-                  <Badge className="ml-2 bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300">
+                  <Badge
+                    className="ml-2 bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300"
+                    title={
+                      r.billing_cutoff
+                        ? `Billing stopped on ${r.billing_cutoff}. Nothing due after this date is charged.`
+                        : "No leaving date on record, so this student is still being billed to today. Set one on People \u2192 Students."
+                    }
+                  >
                     {r.enrollment_status === "terminated" ? "Terminated" : "Left"}
+                    {r.billing_cutoff ? ` \u00b7 ${r.billing_cutoff}` : ""}
                   </Badge>
                 )}
               </TableCell>
@@ -682,6 +717,8 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   // register even when the student was reached by name search rather than by
   // picking a class first.
   const [selectedStudentClassId, setSelectedStudentClassId] = useState<string | null>(null);
+  // Last date the selected student may be billed for — see resolveBillingCutoff().
+  const [selectedBillingCutoff, setSelectedBillingCutoff] = useState<string | null>(null);
   // Transport state for the selected student. Stop/fee/bus assignment now
   // lives in the standalone /transport section (migration 074); Payments only
   // reads the assigned stop so the office can bill a transport payment.
@@ -864,7 +901,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     const { data: enrollment } = await supabase
       .from("student_enrollments")
       .select(
-        "id, class_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, classes(name, section)"
+        "id, class_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, exit_date, status_changed_at, classes(name, section)"
       )
       .eq("student_id", student.id)
       .order("enrollment_date", { ascending: false })
@@ -884,6 +921,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         : null;
     setSelectedStudentStreamId(streamId);
     setSelectedEnrollmentId(enrollment?.id ?? null);
+    // Null while the student is on the roll; their leaving date once they are
+    // not, which is what stops the schedule charging them past their exit.
+    setSelectedBillingCutoff(resolveBillingCutoff(enrollment));
     setSelectedStudentClassId((enrollment?.class_id as string | null) ?? null);
     setStudentHasTransport(hasTransport);
     setStudentBusStopId(busStopId);
@@ -1329,7 +1369,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         let q = supabase
           .from("student_enrollments")
           .select(
-            "id, student_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, students(id, full_name, admission_no, father_name, is_active, admission_date), classes(name, section, streams(name))"
+            "id, student_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, exit_date, status_changed_at, students(id, full_name, admission_no, father_name, is_active, admission_date), classes(name, section, streams(name))"
           )
           .eq("academic_year_id", academicYearId)
           .in(
@@ -1520,11 +1560,16 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
               ]
             : [],
         });
+        // With "include leavers" on, the register prices students who are no
+        // longer on the roll. Their schedule stops on the day they left — the
+        // whole reason the arrears column stayed honest after migration 123.
+        const billingCutoff = resolveBillingCutoff(e as BillableEnrollment);
         const breakdown = computeDuesBreakdown({
           lines,
           payments: payments.filter((pay) => pay.student_id === e.student_id),
           today,
           yearStartDate,
+          billingCutoff,
         });
         return {
           student_id: e.student_id as string,
@@ -1534,6 +1579,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           class_label: embeddedClassLabel(e.classes as EmbeddedClass),
           has_transport: Boolean(e.has_transport),
           enrollment_status: (e.status as string) ?? "active",
+          billing_cutoff: billingCutoff,
           expected: breakdown.expected,
           billed_to_date: breakdown.billedToDate,
           paid: breakdown.paid,
@@ -1669,6 +1715,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       payments: yearPayments,
       today: todayISO(),
       yearStartDate: academicYearRange?.start_date ?? null,
+      // A student who has left is priced as of their leaving date, so opening
+      // their record a quarter later shows the balance they actually walked
+      // out with rather than one the calendar has grown since.
+      billingCutoff: selectedBillingCutoff,
     });
   }, [
     selectedStudent,
@@ -1676,6 +1726,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     academicYearRange,
     applicableFeeLines,
     yearPayments,
+    selectedBillingCutoff,
   ]);
 
   // Net settled per fee line, so a late-fee note can say whether the
@@ -2894,6 +2945,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                               : "Students With No Dues"
                           }
                           showClass={!duesClassId}
+                          showLeftOn={includeLeavers}
                           emptyMessage={
                             duesSearch.trim()
                               ? "No students match your search."

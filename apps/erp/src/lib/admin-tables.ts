@@ -51,7 +51,7 @@ export const ALLOWED_COLUMNS: Record<string, string[]> = {
   // CREATE TABLE in supabase-schema.sql). Listing it let the proxy forward a
   // field Postgres would then reject.
   class_subjects: ["id", "class_id", "subject_id", "teacher_id"],
-  student_enrollments: ["id", "student_id", "class_id", "stream_id", "roll_number", "roll_number_manual", "enrollment_date", "status", "house_id", "has_transport", "pickup_address", "bus_stop_id", "bus_id", "transport_direction", "transport_fee_override", "updated_at"],
+  student_enrollments: ["id", "student_id", "class_id", "stream_id", "roll_number", "roll_number_manual", "enrollment_date", "status", "exit_date", "house_id", "has_transport", "pickup_address", "bus_stop_id", "bus_id", "transport_direction", "transport_fee_override", "updated_at"],
   fee_structures: ["id", "academic_year_id", "class_name", "class_level", "stream_id", "fee_type", "amount", "due_date", "frequency", "is_active", "description", "late_fee_percent", "late_fee_fixed_amount", "late_fee_per_day", "late_fee_max", "instalment_no", "instalment_name", "month_label", "student_type", "late_fee_start_date", "created_at", "updated_at"],
   fee_payments: ["id", "student_id", "fee_structure_id", "amount_paid", "payment_date", "payment_method", "receipt_number", "month", "status", "recorded_by", "remarks", "cheque_number", "cheque_date", "bank_name", "payer_name", "transaction_ref", "payment_provider", "created_at"],
   exam_types: ["id", "name", "academic_year_id", "max_marks", "weightage", "sort_order", "kind", "upper_header", "class_level", "created_at"],

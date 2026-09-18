@@ -326,6 +326,65 @@ export function resolveEffectiveFeeLines(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// Billing cutoff — a student who has left stops being billed
+// ---------------------------------------------------------------------------
+
+// Enrollment statuses that end a student's liability. 'passed' and 'failed'
+// are year-end bookkeeping on a student who was on the roll all year, so they
+// are deliberately NOT here — the whole session is still owed.
+const EXIT_STATUSES = new Set(["exited", "terminated"]);
+
+/** An enrollment, reduced to the three fields the cutoff is derived from. */
+export type BillableEnrollment = {
+  status?: string | null;
+  exit_date?: string | null;
+  status_changed_at?: string | null;
+};
+
+/**
+ * The last date this enrollment may be billed for, or null for "still on the
+ * roll, bill to today".
+ *
+ * Dues are computed from the calendar, not the roster: amountBilledToDate()
+ * charges every instalment whose due date has passed. Left alone, a student
+ * who exited after the first quarter keeps acquiring the second quarter's
+ * instalment, then the third — arrears the school never meant to raise, which
+ * then distort the register, the No-Dues list and every total built on them.
+ *
+ * `exit_date` (migration 123) is the office's recorded last day on the roll
+ * and is the authority. `status_changed_at` is the fallback for the exits that
+ * predate the column and for the bulk importers that write `status` directly:
+ * it is when the exit was TYPED, so it is later than the truth whenever the
+ * paperwork lagged, but a late cutoff still beats no cutoff at all.
+ *
+ * Note this reads `status` first — a date left behind on an enrollment that
+ * was later re-activated is ignored, not applied.
+ */
+export function resolveBillingCutoff(
+  enrollment: BillableEnrollment | null | undefined
+): string | null {
+  if (!enrollment) return null;
+  if (!enrollment.status || !EXIT_STATUSES.has(enrollment.status)) return null;
+  const recorded = enrollment.exit_date ?? enrollment.status_changed_at;
+  return recorded ? recorded.slice(0, 10) : null;
+}
+
+/**
+ * The date a dues calculation should treat as "now" for one student: today,
+ * or their leaving date once they have left. Never later than `today`, so a
+ * leaving date typed into the future cannot bill a student ahead of the clock.
+ */
+export function effectiveBillingDate(
+  today: string,
+  billingCutoff: string | null | undefined
+): string {
+  const day = today.slice(0, 10);
+  if (!billingCutoff) return day;
+  const cutoff = billingCutoff.slice(0, 10);
+  return cutoff < day ? cutoff : day;
+}
+
+// ---------------------------------------------------------------------------
 // Dues
 // ---------------------------------------------------------------------------
 
@@ -349,7 +408,12 @@ export function settledAmount(p: DuesPaymentRow): number {
 }
 
 export interface DuesBreakdown {
-  /** Whole-year obligation across every applicable line. */
+  /**
+   * Whole-year obligation across every applicable line — or, for a student who
+   * has left, the obligation up to their leaving date. A leaver's year ended
+   * when they did, so their full-session figure is not a debt anyone will
+   * collect.
+   */
   expected: number;
   /** The slice of `expected` that has actually fallen due as of `today`. */
   billedToDate: number;
@@ -381,12 +445,39 @@ export function computeDuesBreakdown(opts: {
   today: string;
   /** Anchor for recurring lines that carry no due date of their own. */
   yearStartDate?: string | null;
+  /**
+   * Last date this student may be billed for — `resolveBillingCutoff()` of
+   * their enrollment. Null (the default) means they are still on the roll and
+   * billing runs to `today`.
+   *
+   * Every caller that prices a roster which can include leavers must pass
+   * this. Omitting it bills a student who left in June for the whole session,
+   * which is the bug migration 123 exists to fix.
+   */
+  billingCutoff?: string | null;
 }): DuesBreakdown {
-  const { lines, payments, today, yearStartDate = null } = opts;
+  const {
+    lines,
+    payments,
+    today,
+    yearStartDate = null,
+    billingCutoff = null,
+  } = opts;
 
-  const expected = lines.reduce((sum, l) => sum + annualizedAmount(l), 0);
+  // Everything below prices as of this date, not today's. For a student still
+  // on the roll the two are the same; for one who has left, the calendar stops
+  // on their last day and no later instalment is ever charged.
+  const asOf = effectiveBillingDate(today, billingCutoff);
+
+  // A leaver owes what had fallen due by the day they left, and nothing for
+  // the rest of the session — so their "expected" is that same figure rather
+  // than the annualised total, and the register stops reporting a year's fees
+  // against a child who attended one quarter of it.
+  const expected = billingCutoff
+    ? lines.reduce((sum, l) => sum + amountBilledToDate(l, asOf, yearStartDate), 0)
+    : lines.reduce((sum, l) => sum + annualizedAmount(l), 0);
   const billedToDate = lines.reduce(
-    (sum, l) => sum + amountBilledToDate(l, today, yearStartDate),
+    (sum, l) => sum + amountBilledToDate(l, asOf, yearStartDate),
     0
   );
   const paid = payments.reduce((sum, p) => sum + settledAmount(p), 0);
@@ -405,11 +496,19 @@ export function computeDuesBreakdown(opts: {
 
   // Transport lines carry no late-fee rule, so they are skipped outright
   // rather than relying on computeLateFee returning 0 for them.
+  //
+  // Both halves run on `asOf`, so a leaver's surcharge freezes on the day they
+  // left instead of compounding for the rest of the session. The per-line
+  // "still owed?" test uses the billed-to-cutoff amount for them too: judging a
+  // part-year liability against the annualised figure would mark a fully
+  // settled line unpaid and surcharge it.
   const lateFee = lines.reduce((sum, l) => {
     if (l.kind !== "fee_structure") return sum;
-    const lineExpected = annualizedAmount(l);
+    const lineExpected = billingCutoff
+      ? amountBilledToDate(l, asOf, yearStartDate)
+      : annualizedAmount(l);
     if ((paidByStructure.get(l.id) ?? 0) >= lineExpected) return sum;
-    return sum + computeLateFee(l, today);
+    return sum + computeLateFee(l, asOf);
   }, 0);
 
   // Money paid ahead against a future instalment still counts as settled, so a
