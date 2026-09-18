@@ -36,6 +36,12 @@ jobs:
       - name: Guide coverage
         run: pnpm run check:guide
 
+      # A browser call to a token-gated route that forgets the token answers
+      # 401 for every role, admins included, and the UI reports it as a
+      # permission problem. That killed every fee write path silently.
+      - name: API auth wiring
+        run: pnpm run check:api-auth
+
       - name: Build all apps
         run: pnpm run build
         env:

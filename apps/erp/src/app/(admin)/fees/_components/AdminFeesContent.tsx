@@ -1949,7 +1949,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       // The proposed_changes describe a refund — admin's approve endpoint
       // stamps refunded_at/refunded_by from the approver, not the requester.
       if (isEditor) {
-        const res = await fetch("/api/fees/change-requests", {
+        const res = await adminFetch("/api/fees/change-requests", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1977,7 +1977,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       }
 
       // Admin branch: direct refund.
-      const res = await fetch(
+      const res = await adminFetch(
         `/api/fees/payments/${refundPaymentId}/refund`,
         {
           method: "POST",
@@ -2021,7 +2021,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     }
     setWaiverSubmitting(true);
     try {
-      const res = await fetch("/api/fees/waivers", {
+      const res = await adminFetch("/api/fees/waivers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2080,7 +2080,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
 
     setPaymentSubmitting(true);
     const m = newPayment.payment_method;
-    const res = await fetch("/api/fees/payments", {
+    const res = await adminFetch("/api/fees/payments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
