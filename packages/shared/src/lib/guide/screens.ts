@@ -258,6 +258,16 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "The date is what stops their fees. Instalments falling due AFTER it are never charged, so the student drops out of the arrears register instead of collecting a new quarter every term. Instalments already due by that date still stand and remain collectable.",
       },
       {
+        name: "Fix the leaving date of a student who already left",
+        steps: [
+          "Find them — the Exited and Terminated tabs list the leavers.",
+          "Click the date next to their status badge in the Status column.",
+          "Set the correct last day on the roll, add a note if it helps, and save.",
+        ],
+        gotcha:
+          "Students who left before leaving dates were recorded got one filled in automatically — from their TC where it fits the session, otherwise from the day the exit was typed in. Where the paperwork lagged, that is later than the truth and the student is still carrying fees they never owed, so it is worth checking. A student showing an amber \"Set date\" instead of a date has none on record and is still being billed to today. Changing the date does not change their status, and their original leaving reason is kept.",
+      },
+      {
         name: "Promote a class to the next year",
         steps: [
           "Pick a class in the class dropdown — the menu item only appears once one is selected.",

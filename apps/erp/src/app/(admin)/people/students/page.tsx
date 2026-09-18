@@ -103,6 +103,10 @@ import {
   statusNeedsReason,
   type StatusChangeRequest,
 } from "./_components/StatusChangeDialog";
+import {
+  ExitDateDialog,
+  type ExitDateRequest,
+} from "./_components/ExitDateDialog";
 import { StudentCallActions } from "@/components/StudentCallActions";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
@@ -154,6 +158,8 @@ interface StudentRow extends Student {
   // Latest recorded reason for the current status (migration 087 cache).
   status_reason?: string | null;
   status_changed_at?: string | null;
+  /** Billing cutoff for a leaver (migration 123). Null while on the roll. */
+  exit_date?: string | null;
   class_name?: string;
   class_section?: string;
   // Transport columns surfaced for the dashboard deep-link filter
@@ -320,6 +326,7 @@ interface StudentRowActions {
   onInvite: (student: StudentRow) => void;
   onDelete: (student: StudentRow) => void;
   onStatusChange: (enrollmentId: string, status: EnrollmentStatus) => void;
+  onEditExitDate: (student: StudentRow) => void;
   onUnlock: (student: StudentRow) => void;
 }
 
@@ -460,6 +467,38 @@ const StudentTableRow = memo(function StudentTableRow({
             <Info className="h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-gray-500" />
           </span>
         )}
+        {/* Only a leaver has a leaving date, and it is the one field on this
+            row that moves money — an instalment due after it is never billed.
+            A missing date is called out in amber because it means the student
+            is still accruing fees, which is the state this whole feature
+            exists to end. */}
+        {student.enrollment_id &&
+          (student.enrollment_status === "exited" ||
+            student.enrollment_status === "terminated") && (
+            <button
+              type="button"
+              onClick={() => actions.onEditExitDate(student)}
+              aria-label={
+                student.exit_date
+                  ? `Left on ${student.exit_date}. Change the leaving date.`
+                  : "No leaving date on record. Set one."
+              }
+              title={
+                student.exit_date
+                  ? `Left on ${student.exit_date} — fees due after this date are not charged. Click to change.`
+                  : "No leaving date on record, so this student is still being billed to today. Click to set one."
+              }
+              className={
+                "inline-flex items-center gap-1 rounded px-1 py-0.5 text-[11px] transition-colors " +
+                (student.exit_date
+                  ? "text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                  : "text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30")
+              }
+            >
+              <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+              {student.exit_date ?? "Set date"}
+            </button>
+          )}
         </div>
       </TableCell>
       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
@@ -609,6 +648,8 @@ export default function AdminStudentsPage() {
   // Pending Terminated/Exited change awaiting a reason.
   const [statusRequest, setStatusRequest] =
     useState<StatusChangeRequest | null>(null);
+  const [exitDateRequest, setExitDateRequest] =
+    useState<ExitDateRequest | null>(null);
   const [alumniRows, setAlumniRows] = useState<AlumniRow[]>([]);
   const [alumniLoading, setAlumniLoading] = useState(false);
   const [revertDialog, setRevertDialog] = useState<{
@@ -1496,6 +1537,52 @@ export default function AdminStudentsPage() {
     }
   };
 
+  // Correcting a leaving date on someone who has already left. Kept apart from
+  // the status flow because re-selecting a status a student already holds is a
+  // no-op that change_enrollment_status() skips — there is no transition to
+  // hang it off, and the date is what decides their fees.
+  const openExitDateDialog = (student: StudentRow) => {
+    if (!student.enrollment_id) return;
+    setExitDateRequest({
+      enrollment_id: student.enrollment_id,
+      full_name: student.full_name,
+      exit_date: student.exit_date ?? null,
+      status: student.enrollment_status ?? "exited",
+    });
+  };
+
+  const handleExitDateConfirm = async (exitDate: string, note: string) => {
+    if (!exitDateRequest) return;
+    try {
+      const res = await adminFetch("/api/students/exit-date", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enrollment_id: exitDateRequest.enrollment_id,
+          exit_date: exitDate,
+          ...(note ? { note } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to update the leaving date");
+        return;
+      }
+      // The server clamps a date past the session end, so echo back what it
+      // actually stored rather than what was typed.
+      const stored = (data.exit_date as string) ?? exitDate;
+      toast.success(
+        data.changed
+          ? `Leaving date set to ${stored}. Fees due after it are no longer charged.`
+          : "Leaving date unchanged"
+      );
+      setExitDateRequest(null);
+      await fetchStudents();
+    } catch {
+      toast.error("Failed to update the leaving date");
+    }
+  };
+
   // Confirm handler for the reason dialog — covers both single and bulk.
   const handleStatusReasonConfirm = async (reason: string, exitDate: string) => {
     if (!statusRequest) return;
@@ -1587,6 +1674,7 @@ export default function AdminStudentsPage() {
       onInvite: (student) => openInviteDialog(student),
       onDelete: (student) => handleDelete(student),
       onStatusChange: (enrollmentId, status) => handleStatusChange(enrollmentId, status),
+      onEditExitDate: (student) => openExitDateDialog(student),
       onUnlock: (student) => {
         setUnlockReason("");
         setUnlockTarget(student);
@@ -1603,6 +1691,7 @@ export default function AdminStudentsPage() {
       onDelete: (student) => rowHandlersRef.current?.onDelete(student),
       onStatusChange: (enrollmentId, status) =>
         rowHandlersRef.current?.onStatusChange(enrollmentId, status),
+      onEditExitDate: (student) => rowHandlersRef.current?.onEditExitDate(student),
       onUnlock: (student) => rowHandlersRef.current?.onUnlock(student),
     }),
     []
@@ -2866,6 +2955,14 @@ export default function AdminStudentsPage() {
       </Dialog>
 
       {/* Terminated / Exited reason capture (single + bulk) */}
+      <ExitDateDialog
+        request={exitDateRequest}
+        onOpenChange={(open) => {
+          if (!open) setExitDateRequest(null);
+        }}
+        onConfirm={handleExitDateConfirm}
+      />
+
       <StatusChangeDialog
         request={statusRequest}
         onOpenChange={(open) => {

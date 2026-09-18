@@ -104,6 +104,8 @@ export interface RosterEnrollment {
   status: string | null;
   status_reason: string | null;
   status_changed_at: string | null;
+  // The billing cutoff for a leaver (migration 123). Null while on the roll.
+  exit_date: string | null;
   academic_year_id: string | null;
   updated_at: string | null;
   has_transport: boolean | null;
@@ -113,7 +115,7 @@ export interface RosterEnrollment {
 }
 
 const ENROLLMENT_COLUMNS =
-  "id, student_id, class_id, stream_id, roll_number, roll_number_manual, status, status_reason, status_changed_at, academic_year_id, updated_at, has_transport, bus_stop_id, bus_id, transport_direction";
+  "id, student_id, class_id, stream_id, roll_number, roll_number_manual, status, status_reason, status_changed_at, exit_date, academic_year_id, updated_at, has_transport, bus_stop_id, bus_id, transport_direction";
 
 export interface SessionRosterRow extends Record<string, unknown> {
   id: string;
@@ -252,6 +254,7 @@ export async function fetchSessionRoster(
         enrollment_academic_year_id: academicYearId,
         status_reason: enrollment?.status_reason ?? null,
         status_changed_at: enrollment?.status_changed_at ?? null,
+        exit_date: enrollment?.exit_date ?? null,
         has_transport: enrollment?.has_transport ?? false,
         bus_stop_id: enrollment?.bus_stop_id ?? null,
         bus_id: enrollment?.bus_id ?? null,
@@ -446,6 +449,7 @@ export async function fetchRosterByStudentIds(
         enrollment_academic_year_id: academicYearId,
         status_reason: enrollment?.status_reason ?? null,
         status_changed_at: enrollment?.status_changed_at ?? null,
+        exit_date: enrollment?.exit_date ?? null,
         has_transport: enrollment?.has_transport ?? false,
         bus_stop_id: enrollment?.bus_stop_id ?? null,
         bus_id: enrollment?.bus_id ?? null,
