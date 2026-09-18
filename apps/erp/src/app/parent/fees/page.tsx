@@ -24,6 +24,7 @@ import { CreditCard, CheckCircle, AlertCircle, Loader2, Users, Wallet, Download 
 import { toast } from "sonner";
 import {
   computeDuesBreakdown,
+  resolveBillingCutoff,
   resolveEffectiveFeeLines,
   resolveStudentType,
 } from "@/lib/fees";
@@ -55,6 +56,12 @@ interface WardEnrollment {
   bus_stop_id: string | null;
   transport_direction: TransportDirection | null;
   transport_fee_override: number | null;
+  // The three fields resolveBillingCutoff() reads. A ward who has left stops
+  // being billed on their leaving date instead of accruing the rest of the
+  // session's instalments.
+  status: string | null;
+  exit_date: string | null;
+  status_changed_at: string | null;
   classes: { name: string; section: string } | null;
 }
 
@@ -142,7 +149,7 @@ export default function ParentFeesPage() {
         const { data: enrollmentRows } = await supabase
           .from("student_enrollments")
           .select(
-            "student_id, class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, classes(name, section)"
+            "student_id, class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, exit_date, status_changed_at, classes(name, section)"
           )
           .in("student_id", studentIds)
           .order("enrollment_date", { ascending: false });
@@ -373,6 +380,10 @@ export default function ParentFeesPage() {
     ),
     today,
     yearStartDate: academicYear?.start_date,
+    // Priced to the ward's leaving date once they have left, so a family that
+    // settled up and moved on is not shown a balance that keeps growing
+    // behind them.
+    billingCutoff: resolveBillingCutoff(enrollments.get(selectedChild)),
   });
   const totalFees = dues.expected;
   const billedToDate = dues.billedToDate;

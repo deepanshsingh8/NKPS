@@ -52,6 +52,7 @@ import {
   XCircle,
   KeyRound,
   Link2,
+  RotateCcwKey,
 } from "lucide-react";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
 import type { Profile, UserRole, RegistrationRequest, RegistrationStatus } from "@nkps/shared/types";
@@ -104,6 +105,17 @@ export default function AdminUsersPage() {
   const [regSearch, setRegSearch] = useState("");
   const [regSubTab, setRegSubTab] = useState("pending");
   const [processingId, setProcessingId] = useState<string | null>(null);
+  // Admin password reset: the row currently being reset, and the credential to
+  // hand over once it is. Held in state rather than a toast because it must
+  // stay on screen until the admin has copied it — it is never shown again.
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [resetResult, setResetResult] = useState<{
+    name: string;
+    email: string;
+    password: string;
+    emailWarning: string | null;
+    flagWarning: string | null;
+  } | null>(null);
 
   // Reject dialog
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
@@ -337,6 +349,47 @@ export default function AdminUsersPage() {
       newStatus ? "User activated" : "User deactivated"
     );
     await fetchProfiles();
+  };
+
+  // Admin-initiated password reset. The self-service "Forgot password" flow
+  // mails a link and is the right path when mail is working; this one does not
+  // depend on mail at all, so it still works when it is not. The new password
+  // comes back in the response for the admin to hand over — see the route for
+  // why that trade is made.
+  const handleResetPassword = async (profile: Profile) => {
+    if (
+      !confirm(
+        `Reset the password for ${profile.full_name}?\n\nTheir current password stops working immediately. You will be shown a temporary one to give them, and they must set their own at next login.`
+      )
+    )
+      return;
+
+    setResettingId(profile.id);
+    try {
+      const res = await adminFetch("/api/users/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: profile.id }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Failed to reset password");
+        return;
+      }
+
+      setResetResult({
+        name: (data.full_name as string) || profile.full_name,
+        email: (data.email as string) || profile.email || "",
+        password: data.temporary_password as string,
+        emailWarning: (data.email_warning as string | null) ?? null,
+        flagWarning: (data.flag_warning as string | null) ?? null,
+      });
+    } catch {
+      toast.error("Failed to reset password");
+    } finally {
+      setResettingId(null);
+    }
   };
 
   const handleDelete = async (profile: Profile) => {
@@ -698,6 +751,20 @@ export default function AdminUsersPage() {
                             <Button
                               variant="outline"
                               size="sm"
+                              onClick={() => handleResetPassword(profile)}
+                              disabled={resettingId === profile.id}
+                              title="Set a new temporary password and show it to you — works even when reset emails are not going out"
+                            >
+                              {resettingId === profile.id ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <RotateCcwKey className="h-4 w-4 mr-1" />
+                              )}
+                              Reset password
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleDeactivate(profile)}
                             >
                               {profile.is_active ? "Deactivate" : "Activate"}
@@ -878,6 +945,78 @@ export default function AdminUsersPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Password reset result — the one moment this credential is visible. */}
+      <Dialog
+        open={Boolean(resetResult)}
+        onOpenChange={(open) => {
+          if (!open) setResetResult(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-green-100 dark:bg-green-950/30 flex items-center justify-center">
+                <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <DialogTitle>Password reset</DialogTitle>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                  {resetResult?.name}
+                  {resetResult?.email ? ` · ${resetResult.email}` : ""}
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 p-4">
+              <code className="flex-1 text-sm font-mono font-semibold text-navy-900 dark:text-white break-all">
+                {resetResult?.password}
+              </code>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => {
+                  if (!resetResult) return;
+                  navigator.clipboard.writeText(resetResult.password);
+                  toast.success("Password copied");
+                }}
+                aria-label="Copy password"
+                className="text-amber-700 dark:text-amber-400 hover:bg-amber-100"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {resetResult?.emailWarning && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                {resetResult.emailWarning}
+              </p>
+            )}
+            {resetResult?.flagWarning && (
+              <p className="text-xs text-red-600 dark:text-red-400">
+                {resetResult.flagWarning}
+              </p>
+            )}
+
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              Copy this now — it is not stored and cannot be shown again. Their
+              old password has already stopped working, and they will be asked
+              to set their own the first time they log in.
+            </p>
+
+            <DialogFooter>
+              <Button
+                onClick={() => setResetResult(null)}
+                className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
+              >
+                Done
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add User Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

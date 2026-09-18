@@ -46,9 +46,12 @@ import type { FeeStructure, TransportDirection } from "@nkps/shared/types";
 import { todayISO } from "@nkps/shared/lib/date";
 import {
   amountBilledToDate,
+  effectiveBillingDate,
+  resolveBillingCutoff,
   resolveEffectiveFeeLines,
   resolveStudentType,
   settledAmount,
+  type BillableEnrollment,
   type StopFeeLookup,
 } from "./fees";
 
@@ -63,6 +66,12 @@ const FEE_ENROLLMENT_COLUMNS = [
   "bus_stop_id",
   "transport_direction",
   "transport_fee_override",
+  // The three resolveBillingCutoff() reads. A report can be run over leavers
+  // (the status filter offers 'exited' and 'terminated'), and without these a
+  // student who left in June would be billed for the whole session.
+  "status",
+  "exit_date",
+  "status_changed_at",
 ];
 
 /**
@@ -472,8 +481,13 @@ export async function runStudentReport(
         stopFees: busStopId ? stopFeesByStop.get(busStopId) ?? [] : [],
       });
 
+      // Leavers stop being billed on their leaving date. A report run over
+      // 'exited' students is normally a reconciliation of what they left
+      // owing, and charging them the instalments raised after they went would
+      // make every total on the sheet wrong.
+      const billedTo = effectiveBillingDate(today, resolveBillingCutoff(e as BillableEnrollment));
       const billed = lines.reduce(
-        (sum, line) => sum + amountBilledToDate(line, today, sessionInfo.start_date),
+        (sum, line) => sum + amountBilledToDate(line, billedTo, sessionInfo.start_date),
         0
       );
 

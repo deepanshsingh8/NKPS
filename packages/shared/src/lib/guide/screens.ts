@@ -111,6 +111,17 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'The "Add User" button is hidden while the Registrations tab is open. If the welcome email fails you must copy the password out of that dialog yourself.',
       },
       {
+        name: "Reset someone's password",
+        steps: [
+          "Find the row using the search box or a role tab.",
+          'Click "Reset password" and confirm.',
+          "Copy the temporary password from the dialog and hand it over.",
+        ],
+        adminOnly: true,
+        gotcha:
+          "This does not depend on email, so it is the way in when reset links are not arriving. Their old password stops working the moment you confirm, the temporary one is shown once and never again, and they are forced to set their own at next login. You cannot reset your own password here — use Change Password instead.",
+      },
+      {
         name: "Change someone's role",
         steps: [
           "Find the row using the search box or a role tab.",
@@ -232,6 +243,19 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         needs: 'Only "Admission No", "Name" and "Class" are required columns. Missing classes are created automatically.',
         gotcha:
           "Re-uploading an existing admission number UPDATES that student. A blank cell clears the value; a missing column is left alone.",
+      },
+      {
+        name: "Mark a student as Exited or Terminated",
+        steps: [
+          'Change the row\'s Status to "Exited" or "Terminated" — a dialog opens.',
+          'Set "Last day on the roll" — today by default; back-date it if the paperwork lagged.',
+          "Type the reason (at least 5 characters).",
+          'Click "Mark as Exited".',
+        ],
+        needs:
+          "Both fields are required. For several students at once, tick their rows and use the bulk Status control — they share one date and one reason.",
+        gotcha:
+          "The date is what stops their fees. Instalments falling due AFTER it are never charged, so the student drops out of the arrears register instead of collecting a new quarter every term. Instalments already due by that date still stand and remain collectable.",
       },
       {
         name: "Promote a class to the next year",
@@ -1300,7 +1324,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Switch between the "Dues (N)" and "No Dues (N)" tabs.',
         ],
         gotcha:
-          "Dues are counted as of TODAY. \"Due Till Date\" and \"Annual Fee\" are deliberately different numbers — later instalments show in the annual figure but are not arrears.",
+          "Dues are counted as of TODAY. \"Due Till Date\" and \"Annual Fee\" are deliberately different numbers — later instalments show in the annual figure but are not arrears. A student who left is counted as of their leaving date instead: the grey badge next to their name carries that date, and a \"Left On\" column appears in the export.",
       },
       {
         name: "Go from a defaulter to taking their money",

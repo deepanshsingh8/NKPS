@@ -22,6 +22,7 @@ import { Button } from "@nkps/shared/components/ui/button";
 import { CreditCard, CheckCircle, AlertCircle, Loader2, Download } from "lucide-react";
 import {
   computeDuesBreakdown,
+  resolveBillingCutoff,
   resolveEffectiveFeeLines,
   resolveStudentType,
 } from "@/lib/fees";
@@ -51,6 +52,9 @@ export default function StudentFeesPage() {
   // than rendering a confidently smaller balance. lib/student-dues.ts takes
   // the same position for the download gate.
   const [feeLoadError, setFeeLoadError] = useState<string | null>(null);
+  // Null while on the roll; the leaving date once the student has left, which
+  // is where their fee schedule stops. See resolveBillingCutoff().
+  const [billingCutoff, setBillingCutoff] = useState<string | null>(null);
   // The year's start anchors recurring fees that carry no due date of their
   // own (transport stop fees, legacy monthly/quarterly rows).
   const [academicYear, setAcademicYear] = useState<{
@@ -88,7 +92,7 @@ export default function StudentFeesPage() {
       const { data: enrollment } = await supabase
         .from("student_enrollments")
         .select(
-          "class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, classes(name)"
+          "class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, exit_date, status_changed_at, classes(name)"
         )
         .eq("student_id", studentId)
         .order("enrollment_date", { ascending: false })
@@ -106,6 +110,7 @@ export default function StudentFeesPage() {
         (enrollment?.transport_fee_override as number | null) ?? null;
       const academicYearId =
         (enrollment?.academic_year_id as string | null) ?? null;
+      setBillingCutoff(resolveBillingCutoff(enrollment));
 
       // A schedule row can be restricted to newly-admitted or returning
       // students (the admission fee bills only this year's intake), so the
@@ -268,6 +273,10 @@ export default function StudentFeesPage() {
     ),
     today,
     yearStartDate: academicYear?.start_date,
+    // Priced to their leaving date once they have left, so a student who
+    // settled up and moved on is not shown a balance that keeps growing
+    // behind them.
+    billingCutoff,
   });
   const totalFees = dues.expected;
   const billedToDate = dues.billedToDate;

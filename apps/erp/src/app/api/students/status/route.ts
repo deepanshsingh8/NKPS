@@ -7,6 +7,20 @@ import { z } from "zod";
 // reason: a year later nobody can otherwise say why a name left the roster.
 const REASON_REQUIRED_STATUSES = new Set(["terminated", "exited"]);
 
+// The last day the student was on the roll — and, because dues are computed
+// from the schedule against the calendar, the date their billing stops
+// (migration 123). Optional on the wire so existing callers keep working; the
+// RPC defaults a missing one to CURRENT_DATE rather than leaving it null,
+// since a null would let the next quarter's instalment be raised against a
+// student who has already gone.
+const exitDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Exit date must be YYYY-MM-DD")
+  .refine(
+    (d) => d <= new Date().toISOString().slice(0, 10),
+    "Exit date cannot be in the future"
+  );
+
 const statusUpdateSchema = z.object({
   enrollment_id: z.string().uuid(),
   status: enrollmentStatusSchema,
@@ -16,6 +30,7 @@ const statusUpdateSchema = z.object({
     .min(5, "Reason must be at least 5 characters")
     .max(500, "Reason must be 500 characters or fewer")
     .optional(),
+  exit_date: exitDateSchema.optional(),
 });
 
 const bulkStatusSchema = z
@@ -25,6 +40,8 @@ const bulkStatusSchema = z
     // justification ("Batch of 2024-25 leavers, TC issued"). Per-item `reason`
     // overrides it when a caller genuinely needs distinct reasons.
     reason: z.string().trim().min(5).max(500).optional(),
+    // Same shape for the leaving date: a batch of leavers usually shares one.
+    exit_date: exitDateSchema.optional(),
   })
   .superRefine((value, ctx) => {
     value.updates.forEach((u, i) => {
@@ -59,7 +76,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { updates, reason: bulkReason } = result.data;
+    const { updates, reason: bulkReason, exit_date: bulkExitDate } = result.data;
 
     // One transaction in the database rather than 4+N round trips here.
     // Critically, the history row and the status write cannot come apart: a
@@ -71,6 +88,10 @@ export async function PATCH(request: NextRequest) {
         enrollment_id: u.enrollment_id,
         status: u.status,
         reason: u.reason ?? bulkReason ?? null,
+        // Only meaningful on the way into an exit status; the RPC ignores it
+        // otherwise and clears the stored date, so a re-admitted student
+        // resumes billing.
+        exit_date: u.exit_date ?? bulkExitDate ?? null,
       })),
       p_actor: user.id,
       p_source: updates.length > 1 ? "bulk" : "manual",

@@ -7,6 +7,7 @@ import type {
 import { todayISO } from "@nkps/shared/lib/date";
 import {
   computeDuesBreakdown,
+  resolveBillingCutoff,
   resolveEffectiveFeeLines,
   resolveStudentType,
   type DuesPaymentRow,
@@ -59,7 +60,7 @@ export async function getStudentOutstandingDues(
   const { data: enrollment, error: enrollmentError } = await admin
     .from("student_enrollments")
     .select(
-      "class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, classes(name)"
+      "class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, exit_date, status_changed_at, classes(name)"
     )
     .eq("student_id", studentId)
     .order("enrollment_date", { ascending: false })
@@ -208,11 +209,16 @@ export async function getStudentOutstandingDues(
       p.status === "paid" || p.status === "partial" || p.status === "refunded"
   );
 
+  // A student who has left stops being billed on their leaving date. Without
+  // this the gate would keep raising instalments against a child who is no
+  // longer on the roll — and their sibling's admit card, or their own pending
+  // report card, would be held back over a fee nobody intends to collect.
   const dues = computeDuesBreakdown({
     lines,
     payments,
     today,
     yearStartDate: year?.start_date,
+    billingCutoff: resolveBillingCutoff(enrollment),
   });
 
   // The shared figure minus the one term the gate deliberately omits. Late

@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     // Fetch current academic year
     const { data: currentYear } = await admin
       .from("academic_years")
-      .select("id")
+      .select("id, end_date")
       .eq("is_current", true)
       .single();
 
@@ -87,10 +87,12 @@ export async function POST(request: Request) {
     }
 
     let targetYearId = currentYear?.id as string | undefined;
+    // Where a backfilled leaver's billing stops — see the enrollment insert.
+    let targetYearEndDate = (currentYear?.end_date as string | null) ?? null;
     if (requestedYearId) {
       const { data: reqYear } = await admin
         .from("academic_years")
-        .select("id")
+        .select("id, end_date")
         .eq("id", requestedYearId)
         .maybeSingle();
       if (!reqYear) {
@@ -100,6 +102,7 @@ export async function POST(request: Request) {
         );
       }
       targetYearId = reqYear.id as string;
+      targetYearEndDate = (reqYear.end_date as string | null) ?? null;
     }
     if (!targetYearId) {
       return NextResponse.json(
@@ -431,6 +434,15 @@ export async function POST(request: Request) {
                 status: backfillStatus,
                 source: "bulk_backfill",
                 import_batch_id: importBatchId,
+                // A backfilled leaver is billed to the end of the session they
+                // belonged to, not to today's date. Without this their
+                // schedule would keep raising instalments in the current year
+                // against a row that describes a past one (migration 123).
+                ...((backfillStatus === "exited" ||
+                  backfillStatus === "terminated") &&
+                targetYearEndDate
+                  ? { exit_date: targetYearEndDate }
+                  : {}),
                 // Pin any roll number the sheet supplied so it survives even
                 // if the row is ever flipped active later.
                 roll_number_manual: p.rollNumber != null,
