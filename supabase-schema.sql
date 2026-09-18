@@ -7698,3 +7698,62 @@ DROP POLICY IF EXISTS "fee_payments_select_fee_editor" ON public.fee_payments;
 CREATE POLICY "fee_payments_select_fee_editor"
   ON public.fee_payments FOR SELECT
   USING ((SELECT public.has_editor_capability('fees')));
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 125 — editor-aware RLS for the remaining screens
+-- (mirrored from scripts/migrations/erp/migration-125-editor-rls-remaining-tables.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Admin screens read from the browser, so RLS applies, and where no policy
+-- admits the caller it FILTERS ROWS RATHER THAN RAISING — the page renders
+-- empty with nothing anywhere to say the granted feature does not work.
+--
+-- 084 fixed students/student_enrollments; 124 fixed fee_payments and added
+-- has_editor_capability(). These five were the remainder: each was admin +
+-- teacher + student + parent with no staff path at all. Every other table an
+-- admin screen reads client-side was audited and already admits staff (most
+-- are read-by-anyone master data; students/enrollments/profiles carry explicit
+-- staff policies; fee_payments is feature-gated by 124).
+--
+--   attendance                  /attendance                        'attendance'
+--   results                     /exams/results                     'results'
+--   non_scholastic_assessments  /exams/non-scholastic-assessments  'non_scholastic_entry'
+--   marksheet_publications      /exams/publish                     'publish_results'
+--   ptm_notes                   /exams/ptm-notes                   'ptm_notes'
+--
+-- Each key is the one the middleware gate already requires for that path, so a
+-- policy grants exactly what ticking that box promises and nothing else — a
+-- staff member granted Attendance still cannot read marks.
+--
+-- SELECT only: none of the five is written from the browser. Marks entry,
+-- attendance marking, publishing and PTM notes all post to server routes
+-- running verifyAdminOrEditor() on the service-role client, and adding writes
+-- here would be a weaker second way in. No is_published filter, unlike the
+-- student/parent policies: an editor checking marks must see them before they
+-- are published, which is why the admin policy has no filter either.
+
+DROP POLICY IF EXISTS "attendance_select_editor" ON public.attendance;
+CREATE POLICY "attendance_select_editor"
+  ON public.attendance FOR SELECT
+  USING ((SELECT public.has_editor_capability('attendance')));
+
+DROP POLICY IF EXISTS "results_select_editor" ON public.results;
+CREATE POLICY "results_select_editor"
+  ON public.results FOR SELECT
+  USING ((SELECT public.has_editor_capability('results')));
+
+DROP POLICY IF EXISTS "non_scholastic_assessments_select_editor"
+  ON public.non_scholastic_assessments;
+CREATE POLICY "non_scholastic_assessments_select_editor"
+  ON public.non_scholastic_assessments FOR SELECT
+  USING ((SELECT public.has_editor_capability('non_scholastic_entry')));
+
+DROP POLICY IF EXISTS "marksheet_publications_select_editor"
+  ON public.marksheet_publications;
+CREATE POLICY "marksheet_publications_select_editor"
+  ON public.marksheet_publications FOR SELECT
+  USING ((SELECT public.has_editor_capability('publish_results')));
+
+DROP POLICY IF EXISTS "ptm_notes_select_editor" ON public.ptm_notes;
+CREATE POLICY "ptm_notes_select_editor"
+  ON public.ptm_notes FOR SELECT
+  USING ((SELECT public.has_editor_capability('ptm_notes')));
