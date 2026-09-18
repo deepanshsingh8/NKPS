@@ -7632,3 +7632,69 @@ $$;
 
 REVOKE ALL ON FUNCTION public.change_enrollment_status(jsonb, uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.change_enrollment_status(jsonb, uuid, text) FROM anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 124 — editor-aware RLS; fee_payments readable by a Fees editor
+-- (mirrored from scripts/migrations/erp/migration-124-fee-payments-editor-rls.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+-- The fee screens read fee_payments straight from the browser, so Postgres
+-- applies RLS — and the only SELECT paths were admin, the student, and their
+-- parents. A staff account holding the 'fees' editor grant matched none of
+-- them, so every read came back empty: "No payments recorded yet" against a
+-- student who had paid, the Dues register pricing the whole school at paid=0,
+-- and writes still succeeding through the service-role API routes, which
+-- invites recording the same receipt twice.
+--
+-- Same fault migration 084 fixed for students/student_enrollments; the money
+-- table was missed. Fixed feature-aware rather than role-coarse: with the
+-- (SELECT …) wrapping from migration 102 the check is one InitPlan per query,
+-- so precision costs nothing and no staff account gets every family's payment
+-- history just for being staff.
+--
+-- has_editor_capability() is the hook this database never had for
+-- editor_permissions. The tables still carrying the same gap — attendance,
+-- results, non_scholastic_assessments, marksheet_publications — each become a
+-- six-line follow-up now that it exists.
+
+CREATE OR REPLACE FUNCTION public.has_editor_capability(p_feature text)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+      FROM public.profiles p
+     WHERE p.id = auth.uid()
+       AND (
+         p.role = 'admin'
+         OR EXISTS (
+           SELECT 1
+             FROM public.editor_permissions ep
+            WHERE ep.editor_id = p.id
+              AND ep.feature_key = p_feature
+         )
+       )
+  );
+$$;
+
+COMMENT ON FUNCTION public.has_editor_capability(text) IS
+  'True when the calling user holds this feature key: admins always, everyone '
+  'else via editor_permissions. The RLS-side counterpart of '
+  'verifyAdminOrEditor() in packages/shared/src/lib/verify-admin.ts. Call it '
+  'wrapped as (SELECT has_editor_capability(''key'')) so it is evaluated once '
+  'per query as an InitPlan rather than once per row — see migration 102.';
+
+-- PUBLIC's default EXECUTE is deliberately left in place: with no session the
+-- function returns false, and revoking it would turn an anonymous read of any
+-- table carrying this policy into a hard error instead of an empty result.
+GRANT EXECUTE ON FUNCTION public.has_editor_capability(text) TO authenticated;
+
+-- SELECT only. Every write already goes through a server route on the
+-- service-role client behind verifyAdminOrEditor('fees'); granting writes here
+-- would add a weaker second path that bypasses the change-request workflow.
+DROP POLICY IF EXISTS "fee_payments_select_fee_editor" ON public.fee_payments;
+CREATE POLICY "fee_payments_select_fee_editor"
+  ON public.fee_payments FOR SELECT
+  USING ((SELECT public.has_editor_capability('fees')));
