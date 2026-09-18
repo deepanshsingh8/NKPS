@@ -2,6 +2,10 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+// Attaches the caller's Supabase access token. /api/ai/remarks/draft gates on
+// verifyStaffMember(), which reads the Authorization header — a bare fetch()
+// reaches it with no token and is rejected 401.
+import { adminFetch } from "@nkps/shared/lib/admin-api";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import {
   Card,
@@ -412,7 +416,7 @@ export default function TeacherResultsPage() {
     setDraftingRemarks(true);
     setDraftNotes([]);
     try {
-      const res = await fetch("/api/ai/remarks/draft", {
+      const res = await adminFetch("/api/ai/remarks/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
