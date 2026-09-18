@@ -179,7 +179,7 @@ export function HistoricalResultsImportDialog({
       setSubjectsInFile(data.subjects_in_file ?? []);
       if (!dryRun && typeof data.summary?.committed === "number" && data.summary.committed > 0) {
         toast.success(
-          `Imported ${data.summary.committed} result${data.summary.committed === 1 ? "" : "s"}. Batch: ${data.summary.batch_id?.slice(0, 8)}…`
+          `Imported ${data.summary.committed} result${data.summary.committed === 1 ? "" : "s"}.`
         );
         onImported?.();
       }
@@ -410,7 +410,8 @@ export function HistoricalResultsImportDialog({
               )}
               {summary.batch_id && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Batch ID: <code>{summary.batch_id}</code>
+                  Saved as one batch — find it under Import history below to
+                  review or revert it.
                 </p>
               )}
               {summary.error_rows > 0 && (
