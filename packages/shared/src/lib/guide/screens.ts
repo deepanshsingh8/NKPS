@@ -1354,12 +1354,13 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         steps: [
           'Stay on the "Pending" tab.',
           "Click a request to open it.",
+          'Check the "Payment for" / "Waiver for" header — it names the student, the fee head and the session the request is about.',
           'Read the "Proposed change" diff.',
           'Click "Approve & apply" or "Reject".',
         ],
         adminOnly: true,
         gotcha:
-          'An amber "Row drifted since this request was filed" banner means the payment changed after the request — approving overwrites the live values. Approving a delete request deletes the payment row.',
+          'An amber "Row drifted since this request was filed" banner means the payment changed after the request — approving overwrites the live values. Approving a delete request deletes the payment row. A field shown as "Unknown record" means the student or fee head it pointed at has since been deleted; do not approve it blind.',
       },
       {
         name: "Cancel your own request",
