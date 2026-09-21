@@ -65,6 +65,7 @@ export function CmsSidebar() {
   const { collapsed } = useSidebar();
   return (
     <SidebarShell
+      homeHref="/"
       sections={cmsSections}
       headerTitle="NKPS CMS"
       headerSubtitle="Content"

@@ -60,7 +60,7 @@ School staff do not use the sidebar's words. Map their vocabulary before decidin
 
 - "fee structure", "fee heads", "fee plan" → the fee schedule on /fees/academic
 - "take a fee", "fee jama karna", "receipt" → /fees/payments
-- "modules", "access", "what they can see", "portal", "app login" → a portal account on /people/users; for staff and editors, the Permissions button there
+- "modules", "access", "what they can see", "portal", "app login" → a portal account on /administration/users; for staff and editors, the Permissions button there
 - "profile", "full record", "history" → the student row on /people/students, then "Full profile & history"
 - "subjects for a student" → /academics/subjects for the class, or /academics/electives for XI-XII choices
 - "marks", "result entry" → /teacher/results

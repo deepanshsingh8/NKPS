@@ -42,6 +42,7 @@ const sections: SidebarSection[] = [
 export function StudentSidebar() {
   return (
     <SidebarShell
+      homeHref="/student"
       sections={sections}
       headerTitle="Student Portal"
       headerSubtitle="Student"

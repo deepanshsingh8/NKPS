@@ -93,8 +93,8 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
 
   // ── People ────────────────────────────────────────────────────────────────
   {
-    path: "/people/users",
-    title: "Users",
+    path: "/administration/users",
+    title: "Users & Access",
     purpose:
       "ERP and portal logins: create accounts, set roles, grant editor permissions, and approve registration requests.",
     tasks: [
@@ -192,7 +192,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "There is no standalone registrations screen. Anything described as \"the Registrations page\" is really a tab on Users.",
       },
     ],
-    related: ["/people/users"],
+    related: ["/administration/users"],
   },
   {
     path: "/people/students",
@@ -290,7 +290,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "The header checkbox selects every student matching the current filters, not just the visible page.",
       },
     ],
-    related: ["/academics/classes", "/academics/years", "/people/users", "/fees/payments"],
+    related: ["/academics/classes", "/academics/years", "/administration/users", "/fees/payments"],
   },
   {
     path: "/people/staff",
@@ -386,7 +386,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Without a Category column every imported row lands in the single category you pick — there is no per-row override at that point.",
       },
     ],
-    related: ["/people/users", "/academics/classes", "/timetable", "/transport/buses"],
+    related: ["/administration/users", "/academics/classes", "/timetable", "/transport/buses"],
   },
   // ── Academics ─────────────────────────────────────────────────────────────
   {

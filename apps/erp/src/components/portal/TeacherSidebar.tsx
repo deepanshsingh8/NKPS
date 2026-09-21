@@ -56,6 +56,7 @@ export function TeacherSidebar() {
   const { collapsed } = useSidebar();
   return (
     <SidebarShell
+      homeHref="/teacher"
       sections={sections}
       headerTitle="Teacher Portal"
       headerSubtitle="Teacher"

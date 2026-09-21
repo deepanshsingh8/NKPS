@@ -205,7 +205,7 @@ export async function updateSession(request: NextRequest) {
 
     // Per-feature capability gate on the admin area. Admins bypass; everyone
     // else (staff and teachers) must hold the matching editor_permissions row.
-    // Admin-only paths (e.g. /people/users) reject all non-admins.
+    // Admin-only paths (e.g. /administration/users) reject all non-admins.
     if (isAdminAreaPath(pathname) && role !== "admin") {
       if (isAdminOnlyPath(pathname)) {
         const url = request.nextUrl.clone();

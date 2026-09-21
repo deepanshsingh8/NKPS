@@ -13,7 +13,6 @@ import {
   Pencil,
   RefreshCw,
   ShieldAlert,
-  Sparkles,
   Square,
 } from "lucide-react";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
@@ -26,6 +25,7 @@ import type {
   TableState,
   Turn,
 } from "@/components/ask/types";
+import { AgentMark } from "@nkps/shared/components/icons/AgentMark";
 
 /**
  * Ask-your-school.
@@ -564,7 +564,7 @@ export default function AskPage() {
           {!transcriptLoading && turns.length === 0 && (
             <div className="mx-auto max-w-2xl rounded-lg border bg-white dark:bg-card p-5">
               <div className="mb-3 flex items-center gap-2 text-sm font-medium text-navy-900 dark:text-white">
-                <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <AgentMark className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 Ask for a list in plain language
               </div>
               <p className="mb-4 text-sm text-muted-foreground">
