@@ -10,19 +10,19 @@ import {
   IdCard,
   MessageSquare,
   Bus,
-  Sparkles,
 } from "lucide-react";
 import {
   SidebarShell,
   type SidebarSection,
 } from "@nkps/shared/components/SidebarShell";
+import { AgentMark } from "@nkps/shared/components/icons/AgentMark";
 
 const sections: SidebarSection[] = [
   {
     label: "Overview",
     items: [
       { kind: "link", icon: LayoutDashboard, label: "Dashboard", href: "/parent" },
-      { kind: "link", icon: Sparkles, label: "Ask the school", href: "/parent/ask" },
+      { kind: "link", icon: AgentMark, label: "Ask the school", href: "/parent/ask" },
     ],
   },
   {

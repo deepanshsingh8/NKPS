@@ -8,7 +8,6 @@ import {
   Loader2,
   Maximize2,
   Minimize2,
-  Sparkles,
   Square,
   X,
 } from "lucide-react";
@@ -16,6 +15,7 @@ import { cn } from "@nkps/shared/lib/utils";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { guidePaths, findScreenGuide } from "@nkps/shared/lib/guide/screens";
 import { ChatMarkdown } from "@/components/ChatMarkdown";
+import { AgentMark } from "@nkps/shared/components/icons/AgentMark";
 
 /**
  * "How do I do this?" — on every ERP screen.
@@ -232,7 +232,7 @@ export function GuideLauncher() {
         // in the swipe-up zone.
         className="group fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] right-[calc(1.25rem+env(safe-area-inset-right,0px))] z-40 flex items-center gap-2 rounded-full bg-gradient-to-br from-navy-900 to-blue-700 px-4 py-3 text-white shadow-lg ring-1 ring-white/10 transition hover:shadow-xl hover:brightness-110 sm:px-4"
       >
-        <Sparkles className="h-5 w-5 shrink-0" />
+        <AgentMark className="h-5 w-5 shrink-0" />
         <span className="hidden text-sm font-medium sm:inline">Ask AI</span>
       </button>
     );
@@ -276,7 +276,7 @@ export function GuideLauncher() {
       <header className="flex shrink-0 items-start justify-between gap-2 border-b bg-navy-900 px-4 py-3 text-white">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 text-sm font-medium">
-            <Sparkles className="h-4 w-4" />
+            <AgentMark className="h-4 w-4" />
             How do I…?
           </div>
           <p className="truncate text-xs text-white/70">

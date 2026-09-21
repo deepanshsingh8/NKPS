@@ -3,18 +3,17 @@
 import { useState, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Bot,
   X,
   Send,
   Maximize2,
   Minimize2,
   ArrowLeft,
-  Sparkles,
   Phone,
   ChevronRight,
 } from "lucide-react";
 import { SCHOOL } from "@nkps/shared/lib/constants";
 import { cn } from "@nkps/shared/lib/utils";
+import { AgentMark } from "@nkps/shared/components/icons/AgentMark";
 
 function formatMessage(text: string) {
   // Split into lines and process
@@ -214,7 +213,7 @@ export function NkpsAgent() {
                   </button>
                 ) : (
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold-500/20">
-                    <Bot className="w-5 h-5 text-gold-400" />
+                    <AgentMark className="w-5 h-5 text-gold-400" />
                   </span>
                 )}
                 <div className="flex flex-col leading-tight">
@@ -269,7 +268,7 @@ export function NkpsAgent() {
                     className="w-full text-left group flex items-start gap-3 rounded-xl border border-navy-900/10 bg-cream-50/60 p-3 hover:border-gold-500/60 hover:bg-cream-50 transition-all"
                   >
                     <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900">
-                      <Sparkles className="w-5 h-5" />
+                      <AgentMark className="w-5 h-5" />
                     </span>
                     <span className="flex-1">
                       <span className="flex items-center justify-between">
@@ -431,7 +430,7 @@ export function NkpsAgent() {
           <span className="absolute inset-0 rounded-full bg-gold-500/40 animate-ping" />
         )}
         <span className="relative">
-          {isOpen ? <X className="w-6 h-6" /> : <Bot className="w-6 h-6" />}
+          {isOpen ? <X className="w-6 h-6" /> : <AgentMark className="w-6 h-6" />}
         </span>
       </button>
     </div>

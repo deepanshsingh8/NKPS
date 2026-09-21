@@ -4,9 +4,9 @@ import {
   CalendarCheck,
   FileSpreadsheet,
   ReceiptText,
-  Sparkles,
   Users,
 } from "lucide-react";
+import { AgentMark } from "@nkps/shared/components/icons/AgentMark";
 
 /**
  * Reports index.
@@ -70,7 +70,7 @@ export default function ReportsPage() {
         className="group flex items-start gap-4 rounded-lg border border-blue-200 bg-blue-50/60 p-5 transition hover:border-blue-400 hover:shadow-sm"
       >
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
-          <Sparkles className="h-5 w-5" />
+          <AgentMark className="h-5 w-5" />
         </div>
         <div>
           <h2 className="font-medium text-navy-900 dark:text-white group-hover:text-blue-700">

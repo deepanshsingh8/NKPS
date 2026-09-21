@@ -40,6 +40,7 @@ import {
 } from "@nkps/shared/components/SidebarShell";
 import { AppSwitcher } from "@nkps/shared/components/AppSwitcher";
 import { useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
+import { AgentMark } from "@nkps/shared/components/icons/AgentMark";
 
 // The ERP has around sixty destinations. It used to declare all of them under a
 // single section whose label was, literally, "ERP" — which is not a category,
@@ -237,7 +238,7 @@ const erpSections: SidebarSection[] = [
       // First in the list on purpose: it is the fastest route to an answer, and
       // for a long time the page had no sidebar entry at all — the only way in
       // was a card on /reports, so anyone who did not scroll never found it.
-      { kind: "link", icon: Sparkles, label: "Ask your school", href: "/reports/ask" },
+      { kind: "link", icon: AgentMark, label: "Ask your school", href: "/reports/ask" },
       { kind: "link", icon: UserCheck, label: "Student Report", href: "/reports/students" },
       { kind: "link", icon: ReceiptText, label: "Fee Report", href: "/reports/students?focus=fees" },
       { kind: "link", icon: CheckSquare, label: "Attendance Report", href: "/reports/students?focus=attendance" },
