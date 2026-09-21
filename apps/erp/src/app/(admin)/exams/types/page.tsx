@@ -48,6 +48,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { adminApi } from "@nkps/shared/lib/admin-api";
 import { cn } from "@nkps/shared/lib/utils";
+import { categoricalSolid } from "@nkps/shared/lib/palette";
 import type {
   ExamType,
   ExamKind,
@@ -144,23 +145,6 @@ const LEVEL_MAP: Record<ExamClassLevel, LevelDef> = Object.fromEntries(
 const SCOPED_LEVELS: ExamClassLevel[] = LEVEL_DEFS.filter(
   (l) => l.value !== "all"
 ).map((l) => l.value);
-
-// Palette used to color individual exam segments inside the level bar.
-// Ordered so adjacent segments contrast well.
-const SEGMENT_PALETTE = [
-  "bg-blue-500",
-  "bg-emerald-500",
-  "bg-amber-500",
-  "bg-violet-500",
-  "bg-rose-500",
-  "bg-cyan-500",
-  "bg-fuchsia-500",
-  "bg-orange-500",
-  "bg-teal-500",
-  "bg-pink-500",
-  "bg-indigo-500",
-  "bg-lime-500",
-];
 
 function examAppliesToLevel(
   examLevel: ExamClassLevel,
@@ -286,7 +270,7 @@ export default function AdminExamTypesPage() {
     const colors: Record<string, string> = {};
     const sorted = [...yearExams].sort((a, b) => a.sort_order - b.sort_order);
     sorted.forEach((exam, i) => {
-      colors[exam.id] = SEGMENT_PALETTE[i % SEGMENT_PALETTE.length];
+      colors[exam.id] = categoricalSolid(i);
     });
     return colors;
   }, [yearExams]);
