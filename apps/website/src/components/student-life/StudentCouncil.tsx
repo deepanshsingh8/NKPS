@@ -354,7 +354,7 @@ export function StudentCouncil({
               whileInView="visible"
               viewport={{ once: true, margin: "-80px" }}
               className={cn(
-                "grid grid-cols-2 gap-4 sm:gap-6",
+                "grid grid-cols-2 gap-4 sm:gap-6", // mobile-layout-ok: columnsClass() adds the breakpoints
                 columnsClass(group.bearers.length)
               )}
             >

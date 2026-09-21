@@ -1362,7 +1362,7 @@ export default function AdminStaffPage() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
+          <div className="space-y-4 py-2 max-h-[70dvh] overflow-y-auto pr-1">
             <div className="space-y-2">
               <Label>Full Name *</Label>
               <Input
@@ -1410,7 +1410,7 @@ export default function AdminStaffPage() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Email</Label>
                 <Input
@@ -1441,7 +1441,7 @@ export default function AdminStaffPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Date of Birth</Label>
                 <Input

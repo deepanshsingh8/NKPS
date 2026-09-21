@@ -793,7 +793,7 @@ function ResultAcademicsTab({
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Class</Label>
                 <Select
@@ -818,7 +818,7 @@ function ResultAcademicsTab({
                 />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Registered</Label>
                 <Input

@@ -602,7 +602,7 @@ export default function AdminBusesPage() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Bus Number *</Label>
                 <Input
@@ -622,7 +622,7 @@ export default function AdminBusesPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Capacity</Label>
                 <Input

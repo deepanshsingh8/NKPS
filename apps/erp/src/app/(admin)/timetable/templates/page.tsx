@@ -341,7 +341,7 @@ export default function TimetableTemplatesPage() {
 
       {/* ─────────────── Edit dialog ─────────────── */}
       <Dialog open={!!editing} onOpenChange={(o) => { if (!o) cancelEdit(); }}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Template</DialogTitle>
           </DialogHeader>

@@ -2487,7 +2487,7 @@ export default function AdminSubjectsPage() {
           </DialogHeader>
 
           <form onSubmit={handleCreateSubject} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="subjectName" className="text-xs font-medium">
                   Subject Name
@@ -2516,7 +2516,7 @@ export default function AdminSubjectsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="subjectNickname" className="text-xs font-medium">
                   Nickname (optional)
@@ -2601,7 +2601,7 @@ export default function AdminSubjectsPage() {
           </DialogHeader>
 
           <form onSubmit={handleEditSubject} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label
                   htmlFor="editSubjectName"
@@ -2636,7 +2636,7 @@ export default function AdminSubjectsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="editSubjectNickname" className="text-xs font-medium">
                   Nickname (optional)
@@ -2846,7 +2846,7 @@ export default function AdminSubjectsPage() {
           </DialogHeader>
 
           <form onSubmit={handleCreateStream} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="streamName" className="text-xs font-medium">
                   Stream Name
@@ -2948,7 +2948,7 @@ export default function AdminSubjectsPage() {
           </DialogHeader>
 
           <form onSubmit={handleEditStream} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label
                   htmlFor="editStreamName"

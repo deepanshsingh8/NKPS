@@ -212,7 +212,7 @@ export function HistoricalResultsImportDialog({
         <History className="h-4 w-4 mr-2" />
         {triggerLabel}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-4xl max-h-[88vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[88dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Import historical exam results</DialogTitle>
           <DialogDescription>

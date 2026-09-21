@@ -268,7 +268,7 @@ export default function HeaderFooterPage() {
                   placeholder="Full address on one line"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Affiliation</Label>
                   <Input

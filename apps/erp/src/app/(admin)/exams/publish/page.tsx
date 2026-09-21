@@ -752,7 +752,7 @@ const session = useAcademicSession();
                 </p>
               ) : (
                 <>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="grid grid-cols-3 gap-2 text-xs"> {/* mobile-layout-ok: counter tiles, a label and a number */}
                     <div className="rounded-lg border border-gray-200 dark:border-border p-2 text-center">
                       <div className="text-gray-500 dark:text-gray-400">Students</div>
                       <div className="font-semibold text-navy-900 dark:text-white">
@@ -839,7 +839,7 @@ const session = useAcademicSession();
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-2 gap-2 text-xs"> {/* mobile-layout-ok: counter tiles, a label and a number */}
                   <div className="rounded-lg border border-gray-200 dark:border-border p-2 text-center">
                     <div className="text-gray-500 dark:text-gray-400">
                       Active enrollments

@@ -22,7 +22,7 @@ import { MobileTopBar } from "@nkps/shared/components/MobileTopBar";
 // main's padding. The distinction matters more than it looks: min-h-screen is a
 // MINIMUM, so a child asking for h-full has nothing to resolve against and
 // silently grows the document instead of scrolling inside it. h-dvh rather than
-// h-screen because mobile browser chrome makes 100vh taller than the visible
+// h-screen because mobile browser chrome makes 100dvh taller than the visible
 // viewport, which hides the composer behind the address bar.
 export function AppShell({
   sidebar,

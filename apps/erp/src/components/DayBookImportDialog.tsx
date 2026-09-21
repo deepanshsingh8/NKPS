@@ -336,7 +336,7 @@ export function DayBookImportDialog({
           </Button>
         }
       />
-      <DialogContent className="sm:max-w-5xl max-h-[88vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-5xl max-h-[88dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Import Day Book (Head wise)</DialogTitle>
           <DialogDescription>
@@ -537,7 +537,7 @@ export function DayBookImportDialog({
         {result && result.unmapped_classes.length > 0 ? (
           <MappingPanel title="These class names are not recognised">
             {result.unmapped_classes.map((raw) => (
-              <div key={raw} className="grid grid-cols-3 items-center gap-2">
+              <div key={raw} className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:items-center">
                 <span className="truncate text-sm font-medium">{raw}</span>
                 <select
                   className="rounded-md border bg-background px-2 py-1 text-sm"
@@ -582,7 +582,7 @@ export function DayBookImportDialog({
         {result && result.unmapped_heads.length > 0 ? (
           <MappingPanel title="These fee heads do not match the published schedule">
             {result.unmapped_heads.map((raw) => (
-              <div key={raw} className="grid grid-cols-2 items-center gap-2">
+              <div key={raw} className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:items-center">
                 <span className="truncate text-sm font-medium">{raw}</span>
                 <select
                   className="rounded-md border bg-background px-2 py-1 text-sm"

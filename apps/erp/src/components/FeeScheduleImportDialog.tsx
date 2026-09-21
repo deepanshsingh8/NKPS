@@ -226,7 +226,7 @@ export function FeeScheduleImportDialog({
         <FileSpreadsheet className="h-4 w-4 mr-2" />
         Bulk upload schedule
       </DialogTrigger>
-      <DialogContent className="sm:max-w-4xl max-h-[88vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[88dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Bulk upload fee schedules</DialogTitle>
           <DialogDescription>
@@ -359,7 +359,7 @@ export function FeeScheduleImportDialog({
                 ))}
               </div>
 
-              <div className="max-h-[38vh] overflow-y-auto">
+              <div className="max-h-[38dvh] overflow-y-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

@@ -49,7 +49,7 @@ export default async function AboutPage() {
       <VisionMission />
 
       {/* Hero Image Section */}
-      <div className="relative h-[50vh] w-full overflow-hidden">
+      <div className="relative h-[50dvh] w-full overflow-hidden">
         <Image
           src={aboutHeroImage}
           alt="NK Public School Jaipur campus — Grand Sikar Road, Rajawas"

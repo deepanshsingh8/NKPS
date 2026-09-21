@@ -68,6 +68,12 @@ const RULES = [
     // Not preceded by `:` (a breakpoint or state variant) or `-` (part of a
     // longer token). grid-cols-1 is fine; it is already the mobile answer.
     re: /(^|[\s"'`{])grid-cols-([2-9]|1[0-2])\b/g,
+    // `grid-cols-2 md:grid-cols-4` is someone who thought about the phone and
+    // decided two stat tiles fit — which they do. `grid grid-cols-2 gap-3` is
+    // someone who never considered it. Naming any breakpoint on the same line
+    // is the difference, and it is what separates a deliberate compact layout
+    // from the ~90 form rows that shipped two date inputs at 165px each.
+    skipLine: /\b(?:sm|md|lg|xl|2xl):grid-cols-/,
     hint: "unprefixed grid-cols-N — use <FieldRow> or grid-cols-1 sm:grid-cols-N",
   },
   {
@@ -125,8 +131,13 @@ for (const full of files) {
     rule.re.lastIndex = 0;
     let m;
     while ((m = rule.re.exec(src))) {
-      counts[rule.id] = (counts[rule.id] ?? 0) + 1;
       const lineNo = src.slice(0, m.index).split("\n").length;
+      const line = srcLines[lineNo - 1];
+      // A month view is seven columns on every device there is. Opt a line
+      // out with `mobile-layout-ok` and say why in the same comment.
+      if (line.includes("mobile-layout-ok")) continue;
+      if (rule.skipLine?.test(line)) continue;
+      counts[rule.id] = (counts[rule.id] ?? 0) + 1;
       lines.push(
         `    ${rel}:${lineNo}  [${rule.id}] ${srcLines[lineNo - 1].trim().slice(0, 96)}`
       );

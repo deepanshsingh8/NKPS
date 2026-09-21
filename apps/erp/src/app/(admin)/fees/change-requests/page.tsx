@@ -356,7 +356,7 @@ export default function FeeChangeRequestsPage() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Change Request</DialogTitle>
           </DialogHeader>

@@ -362,7 +362,7 @@ export default function QuickSetupWizard({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-2xl max-h-[85dvh] flex flex-col">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
@@ -649,7 +649,7 @@ export default function QuickSetupWizard({
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
+              <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto"> {/* mobile-layout-ok: two counter tiles */}
                 <div className="rounded-xl border border-gray-200 dark:border-border p-4 text-center">
                   <p className="text-2xl font-bold text-navy-900 dark:text-white">
                     {newSubjectsCount}

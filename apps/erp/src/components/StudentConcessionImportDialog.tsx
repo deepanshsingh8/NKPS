@@ -180,7 +180,7 @@ export function StudentConcessionImportDialog({
         <Percent className="h-4 w-4 mr-2" />
         Bulk concessions
       </DialogTrigger>
-      <DialogContent className="sm:max-w-4xl max-h-[88vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[88dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Bulk upload student concessions</DialogTitle>
           <DialogDescription>
@@ -253,7 +253,7 @@ export function StudentConcessionImportDialog({
                 )}
               </div>
 
-              <div className="max-h-[40vh] overflow-y-auto">
+              <div className="max-h-[40dvh] overflow-y-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

@@ -632,7 +632,7 @@ export function GalleryPageClient() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="relative max-h-[85vh] max-w-[90vw] md:max-w-[75vw]"
+              className="relative max-h-[85dvh] max-w-[90vw] md:max-w-[75vw]"
               onClick={(e) => e.stopPropagation()}
             >
               <Image
@@ -640,7 +640,7 @@ export function GalleryPageClient() {
                 alt={lightboxImage.alt}
                 width={1200}
                 height={800}
-                className="max-h-[85vh] w-auto rounded-lg object-contain"
+                className="max-h-[85dvh] w-auto rounded-lg object-contain"
               />
               {/* Caption */}
               <div className="absolute bottom-0 left-0 right-0 rounded-b-lg bg-gradient-to-t from-black/80 to-transparent px-6 py-4">

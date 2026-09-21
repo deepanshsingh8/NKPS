@@ -548,7 +548,7 @@ export default function AdminAcademicYearsPage() {
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="startDate" className="text-xs font-medium">Start Date</Label>
                 <Input
@@ -622,7 +622,7 @@ export default function AdminAcademicYearsPage() {
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="editStartDate" className="text-xs font-medium">Start Date</Label>
                 <Input

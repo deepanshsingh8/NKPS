@@ -747,7 +747,7 @@ export default function NonScholasticMastersPage() {
                 Tick specific classes to limit it (e.g. &quot;Robotics&quot; only
                 for senior classes).
               </p>
-              <div className="max-h-44 overflow-y-auto rounded-md border border-gray-200 dark:border-border p-2 grid grid-cols-2 gap-1">
+              <div className="max-h-44 overflow-y-auto rounded-md border border-gray-200 dark:border-border p-2 grid grid-cols-2 gap-1"> {/* mobile-layout-ok: class checkboxes, one short label each */}
                 {classOptions.length === 0 ? (
                   <p className="text-xs text-gray-400 col-span-2">
                     No classes in the current academic year.

@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@nkps/shared/components/ui/dialog";
-import { formatClassName } from "@nkps/shared/lib/utils";
+import { cn, formatClassName } from "@nkps/shared/lib/utils";
 import {
   isTeachingStaffCategory,
   staffPortalRole,
@@ -91,7 +91,7 @@ function DetailField({
   children?: React.ReactNode;
 }) {
   return (
-    <div className={className}>
+    <div className={cn("min-w-0", className)}>
       <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
         {label}
       </p>
@@ -298,10 +298,10 @@ export function StaffDetailDialog({
               </div>
             </DialogHeader>
 
-            <div className="space-y-5 max-h-[55vh] overflow-y-auto pr-1">
+            <div className="space-y-5 sm:max-h-[55dvh] sm:overflow-y-auto sm:pr-1">
               <section className="space-y-3">
                 <SectionTitle>Contact &amp; personal</SectionTitle>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
                   <DetailField label="Email" value={member.email} />
                   <DetailField label="Phone" value={member.phone} />
                   <DetailField
@@ -345,7 +345,7 @@ export function StaffDetailDialog({
                       Teacher record could not be loaded.
                     </p>
                   ) : (
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                    <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
                       {!teaching.is_active && (
                         <p className="col-span-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
                           Retired

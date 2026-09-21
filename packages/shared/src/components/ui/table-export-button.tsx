@@ -328,7 +328,7 @@ export function TableExportButton<T>({
         Export
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Export {title.toLowerCase()}</DialogTitle>
           <DialogDescription>

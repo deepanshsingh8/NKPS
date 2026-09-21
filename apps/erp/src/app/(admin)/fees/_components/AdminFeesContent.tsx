@@ -2987,7 +2987,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             </div>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Class</Label>
                 <select
@@ -3050,7 +3050,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </p>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Amount</Label>
                 <Input
@@ -3083,7 +3083,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Due Date (optional)</Label>
                 <Input
@@ -3116,7 +3116,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">
                   Instalment Name (optional)
@@ -3172,7 +3172,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 Admission and registration fees usually bill new students only.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">
                   Late Fee % (optional)
@@ -3319,7 +3319,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 })}
               </select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Amount</Label>
                 <Input
@@ -3372,7 +3372,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   Cheque details
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Cheque No.</Label>
                     <Input
@@ -3396,7 +3396,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Drawee Bank</Label>
                     <Input
@@ -3428,7 +3428,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   Bank transfer details
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Originating Bank</Label>
                     <Input
@@ -3471,7 +3471,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   Online payment details
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Provider</Label>
                     <Input
