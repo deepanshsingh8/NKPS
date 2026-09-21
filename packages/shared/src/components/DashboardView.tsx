@@ -267,7 +267,7 @@ export function DashboardView({ scope }: { scope: Scope }) {
           icon={Users}
           tone="text-violet-600 dark:text-violet-400"
           iconBg="bg-violet-100 dark:bg-violet-900/30"
-          href="/people/users"
+          href="/administration/users"
           loading={loading}
         />
       );

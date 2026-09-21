@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
     // Admin only, and deliberately not editor-permissible: resetting a
     // password is taking over an account, which is not a feature grant anyone
-    // should be able to hold on its own. /people/users is admin-only forever
+    // should be able to hold on its own. /administration/users is admin-only forever
     // (ADMIN_ONLY_PREFIXES), and this endpoint matches it.
     if (!callerProfile || callerProfile.role !== "admin") {
       return NextResponse.json(

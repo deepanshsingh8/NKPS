@@ -7,7 +7,7 @@
 //
 // Admins bypass all of this — they always have full access.
 // Module dashboards (apps/cms / apps/erp roots) are always allowed for
-// editors who have any feature in that module. /people/users is admin-only
+// editors who have any feature in that module. /administration/users is admin-only
 // forever (preventing self-elevation).
 //
 // hrefs are app-relative (no /cms or /erp prefix). Each app serves its
@@ -115,9 +115,10 @@ export function isFeatureKey(value: unknown): value is FeatureKey {
 }
 
 // Routes editors can never access in apps/erp, regardless of permissions.
-// (Prevents self-elevation via /people/users; locks down master config screens.)
+// (Prevents self-elevation via /administration/users; locks down master
+// config screens.)
 export const ADMIN_ONLY_PREFIXES = [
-  "/people/users",
+  "/administration/users",
   "/registrations",
   "/exams/grade-master",
   "/exams/header-footer",

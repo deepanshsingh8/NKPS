@@ -116,7 +116,7 @@ Admins have everything; editors get only the features granted to them.
 - Enforced in three places: the proxy page gate
   (`packages/shared/src/lib/supabase/middleware.ts`), the API gate
   (`verifyAdminOrEditor`), and the sidebar filter.
-- Granted on `/people/users`, which is admin-only forever, along with
+- Granted on `/administration/users`, which is admin-only forever, along with
   `/registrations` and the exam master screens (`ADMIN_ONLY_PREFIXES`).
 
 ### Teacher authorization

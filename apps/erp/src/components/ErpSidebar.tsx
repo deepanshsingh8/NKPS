@@ -63,16 +63,21 @@ const erpSections: SidebarSection[] = [
   },
   {
     label: "People",
-    // Three entries, not six. There used to be an Overview hub that duplicated
+    // Two entries, not six. There used to be an Overview hub that duplicated
     // this list (and listed only three of the five), a Registrations link that
     // was a redirect into a tab of Users, and a Teachers page separate from the
     // Teachers TAB inside Staff — two different things wearing one name. Each
     // of those was a menu entry for a piece of plumbing rather than for
     // something the school thinks of as a thing.
+    //
+    // Users left too, to Administration. What is under People is the school's
+    // record of a person: who is enrolled, who is employed, their guardians,
+    // their qualifications. Who holds a login and what it may touch is a
+    // different question with a different audience — it is admin-only forever,
+    // because it is the screen you would use to give yourself more access.
     items: [
       { kind: "link", icon: UserCheck, label: "Students", href: "/people/students" },
       { kind: "link", icon: UserCog, label: "Staff", href: "/people/staff" },
-      { kind: "link", icon: Users, label: "Users", href: "/people/users" },
     ],
   },
   {
@@ -239,10 +244,19 @@ const erpSections: SidebarSection[] = [
       { kind: "link", icon: BarChart3, label: "Result Report", href: "/reports/students?focus=results" },
     ],
   },
+  {
+    // The app's own administration rather than the school's data: portal
+    // accounts, what each of them may touch, and the sign-up requests waiting
+    // to be approved. Admin-only, so most people never see this heading.
+    label: "Administration",
+    items: [
+      { kind: "link", icon: Users, label: "Users & Access", href: "/administration/users" },
+    ],
+  },
 ];
 
 const EDITOR_ALWAYS_ALLOWED = new Set(["/"]);
-const PENDING_REGISTRATION_BADGE_HREFS = new Set(["/people/users"]);
+const PENDING_REGISTRATION_BADGE_HREFS = new Set(["/administration/users"]);
 const PENDING_FEE_CHANGE_REQUEST_BADGE_HREFS = new Set(["/fees/change-requests"]);
 const PENDING_TRANSPORT_CHANGE_BADGE_HREFS = new Set(["/transport/changes"]);
 
