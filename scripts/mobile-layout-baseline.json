@@ -1,0 +1,320 @@
+{
+  "apps/cms/src/app/articles/page.tsx": {
+    "vh": 1
+  },
+  "apps/cms/src/app/disclosure/page.tsx": {
+    "grid": 2
+  },
+  "apps/cms/src/app/gallery/page.tsx": {
+    "grid": 5,
+    "select": 2,
+    "input": 1
+  },
+  "apps/cms/src/app/site-media/page.tsx": {
+    "vh": 1,
+    "input": 1
+  },
+  "apps/erp/src/app/(admin)/academics/classes/page.tsx": {
+    "grid": 6
+  },
+  "apps/erp/src/app/(admin)/academics/electives/page.tsx": {
+    "grid": 1
+  },
+  "apps/erp/src/app/(admin)/academics/houses/page.tsx": {
+    "input": 1
+  },
+  "apps/erp/src/app/(admin)/academics/subjects/page.tsx": {
+    "grid": 6,
+    "input": 5
+  },
+  "apps/erp/src/app/(admin)/academics/years/page.tsx": {
+    "grid": 2
+  },
+  "apps/erp/src/app/(admin)/attendance/page.tsx": {
+    "grid": 1
+  },
+  "apps/erp/src/app/(admin)/calendar/page.tsx": {
+    "grid": 4,
+    "select": 4,
+    "input": 2
+  },
+  "apps/erp/src/app/(admin)/exams/admit-cards/page.tsx": {
+    "vh": 1
+  },
+  "apps/erp/src/app/(admin)/exams/class-tests/page.tsx": {
+    "grid": 2
+  },
+  "apps/erp/src/app/(admin)/exams/grade-master/page.tsx": {
+    "grid": 2,
+    "vh": 1
+  },
+  "apps/erp/src/app/(admin)/exams/header-footer/page.tsx": {
+    "grid": 1
+  },
+  "apps/erp/src/app/(admin)/exams/non-scholastic-masters/page.tsx": {
+    "grid": 1
+  },
+  "apps/erp/src/app/(admin)/exams/ptm-format/page.tsx": {
+    "grid": 1,
+    "input": 3
+  },
+  "apps/erp/src/app/(admin)/exams/publish/page.tsx": {
+    "grid": 2,
+    "input": 2
+  },
+  "apps/erp/src/app/(admin)/exams/timetable/page.tsx": {
+    "grid": 1
+  },
+  "apps/erp/src/app/(admin)/exams/types/page.tsx": {
+    "grid": 4
+  },
+  "apps/erp/src/app/(admin)/fees/_components/AdminFeesContent.tsx": {
+    "grid": 10,
+    "select": 11
+  },
+  "apps/erp/src/app/(admin)/fees/_components/FeeScheduleGrid.tsx": {
+    "select": 4,
+    "input": 5
+  },
+  "apps/erp/src/app/(admin)/fees/change-requests/page.tsx": {
+    "vh": 1
+  },
+  "apps/erp/src/app/(admin)/people/staff/page.tsx": {
+    "grid": 2,
+    "vh": 1
+  },
+  "apps/erp/src/app/(admin)/people/students/_components/AcademicHistoryTimeline.tsx": {
+    "grid": 1
+  },
+  "apps/erp/src/app/(admin)/people/students/page.tsx": {
+    "grid": 5,
+    "vh": 3
+  },
+  "apps/erp/src/app/(admin)/reports/ask/[[...slug]]/page.tsx": {
+    "input": 1
+  },
+  "apps/erp/src/app/(admin)/reports/students/page.tsx": {
+    "vh": 1
+  },
+  "apps/erp/src/app/(admin)/timetable/generate/page.tsx": {
+    "grid": 1,
+    "input": 3
+  },
+  "apps/erp/src/app/(admin)/timetable/import/page.tsx": {
+    "input": 2
+  },
+  "apps/erp/src/app/(admin)/timetable/page.tsx": {
+    "grid": 2,
+    "select": 1,
+    "input": 1
+  },
+  "apps/erp/src/app/(admin)/timetable/templates/page.tsx": {
+    "vh": 1
+  },
+  "apps/erp/src/app/(admin)/transport/buses/page.tsx": {
+    "grid": 2
+  },
+  "apps/erp/src/app/(admin)/transport/changes/page.tsx": {
+    "grid": 1,
+    "vh": 1
+  },
+  "apps/erp/src/app/parent/ask/page.tsx": {
+    "input": 1
+  },
+  "apps/erp/src/app/parent/attendance/page.tsx": {
+    "grid": 3,
+    "select": 1
+  },
+  "apps/erp/src/app/parent/fees/page.tsx": {
+    "select": 1
+  },
+  "apps/erp/src/app/parent/page.tsx": {
+    "grid": 1
+  },
+  "apps/erp/src/app/parent/results/page.tsx": {
+    "select": 2
+  },
+  "apps/erp/src/app/parent/timetable/page.tsx": {
+    "select": 1
+  },
+  "apps/erp/src/app/parent/transport/page.tsx": {
+    "select": 1
+  },
+  "apps/erp/src/app/portal/error.tsx": {
+    "vh": 1
+  },
+  "apps/erp/src/app/portal/loading.tsx": {
+    "vh": 1
+  },
+  "apps/erp/src/app/portal/settings/page.tsx": {
+    "input": 1
+  },
+  "apps/erp/src/app/student/attendance/page.tsx": {
+    "grid": 3
+  },
+  "apps/erp/src/app/student/page.tsx": {
+    "grid": 2
+  },
+  "apps/erp/src/app/student/results/page.tsx": {
+    "select": 1
+  },
+  "apps/erp/src/app/teacher/class-tests/page.tsx": {
+    "grid": 1
+  },
+  "apps/erp/src/app/teacher/page.tsx": {
+    "grid": 2
+  },
+  "apps/erp/src/app/teacher/students/page.tsx": {
+    "select": 1
+  },
+  "apps/erp/src/components/ClassSubjectsDialog.tsx": {
+    "input": 1
+  },
+  "apps/erp/src/components/CreatePortalUsersDialog.tsx": {
+    "grid": 1,
+    "vh": 1
+  },
+  "apps/erp/src/components/DayBookImportDialog.tsx": {
+    "grid": 2,
+    "vh": 1,
+    "select": 3,
+    "input": 1
+  },
+  "apps/erp/src/components/EditorPermissionsDialog.tsx": {
+    "vh": 1
+  },
+  "apps/erp/src/components/FeeScheduleImportDialog.tsx": {
+    "vh": 2,
+    "select": 1,
+    "input": 1
+  },
+  "apps/erp/src/components/HistoricalFeesImportDialog.tsx": {
+    "vh": 1,
+    "select": 3,
+    "input": 1
+  },
+  "apps/erp/src/components/HistoricalResultsImportDialog.tsx": {
+    "vh": 1,
+    "select": 3,
+    "input": 1
+  },
+  "apps/erp/src/components/MarksImportDialog.tsx": {
+    "vh": 1,
+    "input": 1
+  },
+  "apps/erp/src/components/PtmImportDialog.tsx": {
+    "vh": 1,
+    "input": 1
+  },
+  "apps/erp/src/components/QuickSetupWizard.tsx": {
+    "grid": 1,
+    "vh": 1,
+    "input": 1
+  },
+  "apps/erp/src/components/StaffBulkUpload.tsx": {
+    "vh": 1
+  },
+  "apps/erp/src/components/StaffDetailDialog.tsx": {
+    "grid": 2,
+    "vh": 1
+  },
+  "apps/erp/src/components/StudentBulkUpload.tsx": {
+    "grid": 2,
+    "vh": 1,
+    "select": 2,
+    "input": 1
+  },
+  "apps/erp/src/components/StudentConcessionImportDialog.tsx": {
+    "vh": 2,
+    "input": 1
+  },
+  "apps/erp/src/components/StudentFormFields.tsx": {
+    "grid": 5
+  },
+  "apps/erp/src/components/SubjectBulkUpload.tsx": {
+    "grid": 1,
+    "vh": 1,
+    "input": 1
+  },
+  "apps/erp/src/components/ask/ConversationList.tsx": {
+    "input": 2
+  },
+  "apps/erp/src/components/result-master/PreviewTab.tsx": {
+    "grid": 1
+  },
+  "apps/website/src/app/about/page.tsx": {
+    "vh": 1
+  },
+  "apps/website/src/app/contact/ContactPageClient.tsx": {
+    "select": 1
+  },
+  "apps/website/src/app/error.tsx": {
+    "vh": 1
+  },
+  "apps/website/src/app/facilities/FacilitiesContent.tsx": {
+    "vh": 3
+  },
+  "apps/website/src/app/gallery/GalleryPageClient.tsx": {
+    "vh": 2
+  },
+  "apps/website/src/app/global-error.tsx": {
+    "vh": 1
+  },
+  "apps/website/src/app/student-life/StudentLifeContent.tsx": {
+    "grid": 1,
+    "vh": 2
+  },
+  "apps/website/src/app/transfer-certificates/TransferCertificatesPageClient.tsx": {
+    "input": 2
+  },
+  "apps/website/src/components/about/AchievementsCounter.tsx": {
+    "grid": 1
+  },
+  "apps/website/src/components/academics/StaffDirectory.tsx": {
+    "grid": 1,
+    "input": 1
+  },
+  "apps/website/src/components/admissions/AdmissionsEnquiryModal.tsx": {
+    "input": 1
+  },
+  "apps/website/src/components/home/FacilitiesPreview.tsx": {
+    "grid": 1
+  },
+  "apps/website/src/components/home/HeroSlider.tsx": {
+    "grid": 1
+  },
+  "apps/website/src/components/home/StatsCounter.tsx": {
+    "grid": 1
+  },
+  "apps/website/src/components/student-life/StudentCouncil.tsx": {
+    "grid": 1
+  },
+  "packages/shared/src/components/AcademicYearSelect.tsx": {
+    "select": 1
+  },
+  "packages/shared/src/components/AppShell.tsx": {
+    "vh": 1
+  },
+  "packages/shared/src/components/DashboardAnalytics.tsx": {
+    "grid": 3
+  },
+  "packages/shared/src/components/DashboardView.tsx": {
+    "grid": 1
+  },
+  "packages/shared/src/components/FileDropZone.tsx": {
+    "input": 1
+  },
+  "packages/shared/src/components/MobileNavDrawer.tsx": {
+    "input": 1
+  },
+  "packages/shared/src/components/NkpsAgent.tsx": {
+    "input": 1
+  },
+  "packages/shared/src/components/ui/data-table.tsx": {
+    "select": 1,
+    "input": 2
+  },
+  "packages/shared/src/components/ui/table-export-button.tsx": {
+    "vh": 1
+  }
+}

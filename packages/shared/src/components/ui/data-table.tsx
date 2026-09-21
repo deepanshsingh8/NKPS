@@ -1029,13 +1029,13 @@ export function TablePaginationBar<T>({
   // size picker still earn their place — the picker is how someone gets OFF
   // a 10-per-page view they set earlier.
   const btn =
-    "h-8 min-w-8 rounded-md border border-gray-300 dark:border-border px-2 text-sm " +
+    "h-11 min-w-11 sm:h-8 sm:min-w-8 rounded-md border border-gray-300 dark:border-border px-2 text-sm " +
     "disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-muted";
 
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 dark:border-border pt-3 mt-1",
+        "flex flex-col items-stretch gap-3 border-t border-gray-200 dark:border-border pt-3 mt-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
         className
       )}
     >
@@ -1045,13 +1045,13 @@ export function TablePaginationBar<T>({
         </span>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3 sm:justify-start">
         <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
           Rows
           <select
             value={pageSize}
             onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
-            className="rounded-md border border-gray-300 dark:border-border px-2 py-1 text-sm dark:bg-muted"
+            className="h-11 sm:h-8 rounded-md border border-gray-300 dark:border-border px-2 py-1 text-base sm:text-sm dark:bg-muted"
             aria-label={`${noun} per page`}
           >
             {PAGE_SIZE_OPTIONS.map((n) => (
