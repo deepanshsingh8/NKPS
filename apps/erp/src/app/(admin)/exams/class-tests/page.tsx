@@ -886,7 +886,7 @@ export default function AdminClassTestsPage() {
           </DialogHeader>
           <div className="space-y-4">
             {!editingTest && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Class</Label>
                   <Select
@@ -951,7 +951,7 @@ export default function AdminClassTestsPage() {
                 placeholder="e.g. Unit 1 Test"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Date</Label>
                 <Input

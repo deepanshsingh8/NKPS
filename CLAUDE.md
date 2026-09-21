@@ -31,10 +31,11 @@ pnpm run build          # all three
 pnpm run typecheck
 pnpm run lint           # also enforces the module boundary
 pnpm run check:guide    # every sidebar link must have a guide entry
+pnpm run check:mobile   # form layout rules a browser would catch and tsc can't
 ```
 
 Run one app with `pnpm --filter @nkps/erp run <script>`. There is **no test
-suite**: the four commands above plus a browser pass are the regression net.
+suite**: the commands above plus a browser pass are the regression net.
 A full `pnpm run build` needs Supabase env vars — without them the website app
 fails at `supabaseUrl is required`, which is environmental, not a code fault.
 
@@ -145,6 +146,21 @@ only — parallel groups differ from the canonical assignment by design).
 - **Guide registry.** `pnpm run check:guide` fails if a sidebar `href` has no
   entry in `packages/shared/src/lib/guide/screens.ts`. Update the entry when a
   screen's controls change, not only when adding a page.
+- **Form layout.** `pnpm run check:mobile` enforces four rules that decide
+  whether a form works on a phone, none of which `tsc` or ESLint can see:
+  no `grid-cols-N` without a breakpoint (use `<FieldRow>`; two controls in
+  ~343px of sheet is narrower than a native date input will render), no `vh`
+  (iOS resolves it against the viewport *including* the URL bar, so a sheet
+  capped at `85vh` hides its own footer), and no raw `<select>`/text `<input>`
+  — use `<NativeSelect>`/`<Input>`, which carry the 44px touch target and the
+  16px font size below which iOS zooms the page and will not zoom back. A line
+  that genuinely needs a fixed column count (a month is seven days wide) opts
+  out with a `mobile-layout-ok` comment giving the reason.
+- **Dialogs.** `DialogContent` is a bottom sheet below `sm` and a centred card
+  above it. Don't pass an unprefixed `max-h-*`/`max-w-*` — it replaces the
+  sheet's own cap. A dialog rendered unconditionally and handed an `open` prop
+  mounts on every page visit; for a heavy one, pair `next/dynamic` with
+  `useMountOnceOpen` so it loads when first opened and still animates closed.
 - **Styling.** Tailwind v4, custom theme: navy-900 (primary dark), blue-600
   (accent), gold-500 (secondary accent), cream-50 (backgrounds). Playfair
   Display for headings (`font-heading`), Inter for body (`font-sans`).

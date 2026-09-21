@@ -34,6 +34,7 @@ import { adminApi } from "@nkps/shared/lib/admin-api";
 import { formatClassName } from "@nkps/shared/lib/utils";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@nkps/shared/lib/constants/calendar";
 import type { CalendarEvent, CalendarEventType } from "@nkps/shared/types";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
 const EVENT_TYPES: CalendarEventType[] = [
   "exam",
@@ -496,10 +497,10 @@ export default function AdminCalendarPage() {
                 }
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Event Type</Label>
-                <select
+                <NativeSelect
                   value={newEvent.event_type}
                   onChange={(e) =>
                     setNewEvent({
@@ -507,23 +508,23 @@ export default function AdminCalendarPage() {
                       event_type: e.target.value as CalendarEventType,
                     })
                   }
-                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                  className="w-full"
                 >
                   {EVENT_TYPES.map((type) => (
                     <option key={type} value={type}>
                       {EVENT_TYPE_LABELS[type]}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Class (optional)</Label>
-                <select
+                <NativeSelect
                   value={newEvent.class_id}
                   onChange={(e) =>
                     setNewEvent({ ...newEvent, class_id: e.target.value })
                   }
-                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                  className="w-full"
                 >
                   <option value="">All Classes</option>
                   {classes.map((c) => (
@@ -531,10 +532,10 @@ export default function AdminCalendarPage() {
                       {formatClassName(c)}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Start Date</Label>
                 <Input
@@ -630,10 +631,10 @@ export default function AdminCalendarPage() {
                 }
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Event Type</Label>
-                <select
+                <NativeSelect
                   value={editData.event_type}
                   onChange={(e) =>
                     setEditData({
@@ -641,23 +642,23 @@ export default function AdminCalendarPage() {
                       event_type: e.target.value as CalendarEventType,
                     })
                   }
-                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                  className="w-full"
                 >
                   {EVENT_TYPES.map((type) => (
                     <option key={type} value={type}>
                       {EVENT_TYPE_LABELS[type]}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Class (optional)</Label>
-                <select
+                <NativeSelect
                   value={editData.class_id}
                   onChange={(e) =>
                     setEditData({ ...editData, class_id: e.target.value })
                   }
-                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                  className="w-full"
                 >
                   <option value="">All Classes</option>
                   {classes.map((c) => (
@@ -665,10 +666,10 @@ export default function AdminCalendarPage() {
                       {formatClassName(c)}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Start Date</Label>
                 <Input

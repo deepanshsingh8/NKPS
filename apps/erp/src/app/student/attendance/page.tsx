@@ -281,7 +281,7 @@ export default function StudentAttendancePage() {
           </div>
 
           {/* Day headers */}
-          <div className="grid grid-cols-7 gap-1 mb-1">
+          <div className="grid grid-cols-7 gap-1 mb-1"> {/* mobile-layout-ok: a month is seven days wide on every screen */}
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
               <div key={d} className="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-1">
                 {d}
@@ -290,7 +290,7 @@ export default function StudentAttendancePage() {
           </div>
 
           {/* Calendar grid */}
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-1"> {/* mobile-layout-ok: a month is seven days wide on every screen */}
             {/* Empty cells for first week offset */}
             {Array.from({ length: firstDay }).map((_, i) => (
               <div key={`empty-${i}`} className="aspect-square" />

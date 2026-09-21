@@ -269,7 +269,7 @@ export default function GradeMasterPage() {
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
                       Grade Bands
                     </p>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5"> {/* mobile-layout-ok: grade pills, "A+" and a range */}
                       {scale.bands.map((b, i) => (
                         <div
                           key={i}
@@ -531,7 +531,7 @@ function EditScaleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isCreating ? "New Grade Scale" : "Edit Grade Scale"}

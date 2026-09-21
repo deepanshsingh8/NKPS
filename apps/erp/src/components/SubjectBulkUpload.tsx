@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import * as XLSX from "xlsx";
+// xlsx parses to roughly 900KB. Nothing on this screen needs it until
+// someone picks a file or asks for the template, so it is fetched then
+// rather than shipped with the page that renders the button.
 import {
   Dialog,
   DialogContent,
@@ -156,8 +158,9 @@ export function SubjectBulkUpload({
       setFileName(file.name);
 
       const reader = new FileReader();
-      reader.onload = (evt) => {
+      reader.onload = async (evt) => {
         try {
+          const XLSX = await import("xlsx");
           const data = new Uint8Array(evt.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: "array" });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -242,7 +245,8 @@ export function SubjectBulkUpload({
     []
   );
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
+    const XLSX = await import("xlsx");
     const templateData = [
       ["Class", "Section", "Stream", "Subject Name", "Subject Code", "Teacher Employee ID"],
       ["V", "A", "", "Mathematics", "MATH", ""],
@@ -340,7 +344,7 @@ export function SubjectBulkUpload({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-3xl max-h-[85dvh] flex flex-col">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-500/10">
@@ -379,7 +383,7 @@ export function SubjectBulkUpload({
                 <p className="text-sm text-blue-800 dark:text-blue-300 font-medium mb-2">
                   Expected columns:
                 </p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-blue-700 dark:text-blue-400">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-blue-700 dark:text-blue-400"> {/* mobile-layout-ok: a two-column list of column names */}
                   <span>
                     <strong>Class</strong> — e.g. V, IX, XI (required)
                   </span>

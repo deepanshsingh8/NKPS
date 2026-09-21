@@ -724,7 +724,7 @@ export default function AdminExamTypesPage() {
             </div>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Name</Label>
                 <Input
@@ -804,7 +804,7 @@ export default function AdminExamTypesPage() {
                 &quot;All Levels&quot; for school-wide exams counted everywhere.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Kind</Label>
                 <Select
@@ -846,7 +846,7 @@ export default function AdminExamTypesPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Max Marks</Label>
                 <Input

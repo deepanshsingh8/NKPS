@@ -67,10 +67,10 @@ function DialogContent({
           data-slot="dialog-content"
           className={cn(
             // Shared
-            "fixed z-50 grid overflow-y-auto overscroll-contain gap-5 bg-white dark:bg-card p-6 text-sm text-popover-foreground shadow-xl shadow-navy-900/10 ring-1 ring-navy-900/5 dark:ring-border duration-200 outline-none",
+            "fixed z-50 grid overflow-y-auto overscroll-contain gap-5 bg-white dark:bg-card p-4 sm:p-6 text-sm text-popover-foreground shadow-xl shadow-navy-900/10 ring-1 ring-navy-900/5 dark:ring-border duration-200 outline-none",
             // Mobile: a sheet pinned to the bottom edge, clearing the home
             // indicator, with only its top corners rounded.
-            "inset-x-0 bottom-0 max-h-[88dvh] w-full max-w-none rounded-t-3xl pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]",
+            "inset-x-0 bottom-0 max-h-[88dvh] w-full max-w-none rounded-t-3xl pb-[calc(1rem+env(safe-area-inset-bottom,0px))]",
             "data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-full data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-full",
             // Desktop: back to the centred card.
             "sm:inset-x-auto sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:max-h-[calc(100dvh-2rem)] sm:w-full sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:pb-6",
@@ -111,7 +111,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-1.5 pb-1", className)}
+      className={cn("flex flex-col gap-1.5 pb-1 pr-10", className)}
       {...props}
     />
   )
@@ -129,7 +129,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-2xl border-t border-gray-100 dark:border-border bg-gray-50/80 dark:bg-muted/50 px-6 py-4 sm:flex-row sm:justify-end",
+        "-mx-4 -mb-[calc(1rem+env(safe-area-inset-bottom,0px))] flex flex-col-reverse gap-2 border-t border-gray-100 dark:border-border bg-gray-50/80 dark:bg-muted/50 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:-mx-6 sm:-mb-6 sm:rounded-b-2xl sm:px-6 sm:py-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}

@@ -391,7 +391,7 @@ export function NkpsAgent() {
                 {/* Input */}
                 <div className="p-3 pb-4 border-t border-navy-900/10 shrink-0">
                   <div className="flex items-center gap-2">
-                    <input
+                    <input /* mobile-layout-ok: borderless inside its own styled container; sized above */
                       ref={inputRef}
                       type="text"
                       value={input}
@@ -399,7 +399,7 @@ export function NkpsAgent() {
                       onKeyDown={handleKeyDown}
                       placeholder="Type your question..."
                       disabled={isLoading}
-                      className="flex-1 min-w-0 h-11 px-4 text-sm rounded-full border border-navy-900/20 focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 disabled:opacity-50 text-navy-900 dark:text-white placeholder:text-navy-900/40"
+                      className="flex-1 min-w-0 h-11 px-4 text-base sm:text-sm rounded-full border border-navy-900/20 focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 disabled:opacity-50 text-navy-900 dark:text-white placeholder:text-navy-900/40"
                     />
                     {/* 44px, the smallest target a thumb reliably hits — it was
                         36px sitting a couple of millimetres from the edge of

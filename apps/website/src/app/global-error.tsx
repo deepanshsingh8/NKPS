@@ -13,7 +13,7 @@ export default function GlobalError({
         <div
           style={{
             display: "flex",
-            minHeight: "100vh",
+            minHeight: "100dvh",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",

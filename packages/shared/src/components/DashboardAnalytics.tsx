@@ -232,7 +232,7 @@ function AttendanceBlock({ data }: { data: AttendanceData }) {
       ) : (
         <>
           {/* Summary chips */}
-          <div className="grid grid-cols-3 gap-2 mb-5">
+          <div className="grid grid-cols-3 gap-2 mb-5"> {/* mobile-layout-ok: three one-word chips */}
             <AttendanceChip
               label="Present"
               value={totals.present}
@@ -505,7 +505,7 @@ export function DashboardAnalytics({
               {/* Money answers "how much"; these answer "how many families",
                   which is what actually gets chased. Each tile opens the
                   register already filtered to the group it counts. */}
-              <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className="grid grid-cols-3 gap-2 mb-3"> {/* mobile-layout-ok: three one-word chips */}
                 <FeeHeadcount
                   href="/fees/dues?dues_tab=clear-list"
                   label="Paid"

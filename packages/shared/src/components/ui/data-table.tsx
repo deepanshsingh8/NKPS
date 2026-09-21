@@ -15,6 +15,7 @@ import {
 import { cn } from "@nkps/shared/lib/utils";
 import type { ExportFormat } from "@nkps/shared/lib/table-export";
 import { TableHead } from "@nkps/shared/components/ui/table";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
 // ---------------------------------------------------------------------------
 // Excel-style sorting + per-column filtering for the plain JSX tables used
@@ -749,12 +750,12 @@ const FilterPanel = React.forwardRef<HTMLDivElement, FilterPanelProps>(
 
         {kind === "text" && (
           <div className="p-2">
-            <input
+            <input /* mobile-layout-ok: borderless inside its own styled container; sized above */
               autoFocus
               value={filter.text}
               onChange={(e) => onTextChange(e.target.value)}
               placeholder={`Contains…`}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="h-11 sm:h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-base sm:text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           </div>
         )}
@@ -764,12 +765,12 @@ const FilterPanel = React.forwardRef<HTMLDivElement, FilterPanelProps>(
             {totalOptions > 8 && (
               <div className="relative p-2">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-                <input
+                <input /* mobile-layout-ok: borderless inside its own styled container; sized above */
                   autoFocus
                   value={query}
                   onChange={(e) => onQueryChange(e.target.value)}
                   placeholder="Search values…"
-                  className="h-8 w-full rounded-lg border border-input bg-transparent pl-8 pr-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="h-11 sm:h-8 w-full rounded-lg border border-input bg-transparent pl-8 pr-2 text-base sm:text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 />
               </div>
             )}
@@ -1029,13 +1030,13 @@ export function TablePaginationBar<T>({
   // size picker still earn their place — the picker is how someone gets OFF
   // a 10-per-page view they set earlier.
   const btn =
-    "h-8 min-w-8 rounded-md border border-gray-300 dark:border-border px-2 text-sm " +
+    "h-11 min-w-11 sm:h-8 sm:min-w-8 rounded-md border border-gray-300 dark:border-border px-2 text-sm " +
     "disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-muted";
 
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 dark:border-border pt-3 mt-1",
+        "flex flex-col items-stretch gap-3 border-t border-gray-200 dark:border-border pt-3 mt-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
         className
       )}
     >
@@ -1045,13 +1046,12 @@ export function TablePaginationBar<T>({
         </span>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3 sm:justify-start">
         <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
           Rows
-          <select
+          <NativeSelect
             value={pageSize}
             onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
-            className="rounded-md border border-gray-300 dark:border-border px-2 py-1 text-sm dark:bg-muted"
             aria-label={`${noun} per page`}
           >
             {PAGE_SIZE_OPTIONS.map((n) => (
@@ -1059,7 +1059,7 @@ export function TablePaginationBar<T>({
                 {n}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
 
         {pageCount > 1 && (

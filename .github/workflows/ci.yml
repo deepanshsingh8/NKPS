@@ -42,6 +42,11 @@ jobs:
       - name: API auth wiring
         run: pnpm run check:api-auth
 
+      # Two fields landing on top of each other on a phone is not something
+      # lint or tsc can see, and there is no browser in CI to catch it.
+      - name: Mobile layout rules
+        run: pnpm run check:mobile
+
       - name: Build all apps
         run: pnpm run build
         env:

@@ -56,6 +56,7 @@ import { ImageCropper, type Crop } from "@nkps/shared/components/ImageCropper";
 import { AcademicYearSelect } from "@nkps/shared/components/AcademicYearSelect";
 import { cn } from "@nkps/shared/lib/utils";
 import type { GalleryImage, GalleryEvent } from "@nkps/shared/types";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
 const CATEGORIES = ["academics", "sports", "cultural", "campus", "events"];
 
@@ -999,29 +1000,29 @@ export default function AdminGalleryPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="category" className="text-xs font-medium">Category</Label>
-                    <select
+                    <NativeSelect
                       id="category"
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
-                      className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                      className="w-full"
                     >
                       {CATEGORIES.map((cat) => (
                         <option key={cat} value={cat}>
                           {cat.charAt(0).toUpperCase() + cat.slice(1)}
                         </option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="event" className="text-xs font-medium">Event (optional)</Label>
-                    <select
+                    <NativeSelect
                       id="event"
                       value={eventId}
                       onChange={(e) => setEventId(e.target.value)}
-                      className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                      className="w-full"
                     >
                       <option value="">No event</option>
                       {events.map((evt) => (
@@ -1029,7 +1030,7 @@ export default function AdminGalleryPage() {
                           {evt.title} ({evt.event_date})
                         </option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </div>
                 </div>
 
@@ -1392,7 +1393,7 @@ export default function AdminGalleryPage() {
                     className="h-9"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs font-medium">Event Date</Label>
                     <Input

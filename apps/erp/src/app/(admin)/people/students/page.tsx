@@ -1,5 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import { useMountOnceOpen } from "@nkps/shared/lib/hooks/use-mount-once-open";
+
 import {
   useEffect,
   useState,
@@ -82,7 +85,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@nkps/shared/components/ui/dropdown-menu";
-import { StudentBulkUpload } from "@/components/StudentBulkUpload";
+// Loaded when it is first opened, not when the page is. Bulk upload is a
+// once-a-session job on a screen people open every day, and the component
+// is 1503 lines of it.
+const StudentBulkUpload = dynamic(() =>
+  import("@/components/StudentBulkUpload").then((m) => m.StudentBulkUpload)
+);
 import {
   StudentFormFields,
   type StudentFormState,
@@ -292,7 +300,7 @@ function ProfileDetailSection({
       {rows.length === 0 ? (
         <p className="text-xs text-gray-400">No details recorded</p>
       ) : (
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
           {rows.map(({ field, value }) => (
             <DetailField
               key={field.key}
@@ -610,6 +618,7 @@ export default function AdminStudentsPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const showStudentBulkUpload = useMountOnceOpen(uploadDialogOpen);
   const [promoteDialogOpen, setPromoteDialogOpen] = useState(false);
   const [portalDialogOpen, setPortalDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -2333,7 +2342,7 @@ export default function AdminStudentsPage() {
 
       {/* Add Student Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
@@ -2351,7 +2360,7 @@ export default function AdminStudentsPage() {
 
       {/* Edit Student Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
@@ -2408,8 +2417,8 @@ export default function AdminStudentsPage() {
                 </div>
               </DialogHeader>
 
-              <div className="space-y-5 max-h-[55vh] overflow-y-auto pr-1">
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+              <div className="space-y-5 max-h-[55dvh] overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
                   <DetailField label="Roll Number" value={detailStudent.roll_number ?? "—"} />
                   <DetailField label="Status">
                     <Badge
@@ -2592,7 +2601,7 @@ export default function AdminStudentsPage() {
                     placeholder="guardian@example.com"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="invite_phone" className="text-xs font-medium">
                       Phone
@@ -2684,7 +2693,7 @@ export default function AdminStudentsPage() {
           {promoteResult ? (
             <div className="space-y-4">
               <h3 className="font-medium text-sm">Promotion Complete</h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {promoteResult.promoted > 0 && (
                   <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/20">
                     <p className="text-2xl font-bold text-green-700 dark:text-green-400">{promoteResult.promoted}</p>
@@ -2739,7 +2748,7 @@ export default function AdminStudentsPage() {
           ) : (
             <div className="space-y-4">
               {/* Status summary */}
-              <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
                 <div className="p-2 rounded bg-blue-50 dark:bg-blue-950/20">
                   <p className="text-lg font-bold text-blue-700 dark:text-blue-400">{statusCounts.passed || 0}</p>
                   <p className="text-[10px] text-blue-600 dark:text-blue-500">Passed</p>
@@ -2972,11 +2981,13 @@ export default function AdminStudentsPage() {
       />
 
       {/* Bulk Upload Dialog */}
+      {showStudentBulkUpload && (
       <StudentBulkUpload
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}
         onSuccess={fetchStudents}
       />
+      )}
 
       {/* Create Portal Users Dialog */}
       <CreatePortalUsersDialog

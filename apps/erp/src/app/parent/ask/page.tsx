@@ -149,12 +149,12 @@ export default function ParentAskPage() {
         }}
         className="flex items-center gap-2 rounded-full border border-gray-200 bg-white p-1.5 pl-4 dark:border-border dark:bg-muted"
       >
-        <input
+        <input /* mobile-layout-ok: custom chrome, sized for touch and 16px below */
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={busy}
           placeholder="Ask about your child…"
-          className="flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
+          className="flex-1 bg-transparent text-base sm:text-sm outline-none placeholder:text-gray-400"
         />
         <button
           type="submit"

@@ -1145,7 +1145,7 @@ export default function StudentReportPage() {
         </div>
 
         {/* ── Field picker ── */}
-        <div className="min-w-0 flex max-h-[70vh] flex-col rounded-lg border bg-white dark:bg-card">
+        <div className="min-w-0 flex max-h-[70dvh] flex-col rounded-lg border bg-white dark:bg-card">
           <div className="space-y-2 border-b p-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Display / Print Fields</span>

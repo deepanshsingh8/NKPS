@@ -1179,7 +1179,7 @@ export default function AdminSiteMediaPage() {
 
       {/* ─── Add / Edit Card Dialog ─── */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); resetForm(); } else { setDialogOpen(true); } }}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editing ? "Edit Card" : "Add Card"} — {SECTION_LABELS[dialogSection] || dialogSection}

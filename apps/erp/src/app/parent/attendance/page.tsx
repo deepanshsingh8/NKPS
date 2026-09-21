@@ -25,6 +25,7 @@ import {
   Users,
 } from "lucide-react";
 import type { AttendanceStatus } from "@nkps/shared/types";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
 interface ChildOption {
   student_id: string;
@@ -284,10 +285,9 @@ export default function ParentAttendancePage() {
         {children.length > 1 && (
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-gray-400" />
-            <select
+            <NativeSelect
               value={selectedChild}
               onChange={(e) => setSelectedChild(e.target.value)}
-              className="rounded-lg border border-gray-200 dark:border-border bg-white dark:bg-card px-3 py-2 text-sm text-navy-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gold-500"
             >
               {children.map((child) => (
                 <option key={child.student_id} value={child.student_id}>
@@ -295,7 +295,7 @@ export default function ParentAttendancePage() {
                   {child.class_name ? ` (${child.class_name} - ${child.section})` : ""}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
         )}
       </div>
@@ -406,7 +406,7 @@ export default function ParentAttendancePage() {
               </div>
 
               {/* Day headers */}
-              <div className="grid grid-cols-7 gap-1 mb-1">
+              <div className="grid grid-cols-7 gap-1 mb-1"> {/* mobile-layout-ok: a month is seven days wide on every screen */}
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
                   <div key={d} className="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-1">
                     {d}
@@ -415,7 +415,7 @@ export default function ParentAttendancePage() {
               </div>
 
               {/* Calendar grid */}
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 gap-1"> {/* mobile-layout-ok: a month is seven days wide on every screen */}
                 {Array.from({ length: firstDay }).map((_, i) => (
                   <div key={`empty-${i}`} className="aspect-square" />
                 ))}

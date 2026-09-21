@@ -381,7 +381,7 @@ export function StudentLifeContent({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.92, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="relative max-h-[85vh] max-w-[92vw] md:max-w-[80vw]"
+              className="relative max-h-[85dvh] max-w-[92vw] md:max-w-[80vw]"
               onClick={(e) => e.stopPropagation()}
             >
               <Image
@@ -389,7 +389,7 @@ export function StudentLifeContent({
                 alt={lightbox.title}
                 width={1600}
                 height={1000}
-                className="max-h-[85vh] w-auto rounded-lg object-contain"
+                className="max-h-[85dvh] w-auto rounded-lg object-contain"
               />
               <div className="absolute inset-x-0 bottom-0 rounded-b-lg bg-gradient-to-t from-black/80 to-transparent px-6 py-4">
                 <p className="text-center font-medium text-white">

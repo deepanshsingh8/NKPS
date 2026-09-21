@@ -1,5 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import { useMountOnceOpen } from "@nkps/shared/lib/hooks/use-mount-once-open";
+
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { createClient } from "@nkps/shared/lib/supabase/client";
@@ -71,7 +74,12 @@ import {
   PHOTO_SPEC_HELPER_TEXT,
   validatePhotoFile,
 } from "@nkps/shared/lib/photo-spec";
-import { StaffBulkUpload } from "@/components/StaffBulkUpload";
+// Loaded when it is first opened, not when the page is. Bulk upload is a
+// once-a-session job on a screen people open every day, and the component
+// is 772 lines of it.
+const StaffBulkUpload = dynamic(() =>
+  import("@/components/StaffBulkUpload").then((m) => m.StaffBulkUpload)
+);
 import { CreatePortalUsersDialog } from "@/components/CreatePortalUsersDialog";
 import { StaffAvatar } from "@/components/StaffAvatar";
 import { StaffDetailDialog } from "@/components/StaffDetailDialog";
@@ -233,6 +241,7 @@ export default function AdminStaffPage() {
   // Row whose read-only detail view is open (opened from the name).
   const [detailMember, setDetailMember] = useState<StaffMember | null>(null);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+  const showStaffBulkUpload = useMountOnceOpen(bulkUploadOpen);
   const [portalDialogOpen, setPortalDialogOpen] = useState(false);
   // Every teaching staff member's `teachers` row, keyed by staff_member_id.
   // This used to be a Set of ids answering only "already linked?", which was
@@ -1362,7 +1371,7 @@ export default function AdminStaffPage() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
+          <div className="space-y-4 py-2 max-h-[70dvh] overflow-y-auto pr-1">
             <div className="space-y-2">
               <Label>Full Name *</Label>
               <Input
@@ -1410,7 +1419,7 @@ export default function AdminStaffPage() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Email</Label>
                 <Input
@@ -1441,7 +1450,7 @@ export default function AdminStaffPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Date of Birth</Label>
                 <Input
@@ -1608,11 +1617,13 @@ export default function AdminStaffPage() {
       />
 
       {/* Bulk Upload Dialog */}
+      {showStaffBulkUpload && (
       <StaffBulkUpload
         open={bulkUploadOpen}
         onOpenChange={setBulkUploadOpen}
         onSuccess={fetchStaff}
       />
+      )}
 
       {/* Create Portal Users Dialog */}
       <CreatePortalUsersDialog

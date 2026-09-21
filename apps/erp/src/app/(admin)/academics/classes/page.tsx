@@ -455,7 +455,13 @@ export default function AdminClassesPage() {
           </DialogHeader>
 
           <form onSubmit={handleEditSubmit} className="space-y-3">
-            <div className={`grid ${SENIOR_CLASSES.includes(className) ? "grid-cols-3" : "grid-cols-2"} gap-3`}>
+            <div
+              className={`grid grid-cols-1 gap-3 ${
+                SENIOR_CLASSES.includes(className)
+                  ? "sm:grid-cols-3"
+                  : "sm:grid-cols-2"
+              }`}
+            >
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Class Name</Label>
                 <Select value={className} onValueChange={(val) => { if (val) { setClassName(val); if (!SENIOR_CLASSES.includes(val)) setStreamId(""); } }}>
@@ -512,7 +518,7 @@ export default function AdminClassesPage() {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Academic Year</Label>
                 <Select
@@ -651,7 +657,13 @@ export default function AdminClassesPage() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-3">
-            <div className={`grid ${SENIOR_CLASSES.includes(className) ? "grid-cols-3" : "grid-cols-2"} gap-3`}>
+            <div
+              className={`grid grid-cols-1 gap-3 ${
+                SENIOR_CLASSES.includes(className)
+                  ? "sm:grid-cols-3"
+                  : "sm:grid-cols-2"
+              }`}
+            >
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Class Name</Label>
                 <Select value={className} onValueChange={(val) => { if (val) { setClassName(val); if (!SENIOR_CLASSES.includes(val)) setStreamId(""); } }}>
@@ -708,7 +720,7 @@ export default function AdminClassesPage() {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Academic Year</Label>
                 <Select

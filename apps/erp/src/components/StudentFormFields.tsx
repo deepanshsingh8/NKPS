@@ -9,6 +9,7 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
+import { Field, FieldRow } from "@nkps/shared/components/ui/field";
 import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import {
   Select,
@@ -170,13 +171,13 @@ const StudentTextField = memo(function StudentTextField({
   const required = field.required ?? false;
 
   return (
-    <div>
+    <Field>
       <Label htmlFor={fieldKey} className="text-xs font-medium">
         {field.label + (required ? " *" : "")}
       </Label>
       <Input
         id={fieldKey}
-        className={`h-9 mt-1 ${error ? ERROR_RING : ""}`}
+        className={error ? ERROR_RING : ""}
         type={
           field.kind === "date"
             ? "date"
@@ -192,7 +193,7 @@ const StudentTextField = memo(function StudentTextField({
         placeholder={disabled ? "—" : undefined}
       />
       <FieldError error={error} />
-    </div>
+    </Field>
   );
 });
 
@@ -237,12 +238,12 @@ const StudentSelectField = memo(function StudentSelectField({
   const required = field.required ?? false;
 
   return (
-    <div>
+    <Field>
       <Label className="text-xs font-medium">
         {field.label + (required ? " *" : "")}
       </Label>
       <Select value={value || "none"} items={items} onValueChange={onValueChange}>
-        <SelectTrigger className={`w-full mt-1 h-9 ${error ? ERROR_RING : ""}`}>
+        <SelectTrigger className={`w-full ${error ? ERROR_RING : ""}`}>
           <SelectValue placeholder="—" />
         </SelectTrigger>
         <SelectContent>
@@ -254,7 +255,7 @@ const StudentSelectField = memo(function StudentSelectField({
         </SelectContent>
       </Select>
       <FieldError error={error} />
-    </div>
+    </Field>
   );
 });
 
@@ -377,7 +378,7 @@ export function StudentFormFields({
       <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2 uppercase tracking-wide">
         {title}
       </p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">{children}</div>
+      <FieldRow cols={3}>{children}</FieldRow>
     </div>
   );
 
@@ -391,14 +392,14 @@ export function StudentFormFields({
       )}
       {openSections.general && (
         <div className="space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <FieldRow cols={3}>
             {renderField("full_name")}
             {renderField("gender")}
             {renderField("date_of_birth")}
             {renderField("aadhar_number")}
             {renderField("name_as_per_aadhar")}
             {renderField("jan_aadhar_number")}
-          </div>
+          </FieldRow>
 
           {renderSubGroup("Mother's Details", (
             <>
@@ -441,7 +442,7 @@ export function StudentFormFields({
             </>
           ))}
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <FieldRow cols={3}>
             {renderField("blood_group")}
             {renderField("mother_tongue")}
             {renderField("category")}
@@ -456,7 +457,7 @@ export function StudentFormFields({
             {renderField("weight_kg")}
             {renderField("phone")}
             {renderField("email")}
-          </div>
+          </FieldRow>
         </div>
       )}
 
@@ -468,7 +469,7 @@ export function StudentFormFields({
       )}
       {openSections.enrolment && (
         <div className="space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <FieldRow cols={3}>
             {renderField("admission_no")}
             {renderField("admission_date")}
             <div>
@@ -604,7 +605,7 @@ export function StudentFormFields({
             {renderField("is_rte")}
             {renderField("medium_of_instruction")}
             {renderField("is_staff_ward")}
-          </div>
+          </FieldRow>
 
           {renderSubGroup("Previous School", (
             <>
@@ -632,10 +633,10 @@ export function StudentFormFields({
             </>
           ))}
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <FieldRow cols={3}>
             {renderField("distance_band")}
             {renderField("parent_highest_education")}
-          </div>
+          </FieldRow>
 
           <p className="text-[11px] text-gray-400 dark:text-gray-500">
             Subjects are managed via class subjects and electives, or the Subjects column of the bulk upload.

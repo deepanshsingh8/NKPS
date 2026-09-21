@@ -25,6 +25,7 @@ import { adminFetch } from "@nkps/shared/lib/admin-api";
 import { csvEscape } from "@nkps/shared/lib/utils";
 import { toast } from "sonner";
 import { Loader2, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
 interface RowVerdict {
   source_row: number;
@@ -226,7 +227,7 @@ export function FeeScheduleImportDialog({
         <FileSpreadsheet className="h-4 w-4 mr-2" />
         Bulk upload schedule
       </DialogTrigger>
-      <DialogContent className="sm:max-w-4xl max-h-[88vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[88dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Bulk upload fee schedules</DialogTitle>
           <DialogDescription>
@@ -244,21 +245,21 @@ export function FeeScheduleImportDialog({
               <Label htmlFor="fs-year" className="text-xs">
                 Academic year
               </Label>
-              <select
+              <NativeSelect
                 id="fs-year"
                 value={academicYearId}
                 onChange={(e) => {
                   setAcademicYearId(e.target.value);
                   setPreview(null);
                 }}
-                className="mt-1 block w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-background px-3 py-1.5 text-sm"
+                className="mt-1 block w-full"
               >
                 {years.map((y) => (
                   <option key={y.id} value={y.id}>
                     {y.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
             <div>
               <div className="flex items-center justify-between">
@@ -359,7 +360,7 @@ export function FeeScheduleImportDialog({
                 ))}
               </div>
 
-              <div className="max-h-[38vh] overflow-y-auto">
+              <div className="max-h-[38dvh] overflow-y-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

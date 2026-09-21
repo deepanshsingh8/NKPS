@@ -120,7 +120,7 @@ export function CreatePortalUsersDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10">
@@ -207,7 +207,7 @@ export function CreatePortalUsersDialog({
         {step === "results" && (
           <div className="space-y-4">
             {/* Summary cards */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="rounded-xl bg-green-50 dark:bg-green-950/30 border border-green-200 p-3 text-center">
                 <p className="text-2xl font-bold text-green-700 dark:text-green-400">{summary.created}</p>
                 <p className="text-xs text-green-600 dark:text-green-400">Created</p>

@@ -51,7 +51,7 @@ import Link from "next/link";
 import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, ArrowLeft, ArrowRight, ChevronDown, ChevronRight } from "lucide-react";
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import { cn, formatClassName } from "@nkps/shared/lib/utils";
-import { classSortIndex } from "@nkps/shared/lib/constants";
+import { classSortIndex, CLASS_ORDER } from "@nkps/shared/lib/constants";
 import { FeeScheduleImportDialog } from "@/components/FeeScheduleImportDialog";
 import { StudentConcessionImportDialog } from "@/components/StudentConcessionImportDialog";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
@@ -84,24 +84,12 @@ import { HistoricalFeesImportDialog } from "@/components/HistoricalFeesImportDia
 import { DayBookImportDialog } from "@/components/DayBookImportDialog";
 import { ImportHistoryPanel } from "@/components/ImportHistoryPanel";
 import { FeeScheduleGrid } from "./FeeScheduleGrid";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
-const CLASS_NAMES = [
-  "Nursery",
-  "LKG",
-  "UKG",
-  "I",
-  "II",
-  "III",
-  "IV",
-  "V",
-  "VI",
-  "VII",
-  "VIII",
-  "IX",
-  "X",
-  "XI",
-  "XII",
-];
+// The class list is CLASS_ORDER from shared constants. It used to be
+// retyped in this file (and two others), which is three places for the
+// school's class list to disagree with itself.
+const CLASS_NAMES: readonly string[] = CLASS_ORDER;
 
 const STREAM_CLASSES = ["XI", "XII"];
 
@@ -2194,21 +2182,24 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
 
       {section === "academic" && (
         <Tabs defaultValue="schedule">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <TabsList>
-              <TabsTrigger value="schedule">Fee Schedule</TabsTrigger>
-              <TabsTrigger value="all">All Structures</TabsTrigger>
-            </TabsList>
-            {/* Setting fifteen classes one grid at a time is a day's work at
-                the start of every session; this takes one sheet. */}
-            <FeeScheduleImportDialog onImported={fetchFeeStructures} />
-          </div>
+          <TabsList>
+            <TabsTrigger value="schedule">Fee Schedule</TabsTrigger>
+            <TabsTrigger value="all">All Structures</TabsTrigger>
+          </TabsList>
 
           {/* The schedule grid is the primary editor: a row per instalment,
               laid out the way the school publishes its fees. The flat list
               below stays for cross-class review and for legacy recurring
               rows the grid intentionally doesn't model. */}
           <TabsContent value="schedule">
+            {/* Setting fifteen classes one grid at a time is a day's work at
+                the start of every session; this takes one sheet. It sat
+                beside the tab bar, which kept it on screen while All
+                Structures was open — where it does nothing, since it
+                imports a schedule. */}
+            <div className="mt-3 flex justify-end">
+              <FeeScheduleImportDialog onImported={fetchFeeStructures} />
+            </div>
             <FeeScheduleGrid />
           </TabsContent>
 
@@ -2219,10 +2210,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 <CardContent>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <select
+                      <NativeSelect
                         value={classFilter}
                         onChange={(e) => setClassFilter(e.target.value)}
-                        className="rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted"
                       >
                         <option value="">All Classes</option>
                         {CLASS_NAMES.map((cn) => (
@@ -2230,7 +2220,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                             {cn}
                           </option>
                         ))}
-                      </select>
+                      </NativeSelect>
                     </div>
                     <Button
                       className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
@@ -2444,14 +2434,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                   <Label className="mb-2 block text-xs font-medium">
                     Class
                   </Label>
-                  <select
+                  <NativeSelect
                     value={paymentsClassId}
                     onChange={(e) => {
                       setPaymentsClassId(e.target.value);
                       clearSelectedStudent();
                       setClassStudentSearch("");
                     }}
-                    className="block rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted min-w-[220px]"
+                    className="block min-w-[220px]"
                   >
                     <option value="">All classes</option>
                     {classesList.map((c) => (
@@ -2459,7 +2449,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                         {formatClassName(c)}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
                 <div className="flex-1">
                   <Label className="mb-2 block text-xs font-medium">
@@ -2852,10 +2842,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
                 <div>
                   <Label className="text-xs font-medium">Class</Label>
-                  <select
+                  <NativeSelect
                     value={duesClassId}
                     onChange={(e) => setDuesClassId(e.target.value)}
-                    className="block mt-1 rounded-md border border-gray-300 dark:border-border px-3 py-2 text-sm dark:bg-muted min-w-[220px]"
+                    className="block mt-1 min-w-[220px]"
                   >
                     <option value="">All classes</option>
                     {classesList.map((c) => (
@@ -2863,7 +2853,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                         {formatClassName(c)}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
                 <label className="flex items-center gap-2 text-sm mt-1 sm:mt-5">
                   <Checkbox
@@ -2987,10 +2977,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             </div>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Class</Label>
-                <select
+                <NativeSelect
                   value={structureForm.class_name}
                   onChange={(e) =>
                     setStructureForm({
@@ -3001,41 +2991,41 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                         : "",
                     })
                   }
-                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                  className="w-full"
                 >
                   {CLASS_NAMES.map((cn) => (
                     <option key={cn} value={cn}>
                       {cn}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Fee Type</Label>
-                <select
+                <NativeSelect
                   value={structureForm.fee_type}
                   onChange={(e) =>
                     setStructureForm({ ...structureForm, fee_type: e.target.value })
                   }
-                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                  className="w-full"
                 >
                   {FEE_TYPES.map((ft) => (
                     <option key={ft} value={ft}>
                       {ft}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
             </div>
             {supportsStream && (
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Stream (optional)</Label>
-                <select
+                <NativeSelect
                   value={structureForm.stream_id}
                   onChange={(e) =>
                     setStructureForm({ ...structureForm, stream_id: e.target.value })
                   }
-                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                  className="w-full"
                 >
                   <option value="">All streams (applies to everyone)</option>
                   {streams.map((s) => (
@@ -3044,13 +3034,13 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                       {s.code ? ` (${s.code})` : ""}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Leave blank to apply the same fee to every stream in this class.
                 </p>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Amount</Label>
                 <Input
@@ -3065,7 +3055,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Frequency</Label>
-                <select
+                <NativeSelect
                   value={structureForm.frequency}
                   onChange={(e) =>
                     setStructureForm({
@@ -3073,17 +3063,17 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                       frequency: e.target.value as (typeof FREQUENCIES)[number],
                     })
                   }
-                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                  className="w-full"
                 >
                   {FREQUENCIES.map((f) => (
                     <option key={f} value={f}>
                       {f.charAt(0).toUpperCase() + f.slice(1).replace("_", " ")}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Due Date (optional)</Label>
                 <Input
@@ -3116,7 +3106,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">
                   Instalment Name (optional)
@@ -3152,7 +3142,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-medium">Student Type</Label>
-              <select
+              <NativeSelect
                 value={structureForm.student_type}
                 onChange={(e) =>
                   setStructureForm({
@@ -3160,19 +3150,19 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     student_type: e.target.value as FeeStudentType,
                   })
                 }
-                className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                className="w-full"
               >
                 {STUDENT_TYPE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Admission and registration fees usually bill new students only.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">
                   Late Fee % (optional)
@@ -3273,7 +3263,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           <div className="space-y-3">
             <div className="space-y-1">
               <Label className="text-xs font-medium">Fee</Label>
-              <select
+              <NativeSelect
                 value={newPayment.fee_target}
                 onChange={(e) => {
                   // A scheduled instalment already says which period it
@@ -3290,7 +3280,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     month: picked?.month_label ?? newPayment.month,
                   });
                 }}
-                className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                className="w-full"
               >
                 <option value="">Select fee</option>
                 {applicableFeeLines.map((line) => {
@@ -3317,9 +3307,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     </option>
                   );
                 })}
-              </select>
+              </NativeSelect>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Amount</Label>
                 <Input
@@ -3334,7 +3324,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Payment Method</Label>
-                <select
+                <NativeSelect
                   value={newPayment.payment_method}
                   onChange={(e) =>
                     setNewPayment({
@@ -3342,14 +3332,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                       payment_method: e.target.value as (typeof PAYMENT_METHODS)[number],
                     })
                   }
-                  className="w-full h-9 rounded-lg border border-gray-200 dark:border-border px-3 text-sm bg-white dark:bg-muted focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition-colors"
+                  className="w-full"
                 >
                   {PAYMENT_METHODS.map((m) => (
                     <option key={m} value={m}>
                       {m.charAt(0).toUpperCase() + m.slice(1).replace("_", " ")}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
             </div>
             <div className="space-y-1">
@@ -3372,7 +3362,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   Cheque details
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Cheque No.</Label>
                     <Input
@@ -3396,7 +3386,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Drawee Bank</Label>
                     <Input
@@ -3428,7 +3418,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   Bank transfer details
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Originating Bank</Label>
                     <Input
@@ -3471,7 +3461,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   Online payment details
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Provider</Label>
                     <Input
@@ -3602,7 +3592,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           <div className="space-y-4 py-4">
             <div>
               <Label className="text-sm font-medium">Fee structure</Label>
-              <select
+              <NativeSelect
                 value={waiverForm.fee_structure_id}
                 onChange={(e) =>
                   setWaiverForm((p) => ({
@@ -3610,7 +3600,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     fee_structure_id: e.target.value,
                   }))
                 }
-                className="mt-1 block w-full rounded-md border border-gray-200 dark:border-border px-3 py-2 text-sm dark:bg-muted"
+                className="mt-1 block w-full"
               >
                 <option value="">Select…</option>
                 {applicableFeeStructures.map((fs) => (
@@ -3620,7 +3610,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     {fs.due_date ? ` · due ${fs.due_date}` : ""}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
             <div>
               <Label className="text-sm font-medium">Waiver amount</Label>

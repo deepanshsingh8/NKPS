@@ -179,7 +179,7 @@ export function TransferCertificatesPageClient() {
                     >
                       Admission Number
                     </label>
-                    <input
+                    <input /* mobile-layout-ok: borderless inside its own styled container; sized above */
                       id="admission-no"
                       type="text"
                       autoComplete="off"
@@ -201,7 +201,7 @@ export function TransferCertificatesPageClient() {
                     >
                       Date of Birth
                     </label>
-                    <input
+                    <input /* mobile-layout-ok: borderless inside its own styled container; sized above */
                       id="dob"
                       type="date"
                       value={dob}

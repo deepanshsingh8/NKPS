@@ -5,6 +5,12 @@ import Link from "next/link";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { Button } from "@nkps/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@nkps/shared/components/ui/dropdown-menu";
 import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
 import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import { Input } from "@nkps/shared/components/ui/input";
@@ -24,11 +30,17 @@ import {
   SelectValue,
 } from "@nkps/shared/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Clock, CalendarRange, Info, Printer } from "lucide-react";
+import { Plus, Trash2, Loader2, Clock, CalendarRange, Info, Printer, ChevronDown } from "lucide-react";
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import { formatClassName, formatShortDate } from "@nkps/shared/lib/utils";
 import { teacherOptions } from "@nkps/shared/lib/teacher-options";
 import type { Class, Subject, Teacher, TimetablePeriod } from "@nkps/shared/types";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
+
+function defaultDay(): number {
+  const today = new Date().getDay(); // 0 = Sunday
+  return today >= 1 && today <= 6 ? today : 1;
+}
 
 const DAYS = [
   { value: 1, label: "Monday" },
@@ -85,6 +97,7 @@ export default function AdminTimetablePage() {
   const [loading, setLoading] = useState(true);
   const [periodsLoading, setPeriodsLoading] = useState(false);
 
+  const [mobileDay, setMobileDay] = useState(defaultDay);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -441,6 +454,66 @@ const session = useAcademicSession();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   };
 
+  // One cell of the timetable. Lifted out of the <td> so the week table and
+  // the phone's day view draw the identical thing — a cell that renders
+  // differently depending on which layout you are in is a bug waiting to be
+  // reported as "the timetable is wrong on my phone".
+  const renderCell = (dayValue: number, periodNum: number) => {
+    const groups = getCellGroups(dayValue, periodNum);
+    const cell = groups[0];
+    const isLunch = cell?.is_break === true;
+    return (
+                        <button
+                          onClick={() => openDialog(dayValue, periodNum)}
+                          className={`w-full rounded-lg px-2 py-2 text-xs text-left transition-colors min-h-[56px] ${
+                            isLunch
+                              ? "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 hover:bg-amber-100"
+                              : cell
+                                ? "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                                : "bg-gray-50 dark:bg-muted border border-dashed border-gray-200 dark:border-border hover:bg-gray-100 dark:hover:bg-muted hover:border-gray-300 dark:hover:border-gray-600"
+                          }`}
+                        >
+                          {isLunch ? (
+                            <div className="font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                              ☕ Lunch
+                            </div>
+                          ) : groups.length > 0 ? (
+                            <div className="space-y-1">
+                              {groups.map((g) => (
+                                <div key={g.id}>
+                                  <div className="font-medium text-navy-900 dark:text-white truncate">
+                                    {g.group_label
+                                      ? `${g.group_label} · ${g.subject_name}`
+                                      : g.subject_name}
+                                  </div>
+                                  {g.teacher_name && (
+                                    <div className="text-gray-500 dark:text-gray-400 truncate">
+                                      {g.teacher_name}
+                                    </div>
+                                  )}
+                                  {g.room && (
+                                    <div className="text-gray-400 dark:text-gray-500 truncate">
+                                      {g.room}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                              {groups.some((g) => g.is_shared) && (
+                                <div className="text-[10px] uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
+                                  Shared
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-gray-300 dark:text-gray-600 text-center">
+                              <Plus className="h-3 w-3 mx-auto" />
+                            </div>
+                          )}
+                        </button>
+    );
+  };
+
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
@@ -449,24 +522,31 @@ const session = useAcademicSession();
         </h1>
         <div className="flex gap-2 flex-wrap items-center">
           <AcademicSessionPicker state={session} />
-          <Link
-            href="/timetable/templates"
-            className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 dark:border-border px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-muted"
-          >
-            Templates
-          </Link>
-          <Link
-            href="/timetable/generate"
-            className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 dark:border-border px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-muted"
-          >
-            Auto Generate
-          </Link>
-          <Link
-            href="/timetable/import"
-            className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 dark:border-border px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-muted"
-          >
-            Import (Excel)
-          </Link>
+          {/* Templates, Auto Generate and Import are each already a sidebar
+              entry under Timetable, so as three more buttons here they were
+              a second doorway to the same three rooms — and on a phone they
+              wrapped into two rows of chrome above a timetable that had not
+              been drawn yet. One menu keeps them reachable from the screen
+              they are used from without spending the width. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="outline" className="gap-1.5" />}
+            >
+              Set up
+              <ChevronDown className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem render={<Link href="/timetable/templates" />}>
+                Period templates
+              </DropdownMenuItem>
+              <DropdownMenuItem render={<Link href="/timetable/generate" />}>
+                Auto generate
+              </DropdownMenuItem>
+              <DropdownMenuItem render={<Link href="/timetable/import" />}>
+                Import from Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="outline"
             onClick={handlePrint}
@@ -562,7 +642,49 @@ const session = useAcademicSession();
               <Plus className="h-4 w-4 mr-1" /> Add period
             </Button>
           </div>
-          <div className="erp-table-container overflow-x-auto">
+          {/* Phone: one day at a time.
+              The week is Period x six days. In a horizontal scroller that is
+              a grid you drag sideways through with no column headers in
+              view, so you lose track of which day you are editing. Pick the
+              day, read the day. renderCell is shared with the table below,
+              so the two cannot disagree. */}
+          <div className="sm:hidden">
+            <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1 dark:bg-muted"> {/* mobile-layout-ok: six three-letter day chips */}
+              {DAYS.map((d) => (
+                <button
+                  key={d.value}
+                  onClick={() => setMobileDay(d.value)}
+                  aria-current={mobileDay === d.value ? "true" : undefined}
+                  className={`rounded-lg px-2 py-2 text-sm font-medium transition-colors ${
+                    mobileDay === d.value
+                      ? "bg-white dark:bg-card text-navy-900 dark:text-white shadow-sm"
+                      : "text-gray-500 dark:text-gray-400"
+                  }`}
+                >
+                  {d.label.slice(0, 3)}
+                </button>
+              ))}
+            </div>
+            <ul className="space-y-2">
+              {periodRows.map((dp) => (
+                <li key={dp.num} className="flex items-start gap-3">
+                  <div className="w-16 shrink-0 pt-2 text-gray-600 dark:text-gray-300">
+                    <div className="text-sm font-medium">
+                      {dp.num === 0 ? "Zero" : `P${dp.num}`}
+                    </div>
+                    <div className="text-[11px] text-gray-400 dark:text-gray-500">
+                      {dp.start}-{dp.end}
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    {renderCell(mobileDay, dp.num)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="erp-table-container hidden overflow-x-auto overscroll-x-contain sm:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 dark:bg-muted">
@@ -590,62 +712,11 @@ const session = useAcademicSession();
                       {dp.start}-{dp.end}
                     </div>
                   </td>
-                  {DAYS.map((d) => {
-                    const groups = getCellGroups(d.value, dp.num);
-                    const cell = groups[0];
-                    const isLunch = cell?.is_break === true;
-                    return (
+                  {DAYS.map((d) => (
                       <td key={d.value} className="px-1 py-1 align-top">
-                        <button
-                          onClick={() => openDialog(d.value, dp.num)}
-                          className={`w-full rounded-lg px-2 py-2 text-xs text-left transition-colors min-h-[56px] ${
-                            isLunch
-                              ? "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 hover:bg-amber-100"
-                              : cell
-                                ? "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30"
-                                : "bg-gray-50 dark:bg-muted border border-dashed border-gray-200 dark:border-border hover:bg-gray-100 dark:hover:bg-muted hover:border-gray-300 dark:hover:border-gray-600"
-                          }`}
-                        >
-                          {isLunch ? (
-                            <div className="font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1">
-                              ☕ Lunch
-                            </div>
-                          ) : groups.length > 0 ? (
-                            <div className="space-y-1">
-                              {groups.map((g) => (
-                                <div key={g.id}>
-                                  <div className="font-medium text-navy-900 dark:text-white truncate">
-                                    {g.group_label
-                                      ? `${g.group_label} · ${g.subject_name}`
-                                      : g.subject_name}
-                                  </div>
-                                  {g.teacher_name && (
-                                    <div className="text-gray-500 dark:text-gray-400 truncate">
-                                      {g.teacher_name}
-                                    </div>
-                                  )}
-                                  {g.room && (
-                                    <div className="text-gray-400 dark:text-gray-500 truncate">
-                                      {g.room}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                              {groups.some((g) => g.is_shared) && (
-                                <div className="text-[10px] uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
-                                  Shared
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="text-gray-300 dark:text-gray-600 text-center">
-                              <Plus className="h-3 w-3 mx-auto" />
-                            </div>
-                          )}
-                        </button>
+                        {renderCell(d.value, dp.num)}
                       </td>
-                    );
-                  })}
+                  ))}
                 </tr>
               ))}
             </tbody>
@@ -730,20 +801,20 @@ const session = useAcademicSession();
           )}
 
           <form onSubmit={handleSubmit} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Day</Label>
-                <select
+                <NativeSelect
                   value={formData.day_of_week}
                   disabled
-                  className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-gray-50 dark:bg-muted dark:text-gray-300 h-9"
+                  className="w-full"
                 >
                   {DAYS.map((d) => (
                     <option key={d.value} value={d.value}>
                       {d.label}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Period</Label>
@@ -805,7 +876,7 @@ const session = useAcademicSession();
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Start Time</Label>
                 <Input

@@ -2,7 +2,9 @@
 
 import { useState, useCallback, useEffect, Fragment } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
-import * as XLSX from "xlsx";
+// xlsx parses to roughly 900KB. Nothing on this screen needs it until
+// someone picks a file or asks for the template, so it is fetched then
+// rather than shipped with the page that renders the button.
 import {
   Dialog,
   DialogContent,
@@ -57,6 +59,7 @@ import {
   normalizeYesNo,
   toTitleCase,
 } from "@nkps/shared/lib/student-template";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
 // All cell values are kept as display strings in the preview (booleans as
 // "YES"/"NO", enums as their stored value) — the server's zod preprocessing
@@ -384,8 +387,9 @@ export function StudentBulkUpload({
       setFileName(file.name);
 
       const reader = new FileReader();
-      reader.onload = (evt) => {
+      reader.onload = async (evt) => {
         try {
+          const XLSX = await import("xlsx");
           const data = new Uint8Array(evt.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: "array" });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -694,7 +698,8 @@ export function StudentBulkUpload({
     }
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const XLSX = await import("xlsx");
     const headers = bulkTemplateHeaders();
     const sample = (values: Record<string, string>) =>
       STUDENT_TEMPLATE_FIELDS.map((f) => values[f.key] ?? "");
@@ -785,7 +790,7 @@ export function StudentBulkUpload({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-5xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-5xl max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10">
@@ -832,8 +837,8 @@ export function StudentBulkUpload({
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Import into session</Label>
-                <select
-                  className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+                <NativeSelect
+                  className="w-full"
                   value={targetYearId}
                   onChange={(e) => setTargetYearId(e.target.value)}
                 >
@@ -845,15 +850,15 @@ export function StudentBulkUpload({
                         {y.name} (past session)
                       </option>
                     ))}
-                </select>
+                </NativeSelect>
               </div>
               {isBackfill && (
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">
                     Record these students as
                   </Label>
-                  <select
-                    className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+                  <NativeSelect
+                    className="w-full"
                     value={backfillStatus}
                     onChange={(e) => setBackfillStatus(e.target.value)}
                   >
@@ -861,7 +866,7 @@ export function StudentBulkUpload({
                     <option value="failed">Failed</option>
                     <option value="exited">Exited</option>
                     <option value="terminated">Terminated</option>
-                  </select>
+                  </NativeSelect>
                 </div>
               )}
             </div>
@@ -1474,7 +1479,8 @@ export function StudentBulkUpload({
               {uploadResult && uploadResult.errors.length > 0 && (
                 <Button
                   variant="outline"
-                  onClick={() => {
+                  onClick={async () => {
+                    const XLSX = await import("xlsx");
                     // Download failed students as a sheet for easy re-upload
                     const failedData = uploadResult.errors.map((e) => ({
                       "Admission No": e.admission_no,
