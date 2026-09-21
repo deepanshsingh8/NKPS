@@ -326,7 +326,11 @@ export default function ParentDashboard() {
                       val &&
                       setValue(
                         "relationship",
-                        val as "father" | "mother" | "guardian"
+                        val as "father" | "mother" | "guardian",
+                        // Clear "Please select your relationship" the moment
+                        // they do; without this the error sits there until the
+                        // next submit and looks like the form is still wrong.
+                        { shouldValidate: true }
                       )
                     }
                   >

@@ -172,7 +172,11 @@ export function NkpsAgent() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50">
+    // The corner is shared with the scroll-to-top button, and on a phone it is
+    // also where the home indicator and the browser's own bar live — hence the
+    // safe-area insets rather than a flat bottom-4. ScrollToTop stacks itself
+    // above this launcher using the same numbers; move one and move the other.
+    <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] right-[calc(1rem+env(safe-area-inset-right,0px))] sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:right-[calc(1.5rem+env(safe-area-inset-right,0px))] z-50">
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -181,10 +185,20 @@ export function NkpsAgent() {
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
             className={cn(
-              "absolute bottom-16 right-0 bg-white dark:bg-card rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-navy-900/10 transition-all duration-300",
+              // Anchored to the viewport, not to the launcher: on a phone the
+              // panel gets an even gutter down both sides instead of hanging
+              // off the launcher's right inset, and it can't be pushed off the
+              // screen by its own width.
+              "fixed inset-x-3 sm:absolute sm:left-auto sm:right-0 bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] sm:bottom-16 bg-white dark:bg-card rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-navy-900/10 transition-all duration-300",
+              // dvh, not vh: with vh the panel is sized against the viewport
+              // the phone browser has when its address bar is retracted, so
+              // the composer — and the send button — slide under the keyboard
+              // the moment someone starts typing. max-h keeps the whole panel
+              // on screen on a short window as well.
+              "max-h-[calc(100dvh-7rem-env(safe-area-inset-bottom,0px))]",
               isExpanded && view === "chat"
-                ? "w-[90vw] md:w-[600px] h-[80vh] md:h-[700px]"
-                : "w-[calc(100vw-2rem)] sm:w-80 md:w-96 h-[70vh] sm:h-[500px]"
+                ? "sm:w-[90vw] md:w-[600px] h-[80dvh] md:h-[700px]"
+                : "sm:w-80 md:w-96 h-[70dvh] sm:h-[500px]"
             )}
           >
             {/* Header */}
@@ -375,8 +389,8 @@ export function NkpsAgent() {
                 </div>
 
                 {/* Input */}
-                <div className="p-3 border-t border-navy-900/10 shrink-0">
-                  <div className="flex gap-2">
+                <div className="p-3 pb-4 border-t border-navy-900/10 shrink-0">
+                  <div className="flex items-center gap-2">
                     <input
                       ref={inputRef}
                       type="text"
@@ -385,12 +399,16 @@ export function NkpsAgent() {
                       onKeyDown={handleKeyDown}
                       placeholder="Type your question..."
                       disabled={isLoading}
-                      className="flex-1 px-3 py-2 text-sm rounded-full border border-navy-900/20 focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 disabled:opacity-50 text-navy-900 dark:text-white placeholder:text-navy-900/40"
+                      className="flex-1 min-w-0 h-11 px-4 text-sm rounded-full border border-navy-900/20 focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 disabled:opacity-50 text-navy-900 dark:text-white placeholder:text-navy-900/40"
                     />
+                    {/* 44px, the smallest target a thumb reliably hits — it was
+                        36px sitting a couple of millimetres from the edge of
+                        the screen, which on a curved phone display is a miss
+                        as often as a tap. */}
                     <button
                       onClick={() => sendMessage()}
                       disabled={isLoading || !input.trim()}
-                      className="w-9 h-9 rounded-full bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900 flex items-center justify-center hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                      className="w-11 h-11 rounded-full bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900 flex items-center justify-center hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                       aria-label="Send message"
                     >
                       <Send className="w-4 h-4" />

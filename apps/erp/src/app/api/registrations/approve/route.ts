@@ -12,6 +12,7 @@ import {
   ensureParentRecord,
 } from "@/lib/identity/link";
 import { pickFreeAdmissionNo } from "@/lib/admission-no";
+import { findStudentByAdmissionNo } from "@/lib/identity/student-lookup";
 
 export async function POST(request: Request) {
   try {
@@ -197,14 +198,16 @@ export async function POST(request: Request) {
         | "guardian";
       const profileInfo = { email, fullName: full_name, phone };
 
-      // Resolve the child (if an admission number was given) up front.
+      // Resolve the child (if an admission number was given) up front. The
+      // number came off a public form, so it is matched leniently on case and
+      // whitespace — a parent who typed theirs in lower case used to land here
+      // unlinked and then hit the same byte comparison again from "Add Child".
       let studentId: string | null = null;
       if (registration.student_admission_no) {
-        const { data: studentRecord } = await supabase
-          .from("students")
-          .select("id")
-          .eq("admission_no", registration.student_admission_no)
-          .maybeSingle();
+        const studentRecord = await findStudentByAdmissionNo<{
+          id: string;
+          admission_no: string;
+        }>(supabase, registration.student_admission_no, "id, admission_no");
         studentId = studentRecord?.id ?? null;
       }
 
