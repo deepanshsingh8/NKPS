@@ -55,7 +55,9 @@ import {
   Filter,
   Sparkles,
   Upload,
+  ChevronDown,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { adminApi, fetchRowDependencies } from "@nkps/shared/lib/admin-api";
 import { describeDependencies } from "@nkps/shared/lib/row-dependencies";
 import { cn, formatClassName } from "@nkps/shared/lib/utils";
@@ -68,6 +70,13 @@ import { WingApplyDialog } from "@/components/WingApplyDialog";
 import type { Class, Subject, Teacher, Stream } from "@nkps/shared/types";
 
 type Tab = "subjects" | "assignments" | "streams" | "teachers";
+
+const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
+  { id: "subjects", label: "Subjects", icon: BookOpen },
+  { id: "assignments", label: "Class Assignments", icon: Library },
+  { id: "streams", label: "Streams", icon: GraduationCap },
+  { id: "teachers", label: "Teacher Subjects", icon: Users },
+];
 
 // ── Row types for the consolidated assignments table ──
 interface AssignmentRow {
@@ -189,6 +198,7 @@ export default function AdminSubjectsPage() {
   // ── Manage-a-whole-class dialog ──
   const [classSubjectsOpen, setClassSubjectsOpen] = useState(false);
   const [manageClassId, setManageClassId] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // ── Teachers tab (migration 117) ──
   // teacher_id → the subject ids they are qualified to teach.
@@ -1483,56 +1493,29 @@ export default function AdminSubjectsPage() {
         )}
       </div>
 
-      {/* Tab toggle */}
-      <div className="erp-scroll-x flex items-center gap-1 bg-gray-100 dark:bg-muted rounded-xl p-1 w-fit [&>button]:shrink-0">
-        <button
-          onClick={() => setTab("subjects")}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-            tab === "subjects"
-              ? "bg-white dark:bg-card text-navy-900 dark:text-white shadow-sm"
-              : "text-gray-500 dark:text-gray-400 hover:text-navy-900 dark:hover:text-white"
-          )}
-        >
-          <BookOpen className="h-4 w-4" />
-          Subjects
-        </button>
-        <button
-          onClick={() => setTab("assignments")}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-            tab === "assignments"
-              ? "bg-white dark:bg-card text-navy-900 dark:text-white shadow-sm"
-              : "text-gray-500 dark:text-gray-400 hover:text-navy-900 dark:hover:text-white"
-          )}
-        >
-          <Library className="h-4 w-4" />
-          Class Assignments
-        </button>
-        <button
-          onClick={() => setTab("streams")}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-            tab === "streams"
-              ? "bg-white dark:bg-card text-navy-900 dark:text-white shadow-sm"
-              : "text-gray-500 dark:text-gray-400 hover:text-navy-900 dark:hover:text-white"
-          )}
-        >
-          <GraduationCap className="h-4 w-4" />
-          Streams
-        </button>
-        <button
-          onClick={() => setTab("teachers")}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-            tab === "teachers"
-              ? "bg-white dark:bg-card text-navy-900 dark:text-white shadow-sm"
-              : "text-gray-500 dark:text-gray-400 hover:text-navy-900 dark:hover:text-white"
-          )}
-        >
-          <Users className="h-4 w-4" />
-          Teacher Subjects
-        </button>
+      {/* Tab toggle.
+          This was four hand-written buttons in a `w-fit` strip with the
+          scrollbar hidden. Four tabs need about 600px; a phone has 375, so
+          Teacher Subjects sat off the right edge with nothing to say it was
+          there — the page appeared to have three tabs. A 2×2 grid below `sm`
+          shows all four at once. */}
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-gray-100 p-1 sm:flex sm:w-fit sm:items-center dark:bg-muted"> {/* mobile-layout-ok: 2x2 below sm, a row above — four short tab labels */}
+        {TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            aria-current={tab === id ? "page" : undefined}
+            className={cn(
+              "flex min-w-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 sm:justify-start sm:px-4",
+              tab === id
+                ? "bg-white dark:bg-card text-navy-900 dark:text-white shadow-sm"
+                : "text-gray-500 dark:text-gray-400 hover:text-navy-900 dark:hover:text-white"
+            )}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{label}</span>
+          </button>
+        ))}
       </div>
 
       {/* ════════════════════════════════════════════════ */}
@@ -1728,33 +1711,9 @@ export default function AdminSubjectsPage() {
                     </h2>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       Pick a class to tick all of its subjects and set their
-                      teachers in one go.
+                      teachers in one go. Amber means a subject has nobody
+                      teaching it.
                     </p>
-                  </div>
-                  <div className="w-full sm:w-72">
-                    <Select
-                      value={manageClassId}
-                      items={classes.map((c) => ({
-                        value: c.id,
-                        label: formatClassName(c),
-                      }))}
-                      onValueChange={(val) => val && openClassSubjects(val)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a class..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {classes.map((c) => (
-                          <SelectItem
-                            key={c.id}
-                            value={c.id}
-                            label={formatClassName(c)}
-                          >
-                            {formatClassName(c)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </div>
                 </div>
 
@@ -1763,7 +1722,7 @@ export default function AdminSubjectsPage() {
                     No classes in this academic year yet.
                   </p>
                 ) : (
-                  <div className="erp-scroll-x flex flex-wrap gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap"> {/* mobile-layout-ok: class chips, one short label each */}
                     {classes.map((c) => {
                       const summary = assignmentsByClass.get(c.id);
                       const count = summary?.subject_count ?? 0;
@@ -1806,13 +1765,34 @@ export default function AdminSubjectsPage() {
                 )}
               </div>
 
-              {/* Filters */}
+              {/* Filters.
+                  Open, this panel is the third of four stacked boxes before
+                  any data appears — on a phone the table itself started a
+                  couple of screens down. It now opens on demand, and stays
+                  open on its own whenever a filter is set, so an active
+                  filter can never be hidden from the person it is confusing. */}
               <div className="erp-table-container p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Filter className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFiltersOpen((o) => !o)}
+                    aria-expanded={Boolean(filtersOpen || hasActiveFilters)}
+                    className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-300"
+                  >
+                    <Filter className="h-4 w-4 text-gray-400" />
                     Filters
-                  </span>
+                    {hasActiveFilters && (
+                      <span className="rounded-full bg-blue-600 px-1.5 text-[10px] font-semibold text-white">
+                        {[filterClassId, filterSubjectId, filterTeacherId].filter(Boolean).length}
+                      </span>
+                    )}
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 text-gray-400 transition-transform",
+                        (filtersOpen || hasActiveFilters) && "rotate-180"
+                      )}
+                    />
+                  </button>
                   {hasActiveFilters && (
                     <button
                       onClick={() => {
@@ -1826,7 +1806,12 @@ export default function AdminSubjectsPage() {
                     </button>
                   )}
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div
+                  className={cn(
+                    "mt-3 flex-col gap-3 sm:flex-row",
+                    filtersOpen || hasActiveFilters ? "flex" : "hidden"
+                  )}
+                >
                   <div className="w-full sm:w-52">
                     <Select
                       value={filterClassId || "all"}
