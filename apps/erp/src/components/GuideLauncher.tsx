@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useSheetDrag } from "@nkps/shared/hooks/useSheetDrag";
 import { usePathname } from "next/navigation";
 import {
   CornerDownLeft,
@@ -41,6 +42,9 @@ export function GuideLauncher() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  // The sheet's height on a phone, in px. `expanded` stays for the button and
+  // for desktop, where the panel is an anchored card and has no drag.
+  const [sheetPx, setSheetPx] = useState<number | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -185,6 +189,33 @@ export function GuideLauncher() {
     [pathname, turns, trail]
   );
 
+  // Measured, not read from `window` during render: that would differ between
+  // the server pass and the first client pass, and would never update when
+  // the phone is rotated or the browser's address bar retracts.
+  const [viewportH, setViewportH] = useState(0);
+  useEffect(() => {
+    const measure = () => setViewportH(window.innerHeight);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  // Floor: enough for the composer, the send button and the last answer —
+  // below that the panel is a strip that cannot be read, so the drag stops
+  // resizing there and starts dismissing instead.
+  const minPx = Math.round(viewportH * 0.32);
+  const currentPx = sheetPx ?? Math.round(viewportH * 0.75);
+
+  const { handleProps, sheetStyle, isSheet } = useSheetDrag({
+    onDismiss: () => setOpen(false),
+    resize: {
+      height: currentPx,
+      onHeight: setSheetPx,
+      min: minPx,
+      max: viewportH,
+    },
+  });
+
   if (!open) {
     return (
       <button
@@ -209,6 +240,11 @@ export function GuideLauncher() {
 
   return (
     <div
+      style={
+        isSheet && !expanded && viewportH > 0
+          ? { height: `${currentPx}px`, ...sheetStyle }
+          : sheetStyle
+      }
       className={cn(
         "fixed z-40 flex flex-col overflow-hidden border bg-white dark:bg-card shadow-2xl",
         // Mobile: a bottom sheet, because a 24rem floating card on a 375px
@@ -222,6 +258,21 @@ export function GuideLauncher() {
           : "sm:inset-auto sm:bottom-5 sm:right-5 sm:h-[min(38rem,calc(100dvh-2.5rem))] sm:w-[24rem] sm:rounded-xl"
       )}
     >
+      {/* Drag handle. The panel was 75dvh and stayed 75dvh: fine for a
+          question, wrong for reading a long answer with the keyboard up, and
+          the Expand button offered only the other extreme — full screen.
+          Pulling this puts the panel anywhere between, and pulling it past
+          the floor closes it. Hidden above `sm`, where the panel is an
+          anchored card with room to spare. */}
+      {!expanded && (
+        <div
+          aria-hidden
+          {...handleProps}
+          className="-mb-2 flex shrink-0 justify-center bg-navy-900 pt-2 pb-2 sm:hidden"
+        >
+          <div className="h-1 w-9 rounded-full bg-white/30" />
+        </div>
+      )}
       <header className="flex shrink-0 items-start justify-between gap-2 border-b bg-navy-900 px-4 py-3 text-white">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 text-sm font-medium">
