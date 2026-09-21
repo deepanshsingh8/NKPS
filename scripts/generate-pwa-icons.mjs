@@ -32,8 +32,14 @@
 //    so there is no box inside a box and nothing for the platform's rounding
 //    to expose.
 // 3. Gives each app its own field and a three-letter label, because "some
-//    differentiator" has to survive being 60px on a wallpaper: ERP is
-//    near-black navy, CMS is vivid blue, and both say which they are.
+//    differentiator" has to survive being 60px on a wallpaper.
+//
+// The fields are chosen against the artwork rather than picked. Sampling the
+// crest gives three hues — green at 150, yellow at 110, the ribbon's red at
+// 25 — so the whole scheme stays inside those: gold lettering on a near-black
+// navy for the ERP, and the ribbon's own red taken down to a field for the
+// CMS. Both fields are far below the crest in chroma, which is what keeps the
+// shield the loudest thing on the tile.
 
 import sharp from "sharp";
 import { fileURLToPath } from "node:url";
@@ -49,18 +55,29 @@ const APPS = [
   {
     dir: "erp",
     label: "ERP",
-    // navy-900. The operations app: the one people are in all day.
+    // navy-900. It reads as a neutral rather than as a blue — oklch C 0.04 at
+    // L 0.20 — so it sits under the crest's green without arguing with it,
+    // which is the same reason black and charcoal work behind any artwork.
     field: { r: 0x0a, g: 0x16, b: 0x28 },
-    // gold-500 on navy is the pairing the app's own chrome uses.
-    ink: "#D4A843",
+    ink: "#E5C06E",
   },
   {
     dir: "cms",
+    // Deep burgundy — the crest's own ribbon red, oklch(0.25 0.07 25), taken
+    // down to a field value. Sampling the crest gives three hues: green at
+    // 150, yellow at 110 and the ribbon's red at 25. Blue-700 was at 264,
+    // which is the near-complement of that yellow, so the shield's lettering
+    // vibrated against it — and at oklch L 0.50 / C 0.20 the field was as
+    // saturated as the artwork it was meant to sit behind.
+    //
+    // Burgundy fixes both. It is inside the school's own three colours, so
+    // green-gold-red stays the whole palette; and at L 0.25 / C 0.07 it is
+    // dark and quiet enough that the shield is still the only loud thing on
+    // the tile. Warm against the ERP's cool navy is also what tells them
+    // apart at 60px, which hue alone would not.
     label: "CMS",
-    // blue-700. Deep enough to sit beside navy as a family, far enough from
-    // it to be told apart at a glance on a home screen.
-    field: { r: 0x1d, g: 0x4e, b: 0xd8 },
-    ink: "#FFFFFF",
+    field: { r: 0x3d, g: 0x11, b: 0x0f },
+    ink: "#E5C06E",
   },
   {
     // The public site. No label — it is the school, not one of its tools —
@@ -68,7 +85,7 @@ const APPS = [
     dir: "website",
     label: null,
     field: { r: 0x0a, g: 0x16, b: 0x28 },
-    ink: "#D4A843",
+    ink: "#E5C06E",
     faviconOnly: true,
   },
 ];
