@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, Menu } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@nkps/shared/lib/utils";
 import { useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
 
@@ -27,7 +28,7 @@ export function MobileTopBar({
   /** Optional right-hand slot for page-level controls. */
   actions?: React.ReactNode;
 }) {
-  const { openMobile, navHrefs } = useSidebar();
+  const { openMobile, navHrefs, homeHref } = useSidebar();
   const pathname = usePathname();
   const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
@@ -81,9 +82,16 @@ export function MobileTopBar({
             <Menu className="h-6 w-6" />
           </button>
         )}
-        <span className="min-w-0 flex-1 truncate font-heading text-lg font-semibold text-navy-900 dark:text-white">
+        {/* The wordmark is the way home. Tapping the app name to get back to
+            the dashboard is what every other app on the phone does, and this
+            one was a plain <span> — the most obvious affordance on the screen,
+            and it did nothing. */}
+        <Link
+          href={homeHref}
+          className="min-w-0 flex-1 truncate font-heading text-lg font-semibold text-navy-900 transition-opacity hover:opacity-70 dark:text-white"
+        >
           {title}
-        </span>
+        </Link>
         {actions && (
           <div className="flex shrink-0 items-center gap-1">{actions}</div>
         )}

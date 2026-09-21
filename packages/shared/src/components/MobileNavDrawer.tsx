@@ -63,6 +63,7 @@ export interface MobileNavDrawerProps {
   ready: boolean;
   headerTitle: string;
   headerSubtitle: string;
+  homeHref: string;
   settingsHref: string;
   logoutRedirect: string;
   badgeFor: BadgeLookup;
@@ -83,6 +84,7 @@ export function MobileNavDrawer({
   ready,
   headerTitle,
   headerSubtitle,
+  homeHref,
   settingsHref,
   logoutRedirect,
   badgeFor,
@@ -366,19 +368,24 @@ export function MobileNavDrawer({
             {/* Header */}
             <div className="app-safe-t shrink-0 border-b border-white/10">
               <div className="flex items-center gap-3 px-4 py-3">
-                <Image
-                  src="/images/logo.png"
-                  alt=""
-                  width={36}
-                  height={36}
-                  className="shrink-0 rounded-full"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-heading text-lg font-bold text-white">
-                    {headerTitle}
-                  </p>
-                  <p className="text-xs text-gold-500">{headerSubtitle}</p>
-                </div>
+                <Link
+                  href={homeHref}
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-lg transition-opacity hover:opacity-80"
+                >
+                  <Image
+                    src="/images/logo.png"
+                    alt=""
+                    width={36}
+                    height={36}
+                    className="shrink-0 rounded-full"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-heading text-lg font-bold text-white">
+                      {headerTitle}
+                    </p>
+                    <p className="text-xs text-gold-500">{headerSubtitle}</p>
+                  </div>
+                </Link>
                 <button
                   type="button"
                   onClick={closeMobile}

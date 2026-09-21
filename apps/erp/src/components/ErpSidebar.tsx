@@ -250,6 +250,7 @@ export function ErpSidebar() {
   const { collapsed } = useSidebar();
   return (
     <SidebarShell
+      homeHref="/"
       sections={erpSections}
       headerTitle="NKPS ERP"
       headerSubtitle="Operations"

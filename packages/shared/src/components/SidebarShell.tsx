@@ -50,6 +50,8 @@ type SidebarShellProps = {
   editorAlwaysAllowedHrefs?: ReadonlySet<string>;
   // Where the profile menu's "Settings" link should land.
   settingsHref?: string;
+  /** The module's dashboard — where the wordmark goes. */
+  homeHref?: string;
   // Where to send the user after logout (module-specific login page).
   logoutRedirect?: string;
   // Hrefs for which the unread count badge should render
@@ -73,6 +75,7 @@ export function SidebarShell({
   gate = "permissions",
   editorAlwaysAllowedHrefs = NO_HREFS,
   settingsHref = "/portal/settings",
+  homeHref = "/",
   logoutRedirect = "/portal/login",
   unreadBadgeHrefs,
   pendingRegistrationBadgeHrefs,
@@ -81,7 +84,7 @@ export function SidebarShell({
   footerExtra,
 }: SidebarShellProps) {
   const pathname = usePathname();
-  const { collapsed, toggle, publishNavHrefs } = useSidebar();
+  const { collapsed, toggle, publishNavHrefs, publishHomeHref } = useSidebar();
   const {
     unreadCount,
     pendingRegistrationCount,
@@ -128,6 +131,10 @@ export function SidebarShell({
   useEffect(() => {
     publishNavHrefs(navHrefs);
   }, [navHrefs, publishNavHrefs]);
+
+  useEffect(() => {
+    publishHomeHref(homeHref);
+  }, [homeHref, publishHomeHref]);
 
   // One answer to "how many on this link?", shared with the drawer so the two
   // can't disagree and the counts are fetched once for both.
@@ -402,21 +409,37 @@ export function SidebarShell({
       >
         {/* Header */}
         <div className={cn("p-4 flex items-center", collapsed ? "justify-center" : "gap-3 px-6")}>
-          {!collapsed && (
-            <>
+          {collapsed && (
+            <Link href={homeHref} aria-label="Dashboard" className="transition-opacity hover:opacity-80">
               <Image
                 src="/images/logo.png"
-                alt="NKPS Logo"
-                width={36}
-                height={36}
-                className="rounded-full shrink-0"
+                alt=""
+                width={32}
+                height={32}
+                className="rounded-full"
               />
-              <div className="min-w-0 flex-1">
-                <h1 className="font-heading text-xl font-bold text-white truncate">
-                  {headerTitle}
-                </h1>
-                <p className="text-sm text-gold-500 mt-0.5">{headerSubtitle}</p>
-              </div>
+            </Link>
+          )}
+          {!collapsed && (
+            <>
+              <Link
+                href={homeHref}
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-lg transition-opacity hover:opacity-80"
+              >
+                <Image
+                  src="/images/logo.png"
+                  alt=""
+                  width={36}
+                  height={36}
+                  className="rounded-full shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <h1 className="font-heading text-xl font-bold text-white truncate">
+                    {headerTitle}
+                  </h1>
+                  <p className="text-sm text-gold-500 mt-0.5">{headerSubtitle}</p>
+                </div>
+              </Link>
               <button
                 onClick={toggle}
                 className="flex items-center justify-center h-7 w-7 rounded-lg text-white/40 hover:bg-white/5 hover:text-white transition-colors shrink-0"
@@ -505,6 +528,7 @@ export function SidebarShell({
         ready={ready}
         headerTitle={headerTitle}
         headerSubtitle={headerSubtitle}
+        homeHref={homeHref}
         settingsHref={settingsHref}
         logoutRedirect={logoutRedirect}
         badgeFor={badgeFor}

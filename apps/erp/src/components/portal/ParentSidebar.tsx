@@ -53,6 +53,7 @@ const sections: SidebarSection[] = [
 export function ParentSidebar() {
   return (
     <SidebarShell
+      homeHref="/parent"
       sections={sections}
       headerTitle="Parent Portal"
       headerSubtitle="Parent"
