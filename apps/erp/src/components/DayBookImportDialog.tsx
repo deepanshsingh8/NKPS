@@ -57,11 +57,12 @@ import { adminUpload } from "@nkps/shared/lib/admin-api";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { csvEscape } from "@nkps/shared/lib/utils";
 import { NativeSelect } from "@nkps/shared/components/ui/native-select";
+import { CLASS_ORDER } from "@nkps/shared/lib/constants";
 
-const CLASS_NAMES = [
-  "Nursery", "LKG", "UKG", "I", "II", "III", "IV", "V",
-  "VI", "VII", "VIII", "IX", "X", "XI", "XII",
-];
+// The class list is CLASS_ORDER from shared constants. It used to be
+// retyped in this file (and two others), which is three places for the
+// school's class list to disagree with itself.
+const CLASS_NAMES: readonly string[] = CLASS_ORDER;
 const STREAMS = ["", "Science", "Commerce", "Arts"] as const;
 
 type RowStatus =

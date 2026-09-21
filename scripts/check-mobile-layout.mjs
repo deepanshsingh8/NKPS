@@ -174,15 +174,14 @@ if (process.argv.includes("--update")) {
   process.exit(0);
 }
 
+// No baseline file means no allowance: everything must be clean. The file is
+// only there while a backlog is being worked down, and this branch finished
+// that — it started at 241 violations across 92 files.
 let baseline = {};
 try {
   baseline = JSON.parse(readFileSync(join(ROOT, BASELINE), "utf8"));
 } catch {
-  console.error(
-    `FAIL: ${BASELINE} is missing or unreadable.\n` +
-      `Run: node scripts/check-mobile-layout.mjs --update`
-  );
-  process.exit(1);
+  /* clean-slate mode */
 }
 
 const regressions = [];
@@ -235,6 +234,6 @@ if (improvements.length) {
 const remaining = [...found.values()].reduce((a, v) => a + total(v.counts), 0);
 console.log(
   remaining === 0
-    ? `OK: no mobile-layout violations in ${files.length} components. Delete ${BASELINE}.`
+    ? `OK: no mobile-layout violations in ${files.length} components.`
     : `OK: no regressions. ${remaining} known violation(s) remain across ${found.size} file(s).`
 );

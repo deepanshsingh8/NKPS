@@ -51,7 +51,7 @@ import Link from "next/link";
 import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, ArrowLeft, ArrowRight, ChevronDown, ChevronRight } from "lucide-react";
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import { cn, formatClassName } from "@nkps/shared/lib/utils";
-import { classSortIndex } from "@nkps/shared/lib/constants";
+import { classSortIndex, CLASS_ORDER } from "@nkps/shared/lib/constants";
 import { FeeScheduleImportDialog } from "@/components/FeeScheduleImportDialog";
 import { StudentConcessionImportDialog } from "@/components/StudentConcessionImportDialog";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
@@ -86,23 +86,10 @@ import { ImportHistoryPanel } from "@/components/ImportHistoryPanel";
 import { FeeScheduleGrid } from "./FeeScheduleGrid";
 import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
-const CLASS_NAMES = [
-  "Nursery",
-  "LKG",
-  "UKG",
-  "I",
-  "II",
-  "III",
-  "IV",
-  "V",
-  "VI",
-  "VII",
-  "VIII",
-  "IX",
-  "X",
-  "XI",
-  "XII",
-];
+// The class list is CLASS_ORDER from shared constants. It used to be
+// retyped in this file (and two others), which is three places for the
+// school's class list to disagree with itself.
+const CLASS_NAMES: readonly string[] = CLASS_ORDER;
 
 const STREAM_CLASSES = ["XI", "XII"];
 
@@ -2195,21 +2182,24 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
 
       {section === "academic" && (
         <Tabs defaultValue="schedule">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <TabsList>
-              <TabsTrigger value="schedule">Fee Schedule</TabsTrigger>
-              <TabsTrigger value="all">All Structures</TabsTrigger>
-            </TabsList>
-            {/* Setting fifteen classes one grid at a time is a day's work at
-                the start of every session; this takes one sheet. */}
-            <FeeScheduleImportDialog onImported={fetchFeeStructures} />
-          </div>
+          <TabsList>
+            <TabsTrigger value="schedule">Fee Schedule</TabsTrigger>
+            <TabsTrigger value="all">All Structures</TabsTrigger>
+          </TabsList>
 
           {/* The schedule grid is the primary editor: a row per instalment,
               laid out the way the school publishes its fees. The flat list
               below stays for cross-class review and for legacy recurring
               rows the grid intentionally doesn't model. */}
           <TabsContent value="schedule">
+            {/* Setting fifteen classes one grid at a time is a day's work at
+                the start of every session; this takes one sheet. It sat
+                beside the tab bar, which kept it on screen while All
+                Structures was open — where it does nothing, since it
+                imports a schedule. */}
+            <div className="mt-3 flex justify-end">
+              <FeeScheduleImportDialog onImported={fetchFeeStructures} />
+            </div>
             <FeeScheduleGrid />
           </TabsContent>
 
