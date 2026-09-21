@@ -470,7 +470,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
       {
         name: "Set up all of a class's subjects at once",
         steps: [
-          'On the "Class Assignments" tab, click the class in the "Manage by class" strip (or pick it from the dropdown beside it).',
+          'On the "Class Assignments" tab, click the class in the "Manage by class" strip. Amber on a card means one of that class\'s subjects has no teacher.',
           "Tick every subject the class studies — each category has a Select all.",
           "Set the teacher beside each ticked subject.",
           'Click "Save subjects".',
@@ -1703,7 +1703,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         ],
         needs: "Classes for the selected year, and active subjects and teachers.",
         gotcha:
-          "A teacher already booked elsewhere at that time is refused on save. The database enforces it, so it holds no matter how the period was created.",
+          "A teacher already booked elsewhere at that time is refused on save. The database enforces it, so it holds no matter how the period was created. On a phone the grid is one day at a time — pick the day from the Mon-Sat strip above it; it opens on today.",
       },
       {
         name: "Run two or more things in one period",
