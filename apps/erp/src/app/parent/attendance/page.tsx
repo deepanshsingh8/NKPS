@@ -25,6 +25,7 @@ import {
   Users,
 } from "lucide-react";
 import type { AttendanceStatus } from "@nkps/shared/types";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
 interface ChildOption {
   student_id: string;
@@ -284,10 +285,9 @@ export default function ParentAttendancePage() {
         {children.length > 1 && (
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-gray-400" />
-            <select
+            <NativeSelect
               value={selectedChild}
               onChange={(e) => setSelectedChild(e.target.value)}
-              className="rounded-lg border border-gray-200 dark:border-border bg-white dark:bg-card px-3 py-2 text-sm text-navy-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gold-500"
             >
               {children.map((child) => (
                 <option key={child.student_id} value={child.student_id}>
@@ -295,7 +295,7 @@ export default function ParentAttendancePage() {
                   {child.class_name ? ` (${child.class_name} - ${child.section})` : ""}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
         )}
       </div>

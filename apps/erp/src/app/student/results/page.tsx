@@ -21,6 +21,7 @@ import { Badge } from "@nkps/shared/components/ui/badge";
 import { Button } from "@nkps/shared/components/ui/button";
 import { toast } from "sonner";
 import { Download, BarChart3, AlertTriangle } from "lucide-react";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
 interface SubjectResult {
   subject_id: string;
@@ -227,9 +228,8 @@ export default function StudentResultsPage() {
           >
             Session
           </label>
-          <select
+          <NativeSelect
             id="session-picker"
-            className="h-9 rounded-lg border border-input bg-transparent px-2 text-sm"
             value={selectedYear}
             onChange={(e) => setSelectedYear(e.target.value)}
           >
@@ -239,7 +239,7 @@ export default function StudentResultsPage() {
                 {y.is_current ? " (current)" : ""}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
       )}
 

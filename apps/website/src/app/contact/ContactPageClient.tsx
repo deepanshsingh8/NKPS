@@ -347,10 +347,10 @@ export function ContactPageClient() {
                     >
                       Subject
                     </Label>
-                    <select
+                    <select /* mobile-layout-ok: the marketing site keeps its own cream/gold form language */
                       id="subject"
                       {...register("subject")}
-                      className="flex h-12 w-full rounded-xl border border-gray-200 bg-cream-50/50 px-4 py-3 text-sm transition-all focus:border-gold-500 focus:ring-4 focus:ring-gold-500/20 focus-visible:outline-none"
+                      className="flex h-12 w-full rounded-xl border border-gray-200 bg-cream-50/50 px-4 py-3 text-base md:text-sm transition-all focus:border-gold-500 focus:ring-4 focus:ring-gold-500/20 focus-visible:outline-none"
                     >
                       <option value="">Select a subject</option>
                       {subjectOptions.map((option) => (
@@ -378,7 +378,7 @@ export function ContactPageClient() {
                       rows={5}
                       placeholder="Write your message here..."
                       {...register("message")}
-                      className="flex w-full rounded-xl border border-gray-200 bg-cream-50/50 px-4 py-3 text-sm transition-all placeholder:text-muted-foreground focus:border-gold-500 focus:ring-4 focus:ring-gold-500/20 focus-visible:outline-none"
+                      className="flex w-full rounded-xl border border-gray-200 bg-cream-50/50 px-4 py-3 text-base md:text-sm transition-all placeholder:text-muted-foreground focus:border-gold-500 focus:ring-4 focus:ring-gold-500/20 focus-visible:outline-none"
                     />
                     {errors.message && (
                       <p className="text-sm text-red-500">

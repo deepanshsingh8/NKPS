@@ -57,6 +57,7 @@ import {
   normalizeYesNo,
   toTitleCase,
 } from "@nkps/shared/lib/student-template";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
 // All cell values are kept as display strings in the preview (booleans as
 // "YES"/"NO", enums as their stored value) — the server's zod preprocessing
@@ -832,8 +833,8 @@ export function StudentBulkUpload({
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Import into session</Label>
-                <select
-                  className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+                <NativeSelect
+                  className="w-full"
                   value={targetYearId}
                   onChange={(e) => setTargetYearId(e.target.value)}
                 >
@@ -845,15 +846,15 @@ export function StudentBulkUpload({
                         {y.name} (past session)
                       </option>
                     ))}
-                </select>
+                </NativeSelect>
               </div>
               {isBackfill && (
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">
                     Record these students as
                   </Label>
-                  <select
-                    className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+                  <NativeSelect
+                    className="w-full"
                     value={backfillStatus}
                     onChange={(e) => setBackfillStatus(e.target.value)}
                   >
@@ -861,7 +862,7 @@ export function StudentBulkUpload({
                     <option value="failed">Failed</option>
                     <option value="exited">Exited</option>
                     <option value="terminated">Terminated</option>
-                  </select>
+                  </NativeSelect>
                 </div>
               )}
             </div>

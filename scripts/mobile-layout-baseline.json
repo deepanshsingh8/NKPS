@@ -1,6 +1,5 @@
 {
   "apps/cms/src/app/gallery/page.tsx": {
-    "select": 2,
     "input": 1
   },
   "apps/cms/src/app/site-media/page.tsx": {
@@ -13,7 +12,6 @@
     "input": 5
   },
   "apps/erp/src/app/(admin)/calendar/page.tsx": {
-    "select": 4,
     "input": 2
   },
   "apps/erp/src/app/(admin)/exams/ptm-format/page.tsx": {
@@ -21,9 +19,6 @@
   },
   "apps/erp/src/app/(admin)/exams/publish/page.tsx": {
     "input": 2
-  },
-  "apps/erp/src/app/(admin)/fees/_components/AdminFeesContent.tsx": {
-    "select": 11
   },
   "apps/erp/src/app/(admin)/fees/_components/FeeScheduleGrid.tsx": {
     "select": 4,
@@ -39,53 +34,27 @@
     "input": 2
   },
   "apps/erp/src/app/(admin)/timetable/page.tsx": {
-    "select": 1,
     "input": 1
   },
   "apps/erp/src/app/parent/ask/page.tsx": {
     "input": 1
   },
-  "apps/erp/src/app/parent/attendance/page.tsx": {
-    "select": 1
-  },
-  "apps/erp/src/app/parent/fees/page.tsx": {
-    "select": 1
-  },
-  "apps/erp/src/app/parent/results/page.tsx": {
-    "select": 2
-  },
-  "apps/erp/src/app/parent/timetable/page.tsx": {
-    "select": 1
-  },
-  "apps/erp/src/app/parent/transport/page.tsx": {
-    "select": 1
-  },
   "apps/erp/src/app/portal/settings/page.tsx": {
     "input": 1
-  },
-  "apps/erp/src/app/student/results/page.tsx": {
-    "select": 1
-  },
-  "apps/erp/src/app/teacher/students/page.tsx": {
-    "select": 1
   },
   "apps/erp/src/components/ClassSubjectsDialog.tsx": {
     "input": 1
   },
   "apps/erp/src/components/DayBookImportDialog.tsx": {
-    "select": 3,
     "input": 1
   },
   "apps/erp/src/components/FeeScheduleImportDialog.tsx": {
-    "select": 1,
     "input": 1
   },
   "apps/erp/src/components/HistoricalFeesImportDialog.tsx": {
-    "select": 3,
     "input": 1
   },
   "apps/erp/src/components/HistoricalResultsImportDialog.tsx": {
-    "select": 3,
     "input": 1
   },
   "apps/erp/src/components/MarksImportDialog.tsx": {
@@ -98,7 +67,6 @@
     "input": 1
   },
   "apps/erp/src/components/StudentBulkUpload.tsx": {
-    "select": 2,
     "input": 1
   },
   "apps/erp/src/components/StudentConcessionImportDialog.tsx": {
@@ -110,9 +78,6 @@
   "apps/erp/src/components/ask/ConversationList.tsx": {
     "input": 2
   },
-  "apps/website/src/app/contact/ContactPageClient.tsx": {
-    "select": 1
-  },
   "apps/website/src/app/transfer-certificates/TransferCertificatesPageClient.tsx": {
     "input": 2
   },
@@ -121,9 +86,6 @@
   },
   "apps/website/src/components/admissions/AdmissionsEnquiryModal.tsx": {
     "input": 1
-  },
-  "packages/shared/src/components/AcademicYearSelect.tsx": {
-    "select": 1
   },
   "packages/shared/src/components/FileDropZone.tsx": {
     "input": 1
@@ -135,7 +97,6 @@
     "input": 1
   },
   "packages/shared/src/components/ui/data-table.tsx": {
-    "select": 1,
     "input": 2
   }
 }

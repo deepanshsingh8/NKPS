@@ -15,6 +15,7 @@ import {
 import { cn } from "@nkps/shared/lib/utils";
 import type { ExportFormat } from "@nkps/shared/lib/table-export";
 import { TableHead } from "@nkps/shared/components/ui/table";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
 // ---------------------------------------------------------------------------
 // Excel-style sorting + per-column filtering for the plain JSX tables used
@@ -1048,10 +1049,9 @@ export function TablePaginationBar<T>({
       <div className="flex items-center justify-between gap-3 sm:justify-start">
         <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
           Rows
-          <select
+          <NativeSelect
             value={pageSize}
             onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
-            className="h-11 sm:h-8 rounded-md border border-gray-300 dark:border-border px-2 py-1 text-base sm:text-sm dark:bg-muted"
             aria-label={`${noun} per page`}
           >
             {PAGE_SIZE_OPTIONS.map((n) => (
@@ -1059,7 +1059,7 @@ export function TablePaginationBar<T>({
                 {n}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
 
         {pageCount > 1 && (

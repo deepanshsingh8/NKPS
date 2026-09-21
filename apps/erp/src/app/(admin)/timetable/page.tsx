@@ -29,6 +29,7 @@ import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import { formatClassName, formatShortDate } from "@nkps/shared/lib/utils";
 import { teacherOptions } from "@nkps/shared/lib/teacher-options";
 import type { Class, Subject, Teacher, TimetablePeriod } from "@nkps/shared/types";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
 const DAYS = [
   { value: 1, label: "Monday" },
@@ -733,17 +734,17 @@ const session = useAcademicSession();
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Day</Label>
-                <select
+                <NativeSelect
                   value={formData.day_of_week}
                   disabled
-                  className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-gray-50 dark:bg-muted dark:text-gray-300 h-9"
+                  className="w-full"
                 >
                   {DAYS.map((d) => (
                     <option key={d.value} value={d.value}>
                       {d.label}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Period</Label>

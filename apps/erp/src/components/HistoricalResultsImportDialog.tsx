@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
 interface AcademicYear {
   id: string;
@@ -228,11 +229,11 @@ export function HistoricalResultsImportDialog({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <Label htmlFor="hr-year" className="text-xs">Academic year</Label>
-              <select
+              <NativeSelect
                 id="hr-year"
                 value={academicYearId}
                 onChange={(e) => setAcademicYearId(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-background px-3 py-1.5 text-sm"
+                className="mt-1 block w-full"
               >
                 <option value="">— select —</option>
                 {years.map((y) => (
@@ -240,7 +241,7 @@ export function HistoricalResultsImportDialog({
                     {y.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
             <div>
               <Label htmlFor="hr-file" className="text-xs">XLSX file</Label>
@@ -311,7 +312,7 @@ export function HistoricalResultsImportDialog({
                     className="flex items-center gap-2 rounded-md border border-amber-200 dark:border-amber-900/40 bg-white dark:bg-background p-2"
                   >
                     <code className="text-xs flex-1 truncate">{rawName}</code>
-                    <select
+                    <NativeSelect
                       value={mappings[rawName]?.class_name ?? ""}
                       onChange={(e) =>
                         setMappings((m) => ({
@@ -322,7 +323,6 @@ export function HistoricalResultsImportDialog({
                           },
                         }))
                       }
-                      className="text-xs rounded border border-gray-200 dark:border-border bg-white dark:bg-background px-1.5 py-0.5"
                     >
                       <option value="">→ class</option>
                       {ROMAN_CLASSES.map((c) => (
@@ -330,8 +330,8 @@ export function HistoricalResultsImportDialog({
                           {c}
                         </option>
                       ))}
-                    </select>
-                    <select
+                    </NativeSelect>
+                    <NativeSelect
                       value={mappings[rawName]?.stream_name ?? ""}
                       onChange={(e) =>
                         setMappings((m) => ({
@@ -345,14 +345,13 @@ export function HistoricalResultsImportDialog({
                           },
                         }))
                       }
-                      className="text-xs rounded border border-gray-200 dark:border-border bg-white dark:bg-background px-1.5 py-0.5"
                     >
                       {STREAMS.map((s) => (
                         <option key={s} value={s}>
                           {s || "no stream"}
                         </option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </div>
                 ))}
               </div>

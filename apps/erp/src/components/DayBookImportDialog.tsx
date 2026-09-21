@@ -56,6 +56,7 @@ import { toast } from "sonner";
 import { adminUpload } from "@nkps/shared/lib/admin-api";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { csvEscape } from "@nkps/shared/lib/utils";
+import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 
 const CLASS_NAMES = [
   "Nursery", "LKG", "UKG", "I", "II", "III", "IV", "V",
@@ -539,8 +540,7 @@ export function DayBookImportDialog({
             {result.unmapped_classes.map((raw) => (
               <div key={raw} className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:items-center">
                 <span className="truncate text-sm font-medium">{raw}</span>
-                <select
-                  className="rounded-md border bg-background px-2 py-1 text-sm"
+                <NativeSelect
                   value={classMappings[raw]?.class_name ?? ""}
                   onChange={(e) =>
                     setClassMappings((m) => ({
@@ -556,9 +556,8 @@ export function DayBookImportDialog({
                   {CLASS_NAMES.map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
-                </select>
-                <select
-                  className="rounded-md border bg-background px-2 py-1 text-sm"
+                </NativeSelect>
+                <NativeSelect
                   value={classMappings[raw]?.stream_name ?? ""}
                   onChange={(e) =>
                     setClassMappings((m) => ({
@@ -573,7 +572,7 @@ export function DayBookImportDialog({
                   {STREAMS.map((st) => (
                     <option key={st} value={st}>{st || "No stream"}</option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
             ))}
           </MappingPanel>
@@ -584,8 +583,7 @@ export function DayBookImportDialog({
             {result.unmapped_heads.map((raw) => (
               <div key={raw} className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:items-center">
                 <span className="truncate text-sm font-medium">{raw}</span>
-                <select
-                  className="rounded-md border bg-background px-2 py-1 text-sm"
+                <NativeSelect
                   value={headMappings[raw] ?? ""}
                   onChange={(e) =>
                     setHeadMappings((m) => ({ ...m, [raw]: e.target.value }))
@@ -595,7 +593,7 @@ export function DayBookImportDialog({
                   {(result.known_heads ?? []).map((h) => (
                     <option key={h} value={h}>{h}</option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
             ))}
             <p className="text-xs text-muted-foreground">
