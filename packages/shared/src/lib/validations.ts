@@ -66,9 +66,15 @@ export const dobOptionalSchema = z
 // allowed character set is intentionally tight: alphanumerics, hyphen, slash,
 // underscore, with a 32-char ceiling. Whitespace and CR/LF are rejected so a
 // pasted multi-line value can't sneak through and break PDF rendering.
+// Surrounding whitespace is trimmed before the charset check rather than
+// rejected by it: a number pasted out of a fee slip or a WhatsApp message
+// carries a leading space more often than not, and failing it with "can only
+// contain letters, digits…" reads as an accusation about characters the person
+// can't even see. Trimming also keeps stored values clean on the write paths.
 const admissionNoRegex = /^[A-Za-z0-9][A-Za-z0-9\-_/]{0,31}$/;
 const admissionNoSchema = z
   .string()
+  .trim()
   .min(1, "Admission number is required")
   .regex(
     admissionNoRegex,

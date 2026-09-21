@@ -196,7 +196,10 @@ export function GuideLauncher() {
         // ERP is marked with one — "Draft remarks with AI", "Ask your school"
         // — and a "?" reads as a static help file, which is precisely the
         // thing people have learned to ignore.
-        className="group fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-gradient-to-br from-navy-900 to-blue-700 px-4 py-3 text-white shadow-lg ring-1 ring-white/10 transition hover:shadow-xl hover:brightness-110 sm:px-4"
+        // The safe-area allowance keeps the button off the home indicator's
+        // strip on a gesture-navigation phone, where a flat bottom-5 puts it
+        // in the swipe-up zone.
+        className="group fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] right-[calc(1.25rem+env(safe-area-inset-right,0px))] z-40 flex items-center gap-2 rounded-full bg-gradient-to-br from-navy-900 to-blue-700 px-4 py-3 text-white shadow-lg ring-1 ring-white/10 transition hover:shadow-xl hover:brightness-110 sm:px-4"
       >
         <Sparkles className="h-5 w-5 shrink-0" />
         <span className="hidden text-sm font-medium sm:inline">Ask AI</span>
@@ -334,40 +337,57 @@ export function GuideLauncher() {
           void ask(input);
         }}
         className={cn(
-          "flex shrink-0 items-end gap-2 border-t p-2",
+          // On a phone this panel is a full-bleed bottom sheet, so this padding
+          // is the only thing between the send button and the side of the
+          // display — at p-2 the button sat 8px from it. 1rem matches the
+          // px-4 body above, so the two read as one column. The bottom inset
+          // clears the home indicator's strip; the side insets are zero in
+          // portrait and earn their keep in landscape on a notched phone.
+          "flex shrink-0 items-end gap-2 border-t pt-3",
+          "pb-[calc(1rem+env(safe-area-inset-bottom,0px))]",
+          "pl-[calc(1rem+env(safe-area-inset-left,0px))]",
+          "pr-[calc(1rem+env(safe-area-inset-right,0px))]",
           expanded && "mx-auto w-full max-w-3xl"
         )}
       >
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void ask(input);
-            }
-          }}
-          rows={1}
-          placeholder="e.g. How do I add a new student?"
-          className="max-h-24 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
-        />
+        {/* A bordered shell, so the box you type into looks like a box. It was
+            a bare transparent textarea whose placeholder floated 8px off the
+            edge of the screen with nothing around it. */}
+        <div className="flex min-w-0 flex-1 items-end rounded-xl border px-3 transition focus-within:border-blue-500">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void ask(input);
+              }
+            }}
+            rows={1}
+            placeholder="e.g. How do I add a new student?"
+            className="max-h-24 min-h-[2.75rem] flex-1 resize-none bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        {/* 44px square. It was a 14px glyph in 8px of padding — a 30px target,
+            under the smallest a thumb reliably hits, and pressed against the
+            edge of the display at that. */}
         {busy ? (
           <button
             type="button"
             onClick={() => abortRef.current?.abort()}
             aria-label="Stop"
-            className="shrink-0 rounded-md border p-2 text-navy-900 dark:text-white transition hover:border-red-400 hover:text-red-700"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-navy-900 transition hover:border-red-400 hover:text-red-700 dark:text-white"
           >
-            <Square className="h-3 w-3 fill-current" />
+            <Square className="h-3.5 w-3.5 fill-current" />
           </button>
         ) : (
           <button
             type="submit"
             disabled={!input.trim()}
             aria-label="Ask"
-            className="shrink-0 rounded-md bg-blue-600 p-2 text-white transition hover:bg-blue-700 disabled:opacity-40"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white transition hover:bg-blue-700 disabled:opacity-40"
           >
-            <CornerDownLeft className="h-3.5 w-3.5" />
+            <CornerDownLeft className="h-4 w-4" />
           </button>
         )}
       </form>
