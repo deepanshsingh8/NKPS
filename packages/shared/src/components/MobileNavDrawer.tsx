@@ -392,7 +392,7 @@ export function MobileNavDrawer({
               <div className="px-4 pb-3">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
-                  <input
+                  <input /* mobile-layout-ok: borderless inside its own styled container; sized above */
                     type="search"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}

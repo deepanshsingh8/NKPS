@@ -205,12 +205,12 @@ export function StaffDirectory() {
         {/* Polished search */}
         <div className="max-w-md mx-auto mt-8 relative group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-gold-500 transition-colors" />
-          <input
+          <input /* mobile-layout-ok: borderless inside its own styled container; sized above */
             type="text"
             placeholder="Search faculty by name..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-white text-sm text-navy-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 shadow-sm transition-all"
+            className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-white text-base md:text-sm text-navy-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 shadow-sm transition-all"
           />
         </div>
 

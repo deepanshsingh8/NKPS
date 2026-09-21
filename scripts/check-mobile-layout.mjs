@@ -90,7 +90,19 @@ const RULES = [
   {
     id: "input",
     re: /<input[\s>]/g,
-    hint: "raw <input> — use <Input>",
+    // Only text-entry controls. A checkbox, a radio, a file picker, a colour
+    // swatch and a hidden field have nothing to do with the 44px/16px rules
+    // this is about — they are not typed into and iOS does not zoom them.
+    // `<input>` with no type at all is a text field, so it counts.
+    skipMatch: (src, idx) => {
+      const tag = src.slice(idx, idx + 600);
+      const close = tag.search(/>|\n\s*\/>/);
+      const type = /type="(\w+)"/.exec(close > 0 ? tag.slice(0, close + 200) : tag);
+      return type
+        ? ["checkbox", "radio", "file", "hidden", "color", "range", "submit"].includes(type[1])
+        : false;
+    },
+    hint: "raw text <input> — use <Input> for h-11/text-base on a phone",
   },
 ];
 
@@ -137,6 +149,7 @@ for (const full of files) {
       // out with `mobile-layout-ok` and say why in the same comment.
       if (line.includes("mobile-layout-ok")) continue;
       if (rule.skipLine?.test(line)) continue;
+      if (rule.skipMatch?.(src, m.index)) continue;
       counts[rule.id] = (counts[rule.id] ?? 0) + 1;
       lines.push(
         `    ${rel}:${lineNo}  [${rule.id}] ${srcLines[lineNo - 1].trim().slice(0, 96)}`

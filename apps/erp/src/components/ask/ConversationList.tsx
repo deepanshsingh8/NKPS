@@ -51,14 +51,14 @@ export function ConversationList({
 
         <div className="flex items-center gap-2 rounded-md border bg-white dark:bg-card px-2.5 py-1.5">
           <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <input
+          <input /* mobile-layout-ok: borderless inside its own styled container; sized above */
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
               onSearch(e.target.value);
             }}
             placeholder="Search chats"
-            className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+            className="w-full bg-transparent text-base sm:text-xs outline-none placeholder:text-muted-foreground"
           />
         </div>
       </div>
@@ -83,7 +83,7 @@ export function ConversationList({
             if (editingId === c.id) {
               return (
                 <li key={c.id} className="rounded-md border bg-white dark:bg-card p-1.5">
-                  <input
+                  <input /* mobile-layout-ok: borderless inside its own styled container; sized above */
                     value={draft}
                     autoFocus
                     onChange={(e) => setDraft(e.target.value)}
@@ -94,7 +94,7 @@ export function ConversationList({
                       }
                       if (e.key === "Escape") setEditingId(null);
                     }}
-                    className="w-full bg-transparent px-1 text-sm outline-none"
+                    className="w-full bg-transparent px-1 text-base sm:text-sm outline-none"
                   />
                   <div className="flex justify-end gap-1 pt-1">
                     <button

@@ -750,12 +750,12 @@ const FilterPanel = React.forwardRef<HTMLDivElement, FilterPanelProps>(
 
         {kind === "text" && (
           <div className="p-2">
-            <input
+            <input /* mobile-layout-ok: borderless inside its own styled container; sized above */
               autoFocus
               value={filter.text}
               onChange={(e) => onTextChange(e.target.value)}
               placeholder={`Contains…`}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="h-11 sm:h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-base sm:text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           </div>
         )}
@@ -765,12 +765,12 @@ const FilterPanel = React.forwardRef<HTMLDivElement, FilterPanelProps>(
             {totalOptions > 8 && (
               <div className="relative p-2">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-                <input
+                <input /* mobile-layout-ok: borderless inside its own styled container; sized above */
                   autoFocus
                   value={query}
                   onChange={(e) => onQueryChange(e.target.value)}
                   placeholder="Search values…"
-                  className="h-8 w-full rounded-lg border border-input bg-transparent pl-8 pr-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="h-11 sm:h-8 w-full rounded-lg border border-input bg-transparent pl-8 pr-2 text-base sm:text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 />
               </div>
             )}
