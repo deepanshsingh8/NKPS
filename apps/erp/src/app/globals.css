@@ -86,6 +86,14 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-cat-1: var(--cat-1);
+  --color-cat-2: var(--cat-2);
+  --color-cat-3: var(--cat-3);
+  --color-cat-4: var(--cat-4);
+  --color-cat-5: var(--cat-5);
+  --color-cat-6: var(--cat-6);
+  --color-cat-7: var(--cat-7);
+  --color-cat-8: var(--cat-8);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -137,6 +145,26 @@
   --chart-3: oklch(0.6 0.1 150);
   --chart-4: oklch(0.7 0.15 30);
   --chart-5: oklch(0.65 0.12 300);
+
+  /* Categorical ramp: for things that are merely DIFFERENT from each other —
+     one subject from the next, one teacher's avatar from another's — never
+     for status, which is what --destructive and the semantic greens/ambers
+     are for. Eight files each rolled their own rotation before this, sharing
+     no order, so a subject was teal in the parent timetable, its teacher
+     emerald in the staff list and its exam type sky on the exams hub. One
+     ramp, one order, and a hue that means the same thing in all of them.
+
+     Even lightness and chroma across all eight is the point: pick hues by
+     eye and some land far brighter than others, and the bright ones read as
+     emphasis when nothing is being emphasised. */
+  --cat-1: oklch(0.58 0.14 260);
+  --cat-2: oklch(0.58 0.14 305);
+  --cat-3: oklch(0.58 0.14 350);
+  --cat-4: oklch(0.58 0.14 30);
+  --cat-5: oklch(0.58 0.14 85);
+  --cat-6: oklch(0.58 0.14 130);
+  --cat-7: oklch(0.58 0.14 165);
+  --cat-8: oklch(0.58 0.14 205);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -186,6 +214,14 @@
   --chart-3: #4ade80;
   --chart-4: #fb923c;
   --chart-5: #c084fc;
+  --cat-1: oklch(0.78 0.13 260);
+  --cat-2: oklch(0.78 0.13 305);
+  --cat-3: oklch(0.78 0.13 350);
+  --cat-4: oklch(0.78 0.13 30);
+  --cat-5: oklch(0.78 0.13 85);
+  --cat-6: oklch(0.78 0.13 130);
+  --cat-7: oklch(0.78 0.13 165);
+  --cat-8: oklch(0.78 0.13 205);
   --sidebar: #0a1628;            /* navy-900 — unchanged from light, by design */
   --sidebar-foreground: #e8edf5;
   --sidebar-primary: #d4a843;

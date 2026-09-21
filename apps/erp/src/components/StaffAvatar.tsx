@@ -1,21 +1,14 @@
 import Image from "next/image";
 import { cn } from "@nkps/shared/lib/utils";
+import { categoricalAvatar } from "@nkps/shared/lib/palette";
 
 // Staff photos are cropped to the 4:5 portrait spec at upload, so the frame
 // keeps that ratio and lets the image letterbox inside it rather than cropping
 // a second time. Members without a photo get initials on a colour picked from
-// their name, so the same person always gets the same tile.
+// their name, so the same person always gets the same tile — now from the
+// shared categorical ramp, which also means their colour matches the one
+// their subject gets on a timetable instead of coming from a private list.
 
-const AVATAR_COLORS = [
-  "from-navy-800 to-navy-900",
-  "from-blue-500 to-blue-700",
-  "from-gold-500 to-gold-600",
-  "from-emerald-500 to-emerald-700",
-  "from-violet-500 to-violet-700",
-  "from-rose-500 to-rose-700",
-  "from-cyan-500 to-cyan-700",
-  "from-amber-500 to-amber-700",
-];
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -23,13 +16,6 @@ function getInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function getAvatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
 
 const SIZES = {
   sm: { frame: "w-10", text: "text-xs", sizes: "40px" },
@@ -70,9 +56,9 @@ export function StaffAvatar({
   return (
     <div
       className={cn(
-        "aspect-[4/5] rounded-md bg-gradient-to-br flex items-center justify-center",
+        "aspect-[4/5] rounded-md flex items-center justify-center",
         s.frame,
-        getAvatarColor(name),
+        categoricalAvatar(name),
         className
       )}
     >
