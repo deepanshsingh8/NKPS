@@ -1,5 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import { useMountOnceOpen } from "@nkps/shared/lib/hooks/use-mount-once-open";
+
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { Button } from "@nkps/shared/components/ui/button";
@@ -62,8 +65,16 @@ import { adminApi, fetchRowDependencies } from "@nkps/shared/lib/admin-api";
 import { describeDependencies } from "@nkps/shared/lib/row-dependencies";
 import { cn, formatClassName } from "@nkps/shared/lib/utils";
 import { teacherLabel } from "@nkps/shared/lib/teacher-options";
-import QuickSetupWizard from "@/components/QuickSetupWizard";
-import { SubjectBulkUpload } from "@/components/SubjectBulkUpload";
+// Loaded when it is first opened, not when the page is. Bulk upload is a
+// once-a-session job on a screen people open every day, and the component
+// is 807 lines of it.
+const QuickSetupWizard = dynamic(() => import("@/components/QuickSetupWizard"));
+// Loaded when it is first opened, not when the page is. Bulk upload is a
+// once-a-session job on a screen people open every day, and the component
+// is 533 lines of it.
+const SubjectBulkUpload = dynamic(() =>
+  import("@/components/SubjectBulkUpload").then((m) => m.SubjectBulkUpload)
+);
 import { ClassSubjectsDialog } from "@/components/ClassSubjectsDialog";
 import { ClassBandPicker } from "@/components/ClassBandPicker";
 import { WingApplyDialog } from "@/components/WingApplyDialog";
@@ -220,7 +231,9 @@ export default function AdminSubjectsPage() {
 
   // ── Quick Setup & Bulk Upload state ──
   const [quickSetupOpen, setQuickSetupOpen] = useState(false);
+  const showQuickSetupWizard = useMountOnceOpen(quickSetupOpen);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+  const showSubjectBulkUpload = useMountOnceOpen(bulkUploadOpen);
 
   // §6 Math Standard/Basic review banner — names the classes still to reassign
   const [mathReviewClasses, setMathReviewClasses] = useState<string[]>([]);
@@ -3212,6 +3225,7 @@ export default function AdminSubjectsPage() {
       </Dialog>
 
       {/* ── Quick Setup Wizard ── */}
+      {showQuickSetupWizard && (
       <QuickSetupWizard
         open={quickSetupOpen}
         onOpenChange={setQuickSetupOpen}
@@ -3223,6 +3237,7 @@ export default function AdminSubjectsPage() {
           fetchAssignmentsData();
         }}
       />
+      )}
 
       {/* ── Bulk Upload Assignments ── */}
       {manageClassId && (
@@ -3256,6 +3271,7 @@ export default function AdminSubjectsPage() {
         />
       )}
 
+      {showSubjectBulkUpload && (
       <SubjectBulkUpload
         open={bulkUploadOpen}
         onOpenChange={setBulkUploadOpen}
@@ -3264,6 +3280,7 @@ export default function AdminSubjectsPage() {
           fetchSubjects();
         }}
       />
+      )}
     </div>
   );
 }

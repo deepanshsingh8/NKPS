@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import * as XLSX from "xlsx";
+// xlsx parses to roughly 900KB. Nothing on this screen needs it until
+// someone picks a file or asks for the template, so it is fetched then
+// rather than shipped with the page that renders the button.
 import {
   Dialog,
   DialogContent,
@@ -311,8 +313,9 @@ export function StaffBulkUpload({
       setFileName(file.name);
 
       const reader = new FileReader();
-      reader.onload = (evt) => {
+      reader.onload = async (evt) => {
         try {
+          const XLSX = await import("xlsx");
           const data = new Uint8Array(evt.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: "array" });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -478,7 +481,8 @@ export function StaffBulkUpload({
     }
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const XLSX = await import("xlsx");
     const ws = XLSX.utils.aoa_to_sheet([
       [
         "Name",

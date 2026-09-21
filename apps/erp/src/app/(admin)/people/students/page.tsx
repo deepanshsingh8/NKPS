@@ -1,5 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import { useMountOnceOpen } from "@nkps/shared/lib/hooks/use-mount-once-open";
+
 import {
   useEffect,
   useState,
@@ -82,7 +85,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@nkps/shared/components/ui/dropdown-menu";
-import { StudentBulkUpload } from "@/components/StudentBulkUpload";
+// Loaded when it is first opened, not when the page is. Bulk upload is a
+// once-a-session job on a screen people open every day, and the component
+// is 1503 lines of it.
+const StudentBulkUpload = dynamic(() =>
+  import("@/components/StudentBulkUpload").then((m) => m.StudentBulkUpload)
+);
 import {
   StudentFormFields,
   type StudentFormState,
@@ -610,6 +618,7 @@ export default function AdminStudentsPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const showStudentBulkUpload = useMountOnceOpen(uploadDialogOpen);
   const [promoteDialogOpen, setPromoteDialogOpen] = useState(false);
   const [portalDialogOpen, setPortalDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -2972,11 +2981,13 @@ export default function AdminStudentsPage() {
       />
 
       {/* Bulk Upload Dialog */}
+      {showStudentBulkUpload && (
       <StudentBulkUpload
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}
         onSuccess={fetchStudents}
       />
+      )}
 
       {/* Create Portal Users Dialog */}
       <CreatePortalUsersDialog

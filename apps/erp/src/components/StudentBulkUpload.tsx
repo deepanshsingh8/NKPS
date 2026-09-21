@@ -2,7 +2,9 @@
 
 import { useState, useCallback, useEffect, Fragment } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
-import * as XLSX from "xlsx";
+// xlsx parses to roughly 900KB. Nothing on this screen needs it until
+// someone picks a file or asks for the template, so it is fetched then
+// rather than shipped with the page that renders the button.
 import {
   Dialog,
   DialogContent,
@@ -385,8 +387,9 @@ export function StudentBulkUpload({
       setFileName(file.name);
 
       const reader = new FileReader();
-      reader.onload = (evt) => {
+      reader.onload = async (evt) => {
         try {
+          const XLSX = await import("xlsx");
           const data = new Uint8Array(evt.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: "array" });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -695,7 +698,8 @@ export function StudentBulkUpload({
     }
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const XLSX = await import("xlsx");
     const headers = bulkTemplateHeaders();
     const sample = (values: Record<string, string>) =>
       STUDENT_TEMPLATE_FIELDS.map((f) => values[f.key] ?? "");
@@ -1475,7 +1479,8 @@ export function StudentBulkUpload({
               {uploadResult && uploadResult.errors.length > 0 && (
                 <Button
                   variant="outline"
-                  onClick={() => {
+                  onClick={async () => {
+                    const XLSX = await import("xlsx");
                     // Download failed students as a sheet for easy re-upload
                     const failedData = uploadResult.errors.map((e) => ({
                       "Admission No": e.admission_no,
