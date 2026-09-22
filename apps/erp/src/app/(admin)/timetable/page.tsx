@@ -499,7 +499,7 @@ const session = useAcademicSession();
                                 </div>
                               ))}
                               {groups.some((g) => g.is_shared) && (
-                                <div className="text-[10px] uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
+                                <div className="text-[10px] uppercase tracking-wide text-cyan-700 dark:text-cyan-400">  {/* color-ok: cyan is the Timetable module accent */}
                                   Shared
                                 </div>
                               )}
@@ -730,7 +730,7 @@ const session = useAcademicSession();
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10">  {/* color-ok: cyan is the Timetable module accent */}
                 <Clock className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
               </div>
               <div>

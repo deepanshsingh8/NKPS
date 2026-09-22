@@ -566,7 +566,7 @@ function SettingsContent() {
                   <Download
                     className={
                       standalone
-                        ? "h-4 w-4 text-emerald-600 dark:text-emerald-400"
+                        ? "h-4 w-4 text-green-600 dark:text-green-400"
                         : "h-4 w-4 text-gray-400"
                     }
                   />
@@ -590,7 +590,7 @@ function SettingsContent() {
                     variant="outline"
                     size="sm"
                     onClick={signOut}
-                    className="border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                    className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
                   >
                     <LogOut className="mr-1.5 h-3.5 w-3.5" />
                     Sign out

@@ -1293,7 +1293,7 @@ export default function AdminStaffPage() {
                                 ? "teacher"
                                 : "staff"
                             } login (sends a welcome email)`}
-                            className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50"
+                            className="text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50"
                           >
                             {creatingLoginId === member.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />

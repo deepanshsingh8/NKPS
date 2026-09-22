@@ -390,11 +390,11 @@ export default function TeacherDashboard() {
         </div>
 
         <div className="erp-stat-card relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-emerald-500/8 to-transparent rounded-bl-full" />
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-green-500/8 to-transparent rounded-bl-full" />
           <div className="relative">
             <div className="flex items-center gap-3 mb-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                <Users className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              <div className="h-10 w-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <Users className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
               <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Students</span>
             </div>

@@ -51,7 +51,7 @@ export function ClassBandPicker({
             className={cn(
               "rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors",
               on
-                ? "border-emerald-400 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                ? "border-green-400 bg-green-50 text-green-800 dark:border-green-700 dark:bg-green-950/30 dark:text-green-300"
                 : "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-border dark:text-gray-300 dark:hover:bg-muted"
             )}
           >

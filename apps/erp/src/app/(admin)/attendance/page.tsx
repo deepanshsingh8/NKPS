@@ -504,7 +504,7 @@ export default function AdminAttendancePage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge className="bg-yellow-100 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-400 text-xs">
+                      <Badge className="bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 text-xs">
                         {stat.lateCount}
                       </Badge>
                     </TableCell>
@@ -516,7 +516,7 @@ export default function AdminAttendancePage() {
                               stat.attendancePercent >= 75
                                 ? "bg-green-500"
                                 : stat.attendancePercent >= 50
-                                  ? "bg-yellow-500"
+                                  ? "bg-amber-500"
                                   : "bg-red-500"
                             }`}
                             style={{
@@ -529,7 +529,7 @@ export default function AdminAttendancePage() {
                             stat.attendancePercent >= 75
                               ? "text-green-700 dark:text-green-400"
                               : stat.attendancePercent >= 50
-                                ? "text-yellow-700 dark:text-yellow-400"
+                                ? "text-amber-700 dark:text-amber-400"
                                 : "text-red-700 dark:text-red-400"
                           }`}
                         >

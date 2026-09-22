@@ -145,11 +145,11 @@ export default function PortalLoginPage() {
               <span>Teachers</span>
             </div>
             <div className="flex items-center justify-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="h-2 w-2 rounded-full bg-green-400" />
               <span>Students</span>
             </div>
             <div className="flex items-center justify-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-rose-400" />
+              <span className="h-2 w-2 rounded-full bg-red-400" />
               <span>Parents</span>
             </div>
           </div>

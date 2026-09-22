@@ -420,13 +420,13 @@ export function DayBookImportDialog({
           <div
             className={`rounded-lg border p-4 ${
               rec.parse_matches_file
-                ? "border-emerald-300 bg-emerald-50/60 dark:bg-emerald-950/10"
+                ? "border-green-300 bg-green-50/60 dark:bg-green-950/10"
                 : "border-red-300 bg-red-50/60 dark:bg-red-950/10"
             }`}
           >
             <div className="mb-2 flex items-center gap-2 font-medium">
               {rec.parse_matches_file ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
               ) : (
                 <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
               )}
@@ -488,7 +488,7 @@ export function DayBookImportDialog({
         {/* ── Counters ───────────────────────────────────────────────────── */}
         {s ? (
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className="border-emerald-400 text-emerald-700 dark:text-emerald-400">
+            <Badge variant="outline" className="border-green-400 text-green-700 dark:text-green-400">
               {s.ok} will import
             </Badge>
             {s.already_imported > 0 ? (
@@ -695,9 +695,9 @@ export function DayBookImportDialog({
         ) : null}
 
         {result?.summary.committed ? (
-          <div className="rounded-lg border border-emerald-300 bg-emerald-50/60 p-3 text-sm dark:bg-emerald-950/10">
+          <div className="rounded-lg border border-green-300 bg-green-50/60 p-3 text-sm dark:bg-green-950/10">
             <div className="flex items-center gap-2 font-medium">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
               Imported {result.summary.payments_created ?? 0} payment row(s),{" "}
               {inr(result.summary.amount_total ?? 0)}
               {result.summary.students_created

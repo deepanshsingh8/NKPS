@@ -101,9 +101,9 @@ type AttendanceTone = "emerald" | "amber" | "rose";
 
 const CHIP_TONES: Record<AttendanceTone, { wrap: string; dot: string; value: string }> = {
   emerald: {
-    wrap: "bg-emerald-50/80 dark:bg-emerald-900/20 border-emerald-200/70 dark:border-emerald-800/40",
-    dot: "bg-emerald-500",
-    value: "text-emerald-700 dark:text-emerald-300",
+    wrap: "bg-green-50/80 dark:bg-green-900/20 border-green-200/70 dark:border-green-800/40",
+    dot: "bg-green-500",
+    value: "text-green-700 dark:text-green-300",
   },
   amber: {
     wrap: "bg-amber-50/80 dark:bg-amber-900/20 border-amber-200/70 dark:border-amber-800/40",
@@ -111,9 +111,9 @@ const CHIP_TONES: Record<AttendanceTone, { wrap: string; dot: string; value: str
     value: "text-amber-700 dark:text-amber-300",
   },
   rose: {
-    wrap: "bg-rose-50/80 dark:bg-rose-900/20 border-rose-200/70 dark:border-rose-800/40",
-    dot: "bg-rose-400",
-    value: "text-rose-700 dark:text-rose-300",
+    wrap: "bg-red-50/80 dark:bg-red-900/20 border-red-200/70 dark:border-red-800/40",
+    dot: "bg-red-400",
+    value: "text-red-700 dark:text-red-300",
   },
 };
 
@@ -199,8 +199,8 @@ function AttendanceBlock({ data }: { data: AttendanceData }) {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-            <CheckSquare className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+          <div className="h-10 w-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+            <CheckSquare className="h-5 w-5 text-green-600 dark:text-green-400" />
           </div>
           <div>
             <h3 className="text-sm font-semibold text-navy-900 dark:text-white">
@@ -215,7 +215,7 @@ function AttendanceBlock({ data }: { data: AttendanceData }) {
         </div>
         {totals.total > 0 && (
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums leading-none">
+            <span className="text-2xl font-bold text-green-600 dark:text-green-400 tabular-nums leading-none">
               {totals.percentage}%
             </span>
             <span className="text-[10px] uppercase tracking-wider text-gray-400">
@@ -275,9 +275,9 @@ function AttendanceBlock({ data }: { data: AttendanceData }) {
                   // segments are rendered so the 2px separator between them
                   // never shows up as a gap above an empty one.
                   const segments = [
-                    { key: "present", h: (d.present / maxTotal) * 100, cls: "bg-emerald-500" },
+                    { key: "present", h: (d.present / maxTotal) * 100, cls: "bg-green-500" },
                     { key: "late", h: (d.late / maxTotal) * 100, cls: "bg-amber-400" },
-                    { key: "absent", h: (d.absent / maxTotal) * 100, cls: "bg-rose-400" },
+                    { key: "absent", h: (d.absent / maxTotal) * 100, cls: "bg-red-400" },
                   ].filter((s) => s.h > 0);
 
                   return (
@@ -289,9 +289,9 @@ function AttendanceBlock({ data }: { data: AttendanceData }) {
                       aria-label={`Day ${d.day}${hasData ? ` — ${d.present} present, ${d.late} late, ${d.absent} absent` : " — no records"}`}
                       className={cn(
                         "w-6 shrink-0 md:w-auto md:flex-1 flex flex-col-reverse justify-start gap-[2px] h-full rounded-t-md cursor-pointer outline-none transition-opacity duration-150",
-                        "focus-visible:ring-2 focus-visible:ring-emerald-500/40",
+                        "focus-visible:ring-2 focus-visible:ring-green-500/40",
                         dimmed ? "opacity-40 hover:opacity-100" : "opacity-100",
-                        isToday && "ring-1 ring-emerald-400/40 ring-offset-1 ring-offset-white dark:ring-offset-card"
+                        isToday && "ring-1 ring-green-400/40 ring-offset-1 ring-offset-white dark:ring-offset-card"
                       )}
                     >
                       {segments.map((s, si) => (
@@ -337,7 +337,7 @@ function AttendanceBlock({ data }: { data: AttendanceData }) {
                             isActive
                               ? "font-bold text-navy-900 dark:text-white"
                               : isToday
-                                ? "font-bold text-emerald-600"
+                                ? "font-bold text-green-600"
                                 : "text-gray-400"
                           )}
                         >
@@ -359,7 +359,7 @@ function AttendanceBlock({ data }: { data: AttendanceData }) {
                   <p className="text-xs font-semibold text-navy-900 dark:text-white flex items-center gap-1.5">
                     {formatActiveDate(activeDay.date)}
                     {activeDay.date === todayStr && (
-                      <span className="text-[9px] font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                      <span className="text-[9px] font-medium text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/40 px-1.5 py-0.5 rounded uppercase tracking-wide">
                         Today
                       </span>
                     )}
@@ -675,9 +675,9 @@ export function DashboardAnalytics({
                   className={cn(
                     "ml-auto shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold tabular-nums",
                     net > 0
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                      ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
                       : net < 0
-                        ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400"
+                        ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
                         : "bg-gray-100 text-gray-600 dark:bg-muted dark:text-gray-300"
                   )}
                   title={`${joined} joined, ${left} left over the last 6 months`}
@@ -724,7 +724,7 @@ export function DashboardAnalytics({
                         value={item.exits}
                         max={maxMovement}
                         delay={i * 70 + 35}
-                        className="bg-orange-600 group-hover:bg-orange-700 dark:group-hover:bg-orange-500"
+                        className="bg-amber-600 group-hover:bg-amber-700 dark:group-hover:bg-amber-500"
                       />
                     </div>
                     <span className="text-[10px] text-gray-400 group-hover:text-navy-900 dark:group-hover:text-white transition-colors">
@@ -739,7 +739,7 @@ export function DashboardAnalytics({
                   <span className="text-gray-500 dark:text-gray-400">Joined</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-orange-600" />
+                  <span className="h-2 w-2 rounded-full bg-amber-600" />
                   <span className="text-gray-500 dark:text-gray-400">Left</span>
                 </div>
               </div>

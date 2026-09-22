@@ -2679,7 +2679,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                   variant="ghost"
                                   size="icon-sm"
                                   onClick={() => downloadReceipt(p.id)}
-                                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                  className="text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
                                   title="Download fee receipt (school + parent copy)"
                                 >
                                   <Download className="h-4 w-4" />

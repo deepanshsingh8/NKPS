@@ -49,9 +49,9 @@ export function NeedsAttention({
   // section that failed to load.
   if (live.length === 0) {
     return (
-      <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200/70 bg-emerald-50/60 px-4 py-3 dark:border-emerald-900/40 dark:bg-emerald-900/15">
-        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-        <p className="text-sm text-emerald-800 dark:text-emerald-300">
+      <div className="flex items-center gap-2.5 rounded-xl border border-green-200/70 bg-green-50/60 px-4 py-3 dark:border-green-900/40 dark:bg-green-900/15">
+        <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" />
+        <p className="text-sm text-green-800 dark:text-green-300">
           Nothing is waiting on you.
         </p>
       </div>

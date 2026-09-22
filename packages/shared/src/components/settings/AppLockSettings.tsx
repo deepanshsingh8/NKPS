@@ -173,7 +173,7 @@ export function AppLockSettings() {
                 key={factor.id}
                 className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-2.5 dark:border-border"
               >
-                <ScanFace className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <ScanFace className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-navy-900 dark:text-white">
                     {factor.friendlyName}
@@ -192,7 +192,7 @@ export function AppLockSettings() {
                   onClick={() => forget(factor)}
                   disabled={working}
                   aria-label={`Remove ${factor.friendlyName}`}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

@@ -62,7 +62,7 @@ interface StudentRow {
 const STATUS_OPTIONS: { value: AttendanceStatus; label: string; color: string }[] = [
   { value: "present", label: "Present", color: "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/40" },
   { value: "absent", label: "Absent", color: "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40" },
-  { value: "late", label: "Late", color: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/40" },
+  { value: "late", label: "Late", color: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/40" },
 ];
 
 export default function TeacherAttendancePage() {
@@ -359,7 +359,7 @@ export default function TeacherAttendancePage() {
               <Badge className="bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400">
                 Absent: {absentCount}
               </Badge>
-              <Badge className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
+              <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
                 Late: {lateCount}
               </Badge>
             </div>

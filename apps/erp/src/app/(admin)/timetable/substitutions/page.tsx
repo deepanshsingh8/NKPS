@@ -345,7 +345,7 @@ export default function AdminSubstitutionsPage() {
                         {row.period.room ? ` · ${row.period.room}` : ""}
                       </div>
                       {sub && subTeacher ? (
-                        <div className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                        <div className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-300">
                           <UserCheck className="h-3.5 w-3.5" />
                           Substitute: {subTeacher.full_name}
                         </div>
