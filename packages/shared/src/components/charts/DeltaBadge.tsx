@@ -37,8 +37,8 @@ export function DeltaBadge({
         good === null
           ? "text-gray-500 dark:text-gray-400"
           : good
-            ? "text-emerald-700 dark:text-emerald-400"
-            : "text-rose-700 dark:text-rose-400",
+            ? "text-green-700 dark:text-green-400"
+            : "text-red-700 dark:text-red-400",
         className
       )}
     >
