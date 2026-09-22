@@ -197,21 +197,21 @@ function categoriesForGroup(
   ];
 }
 
-const categoryBadgeColors: Record<StaffCategory, string> = {
-  management: "bg-purple-100 text-purple-700",
-  admin: "bg-red-100 text-red-700",
-  pgt: "bg-blue-100 text-blue-700",
-  tgt: "bg-emerald-100 text-emerald-700",
-  prt: "bg-amber-100 text-amber-700",
-  motherTeachers: "bg-violet-100 text-violet-700",
-  prePrimaryCoordinator: "bg-pink-100 text-pink-700",
-  primaryCoordinator: "bg-sky-100 text-sky-700",
-  middleCoordinator: "bg-lime-100 text-lime-700",
-  seniorCoordinator: "bg-indigo-100 text-indigo-700",
-  additionalStaff: "bg-teal-100 text-teal-700",
-  busDriver: "bg-orange-100 text-orange-700",
-  peon: "bg-gray-100 text-gray-700",
-};
+// Staff categories used to carry thirteen hand-picked hues — purple, red,
+// blue, emerald, amber, violet, pink, sky, lime, indigo, teal, orange, gray —
+// and five of those families existed in the whole repo for this map alone.
+// None of them carried information: the badge always renders its own label
+// beside the colour, so nobody was reading "pink" to mean "Pre-Primary
+// Coordinator", they were reading the words. And nobody holds thirteen
+// colour-to-category mappings anyway.
+//
+// It was also the worst dark-mode bug in the app: not one of the thirteen had
+// a `dark:` pair, so every badge rendered as a near-white chip on the dark
+// table. The Badge's own `secondary` variant is theme-aware, which is the
+// whole reason it exists.
+//
+// If these ever want colour again, the axis worth colouring is the group —
+// teaching / coordination / office / support — not the thirteen leaves.
 
 export default function AdminStaffPage() {
   // Creating portal login accounts is admin-only (enforced server-side in
@@ -1193,10 +1193,7 @@ export default function AdminStaffPage() {
                   </TableCell>
                   <TableCell className="text-gray-500">{member.subject}</TableCell>
                   <TableCell>
-                    <Badge
-                      variant="secondary"
-                      className={categoryBadgeColors[member.category]}
-                    >
+                    <Badge variant="secondary">
                       {getCategoryLabel(member.category)}
                     </Badge>
                   </TableCell>
@@ -1611,9 +1608,6 @@ export default function AdminStaffPage() {
         hasLogin={detailMember ? hasLogin(detailMember) : false}
         teacherLinked={detailMember ? teacherByStaffId.has(detailMember.id) : false}
         categoryLabel={detailMember ? getCategoryLabel(detailMember.category) : ""}
-        categoryBadgeClass={
-          detailMember ? categoryBadgeColors[detailMember.category] : undefined
-        }
       />
 
       {/* Bulk Upload Dialog */}

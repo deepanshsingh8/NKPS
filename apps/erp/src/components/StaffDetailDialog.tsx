@@ -201,7 +201,6 @@ export function StaffDetailDialog({
   hasLogin,
   teacherLinked,
   categoryLabel,
-  categoryBadgeClass,
 }: {
   member: StaffMember | null;
   onClose: () => void;
@@ -209,7 +208,6 @@ export function StaffDetailDialog({
   hasLogin: boolean;
   teacherLinked: boolean;
   categoryLabel: string;
-  categoryBadgeClass?: string;
 }) {
   // The loaded assignments are tagged with the member they belong to, so
   // opening a different person simply stops matching — no reset state needed,
@@ -268,7 +266,7 @@ export function StaffDetailDialog({
                     {member.subject}
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary" className={categoryBadgeClass}>
+                    <Badge variant="secondary">
                       {categoryLabel}
                     </Badge>
                     {!member.is_active && (
