@@ -3,6 +3,7 @@ import { Inter, Playfair_Display } from "next/font/google";
 import { Toaster } from "@nkps/shared/components/ui/sonner";
 import { PWARegister } from "@nkps/shared/components/pwa/PWARegister";
 import { InstallPrompt } from "@nkps/shared/components/pwa/InstallPrompt";
+import { iconUrl } from "@nkps/shared/lib/pwa-manifest";
 import { CmsShell } from "@/components/CmsShell";
 import {
   ThemeProvider,
@@ -32,7 +33,8 @@ export const metadata: Metadata = {
     title: "NKPS CMS",
   },
   icons: {
-    apple: "/icons/apple-touch-icon.png",
+    // See apps/erp/src/app/layout.tsx for why this carries a version.
+    apple: iconUrl("apple-touch-icon.png"),
   },
 };
 

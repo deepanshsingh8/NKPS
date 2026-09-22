@@ -555,7 +555,7 @@ const StudentTableRow = memo(function StudentTableRow({
             size="icon-sm"
             onClick={() => actions.onFees(student.id)}
             aria-label="View fees / record payment"
-            className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+            className="text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
             title="View fees / record payment"
           >
             <Receipt className="h-4 w-4" />
@@ -566,7 +566,7 @@ const StudentTableRow = memo(function StudentTableRow({
               size="icon-sm"
               onClick={() => actions.onInvite(student)}
               aria-label="Invite guardian"
-              className="text-violet-500 hover:text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30"
+              className="text-violet-500 hover:text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30" // color-ok: violet is the Users/portal accent — this invites a guardian account
               title="Invite parent/guardian"
             >
               <UserPlus className="h-4 w-4" />

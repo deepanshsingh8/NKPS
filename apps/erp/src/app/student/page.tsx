@@ -197,7 +197,7 @@ export default function StudentDashboard() {
 
         {/* Latest Result */}
         <div className="erp-stat-card relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-violet-500/8 to-transparent rounded-bl-full" />
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-violet-500/8 to-transparent rounded-bl-full" /> {/* color-ok: the wash behind the Latest Result tile, in that tile's own violet */}
           <div className="relative">
             <div className="flex items-center gap-3 mb-3">
               <div className="h-10 w-10 rounded-xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">

@@ -2122,6 +2122,19 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     setPaymentSubmitting(false);
   };
 
+  // Payment status. This was the one place in the app where status colour
+  // disagreed with itself:
+  //
+  //   - `pending` was painted `destructive`, i.e. red, the same as `failed`.
+  //     A payment nobody has made yet is not a failure, and the fee change
+  //     requests screen already paints pending amber. It is amber here now.
+  //   - `partial` was yellow while the Late Fee column in the same row is
+  //     amber, so once yellow folds into amber — which it does, everywhere
+  //     else — "partly paid" and "late fee owing" would have become one
+  //     colour in one row. Partial is a payment in progress, so it takes the
+  //     blue that `applied` and `passed` already mean elsewhere.
+  //   - `refunded` was purple, a hue the app uses for nothing else. It is a
+  //     settled, non-failure end state: neutral.
   const statusBadge = (status: string) => {
     switch (status) {
       case "paid":
@@ -2132,13 +2145,13 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         );
       case "partial":
         return (
-          <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-950/30 dark:text-yellow-400 dark:border-yellow-800">
+          <Badge className="bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800">
             Partial
           </Badge>
         );
       case "refunded":
         return (
-          <Badge className="bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-800">
+          <Badge className="bg-gray-100 text-gray-700 border-gray-200 dark:bg-muted dark:text-gray-300 dark:border-border">
             Refunded
           </Badge>
         );
@@ -2146,7 +2159,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         return <Badge variant="destructive">Failed</Badge>;
       case "pending":
         return (
-          <Badge variant="destructive">Pending</Badge>
+          <Badge className="bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800">
+            Pending
+          </Badge>
         );
       default:
         return <Badge variant="secondary">{status}</Badge>;
@@ -2664,7 +2679,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                   variant="ghost"
                                   size="icon-sm"
                                   onClick={() => downloadReceipt(p.id)}
-                                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                  className="text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
                                   title="Download fee receipt (school + parent copy)"
                                 >
                                   <Download className="h-4 w-4" />
@@ -2685,7 +2700,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                       setRefundOpen(true);
                                     }}
                                     title="Refund this payment"
-                                    className="text-purple-600 dark:text-purple-400 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/30 h-8 px-2 text-xs"
+                                    className="text-amber-700 dark:text-amber-400 hover:text-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/30 h-8 px-2 text-xs"
                                   >
                                     Refund
                                   </Button>
@@ -3566,7 +3581,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             <Button
               onClick={handleRefund}
               disabled={refundSubmitting || userRole === null}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-amber-500 hover:bg-amber-600 text-white"
             >
               {refundSubmitting ? (
                 <>

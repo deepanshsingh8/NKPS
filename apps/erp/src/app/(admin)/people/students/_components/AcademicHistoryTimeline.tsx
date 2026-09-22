@@ -18,7 +18,12 @@ const STATUS_STYLES: Record<string, string> = {
     "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400",
   passed: "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400",
   failed: "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400",
-  exited: "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400",
+  // Gray, not red, and not the same as terminated. A student who left is a
+  // neutral end state; a terminated enrolment is not, and the two rendered
+  // identically here. The students table already paints exited gray, so
+  // this screen and that one disagreed about the same status.
+  exited:
+    "bg-gray-100 text-gray-600 dark:bg-muted dark:text-gray-300",
   terminated: "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400",
 };
 

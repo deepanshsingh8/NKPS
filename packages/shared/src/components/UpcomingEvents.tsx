@@ -7,26 +7,15 @@ import { Badge } from "@nkps/shared/components/ui/badge";
 import { CalendarDays } from "lucide-react";
 import type { CalendarEvent, CalendarEventType } from "@nkps/shared/types";
 import { todayISO } from "@nkps/shared/lib/date";
+// Both maps used to be re-declared here, and the local copy of the colours
+// had no `dark:` pairs at all — so every event chip rendered as a near-white
+// block on a dark surface, in both apps, since this component is shared.
+import {
+  EVENT_TYPE_COLORS,
+  EVENT_TYPE_LABELS,
+} from "@nkps/shared/lib/constants/calendar";
 
-const EVENT_TYPE_LABELS: Record<CalendarEventType, string> = {
-  exam: "Exam",
-  holiday: "Holiday",
-  event: "Event",
-  pta_meeting: "PTA Meeting",
-  sports: "Sports",
-  cultural: "Cultural",
-  other: "Other",
-};
 
-const EVENT_TYPE_COLORS: Record<CalendarEventType, string> = {
-  exam: "bg-blue-100 text-blue-700",
-  holiday: "bg-green-100 text-green-700",
-  event: "bg-amber-100 text-amber-700",
-  pta_meeting: "bg-purple-100 text-purple-700",
-  sports: "bg-orange-100 text-orange-700",
-  cultural: "bg-pink-100 text-pink-700",
-  other: "bg-gray-100 text-gray-700",
-};
 
 interface UpcomingEventsProps {
   limit?: number;

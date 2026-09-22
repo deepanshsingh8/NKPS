@@ -90,11 +90,11 @@ export default function PortalRegisterPage() {
               <span>Teachers</span>
             </div>
             <div className="flex items-center justify-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="h-2 w-2 rounded-full bg-green-400" />
               <span>Students</span>
             </div>
             <div className="flex items-center justify-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-purple-400" />
+              <span className="h-2 w-2 rounded-full bg-amber-400" />
               <span>Parents</span>
             </div>
           </div>

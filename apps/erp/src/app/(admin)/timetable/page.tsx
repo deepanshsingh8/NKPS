@@ -499,7 +499,7 @@ const session = useAcademicSession();
                                 </div>
                               ))}
                               {groups.some((g) => g.is_shared) && (
-                                <div className="text-[10px] uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
+                                <div className="text-[10px] uppercase tracking-wide text-cyan-700 dark:text-cyan-400">  {/* color-ok: cyan is the Timetable module accent */}
                                   Shared
                                 </div>
                               )}
@@ -730,7 +730,7 @@ const session = useAcademicSession();
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10">  {/* color-ok: cyan is the Timetable module accent */}
                 <Clock className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
               </div>
               <div>
@@ -769,7 +769,7 @@ const session = useAcademicSession();
                     }
                     className={`rounded-md border px-2 py-1 text-xs transition-colors ${
                       editingId === g.id
-                        ? "border-cyan-400 bg-cyan-50 text-cyan-800 dark:border-cyan-700 dark:bg-cyan-950/30 dark:text-cyan-300"
+                        ? "border-cyan-400 bg-cyan-50 text-cyan-800 dark:border-cyan-700 dark:bg-cyan-950/30 dark:text-cyan-300" // color-ok: cyan is the Timetable module accent, matching its hub tile
                         : "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-border dark:text-gray-300 dark:hover:bg-muted"
                     }`}
                   >

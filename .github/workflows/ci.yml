@@ -47,6 +47,18 @@ jobs:
       - name: Mobile layout rules
         run: pnpm run check:mobile
 
+      # The same status painted a different colour on a different screen is
+      # invisible to tsc, to lint, and to anyone not holding both screens up
+      # side by side. This is what keeps the palette to one of each.
+      - name: Colour palette
+        run: pnpm run check:colors
+
+      # New icons under the same filenames are invisible to the manifest, to
+      # Android's install updater and to every cache in between. This keeps the
+      # one version number that makes them visible in step across three files.
+      - name: PWA shell version
+        run: pnpm run check:pwa
+
       - name: Build all apps
         run: pnpm run build
         env:

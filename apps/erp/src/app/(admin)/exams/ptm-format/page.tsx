@@ -314,7 +314,7 @@ export default function AdminPtmFormatPage() {
                     <span className="flex items-center gap-1">
                       {t.is_default ? (
                         <Star
-                          className={`h-3.5 w-3.5 ${active ? "text-yellow-300" : "text-yellow-500"}`}
+                          className={`h-3.5 w-3.5 ${active ? "text-amber-300" : "text-amber-500"}`}
                           fill="currentColor"
                         />
                       ) : null}

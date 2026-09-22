@@ -192,7 +192,7 @@ export function CreatePortalUsersDialog({
 
         {step === "progress" && (
           <div className="py-8 text-center space-y-4">
-            <Loader2 className="h-10 w-10 animate-spin text-violet-500 mx-auto" />
+            <Loader2 className="h-10 w-10 animate-spin text-violet-500 mx-auto" /> {/* color-ok: violet is the Users/portal accent */}
             <div>
               <p className="text-sm font-medium text-navy-900 dark:text-white">
                 Creating portal accounts...

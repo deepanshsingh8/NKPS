@@ -119,7 +119,7 @@ function getEventCountdown(startDate: string): { label: string; tone: "now" | "s
 }
 
 const COUNTDOWN_TONES = {
-  now: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+  now: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
   soon: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
   later: "bg-gray-100 text-gray-600 dark:bg-muted dark:text-gray-400",
 } as const;
@@ -250,8 +250,8 @@ export function DashboardView({ scope }: { scope: Scope }) {
           label="Staff"
           value={stats?.totalStaff ?? 0}
           icon={UserCog}
-          tone="text-emerald-600 dark:text-emerald-400"
-          iconBg="bg-emerald-100 dark:bg-emerald-900/30"
+          tone="text-green-600 dark:text-green-400"
+          iconBg="bg-green-100 dark:bg-green-900/30"
           href="/people/staff"
           loading={loading}
         />
@@ -265,8 +265,8 @@ export function DashboardView({ scope }: { scope: Scope }) {
           label="Portal accounts"
           value={stats?.totalUsers ?? 0}
           icon={Users}
-          tone="text-violet-600 dark:text-violet-400"
-          iconBg="bg-violet-100 dark:bg-violet-900/30"
+          tone="text-violet-600 dark:text-violet-400" // color-ok: violet is the Users module accent (purple on that screen is the staff role)
+          iconBg="bg-violet-100 dark:bg-violet-900/30" // color-ok: as above
           href="/administration/users"
           loading={loading}
         />

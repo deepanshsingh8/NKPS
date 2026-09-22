@@ -23,6 +23,7 @@ import { Button } from "@nkps/shared/components/ui/button";
 import { toast } from "sonner";
 import { Download, BarChart3, Users, AlertTriangle } from "lucide-react";
 import { NativeSelect } from "@nkps/shared/components/ui/native-select";
+import { gradeChip } from "@/lib/grades";
 
 interface ChildOption {
   student_id: string;
@@ -51,15 +52,6 @@ interface ExamGroup {
   overall_grade: string;
 }
 
-const GRADE_COLORS: Record<string, string> = {
-  "A+": "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800",
-  A: "bg-green-50 dark:bg-green-950/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800",
-  "B+": "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
-  B: "bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800",
-  C: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
-  D: "bg-orange-100 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800",
-  F: "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
-};
 
 export default function ParentResultsPage() {
   const searchParams = useSearchParams();
@@ -388,7 +380,7 @@ export default function ParentResultsPage() {
                     <span>{exam.exam_type_name}</span>
                     <div className="flex items-center gap-3">
                       <Badge
-                        className={`text-sm px-3 py-1 ${GRADE_COLORS[exam.overall_grade] ?? ""}`}
+                        className={`text-sm px-3 py-1 ${gradeChip(exam.overall_grade)}`}
                       >
                         {exam.overall_grade}
                       </Badge>
@@ -445,7 +437,7 @@ export default function ParentResultsPage() {
                               </TableCell>
                               <TableCell className="text-center">
                                 <Badge
-                                  className={`text-xs ${GRADE_COLORS[sub.grade ?? ""] ?? ""}`}
+                                  className={`text-xs ${gradeChip(sub.grade ?? "")}`}
                                 >
                                   {sub.grade ?? "--"}
                                 </Badge>
@@ -468,7 +460,7 @@ export default function ParentResultsPage() {
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge
-                              className={`text-xs ${GRADE_COLORS[exam.overall_grade] ?? ""}`}
+                              className={`text-xs ${gradeChip(exam.overall_grade)}`}
                             >
                               {exam.overall_grade}
                             </Badge>

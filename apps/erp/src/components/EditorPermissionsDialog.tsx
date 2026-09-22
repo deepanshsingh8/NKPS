@@ -107,8 +107,8 @@ export function EditorPermissionsDialog({
       <DialogContent className="sm:max-w-2xl max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-purple-100 dark:bg-purple-950/30 flex items-center justify-center">
-              <ShieldCheck className="h-5 w-5 text-purple-700 dark:text-purple-400" />
+            <div className="h-10 w-10 rounded-xl bg-violet-100 dark:bg-violet-950/30 flex items-center justify-center">
+              <ShieldCheck className="h-5 w-5 text-violet-700 dark:text-violet-400" />
             </div>
             <div>
               <DialogTitle>Editor Capability</DialogTitle>

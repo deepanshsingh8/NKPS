@@ -183,7 +183,7 @@ export default function TimetableClashesPage() {
           onClick={() => setView("shared")}
           className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
             view === "shared"
-              ? "border-cyan-300 bg-cyan-50 text-cyan-800 dark:border-cyan-900/50 dark:bg-cyan-950/30 dark:text-cyan-300"
+              ? "border-cyan-300 bg-cyan-50 text-cyan-800 dark:border-cyan-900/50 dark:bg-cyan-950/30 dark:text-cyan-300" // color-ok: cyan is the Timetable module accent, matching its hub tile
               : "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-border dark:text-gray-300 dark:hover:bg-muted"
           }`}
         >

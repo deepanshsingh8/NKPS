@@ -3,6 +3,7 @@ import { Inter, Playfair_Display } from "next/font/google";
 import { Toaster } from "@nkps/shared/components/ui/sonner";
 import { PWARegister } from "@nkps/shared/components/pwa/PWARegister";
 import { InstallPrompt } from "@nkps/shared/components/pwa/InstallPrompt";
+import { iconUrl } from "@nkps/shared/lib/pwa-manifest";
 import {
   ThemeProvider,
   THEME_INIT_SCRIPT,
@@ -40,7 +41,11 @@ export const metadata: Metadata = {
   icons: {
     // On disk since the PWA work but never referenced, so iOS was falling back
     // to a screenshot of the page for the home-screen icon.
-    apple: "/icons/apple-touch-icon.png",
+    //
+    // Versioned: iOS keeps an installed home-screen icon forever, but it reads
+    // this link again on the next Add to Home Screen, and the query string is
+    // what stops a CDN or browser cache handing it the previous PNG.
+    apple: iconUrl("apple-touch-icon.png"),
   },
 };
 

@@ -94,6 +94,13 @@
   --color-cat-6: var(--cat-6);
   --color-cat-7: var(--cat-7);
   --color-cat-8: var(--cat-8);
+  --color-grade-1: var(--grade-1);
+  --color-grade-2: var(--grade-2);
+  --color-grade-3: var(--grade-3);
+  --color-grade-4: var(--grade-4);
+  --color-grade-5: var(--grade-5);
+  --color-grade-6: var(--grade-6);
+  --color-grade-7: var(--grade-7);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -165,6 +172,28 @@
   --cat-6: oklch(0.58 0.14 130);
   --cat-7: oklch(0.58 0.14 165);
   --cat-8: oklch(0.58 0.14 205);
+
+  /* Grade ramp: an ORDINAL scale, A+ down to F. Distinct from --cat-*, which
+     is for things that are merely different from each other; here the order
+     is the whole point, so the hue rotates monotonically from green to red
+     and severity can be read off a badge without a legend.
+
+     It replaces green / green / blue / blue / yellow / orange / red, which
+     was not monotonic (blue sits outside a green-to-red ramp) and leaned on
+     a -100 vs -50 shade step to separate A+ from A and B+ from B — a
+     difference you cannot see. Seven hues at one lightness gives seven steps
+     you can.
+
+     Even lightness is also what makes the middle readable: yellow at full
+     brightness cannot be text on a light surface, which is why the old map's
+     "yellow" was already a dark olive. */
+  --grade-1: oklch(0.52 0.15 150);
+  --grade-2: oklch(0.52 0.15 128);
+  --grade-3: oklch(0.52 0.15 106);
+  --grade-4: oklch(0.52 0.15 88);
+  --grade-5: oklch(0.52 0.15 64);
+  --grade-6: oklch(0.52 0.15 44);
+  --grade-7: oklch(0.52 0.15 25);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -222,6 +251,13 @@
   --cat-6: oklch(0.78 0.13 130);
   --cat-7: oklch(0.78 0.13 165);
   --cat-8: oklch(0.78 0.13 205);
+  --grade-1: oklch(0.79 0.14 150);
+  --grade-2: oklch(0.79 0.14 128);
+  --grade-3: oklch(0.79 0.14 106);
+  --grade-4: oklch(0.79 0.14 88);
+  --grade-5: oklch(0.79 0.14 64);
+  --grade-6: oklch(0.79 0.14 44);
+  --grade-7: oklch(0.79 0.14 25);
   --sidebar: #0a1628;            /* navy-900 — unchanged from light, by design */
   --sidebar-foreground: #e8edf5;
   --sidebar-primary: #d4a843;

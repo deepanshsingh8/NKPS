@@ -1643,7 +1643,7 @@ export default function AdminGalleryPage() {
                                   size="icon-sm"
                                   onClick={() => openEventUpload(evt.id)}
                                   aria-label="Upload photos to this event"
-                                  className="text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                  className="text-green-500 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
                                   title="Upload photos to this event"
                                 >
                                   <Upload className="h-4 w-4" />
@@ -1686,7 +1686,7 @@ export default function AdminGalleryPage() {
                                       No photos in this event yet.
                                       <button
                                         onClick={() => openEventUpload(evt.id)}
-                                        className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 font-medium underline underline-offset-2"
+                                        className="text-green-600 dark:text-green-400 hover:text-green-700 font-medium underline underline-offset-2"
                                       >
                                         Upload photos
                                       </button>
