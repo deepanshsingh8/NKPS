@@ -10,6 +10,34 @@ import type { MetadataRoute } from "next";
 const THEME_COLOR = "#0A1628";
 const BACKGROUND_COLOR = "#FFFFFF";
 
+/**
+ * Bump whenever `scripts/generate-pwa-icons.mjs` regenerates the PNGs.
+ *
+ * The icons keep their filenames, so a regeneration leaves the URLs
+ * byte-different but string-identical — and nothing downstream can tell that
+ * anything changed. Android's WebAPK updater refetches the manifest, compares
+ * it with the one it installed, sees the same three `src` values and keeps the
+ * old launcher icon; the CDN and the browser cache have no reason to
+ * revalidate either. That is how the icon change in 31cb00e shipped and then
+ * did not arrive on anyone's phone.
+ *
+ * What this does NOT do is change an icon already sitting on a home screen.
+ * iOS fetches that once, at Add-to-Home-Screen time, and never looks again —
+ * that one needs a remove and a re-add, and no amount of deploying helps. This
+ * is about every install and every update check after the change.
+ *
+ * It also names the service-worker shell cache, deliberately: one number, so
+ * one bump both re-versions the icon URLs and drops the stale cache that still
+ * holds the previous PNGs. `scripts/check-pwa-icons.mjs` keeps the two sw.js
+ * files in step with it, since a static file in public/ cannot import this.
+ */
+export const ICON_VERSION = "2";
+
+/** An icon URL carrying the current version. */
+export function iconUrl(file: string): string {
+  return `/icons/${file}?v=${ICON_VERSION}`;
+}
+
 /** A long-press target on the home-screen icon. */
 export interface ManifestShortcut {
   name: string;
@@ -62,25 +90,27 @@ export function buildManifest({
       short_name: s.shortName ?? s.name,
       description: s.description,
       url: s.url,
-      icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+      icons: [
+        { src: iconUrl("icon-192.png"), sizes: "192x192", type: "image/png" },
+      ],
     })),
     background_color: BACKGROUND_COLOR,
     theme_color: THEME_COLOR,
     icons: [
       {
-        src: "/icons/icon-192.png",
+        src: iconUrl("icon-192.png"),
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icons/icon-512.png",
+        src: iconUrl("icon-512.png"),
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icons/icon-maskable-512.png",
+        src: iconUrl("icon-maskable-512.png"),
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

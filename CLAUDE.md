@@ -33,6 +33,7 @@ pnpm run lint           # also enforces the module boundary
 pnpm run check:guide    # every sidebar link must have a guide entry
 pnpm run check:mobile   # form layout rules a browser would catch and tsc can't
 pnpm run check:colors   # one colour family per job; no twenty-fourth palette
+pnpm run check:pwa      # icon version matches the service worker cache name
 ```
 
 Run one app with `pnpm --filter @nkps/erp run <script>`. There is **no test
@@ -186,6 +187,19 @@ only — parallel groups differ from the canonical assignment by design).
   The reason is required and enforced: a bare marker is still reported, because
   a marker with no reason is drift with a note on it. `apps/website` is out of
   scope; it has no dark mode and reports no statuses.
+- **PWA icons.** Regenerating the icons is not enough to ship them. They keep
+  their filenames, so the URLs come out byte-different and string-identical,
+  and neither Android's install updater nor any cache in between can tell that
+  anything changed. After `node scripts/generate-pwa-icons.mjs`, bump
+  `ICON_VERSION` (`packages/shared/src/lib/pwa-manifest.ts`) **and** the `-vN`
+  on `CACHE_VERSION` in both `apps/*/public/sw.js`; `pnpm run check:pwa` fails
+  if they drift, which is how a new crest once shipped and reached nobody.
+  Nothing can check that the PNGs themselves changed — that bump is on you.
+  Note that an icon already on a home screen never updates: iOS fetches it once
+  at Add-to-Home-Screen time and never looks again, so testing a change means
+  removing the app and re-adding it. Don't put a `?v=` on a `next/image` src —
+  Next 16 rejects local image query strings unless `images.localPatterns.search`
+  matches, so the version belongs on the manifest and `<link>` icons only.
 - **shadcn/ui** on base-ui primitives, not Radix. There is no `asChild` — use the
   `render` prop or a controlled `open`/`onOpenChange`.
 - **Icons.** Lucide React throughout; brand icons are hand-rolled SVGs in

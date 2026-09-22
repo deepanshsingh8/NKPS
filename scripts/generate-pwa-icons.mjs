@@ -10,6 +10,11 @@
 //
 //   node scripts/generate-pwa-icons.mjs
 //
+// Then bump ICON_VERSION in packages/shared/src/lib/pwa-manifest.ts and the
+// -vN on CACHE_VERSION in both public/sw.js files, or the new icons reach
+// nobody who already installed the app. `pnpm run check:pwa` fails if the two
+// drift apart, but nothing can tell that the PNGs themselves changed.
+//
 // ── What was wrong before ───────────────────────────────────────────────────
 //
 // The old version `contain`-fitted the source onto a navy square. The source
