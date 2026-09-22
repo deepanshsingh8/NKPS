@@ -33,6 +33,7 @@ import { formatClassName } from "@nkps/shared/lib/utils";
 import { computeGrade, type GradeBand } from "@/lib/grading";
 import type { Class, ExamType } from "@nkps/shared/types";
 import { HistoricalResultsImportDialog } from "@/components/HistoricalResultsImportDialog";
+import { gradeChip } from "@/lib/grades";
 
 interface SubjectBreakdown {
   subject_id: string;
@@ -52,15 +53,6 @@ interface ClassSummary {
   top_performers: { name: string; percentage: number }[];
 }
 
-const GRADE_COLORS: Record<string, string> = {
-  "A+": "bg-green-100 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800",
-  A: "bg-green-50 text-green-600 border-green-200 dark:bg-green-950/20 dark:text-green-400 dark:border-green-800",
-  "B+": "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800",
-  B: "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-800",
-  C: "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-950/30 dark:text-yellow-400 dark:border-yellow-800",
-  D: "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800",
-  F: "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800",
-};
 
 
 export default function AdminResultsPage() {
@@ -441,7 +433,7 @@ const session = useAcademicSession();
                   {summary.avg_percentage}%
                 </p>
                 <Badge
-                  className={`mt-2 text-xs ${GRADE_COLORS[getGradeFromPct(summary.avg_percentage)] ?? ""}`}
+                  className={`mt-2 text-xs ${gradeChip(getGradeFromPct(summary.avg_percentage))}`}
                 >
                   Grade {getGradeFromPct(summary.avg_percentage)}
                 </Badge>
@@ -483,7 +475,7 @@ const session = useAcademicSession();
                         {i + 1}. {tp.name}
                       </span>
                       <Badge
-                        className={`text-xs shrink-0 ${GRADE_COLORS[getGradeFromPct(tp.percentage)] ?? ""}`}
+                        className={`text-xs shrink-0 ${gradeChip(getGradeFromPct(tp.percentage))}`}
                       >
                         {tp.percentage}%
                       </Badge>
@@ -560,7 +552,7 @@ const session = useAcademicSession();
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge
-                              className={`text-xs ${GRADE_COLORS[getGradeFromPct(sub.avg_percentage)] ?? ""}`}
+                              className={`text-xs ${gradeChip(getGradeFromPct(sub.avg_percentage))}`}
                             >
                               {getGradeFromPct(sub.avg_percentage)}
                             </Badge>
