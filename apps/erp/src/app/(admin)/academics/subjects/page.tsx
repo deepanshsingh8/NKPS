@@ -1643,7 +1643,7 @@ export default function AdminSubjectsPage() {
                         variant="secondary"
                         className={
                           subject.is_elective
-                            ? "bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400"
+                            ? "bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400" // color-ok: Elective vs Core is a two-way category, not a status — collapsing purple into blue makes the two chips identical
                             : "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400"
                         }
                       >
@@ -2149,7 +2149,7 @@ export default function AdminSubjectsPage() {
                               "text-xs",
                               s.is_mandatory
                                 ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400"
-                                : "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400"
+                                : "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400" // color-ok: Elective vs Core is a two-way category, not a status — collapsing purple into blue makes the two chips identical
                             )}
                           >
                             {s.name}
@@ -3190,7 +3190,7 @@ export default function AdminSubjectsPage() {
                           "text-xs px-2 py-0.5 rounded-full border transition-colors",
                           entry?.is_mandatory
                             ? "border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-950/30"
-                            : "border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-950/30"
+                            : "border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-950/30" // color-ok: Elective vs Core is a two-way category, not a status — collapsing purple into blue makes the two chips identical
                         )}
                       >
                         {entry?.is_mandatory ? "Compulsory" : "Elective"}

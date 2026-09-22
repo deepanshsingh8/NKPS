@@ -433,7 +433,7 @@ export default function ParentDashboard() {
                     </Link>
                     <Link
                       href={`/parent/results?child=${child.student_id}`}
-                      className="flex shrink-0 items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 text-xs font-medium hover:bg-violet-100 dark:hover:bg-violet-950/50 transition-colors"
+                      className="flex shrink-0 items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 text-xs font-medium hover:bg-violet-100 dark:hover:bg-violet-950/50 transition-colors" // color-ok: one hue per section in this row — Attendance blue, Results violet, Fees green
                     >
                       <BarChart3 className="h-3.5 w-3.5" />
                       Results

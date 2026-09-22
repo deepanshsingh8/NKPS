@@ -32,6 +32,7 @@ pnpm run typecheck
 pnpm run lint           # also enforces the module boundary
 pnpm run check:guide    # every sidebar link must have a guide entry
 pnpm run check:mobile   # form layout rules a browser would catch and tsc can't
+pnpm run check:colors   # one colour family per job; no twenty-fourth palette
 ```
 
 Run one app with `pnpm --filter @nkps/erp run <script>`. There is **no test
@@ -164,6 +165,27 @@ only — parallel groups differ from the canonical assignment by design).
 - **Styling.** Tailwind v4, custom theme: navy-900 (primary dark), blue-600
   (accent), gold-500 (secondary accent), cream-50 (backgrounds). Playfair
   Display for headings (`font-heading`), Inter for body (`font-sans`).
+- **Palette.** `pnpm run check:colors` holds the app to one colour family per
+  job. Brand is navy / gold / cream, structure is gray plus the shadcn tokens,
+  and **status is green, amber, red, blue and only those** — a count once found
+  twenty-three families, with `emerald` where `green` already meant success and
+  `sky` where `blue` already meant information, so the same status came out a
+  different colour depending on which screen you were on. Anything else picks
+  the right helper rather than a hue: `categoricalChip()`
+  (`packages/shared/src/lib/palette.ts`, `cat-1..8`) for things that merely
+  differ from each other, `gradeChip()` (`apps/erp/src/lib/grades.ts`,
+  `grade-1..7`) for things in an order. The two are separate on purpose —
+  a category has no direction, a grade ramp does, and using one for the other
+  is how a "C" ends up looking like a warning.
+
+  Module accent hues are real and stay (Timetable cyan, Transport teal,
+  Subjects indigo), matching that module's tile on its hub page; the check
+  recognises the header-tile shape, so they need no marker. Anything else whose
+  hue genuinely carries information — a five-way role badge where collapsing
+  two keys would merge two roles — carries `color-ok: <reason>` on the line.
+  The reason is required and enforced: a bare marker is still reported, because
+  a marker with no reason is drift with a note on it. `apps/website` is out of
+  scope; it has no dark mode and reports no statuses.
 - **shadcn/ui** on base-ui primitives, not Radix. There is no `asChild` — use the
   `render` prop or a controlled `open`/`onOpenChange`.
 - **Icons.** Lucide React throughout; brand icons are hand-rolled SVGs in

@@ -566,7 +566,7 @@ const StudentTableRow = memo(function StudentTableRow({
               size="icon-sm"
               onClick={() => actions.onInvite(student)}
               aria-label="Invite guardian"
-              className="text-violet-500 hover:text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30"
+              className="text-violet-500 hover:text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30" // color-ok: violet is the Users/portal accent — this invites a guardian account
               title="Invite parent/guardian"
             >
               <UserPlus className="h-4 w-4" />

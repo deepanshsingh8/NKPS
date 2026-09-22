@@ -12,7 +12,8 @@
     "dev:erp": "pnpm --filter @nkps/erp run dev",
     "check:guide": "node scripts/check-guide-coverage.mjs",
     "check:api-auth": "node scripts/check-api-auth.mjs",
-    "check:mobile": "node scripts/check-mobile-layout.mjs"
+    "check:mobile": "node scripts/check-mobile-layout.mjs",
+    "check:colors": "node scripts/check-colors.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",

@@ -597,7 +597,7 @@ export function DashboardAnalytics({
                     </span>
                     <div className="flex-1 h-5 rounded bg-gray-100 dark:bg-muted overflow-hidden">
                       <div
-                        className="h-full rounded bg-gradient-to-r from-violet-500 to-violet-400 transition-all duration-300 group-hover:from-violet-600 group-hover:to-violet-500 flex items-center justify-end pr-1.5 dash-grow-w"
+                        className="h-full rounded bg-gradient-to-r from-violet-500 to-violet-400 transition-all duration-300 group-hover:from-violet-600 group-hover:to-violet-500 flex items-center justify-end pr-1.5 dash-grow-w" // color-ok: continues the violet of the Enrollment by Class tile above
                         style={{
                           width: `${Math.max((item.count / maxEnrollment) * 100, 8)}%`,
                           animationDelay: `${i * 35}ms`,
@@ -619,7 +619,7 @@ export function DashboardAnalytics({
                   <Link
                     key={item.name}
                     href={`/people/students?class_id=${item.class_id}`}
-                    className="flex items-center gap-2 group rounded-md -mx-1 px-1 py-0.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
+                    className="flex items-center gap-2 group rounded-md -mx-1 px-1 py-0.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40" // color-ok: focus ring matches this section's violet
                     title={tooltip}
                   >
                     {rowContent}
@@ -838,7 +838,7 @@ export function DashboardAnalytics({
                 className={cn(
                   "rounded-lg border p-3 transition-colors",
                   data.transportAudit.pendingChangeRequests > 0
-                    ? "border-violet-200 bg-violet-50/50 hover:bg-violet-50 dark:border-violet-900/40 dark:bg-violet-900/20"
+                    ? "border-violet-200 bg-violet-50/50 hover:bg-violet-50 dark:border-violet-900/40 dark:bg-violet-900/20" // color-ok: the transport-changes queue, violet so it reads apart from the amber audit card beside it
                     : "border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted/40"
                 )}
               >
@@ -849,7 +849,7 @@ export function DashboardAnalytics({
                   className={cn(
                     "text-2xl font-bold tabular-nums",
                     data.transportAudit.pendingChangeRequests > 0
-                      ? "text-violet-700 dark:text-violet-400"
+                      ? "text-violet-700 dark:text-violet-400" // color-ok: the transport-changes queue, violet so it reads apart from the amber audit card beside it
                       : "text-navy-900 dark:text-white"
                   )}
                 >

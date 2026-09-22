@@ -355,7 +355,7 @@ function DisclosureBreakdown({
             "h-full rounded-full dash-grow-w",
             pct === 100
               ? "bg-green-500"
-              : "bg-gradient-to-r from-teal-500 to-teal-400"
+              : "bg-gradient-to-r from-blue-500 to-blue-400"
           )}
           style={{ width: `${pct}%` }}
         />

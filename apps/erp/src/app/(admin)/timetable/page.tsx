@@ -769,7 +769,7 @@ const session = useAcademicSession();
                     }
                     className={`rounded-md border px-2 py-1 text-xs transition-colors ${
                       editingId === g.id
-                        ? "border-cyan-400 bg-cyan-50 text-cyan-800 dark:border-cyan-700 dark:bg-cyan-950/30 dark:text-cyan-300"
+                        ? "border-cyan-400 bg-cyan-50 text-cyan-800 dark:border-cyan-700 dark:bg-cyan-950/30 dark:text-cyan-300" // color-ok: cyan is the Timetable module accent, matching its hub tile
                         : "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-border dark:text-gray-300 dark:hover:bg-muted"
                     }`}
                   >

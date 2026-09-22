@@ -47,6 +47,12 @@ jobs:
       - name: Mobile layout rules
         run: pnpm run check:mobile
 
+      # The same status painted a different colour on a different screen is
+      # invisible to tsc, to lint, and to anyone not holding both screens up
+      # side by side. This is what keeps the palette to one of each.
+      - name: Colour palette
+        run: pnpm run check:colors
+
       - name: Build all apps
         run: pnpm run build
         env:

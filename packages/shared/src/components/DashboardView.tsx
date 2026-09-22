@@ -265,8 +265,8 @@ export function DashboardView({ scope }: { scope: Scope }) {
           label="Portal accounts"
           value={stats?.totalUsers ?? 0}
           icon={Users}
-          tone="text-violet-600 dark:text-violet-400"
-          iconBg="bg-violet-100 dark:bg-violet-900/30"
+          tone="text-violet-600 dark:text-violet-400" // color-ok: violet is the Users module accent (purple on that screen is the staff role)
+          iconBg="bg-violet-100 dark:bg-violet-900/30" // color-ok: as above
           href="/administration/users"
           loading={loading}
         />

@@ -796,7 +796,7 @@ function SubjectRow({
         className={cn(
           "text-xs px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap",
           entry.is_elective
-            ? "border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-950/30"
+            ? "border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-950/30" // color-ok: Elective vs Core is a two-way category, not a status — collapsing purple into blue makes the two chips identical
             : "border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-950/30"
         )}
       >
