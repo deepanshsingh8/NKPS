@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
-import { createClient } from "@nkps/shared/lib/supabase/server";
+import { createPublicClient } from "@nkps/shared/lib/supabase/public";
 import type { CalendarEvent, CalendarEventType } from "@nkps/shared/types";
 import { todayISO } from "@nkps/shared/lib/date";
 
@@ -56,7 +56,9 @@ function formatRange(start: string, end: string | null) {
 }
 
 export default async function AcademicCalendarPage() {
-  const supabase = await createClient();
+  // Cookie-free: the cookie-reading server client made this route dynamic,
+  // so `revalidate` never took effect and every visit hit the database.
+  const supabase = createPublicClient();
   const today = todayISO();
 
   const { data } = await supabase

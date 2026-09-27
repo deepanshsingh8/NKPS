@@ -1,13 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createClient } from "@nkps/shared/lib/supabase/client";
 import { motion } from "framer-motion";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { staggerContainer, fadeUp } from "@nkps/shared/lib/animations";
 import type { CalendarEvent, CalendarEventType } from "@nkps/shared/types";
-import { todayISO } from "@nkps/shared/lib/date";
 
 const EVENT_TYPE_COLORS: Record<CalendarEventType, string> = {
   exam: "bg-navy-700",
@@ -29,34 +26,10 @@ const EVENT_TYPE_LABELS: Record<CalendarEventType, string> = {
   other: "Other",
 };
 
-export function SchoolEvents() {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    async function fetchEvents() {
-      const supabase = createClient();
-      const today = todayISO();
-
-      const { data } = await supabase
-        .from("calendar_events")
-        .select("*")
-        .gte("start_date", today)
-        .is("class_id", null) // Only school-wide events
-        .eq("is_public", true) // Only events the admin marked public
-        .order("start_date", { ascending: true })
-        .limit(6);
-
-      setEvents((data as CalendarEvent[]) ?? []);
-      setLoaded(true);
-    }
-
-    fetchEvents();
-  }, []);
-
-  // Don't render section if no events
-  if (loaded && events.length === 0) return null;
-  if (!loaded) return null;
+// Events arrive from the page, fetched once per ISR window on the server —
+// this used to query Supabase from every visitor's browser on every view.
+export function SchoolEvents({ events }: { events: CalendarEvent[] }) {
+  if (events.length === 0) return null;
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr + "T00:00:00");

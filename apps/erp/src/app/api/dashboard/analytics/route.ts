@@ -74,7 +74,7 @@ export async function GET() {
   // Each read carries an .order() on the primary key. Paging with LIMIT/OFFSET
   // and no ORDER BY has no stable row order, so a page boundary can repeat one
   // row while dropping another — on fee_payments that double-counts a receipt.
-  type AttendanceRow = { status: string; date: string };
+  type AttendanceTotalRow = { bucket: string; status: string; n: number };
   type PaymentRow = DuesPaymentRow & { student_id: string };
   type StopFeeRow = {
     bus_stop_id: string;
@@ -118,7 +118,7 @@ export async function GET() {
   });
 
   const [
-    attendanceRes,
+    attendanceTotalsRes,
     feePaymentsRes,
     feeStructuresRes,
     stopFeesRes,
@@ -126,20 +126,16 @@ export async function GET() {
     admissionsRes,
     exitsRes,
   ] = await Promise.all([
-      // A month of whole-school attendance is tens of thousands of rows, so
-      // this is the one read that genuinely pages several times. Two narrow
-      // columns per row keep each page cheap.
+      // A month of whole-school attendance is tens of thousands of rows; it
+      // used to be paged down here 1,000 at a time and counted in JS. The
+      // database counts it instead (migration 129): ~31 days × 4 statuses.
       wantAttendance
-        ? fetchAllRows<AttendanceRow>((from, to) =>
-            admin
-              .from("attendance")
-              .select("status, date")
-              .gte("date", monthStartStr)
-              .lte("date", monthEndStr)
-              .order("id")
-              .range(from, to)
-          )
-        : emptyPage<AttendanceRow>(),
+        ? admin.rpc("attendance_totals", {
+            p_from: monthStartStr,
+            p_to: monthEndStr,
+            p_group_by: "date",
+          })
+        : Promise.resolve({ data: [] as AttendanceTotalRow[], error: null }),
 
       // Filter on fee_payments.academic_year_id directly — the previous
       // !inner join through fee_structures dropped transport-slab payments
@@ -261,8 +257,8 @@ export async function GET() {
   //
   // A failed or short read is left out rather than charted: half a month's
   // rows draw a plausible picture of a school that stopped marking attendance.
-  if (wantAttendance && !attendanceRes.error && !attendanceRes.truncated) {
-    const rows = attendanceRes.data;
+  if (wantAttendance && !attendanceTotalsRes.error) {
+    const rows = (attendanceTotalsRes.data ?? []) as AttendanceTotalRow[];
     const daysInMonth = monthEnd.getDate();
     const buckets: {
       date: string;
@@ -274,12 +270,13 @@ export async function GET() {
     }[] = [];
     const byDate = new Map<string, { present: number; absent: number; late: number }>();
     for (const r of rows) {
-      const slot = byDate.get(r.date) ?? { present: 0, absent: 0, late: 0 };
-      if (r.status === "present") slot.present++;
-      else if (r.status === "absent") slot.absent++;
-      else if (r.status === "late") slot.late++;
-      else if (r.status === "half_day") slot.present += 0.5; // count half-day as half present
-      byDate.set(r.date, slot);
+      const slot = byDate.get(r.bucket) ?? { present: 0, absent: 0, late: 0 };
+      const n = Number(r.n);
+      if (r.status === "present") slot.present += n;
+      else if (r.status === "absent") slot.absent += n;
+      else if (r.status === "late") slot.late += n;
+      else if (r.status === "half_day") slot.present += 0.5 * n; // count half-day as half present
+      byDate.set(r.bucket, slot);
     }
     for (let d = 1; d <= daysInMonth; d++) {
       const dt = toISODate(new Date(Date.UTC(todayYear, todayMonth - 1, d)), "UTC");
@@ -557,5 +554,15 @@ export async function GET() {
     };
   }
 
-  return NextResponse.json(response);
+  // Every dashboard visit recomputed the whole school's dues. Two minutes of
+  // browser-only caching absorbs the back-and-forth navigation without the
+  // numbers going meaningfully stale. `private` keeps it out of any shared
+  // cache, and Vary: Authorization keeps a second login on the same browser
+  // from being served the first user's blocks.
+  return NextResponse.json(response, {
+    headers: {
+      "Cache-Control": "private, max-age=120",
+      Vary: "Authorization",
+    },
+  });
 }

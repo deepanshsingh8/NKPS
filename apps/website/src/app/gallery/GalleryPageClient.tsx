@@ -141,86 +141,34 @@ function EventPhotoCarousel({
   );
 }
 
-export function GalleryPageClient() {
+// Initial images and events come from the page (server, ISR) — this used to
+// run three Supabase queries from every visitor's browser. Opening an event
+// still loads that event's photos on demand.
+export function GalleryPageClient({
+  initialImages,
+  initialEvents,
+}: {
+  initialImages: GalleryImage[];
+  initialEvents: GalleryEventWithImages[];
+}) {
   const [activeCategory, setActiveCategory] = useState("All");
   const [viewMode, setViewMode] = useState<"categories" | "events">("events");
   const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
-  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
-  const [galleryEvents, setGalleryEvents] = useState<GalleryEventWithImages[]>([]);
+  const galleryImages = initialImages;
+  const galleryEvents = initialEvents;
   const [selectedEvent, setSelectedEvent] = useState<GalleryEventWithImages | null>(null);
   const [eventImages, setEventImages] = useState<GalleryImage[]>([]);
   const [selectedYear, setSelectedYear] = useState<string>("all");
-  const [availableYears, setAvailableYears] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const availableYears = Array.from(
+    new Set(
+      galleryEvents
+        .map((evt) => evt.academic_year)
+        .filter((y): y is string => !!y)
+    )
+  )
+    .sort()
+    .reverse();
 
-  useEffect(() => {
-    async function fetchImages() {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("gallery_images")
-        .select("id, src, alt, category")
-        .is("gallery_event_id", null)
-        .order("sort_order", { ascending: true });
-
-      if (data) {
-        const dbImages: GalleryImage[] = data.map((img) => ({
-          id: String(img.id),
-          src: img.src,
-          alt: img.alt,
-          category: img.category,
-        }));
-        setGalleryImages(dbImages);
-      }
-
-      // Fetch gallery events
-      const { data: events } = await supabase
-        .from("gallery_events")
-        .select("id, title, event_date, academic_year, cover_image_url")
-        .eq("is_public", true)
-        .order("event_date", { ascending: false });
-
-      if (events && events.length > 0) {
-        // Get image counts AND first image per event for cover fallback
-        const { data: eventImgs } = await supabase
-          .from("gallery_images")
-          .select("gallery_event_id, src")
-          .not("gallery_event_id", "is", null)
-          .order("sort_order", { ascending: true });
-
-        const counts: Record<string, number> = {};
-        const firstImages: Record<string, string> = {};
-        (eventImgs ?? []).forEach((img: { gallery_event_id: string | null; src: string }) => {
-          if (img.gallery_event_id) {
-            counts[img.gallery_event_id] = (counts[img.gallery_event_id] || 0) + 1;
-            if (!firstImages[img.gallery_event_id]) {
-              firstImages[img.gallery_event_id] = img.src;
-            }
-          }
-        });
-
-        const eventsWithCounts: GalleryEventWithImages[] = events.map((e) => ({
-          id: e.id,
-          title: e.title,
-          event_date: e.event_date,
-          academic_year: e.academic_year,
-          image_count: counts[e.id] || 0,
-          cover_url: e.cover_image_url || firstImages[e.id] || null,
-        }));
-
-        setGalleryEvents(eventsWithCounts);
-
-        // Extract unique academic years for the filter
-        const years = new Set<string>();
-        eventsWithCounts.forEach((evt) => {
-          if (evt.academic_year) years.add(evt.academic_year);
-        });
-        setAvailableYears(Array.from(years).sort().reverse());
-      }
-
-      setLoading(false);
-    }
-    fetchImages();
-  }, []);
 
   const fetchEventImages = async (event: GalleryEventWithImages) => {
     setSelectedEvent(event);
@@ -450,12 +398,7 @@ export function GalleryPageClient() {
               )}
 
               {/* Event Cards */}
-              {loading ? (
-                <div className="flex flex-col items-center justify-center py-20">
-                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-900/20 border-t-navy-900" />
-                  <p className="mt-4 text-sm text-navy-800/50">Loading events...</p>
-                </div>
-              ) : filteredEvents.length > 0 ? (
+              {filteredEvents.length > 0 ? (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}

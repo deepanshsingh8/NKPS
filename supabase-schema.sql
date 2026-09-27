@@ -7978,3 +7978,73 @@ CREATE POLICY "PTM editors manage school_meeting_counts"
   ON school_meeting_counts FOR ALL TO authenticated
   USING ((SELECT public.has_editor_capability('ptm_notes')))
   WITH CHECK ((SELECT public.has_editor_capability('ptm_notes')));
+
+-- ============================================================================
+-- MIGRATION 129 — attendance_totals(): counts, not rows
+-- Mirrors scripts/migrations/erp/migration-129-attendance-totals.sql
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.attendance_totals(
+  p_from date,
+  p_to date,
+  p_group_by text,             -- 'date' | 'class'
+  p_class_ids uuid[] DEFAULT NULL
+)
+RETURNS TABLE (bucket text, status text, n bigint)
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public
+AS $$
+  SELECT CASE WHEN p_group_by = 'class' THEN a.class_id::text ELSE a.date::text END,
+         a.status,
+         count(*)
+    FROM public.attendance a
+   WHERE a.date BETWEEN p_from AND p_to
+     AND (p_class_ids IS NULL OR a.class_id = ANY (p_class_ids))
+   GROUP BY 1, 2;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.attendance_totals(date, date, text, uuid[]) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.attendance_totals(date, date, text, uuid[]) TO authenticated, service_role;
+
+COMMENT ON FUNCTION public.attendance_totals(date, date, text, uuid[]) IS
+  'Attendance counts per (date or class, status) in a date range. SECURITY '
+  'INVOKER: RLS on attendance decides which rows are counted.';
+
+-- ============================================================================
+-- MIGRATION 130 — staff read students only when a granted feature needs them
+-- Mirrors scripts/migrations/erp/migration-130-staff-student-read-scoped.sql
+-- Replaces migration 084's role-wide staff policies.
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.staff_can_read_students()
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+      FROM public.profiles p
+      JOIN public.editor_permissions ep ON ep.editor_id = p.id
+     WHERE p.id = auth.uid()
+       AND p.role = 'staff'
+       AND ep.feature_key NOT IN (
+         'gallery', 'articles', 'contact', 'site_media', 'disclosure',
+         'calendar', 'academic_years', 'exam_types', 'staff'
+       )
+  );
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.staff_can_read_students() FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.staff_can_read_students() TO authenticated;
+
+DROP POLICY IF EXISTS "students_select_staff" ON public.students;
+CREATE POLICY "students_select_staff"
+  ON public.students FOR SELECT TO authenticated
+  USING ((SELECT public.staff_can_read_students()));
+
+DROP POLICY IF EXISTS "student_enrollments_select_staff" ON public.student_enrollments;
+CREATE POLICY "student_enrollments_select_staff"
+  ON public.student_enrollments FOR SELECT TO authenticated
+  USING ((SELECT public.staff_can_read_students()));

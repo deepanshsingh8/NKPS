@@ -186,22 +186,17 @@ export default function AdminAttendancePage() {
           .order("id", { ascending: true })
           .range(from, to)
       ),
-      // A term-long range over every class runs to tens of thousands of rows.
-      // `.range(0, 99999)` did not lift PostgREST's 1000-row cap — a Range
-      // header can only ask for less than the cap — so this table was drawn
-      // from the first thousand marks of the term and under-reported every
-      // class, with no error to notice. Paged, and ordered by id so the pages
-      // are disjoint.
-      fetchAllRows<{ class_id: string; status: string }>((from, to) =>
-        supabase
-          .from("attendance")
-          .select("class_id, status")
-          .in("class_id", classIds)
-          .gte("date", dateFrom)
-          .lte("date", dateTo)
-          .order("id", { ascending: true })
-          .range(from, to)
-      ),
+      // A term-long range over every class runs to tens of thousands of rows,
+      // which this page used to download in 1,000-row pages to count them.
+      // The database counts instead (migration 129): one row per class and
+      // status. It runs as the signed-in user, so RLS still decides what is
+      // counted.
+      supabase.rpc("attendance_totals", {
+        p_from: dateFrom,
+        p_to: dateTo,
+        p_group_by: "class",
+        p_class_ids: classIds,
+      }),
     ]);
 
     // A read that failed or stopped short would show up as a low percentage
@@ -209,8 +204,7 @@ export default function AdminAttendancePage() {
     if (
       enrollmentRes.error ||
       enrollmentRes.truncated ||
-      attendanceRes.error ||
-      attendanceRes.truncated
+      attendanceRes.error
     ) {
       console.error(
         "Attendance stats read failed:",
@@ -237,18 +231,24 @@ export default function AdminAttendancePage() {
       late: number;
     }
     const tallyByClass = new Map<string, Tally>();
-    for (const row of attendanceRes.data ?? []) {
-      let tally = tallyByClass.get(row.class_id);
+    const totals = (attendanceRes.data ?? []) as {
+      bucket: string;
+      status: string;
+      n: number;
+    }[];
+    for (const row of totals) {
+      let tally = tallyByClass.get(row.bucket);
       if (!tally) {
         tally = { total: 0, present: 0, absent: 0, late: 0 };
-        tallyByClass.set(row.class_id, tally);
+        tallyByClass.set(row.bucket, tally);
       }
-      tally.total += 1;
+      const n = Number(row.n);
+      tally.total += n;
       // A late arrival still attended, so it counts as present here and is
       // reported again on its own in the Late column.
-      if (row.status === "present" || row.status === "late") tally.present += 1;
-      if (row.status === "absent") tally.absent += 1;
-      if (row.status === "late") tally.late += 1;
+      if (row.status === "present" || row.status === "late") tally.present += n;
+      if (row.status === "absent") tally.absent += n;
+      if (row.status === "late") tally.late += n;
     }
 
     const stats: ClassAttendanceStat[] = targetClasses.map((cls) => {

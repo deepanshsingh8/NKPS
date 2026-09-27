@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { CurriculumOverview } from "@/components/academics/CurriculumOverview";
 import { StaffDirectory } from "@/components/academics/StaffDirectory";
+import { getPublicStaffDirectory } from "@/lib/public-data";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 
@@ -12,7 +13,11 @@ export const metadata: Metadata = buildMetadata({
   path: "/academics",
 });
 
-export default function AcademicsPage() {
+// ISR: the staff directory is read once per window rather than per visitor.
+export const revalidate = 300;
+
+export default async function AcademicsPage() {
+  const staff = await getPublicStaffDirectory();
   return (
     <>
       <JsonLd
@@ -26,7 +31,7 @@ export default function AcademicsPage() {
         subtitle="Excellence in Education"
       />
       <CurriculumOverview />
-      <StaffDirectory />
+      <StaffDirectory staff={staff} />
     </>
   );
 }
