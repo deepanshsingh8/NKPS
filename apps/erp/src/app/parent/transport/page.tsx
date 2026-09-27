@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+import { staffDisplayNames } from "@/lib/display-names";
 import {
   Card,
   CardContent,
@@ -236,7 +237,7 @@ export default function ParentTransportPage() {
     const { data: enrollment } = await supabase
       .from("student_enrollments")
       .select(
-        "id, has_transport, bus_stop_id, bus_id, transport_direction, transport_fee_override, academic_year_id, bus_stops(name), buses(bus_number, staff_members:driver_id(name))"
+        "id, has_transport, bus_stop_id, bus_id, transport_direction, transport_fee_override, academic_year_id, bus_stops(name), buses(bus_number, driver_id)"
       )
       .eq("student_id", studentId)
       .order("enrollment_date", { ascending: false })
@@ -254,8 +255,9 @@ export default function ParentTransportPage() {
       (enrollment.bus_stops as unknown as { name: string } | null)?.name ?? null;
     const busInfo = enrollment.buses as unknown as {
       bus_number: string;
-      staff_members: { name: string } | null;
+      driver_id: string | null;
     } | null;
+    const driverNames = await staffDisplayNames(supabase, [busInfo?.driver_id]);
     const direction =
       (enrollment.transport_direction as TransportDirection | null) ?? "both";
     const override = (enrollment.transport_fee_override as number | null) ?? null;
@@ -282,7 +284,9 @@ export default function ParentTransportPage() {
       has_transport: Boolean(enrollment.has_transport),
       stop_name: stopName,
       bus_number: busInfo?.bus_number ?? null,
-      driver_name: busInfo?.staff_members?.name ?? null,
+      driver_name: busInfo?.driver_id
+        ? driverNames.get(busInfo.driver_id) ?? null
+        : null,
       direction,
       fee_amount: feeAmount,
       fee_frequency: feeFrequency,

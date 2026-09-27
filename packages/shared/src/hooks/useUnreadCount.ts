@@ -86,12 +86,31 @@ export function useUnreadCount({
       }
     };
 
-    fetchCounts();
-    const interval = setInterval(fetchCounts, 60_000);
+    // Every tick is up to four serverless invocations, each an auth check plus
+    // a count query. Badges are a nudge, not a live feed: poll every five
+    // minutes, and not at all while the tab is hidden — a tab left open
+    // overnight used to cost ~4,300 invocations a day. Coming back to the tab
+    // refreshes immediately.
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (interval) return;
+      fetchCounts();
+      interval = setInterval(fetchCounts, 5 * 60_000);
+    };
+    const stop = () => {
+      if (interval) clearInterval(interval);
+      interval = null;
+    };
+    const onVisibility = () =>
+      document.visibilityState === "visible" ? start() : stop();
+
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       mounted = false;
-      clearInterval(interval);
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [contact, registrations, feeChangeRequests, transportChanges]);
 

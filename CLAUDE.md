@@ -92,6 +92,21 @@ change must be mirrored into `supabase-schema.sql`.
 
 `MODULES.md` lists the tables per tier.
 
+### Views must say who may read them
+
+A view runs with its **owner's** rights, so it bypasses the RLS on the tables
+underneath; Supabase's default privileges `GRANT ALL` on every new view to
+`anon` and `authenticated`; and a single-table view is auto-updatable. Leave
+all three alone and the public anon key — shipped in every page — can read
+*and write* through the view. That is how `teachers_needing_review`,
+`profile_link_health` and `public_staff_directory` were open until migration
+127. Every new view therefore ends with either
+`ALTER VIEW … SET (security_invoker = true)` plus a `REVOKE ALL … FROM anon,
+authenticated` (read it server-side with the service role), or, if it is
+deliberately public, `REVOKE ALL` followed by `GRANT SELECT` only. The same goes
+for a `SECURITY DEFINER` function: `REVOKE EXECUTE … FROM PUBLIC, anon` unless
+the browser really calls it.
+
 ### Admin writes go through a proxy
 
 Client code calls `adminApi()` → `POST /api/admin`, gated by

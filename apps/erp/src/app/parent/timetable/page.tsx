@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+import { teacherDisplayNames } from "@/lib/display-names";
 import { buildElectiveFilter } from "@nkps/shared/lib/elective-timetable";
 import { Card, CardContent, CardHeader, CardTitle } from "@nkps/shared/components/ui/card";
 import { Badge } from "@nkps/shared/components/ui/badge";
@@ -185,12 +186,22 @@ export default function ParentTimetablePage() {
       const { data } = await supabase
         .from("timetable_periods")
         .select(
-          "id, day_of_week, period_number, start_time, end_time, room, group_no, group_label, subject_id, subject:subjects(name), teacher:teachers(full_name)"
+          "id, day_of_week, period_number, start_time, end_time, room, group_no, group_label, subject_id, teacher_id, subject:subjects(name)"
         )
         .eq("class_id", enrollment.class_id)
         .order("period_number", { ascending: true });
 
-      const rows = (data ?? []) as unknown as TimetableEntry[];
+      const raw = (data ?? []) as unknown as (Omit<TimetableEntry, "teacher"> & {
+        teacher_id: string | null;
+      })[];
+      const teacherNames = await teacherDisplayNames(
+        supabase,
+        raw.map((r) => r.teacher_id)
+      );
+      const rows: TimetableEntry[] = raw.map(({ teacher_id, ...r }) => {
+        const name = teacher_id ? teacherNames.get(teacher_id) : undefined;
+        return { ...r, teacher: name ? { full_name: name } : null };
+      });
 
       // Show this child's own optional subject, not both sides of the slot.
       // Filtered on the way into state so today's list, the period rows and
