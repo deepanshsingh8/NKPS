@@ -197,8 +197,13 @@ export function SidebarShell({
     const showBadge = badgeCount > 0;
     const badgeLabel = badgeCount > 99 ? "99+" : badgeCount;
 
+    // prefetch={false} on every sidebar link: a viewport prefetch is a real
+    // request through proxy.ts (a Supabase auth call + a profiles read), and a
+    // sidebar puts dozens of links in the viewport at once. The pages load
+    // their own data client-side, so prefetching bought little.
     const linkContent = (
       <Link
+        prefetch={false}
         href={href}
         className={cn(
           "flex items-center gap-3 rounded-lg text-sm transition-all duration-200 relative",
@@ -246,6 +251,7 @@ export function SidebarShell({
     if (collapsed) {
       const iconContent = (
         <Link
+          prefetch={false}
           href={group.landingHref}
           className={cn(
             "flex items-center rounded-lg text-sm transition-all duration-200 px-2.5 py-2.5 justify-center",
@@ -292,6 +298,7 @@ export function SidebarShell({
           <div className="mt-0.5 ml-4 pl-3 border-l border-white/10 space-y-0.5">
             {!group.hideOverview && (
               <Link
+                prefetch={false}
                 href={group.landingHref}
                 className={cn(
                   "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-colors",
@@ -321,6 +328,7 @@ export function SidebarShell({
     const badgeLabel = badgeCount > 99 ? "99+" : badgeCount;
     return (
       <Link
+        prefetch={false}
         key={link.href}
         href={link.href}
         className={cn(
@@ -370,6 +378,7 @@ export function SidebarShell({
           <div className="mt-0.5 ml-3 pl-3 border-l border-white/10 space-y-0.5">
             {!group.hideOverview && (
               <Link
+                prefetch={false}
                 href={group.landingHref}
                 className={cn(
                   "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-colors",

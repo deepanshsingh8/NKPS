@@ -1260,9 +1260,9 @@ CREATE POLICY "Staff can update contact submissions"
   USING (public.get_user_role() IN ('admin', 'staff'))
   WITH CHECK (public.get_user_role() IN ('admin', 'staff'));
 
-CREATE POLICY "Service role can insert contact submissions"
-  ON contact_submissions FOR INSERT
-  WITH CHECK (true);
+-- No INSERT policy: the website's /api/contact inserts with the service role,
+-- which ignores RLS. A public INSERT policy only let anyone skip that route's
+-- validation and rate limit (dropped in migration 127).
 
 -- Site Media
 ALTER TABLE site_media ENABLE ROW LEVEL SECURITY;
@@ -1307,10 +1307,11 @@ ALTER TABLE staff_members ENABLE ROW LEVEL SECURITY;
 -- (date_of_birth, address, phone, email, license_number). The public staff
 -- directory reads the `public_staff_directory` view instead — defined at the
 -- end of this file.
-CREATE POLICY "Authenticated can read staff members"
-  ON staff_members FOR SELECT
-  TO authenticated
-  USING (true);
+-- migration-128: staff roles only (phone, address, DOB, licence live here).
+-- The parent transport screen gets the driver's name from staff_display_names().
+CREATE POLICY "staff_members_select_staff"
+  ON staff_members FOR SELECT TO authenticated
+  USING ((SELECT public.get_user_role()) IN ('admin', 'editor', 'staff', 'teacher'));
 
 CREATE POLICY "Staff can insert staff members"
   ON staff_members FOR INSERT TO authenticated
@@ -1457,10 +1458,13 @@ ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
 -- migration-098: authenticated-only. This policy previously read
 -- `USING (true)` with no TO clause, which includes anon — exposing
 -- aadhar_number, date_of_birth, address, phone and email to the internet.
-CREATE POLICY "Authenticated can read teachers"
-  ON teachers FOR SELECT
-  TO authenticated
-  USING (true);
+--
+-- migration-128: staff roles only. `TO authenticated USING (true)` still let
+-- every parent and student read the same columns. Portal screens that need a
+-- teacher's name call teacher_display_names() instead.
+CREATE POLICY "teachers_select_staff"
+  ON teachers FOR SELECT TO authenticated
+  USING ((SELECT public.get_user_role()) IN ('admin', 'editor', 'staff', 'teacher'));
 
 CREATE POLICY "Admins can insert teachers"
   ON teachers FOR INSERT
@@ -3739,18 +3743,21 @@ CREATE POLICY "Admins manage school_meeting_counts"
   );
 
 DROP POLICY IF EXISTS "Teachers manage school_meeting_counts for own classes" ON school_meeting_counts;
+-- migration-127: this used to be granted to PUBLIC with `class_id IS NULL OR
+-- …`, which let anon write every school-wide row. School-wide (NULL) rows are
+-- admin / ptm_notes-editor configuration, as /api/school-meeting-counts says.
 CREATE POLICY "Teachers manage school_meeting_counts for own classes"
-  ON school_meeting_counts FOR ALL
+  ON school_meeting_counts FOR ALL TO authenticated
   USING (
-    -- Year-wide / school-wide rows (class_id NULL) allowed for any teacher
-    -- since they reflect institution-level meeting totals.
-    class_id IS NULL
-    OR class_id IN (SELECT public.get_my_class_ids())
+    (SELECT public.get_user_role()) = 'teacher'
+    AND class_id IN (SELECT public.get_my_class_ids())
   )
   WITH CHECK (
-    class_id IS NULL
-    OR class_id IN (SELECT public.get_my_class_ids())
+    (SELECT public.get_user_role()) = 'teacher'
+    AND class_id IN (SELECT public.get_my_class_ids())
   );
+-- (The ptm_notes-editor policy is at the end of the file, in the migration-127
+-- section: it needs has_editor_capability(), which is defined later.)
 -- Migration 027: PTM Format templates (Phase 6 Chunk C).
 --
 -- Admin-configurable template for the printable handout given to parents
@@ -6211,8 +6218,7 @@ COMMENT ON COLUMN report_presets.created_by IS
 CREATE INDEX IF NOT EXISTS idx_fee_payments_academic_year_id
   ON fee_payments(academic_year_id);
 
-CREATE INDEX IF NOT EXISTS idx_class_tests_class_id
-  ON class_tests(class_id);
+-- (idx_class_tests_class_id duplicated idx_class_tests_class; dropped in 127.)
 CREATE INDEX IF NOT EXISTS idx_class_tests_subject_id
   ON class_tests(subject_id);
 
@@ -6225,8 +6231,8 @@ CREATE INDEX IF NOT EXISTS idx_timetable_periods_subject_id
 CREATE INDEX IF NOT EXISTS idx_exam_schedules_subject_id
   ON exam_schedules(subject_id);
 
-CREATE INDEX IF NOT EXISTS idx_student_enrollments_stream_id
-  ON student_enrollments(stream_id);
+-- (idx_student_enrollments_stream_id duplicated idx_student_enrollments_stream;
+--  dropped in 127.)
 
 CREATE INDEX IF NOT EXISTS idx_marksheet_publications_exam_type_id
   ON marksheet_publications(exam_type_id);
@@ -7887,3 +7893,158 @@ COMMENT ON FUNCTION public.set_enrollment_exit_date(uuid, date, text, uuid) IS
 -- as change_enrollment_status is. No grant to anon/authenticated.
 REVOKE ALL ON FUNCTION public.set_enrollment_exit_date(uuid, date, text, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.set_enrollment_exit_date(uuid, date, text, uuid) FROM anon, authenticated;
+
+
+-- ============================================================================
+-- MIGRATION 127 — close what the anon key could reach
+-- Mirrors scripts/migrations/cross/migration-127-close-anon-exposure.sql
+-- ============================================================================
+-- Views run with their OWNER's rights (bypassing RLS) unless security_invoker,
+-- Supabase's default privileges GRANT ALL on every new view to anon and
+-- authenticated, and a single-table view is auto-updatable. So every view in
+-- `public` must say who may read it — see the "Views" rule in CLAUDE.md.
+
+-- ── 1. Views ────────────────────────────────────────────────────────────────
+REVOKE ALL ON public.teachers_needing_review FROM anon, authenticated;
+REVOKE ALL ON public.profile_link_health     FROM anon, authenticated;
+ALTER VIEW public.teachers_needing_review SET (security_invoker = true);
+ALTER VIEW public.profile_link_health     SET (security_invoker = true);
+
+-- Stays owner-rights on purpose (anon cannot read staff_members), but read-only.
+REVOKE ALL ON public.public_staff_directory FROM anon, authenticated;
+GRANT SELECT ON public.public_staff_directory TO anon, authenticated;
+
+-- The two diagnostic timetable views were already revoked from anon; make the
+-- same true of authenticated. Both are read with the service role.
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+  ON public.timetable_teacher_clashes, public.timetable_assignment_drift
+  FROM anon, authenticated;
+
+-- ── 4. Functions that should not be RPC endpoints ───────────────────────────
+REVOKE EXECUTE ON FUNCTION public.bump_rate_limit(text, integer, integer)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.bump_rate_limit(text, integer, integer)
+  TO service_role;
+
+REVOKE EXECUTE ON FUNCTION public.handle_new_user()             FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.guard_profile_privileged_cols() FROM PUBLIC, anon, authenticated;
+DO $$
+BEGIN
+  IF to_regprocedure('public.rls_auto_enable()') IS NOT NULL THEN
+    EXECUTE 'REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC, anon, authenticated';
+  END IF;
+END $$;
+
+-- ── 5. Name-only lookups for the portals (policy change is migration 128) ──
+-- Names only, for the portal screens that label a period or a bus.
+CREATE OR REPLACE FUNCTION public.teacher_display_names(p_ids uuid[])
+RETURNS TABLE (id uuid, full_name text)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT t.id, t.full_name FROM public.teachers t WHERE t.id = ANY (p_ids);
+$$;
+
+CREATE OR REPLACE FUNCTION public.staff_display_names(p_ids uuid[])
+RETURNS TABLE (id uuid, name text)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT s.id, s.name FROM public.staff_members s WHERE s.id = ANY (p_ids);
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.teacher_display_names(uuid[]) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.staff_display_names(uuid[])   FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.teacher_display_names(uuid[]) TO authenticated;
+GRANT  EXECUTE ON FUNCTION public.staff_display_names(uuid[])   TO authenticated;
+
+-- ── 6. Indexes (Supabase performance advisor) ───────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_ai_conversations_academic_year_id ON public.ai_conversations(academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_ai_conversations_deleted_by       ON public.ai_conversations(deleted_by);
+CREATE INDEX IF NOT EXISTS idx_ai_conversations_teacher_id       ON public.ai_conversations(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_ai_query_runs_academic_year_id    ON public.ai_query_runs(academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_export_events_ai_run_id           ON public.export_events(ai_run_id);
+CREATE INDEX IF NOT EXISTS idx_parent_phone_otps_parent_id       ON public.parent_phone_otps(parent_id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_conversation_id ON public.whatsapp_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_sessions_parent_id       ON public.whatsapp_sessions(parent_id);
+
+-- ptm_notes editors keep the school-wide (class_id NULL) meeting counts.
+DROP POLICY IF EXISTS "PTM editors manage school_meeting_counts" ON school_meeting_counts;
+CREATE POLICY "PTM editors manage school_meeting_counts"
+  ON school_meeting_counts FOR ALL TO authenticated
+  USING ((SELECT public.has_editor_capability('ptm_notes')))
+  WITH CHECK ((SELECT public.has_editor_capability('ptm_notes')));
+
+-- ============================================================================
+-- MIGRATION 129 — attendance_totals(): counts, not rows
+-- Mirrors scripts/migrations/erp/migration-129-attendance-totals.sql
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.attendance_totals(
+  p_from date,
+  p_to date,
+  p_group_by text,             -- 'date' | 'class'
+  p_class_ids uuid[] DEFAULT NULL
+)
+RETURNS TABLE (bucket text, status text, n bigint)
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public
+AS $$
+  SELECT CASE WHEN p_group_by = 'class' THEN a.class_id::text ELSE a.date::text END,
+         a.status,
+         count(*)
+    FROM public.attendance a
+   WHERE a.date BETWEEN p_from AND p_to
+     AND (p_class_ids IS NULL OR a.class_id = ANY (p_class_ids))
+   GROUP BY 1, 2;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.attendance_totals(date, date, text, uuid[]) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.attendance_totals(date, date, text, uuid[]) TO authenticated, service_role;
+
+COMMENT ON FUNCTION public.attendance_totals(date, date, text, uuid[]) IS
+  'Attendance counts per (date or class, status) in a date range. SECURITY '
+  'INVOKER: RLS on attendance decides which rows are counted.';
+
+-- ============================================================================
+-- MIGRATION 130 — staff read students only when a granted feature needs them
+-- Mirrors scripts/migrations/erp/migration-130-staff-student-read-scoped.sql
+-- Replaces migration 084's role-wide staff policies.
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.staff_can_read_students()
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+      FROM public.profiles p
+      JOIN public.editor_permissions ep ON ep.editor_id = p.id
+     WHERE p.id = auth.uid()
+       AND p.role = 'staff'
+       AND ep.feature_key NOT IN (
+         'gallery', 'articles', 'contact', 'site_media', 'disclosure',
+         'calendar', 'academic_years', 'exam_types', 'staff'
+       )
+  );
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.staff_can_read_students() FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.staff_can_read_students() TO authenticated;
+
+DROP POLICY IF EXISTS "students_select_staff" ON public.students;
+CREATE POLICY "students_select_staff"
+  ON public.students FOR SELECT TO authenticated
+  USING ((SELECT public.staff_can_read_students()));
+
+DROP POLICY IF EXISTS "student_enrollments_select_staff" ON public.student_enrollments;
+CREATE POLICY "student_enrollments_select_staff"
+  ON public.student_enrollments FOR SELECT TO authenticated
+  USING ((SELECT public.staff_can_read_students()));

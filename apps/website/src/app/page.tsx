@@ -11,6 +11,7 @@ import { MarqueeStrip } from "@nkps/shared/components/MarqueeStrip";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
 import { getPageMedia, mediaUrl, getSectionCards } from "@/lib/site-media";
 import { getLatestArticles } from "@nkps/shared/lib/articles";
+import { getUpcomingPublicEvents } from "@/lib/public-data";
 import { buildMetadata } from "@nkps/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
@@ -24,7 +25,7 @@ export const metadata: Metadata = buildMetadata({
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const [media, heroCards, testimonialCards, facilityCards, accoladeCards, studentAchievementCards, latestArticles] = await Promise.all([
+  const [media, heroCards, testimonialCards, facilityCards, accoladeCards, studentAchievementCards, latestArticles, upcomingEvents] = await Promise.all([
     getPageMedia("home"),
     getSectionCards("hero_slider"),
     getSectionCards("testimonials"),
@@ -32,6 +33,7 @@ export default async function HomePage() {
     getSectionCards("accolades"),
     getSectionCards("student_achievements"),
     getLatestArticles(9),
+    getUpcomingPublicEvents(6),
   ]);
 
   const statsBackground = mediaUrl(media, "stats_background", "/images/gallery/g10.jpg");
@@ -89,7 +91,7 @@ export default async function HomePage() {
 
       <StatsCounter backgroundImage={statsBackground} />
 
-      <SchoolEvents />
+      <SchoolEvents events={upcomingEvents} />
 
       <Testimonials cards={testimonialCards} />
     </PageTransition>

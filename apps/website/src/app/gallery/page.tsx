@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { GalleryPageClient } from "./GalleryPageClient";
+import { getPublicGallery } from "@/lib/public-data";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 
@@ -10,7 +11,11 @@ export const metadata: Metadata = buildMetadata({
   path: "/gallery",
 });
 
-export default function GalleryPage() {
+// ISR: one set of gallery reads per window rather than per visitor.
+export const revalidate = 300;
+
+export default async function GalleryPage() {
+  const { images, events } = await getPublicGallery();
   return (
     <>
       <JsonLd
@@ -19,7 +24,7 @@ export default function GalleryPage() {
           { name: "Gallery", path: "/gallery" },
         ])}
       />
-      <GalleryPageClient />
+      <GalleryPageClient initialImages={images} initialEvents={events} />
     </>
   );
 }
