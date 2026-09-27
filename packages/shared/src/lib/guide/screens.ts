@@ -1366,6 +1366,14 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         name: "Cancel your own request",
         steps: ['Open the request and click "Cancel request".'],
       },
+      {
+        name: "See who approved or rejected a request",
+        steps: [
+          'Switch to the "Approved", "Rejected" or "Cancelled" tab.',
+          'Each card shows "Approved by …" (or Rejected / Cancelled by) under the filer\'s name.',
+          "Open the request for the reviewer's name with the date and time of the decision.",
+        ],
+      },
     ],
     related: ["/fees/payments"],
   },

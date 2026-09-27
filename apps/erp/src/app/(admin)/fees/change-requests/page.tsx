@@ -64,6 +64,23 @@ const STATUS_TABS: Array<{ value: RequestStatus; label: string }> = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
+// Who closed the request, in words: the reviewer on approve/reject, the
+// requester or an admin on cancel. Null while it is still pending.
+const REVIEW_VERB: Record<RequestStatus, string | null> = {
+  pending: null,
+  approved: "Approved by",
+  rejected: "Rejected by",
+  cancelled: "Cancelled by",
+};
+
+function reviewedLine(r: ChangeRequest): string | null {
+  const verb = REVIEW_VERB[r.status];
+  if (!verb) return null;
+  // reviewed_by goes null only if that profile was deleted (ON DELETE SET NULL).
+  const who = r.reviewed_by_name ?? (r.reviewed_by ? "Unknown" : "a removed user");
+  return `${verb} ${who}`;
+}
+
 const STATUS_COLORS: Record<RequestStatus, string> = {
   pending: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
   approved: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
@@ -284,6 +301,11 @@ export default function FeeChangeRequestsPage() {
               <div className="text-right text-xs text-gray-500 dark:text-gray-400 shrink-0">
                 <div>{r.requested_by_name ?? "Unknown"}</div>
                 <div>{formatTimestamp(r.requested_at)}</div>
+                {reviewedLine(r) && (
+                  <div className="mt-1 font-medium text-gray-700 dark:text-gray-300">
+                    {reviewedLine(r)}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -378,6 +400,15 @@ export default function FeeChangeRequestsPage() {
                   {formatTimestamp(detailReq.requested_at)}
                 </span>
               </div>
+
+              {reviewedLine(detailReq) && (
+                <p className="-mt-2 text-xs text-gray-700 dark:text-gray-300">
+                  <span className="font-medium">{reviewedLine(detailReq)}</span>
+                  {detailReq.reviewed_at && (
+                    <> · {formatTimestamp(detailReq.reviewed_at)}</>
+                  )}
+                </p>
+              )}
 
               {detailSubject && (
                 <div className="rounded-md border bg-gray-50 dark:bg-muted/40 px-3 py-2">
@@ -487,12 +518,6 @@ export default function FeeChangeRequestsPage() {
                     Review notes
                   </h3>
                   <p className="text-sm whitespace-pre-wrap">{detailReq.review_notes}</p>
-                  {detailReq.reviewed_by_name && detailReq.reviewed_at && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      {detailReq.reviewed_by_name} ·{" "}
-                      {formatTimestamp(detailReq.reviewed_at)}
-                    </p>
-                  )}
                 </div>
               )}
 
