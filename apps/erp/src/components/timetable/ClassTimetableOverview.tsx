@@ -13,7 +13,7 @@ import {
   CircleDashed,
   Clock,
   Loader2,
-  Printer,
+  FileDown,
   Search,
   UserX,
 } from "lucide-react";
@@ -320,10 +320,10 @@ export function ClassTimetableOverview({ classes, teachers, onOpen, onPrint }: P
                       variant="ghost"
                       size="icon-sm"
                       onClick={() => onPrint(c.id)}
-                      aria-label={`Print ${formatClassName(c)} timetable`}
-                      title="Print"
+                      aria-label={`Download ${formatClassName(c)} timetable PDF`}
+                      title="Download PDF"
                     >
-                      <Printer className="h-4 w-4" />
+                      <FileDown className="h-4 w-4" />
                     </Button>
                   </div>
                 )}

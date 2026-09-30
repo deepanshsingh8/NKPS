@@ -16,8 +16,10 @@ import {
   SelectValue,
 } from "@nkps/shared/components/ui/select";
 import { Button } from "@nkps/shared/components/ui/button";
-import { Download, FileSpreadsheet, FileText } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { formatClassName } from "@nkps/shared/lib/utils";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 import type { Class } from "@nkps/shared/types";
 import type { GreenSheetData } from "@/lib/green-sheet";
 
@@ -118,23 +120,14 @@ export default function AdminGreenSheetPage() {
         classId
       )}&academic_year_id=${encodeURIComponent(yearId)}`;
       const res = await fetch(url);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        alert(body.error ?? "Failed to generate");
-        return;
-      }
-      const blob = await res.blob();
-      const disposition = res.headers.get("Content-Disposition") ?? "";
-      const match = /filename="([^"]+)"/.exec(disposition);
-      const filename = match?.[1] ?? `green-sheet.${format}`;
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = downloadUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(downloadUrl);
+      const failure = await saveResponse(
+        res,
+        `green-sheet.${format}`,
+        "Couldn't generate the green sheet"
+      );
+      if (failure) toast.error(failure);
+    } catch {
+      toast.error("Couldn't download the green sheet. Check your connection and try again.");
     } finally {
       setDownloading(null);
     }
@@ -236,14 +229,22 @@ export default function AdminGreenSheetPage() {
               onClick={() => handleDownload("csv")}
               disabled={!canAct || downloading !== null}
             >
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              {downloading === "csv" ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+              )}
               {downloading === "csv" ? "Exporting…" : "CSV"}
             </Button>
             <Button
               onClick={() => handleDownload("pdf")}
               disabled={!canAct || downloading !== null}
             >
-              <Download className="h-4 w-4 mr-2" />
+              {downloading === "pdf" ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
               {downloading === "pdf" ? "Generating…" : "PDF"}
             </Button>
           </div>

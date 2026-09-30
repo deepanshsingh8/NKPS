@@ -134,7 +134,8 @@ export type AskEvent =
    */
   | { type: "round_end"; hadTools: boolean }
   | { type: "tool_start"; name: string; label: string | null }
-  | { type: "tool_done"; name: string; failed: boolean }
+  /** `total` is the row count a report found, for the progress line. */
+  | { type: "tool_done"; name: string; failed: boolean; total: number | null }
   | {
       type: "done";
       text: string;
@@ -400,8 +401,8 @@ export async function* runAskTurn(
     // Promise.all preserves the ARRAY order, so runs are appended in the order
     // the model asked for them rather than the order they happened to finish.
     for (const { run } of settled) if (run) runs.push(run);
-    for (const { name, failed } of settled) {
-      yield { type: "tool_done", name, failed };
+    for (const { name, failed, run } of settled) {
+      yield { type: "tool_done", name, failed, total: run?.total ?? null };
     }
 
     messages.push({ role: "user", content: settled.map((r) => r.block) });
@@ -420,9 +421,16 @@ function toolLabel(use: Anthropic.ToolUseBlock): string | null {
   const purpose = typeof input.purpose === "string" ? input.purpose.trim() : "";
   if (purpose) return purpose;
   if (use.name === "list_lookup_values" && typeof input.kind === "string") {
-    return input.kind;
+    return input.kind.replace(/_/g, " ");
   }
-  return null;
+  // Never a bare tool name: "list_classes" on a school office screen reads as
+  // an error message, not as progress.
+  const named: Record<string, string> = {
+    list_classes: "class list",
+    list_exam_types: "exam list",
+    list_academic_sessions: "academic sessions",
+  };
+  return named[use.name] ?? null;
 }
 
 type ToolOutcome =

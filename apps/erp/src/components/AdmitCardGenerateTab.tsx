@@ -31,6 +31,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 import { formatClassName } from "@nkps/shared/lib/utils";
 import type { Class, ExamType } from "@nkps/shared/types";
 
@@ -55,22 +56,6 @@ interface ScheduleCheck {
   count: number;
 }
 
-// Triggers a file download from a fetch Response.
-async function downloadFromResponse(res: Response, fallbackName: string) {
-  const disposition = res.headers.get("Content-Disposition");
-  const match = disposition?.match(/filename="([^"]+)"/);
-  const filename = match?.[1] ?? fallbackName;
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
 export function AdmitCardGenerateTab({
   templates,
 }: {
@@ -87,6 +72,8 @@ export function AdmitCardGenerateTab({
   const [loading, setLoading] = useState(true);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  // The row being downloaded, so a double-click can't fire two renders.
+  const [downloadingOne, setDownloadingOne] = useState<string | null>(null);
 
   const activeTemplates = useMemo(
     () => templates.filter((t) => t.is_active),
@@ -237,22 +224,21 @@ export function AdmitCardGenerateTab({
       const res = await adminFetch(
         `/api/admit-cards/bulk?${params.toString()}`
       );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        toast.error(
-          body.error ??
-            `Failed to generate admit cards (${res.status})`
-        );
-        return;
-      }
-      await downloadFromResponse(res, "admit-cards.pdf");
-      toast.success("Admit cards downloaded");
+      const failure = await saveResponse(
+        res,
+        "admit-cards.pdf",
+        `Failed to generate admit cards (${res.status})`
+      );
+      if (failure) toast.error(failure);
+      else toast.success("Admit cards downloaded");
+    } catch {
+      toast.error("Couldn't download the admit cards. Check your connection and try again.");
     } finally {
       setDownloading(false);
     }
   };
 
-  const downloadOne = async (studentId: string) => {
+  const downloadOne = async (student: StudentRow) => {
     if (!selectedExamTypeId) {
       toast.error("Pick an exam first.");
       return;
@@ -262,19 +248,26 @@ export function AdmitCardGenerateTab({
       return;
     }
     const params = new URLSearchParams({
-      student_id: studentId,
+      student_id: student.student_id,
       exam_type_id: selectedExamTypeId,
       template_id: selectedTemplateId,
     });
-    const res = await adminFetch(
-      `/api/admit-cards/pdf?${params.toString()}`
-    );
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Failed to generate admit card");
-      return;
+    setDownloadingOne(student.student_id);
+    try {
+      const res = await adminFetch(
+        `/api/admit-cards/pdf?${params.toString()}`
+      );
+      const failure = await saveResponse(
+        res,
+        `admit-card-${student.full_name.replace(/\W+/g, "_")}.pdf`,
+        "Couldn't generate the admit card"
+      );
+      if (failure) toast.error(failure);
+    } catch {
+      toast.error("Couldn't download the admit card. Check your connection and try again.");
+    } finally {
+      setDownloadingOne(null);
     }
-    await downloadFromResponse(res, `admit-card-${studentId}.pdf`);
   };
 
   if (loading) {
@@ -481,9 +474,15 @@ export function AdmitCardGenerateTab({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => downloadOne(s.student_id)}
+                        onClick={() => downloadOne(s)}
+                        disabled={downloadingOne === s.student_id}
+                        aria-label={`Download admit card for ${s.full_name}`}
                       >
-                        <Download className="h-3.5 w-3.5" />
+                        {downloadingOne === s.student_id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
                       </Button>
                     </TableCell>
                   </TableRow>

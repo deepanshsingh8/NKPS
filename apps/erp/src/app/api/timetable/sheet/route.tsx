@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import { SCHOOL } from "@nkps/shared/lib/constants";
+import { contentDispositionAttachment } from "@nkps/shared/lib/utils";
 import { TimetableGridPDF } from "@/components/pdf/TimetableGridPDF";
 import { fetchTimetableSheet } from "@/lib/timetable-sheet";
 
@@ -101,11 +102,12 @@ export async function GET(request: NextRequest) {
     />
   );
 
-  const safeSlug = slug.replace(/[^\w\-]+/g, "_");
+  // Attachment, not inline: the screens fetch and save it rather than opening
+  // a tab, which a popup blocker eats once the fetch has awaited.
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="timetable-${safeSlug}.pdf"`,
+      "Content-Disposition": contentDispositionAttachment(`timetable-${slug}.pdf`),
     },
   });
 }
