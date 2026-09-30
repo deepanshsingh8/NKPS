@@ -296,19 +296,19 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
     path: "/people/staff",
     title: "Staff",
     purpose:
-      "The staff directory, split into three tabs — Teachers, Management & Office, and Drivers & Helpers — with categories, contact details, photos, portal logins, and the teacher records that make someone selectable in every class, subject and timetable dropdown.",
+      "The staff directory, split into four tabs — Admin, Teaching, Additional Staff, and Drivers & Helpers — with categories, contact details, photos, portal logins, each person's full staff profile, and the teacher records that make someone selectable in every class, subject and timetable dropdown.",
     tasks: [
       {
         name: "Add a staff member",
         steps: [
-          "Pick the tab the person belongs on (Teachers, Management & Office, or Drivers & Helpers).",
+          "Pick the tab the person belongs on (Admin, Teaching, Additional Staff, or Drivers & Helpers).",
           'Click "Add Staff".',
           'Fill "Full Name *", "Subject / Designation *" and "Category *".',
           "Add email, phone, qualifications and photo if you have them.",
           "Save.",
         ],
         gotcha:
-          "Category drives what happens next: bus drivers and peons cannot be given a portal login at all. The category dropdown only offers categories for the tab you are on.",
+          "Category drives what happens next: Teaching and Additional Staff (Scout & Guide, NCC, coach, PTI) get a teacher login and a teacher record, so they can be timetabled; Admin (Principal, Vice Principal, CBSE portal in-charge, office assistant, front office) gets an office login; bus drivers and peons cannot be given a portal login at all. Emp No., bank, PAN and the rest go on the full profile afterwards.",
       },
       {
         name: "See a staff member's full details",
@@ -316,7 +316,17 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Click the person's name in the table.",
         ],
         gotcha:
-          "For a converted teacher the view also lists their employee ID, joining date, the subjects they can teach, and this year's class-teacher and subject assignments. Use the Edit button in the view (or the pencil on the row) to change anything.",
+          "For a converted teacher the view also lists their employee ID, joining date, the subjects they can teach, and this year's class-teacher and subject assignments. Use the Edit button in the view (or the pencil on the row) to change name, category or photo.",
+      },
+      {
+        name: "Fill in a staff member's full profile",
+        steps: [
+          "Click the person's name, then \"Full profile\".",
+          "Each section — Employee Basic Details, Official Info, Contact Info, Bank, Statutory & Experience, Driving Licence — has its own \"Edit\" button. Change the fields and click \"Save\".",
+          "Trainings and notices from the management are lists: click \"Add\" (or \"Edit\"), use \"Add training\" / \"Add notice\" for each entry, then \"Save\".",
+        ],
+        gotcha:
+          "PAN, Aadhaar, IFSC, PIN and mobile numbers are format-checked, so a typo is flagged on the field instead of being saved. Emp No. must be unique. Bank, PAN and Aadhaar are visible only to admins and editors with the Staff permission — teachers cannot see them.",
       },
       {
         name: "Create a portal login for a staff member",
@@ -335,7 +345,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         steps: [
           "Click the blue graduation-cap icon on the row (Convert to teacher).",
         ],
-        needs: "The category must be a teaching category and they must not already be linked.",
+        needs: "The category must be on the Teaching or Additional Staff tab, and they must not already be linked.",
         gotcha:
           "This is the step people miss. Until a staff member is converted to a teacher record they do not appear in the Class Teacher or subject-teacher dropdowns anywhere.",
       },
@@ -348,7 +358,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
       {
         name: "Retire a teacher who has left the school",
         steps: [
-          'Open the "Teachers" tab.',
+          'Open the "Teaching" (or "Additional Staff") tab.',
           'Find them and click "Retire" in the Teacher record column.',
           "Confirm.",
         ],
@@ -358,7 +368,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
       {
         name: "Bring a retired teacher back",
         steps: [
-          'On the "Teachers" tab, find the row showing "Retired".',
+          'On the "Teaching" or "Additional Staff" tab, find the row showing "Retired".',
           'Click "Bring back".',
         ],
         gotcha:
@@ -367,7 +377,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
       {
         name: "Clear the amber “no staff profile” banner",
         steps: [
-          'Click "Review them" on the banner above the Teachers tab.',
+          'Click "Review them" on the banner above the Teaching tab.',
           "For each name: retire them if they have left, or add them back under Staff if they still work here — the records re-link by themselves.",
         ],
         needs:
@@ -383,7 +393,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "If the sheet has no Category column, pick one for the whole batch on the preview step.",
         ],
         gotcha:
-          "Without a Category column every imported row lands in the single category you pick — there is no per-row override at that point.",
+          "Without a Category column every imported row lands in the single category you pick — there is no per-row override at that point. The template also carries every full-profile column (Emp No., joining date, PAN, bank, CTET/RTET, …); fill what you have. A profile cell in the wrong format is listed on the preview and left blank — the rest of the row still imports.",
       },
     ],
     related: ["/administration/users", "/academics/classes", "/timetable", "/transport/buses"],

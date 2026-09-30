@@ -92,15 +92,15 @@ import {
 } from "@nkps/shared/components/ui/tabs";
 import {
   staffPortalRole,
-  isTeachingStaffCategory,
+  staffNeedsTeacherRecord,
   staffCategoryGroup,
+  staffCategoryLabel,
+  STAFF_CATEGORY_OPTIONS,
+  STAFF_GROUPS,
   type StaffGroup,
 } from "@nkps/shared/lib/staff-roles";
 import type { StaffMember, StaffCategory } from "@nkps/shared/types";
 
-// One tab per staff family. The grouping itself lives in staff-roles.ts next to
-// the login rules, so a category can never sit on one tab here and be treated
-// as another kind of staff elsewhere.
 /** A staff member's linked `teachers` row, and whether it is still active. */
 interface TeacherLink {
   id: string;
@@ -116,27 +116,12 @@ interface OrphanTeacher {
   is_active: boolean;
 }
 
-const STAFF_TABS: { key: StaffGroup; label: string }[] = [
-  { key: "teaching", label: "Teachers" },
-  { key: "office", label: "Management & Office" },
-  { key: "support", label: "Drivers & Helpers" },
-];
+// One tab per staff segment, in the order the school lists them. The grouping
+// itself lives in staff-roles.ts next to the login rules, so a category can
+// never sit on one tab here and be treated as another kind of staff elsewhere.
+const STAFF_TABS = STAFF_GROUPS;
 
-const CATEGORY_OPTIONS: { value: StaffCategory; label: string }[] = [
-  { value: "management", label: "Management" },
-  { value: "admin", label: "Administration" },
-  { value: "pgt", label: "PGT" },
-  { value: "tgt", label: "TGT" },
-  { value: "prt", label: "PRT" },
-  { value: "motherTeachers", label: "Mother Teachers" },
-  { value: "prePrimaryCoordinator", label: "Pre-primary Coordinator" },
-  { value: "primaryCoordinator", label: "Primary Coordinator" },
-  { value: "middleCoordinator", label: "Middle Coordinator" },
-  { value: "seniorCoordinator", label: "Senior Coordinator" },
-  { value: "additionalStaff", label: "Additional Staff" },
-  { value: "busDriver", label: "Bus Drivers" },
-  { value: "peon", label: "Peons" },
-];
+const CATEGORY_OPTIONS = STAFF_CATEGORY_OPTIONS;
 
 // Maps a payload key to the label the admin actually sees on the form, so a
 // rejected save can say "Phone: enter a valid 10-digit Indian mobile number"
@@ -211,7 +196,7 @@ function categoriesForGroup(
 // whole reason it exists.
 //
 // If these ever want colour again, the axis worth colouring is the group —
-// teaching / coordination / office / support — not the thirteen leaves.
+// admin / teaching / additional / support — not the thirteen leaves.
 
 export default function AdminStaffPage() {
   // Creating portal login accounts is admin-only (enforced server-side in
@@ -229,6 +214,10 @@ export default function AdminStaffPage() {
   const activeGroup: StaffGroup = STAFF_TABS.some((t) => t.key === groupParam)
     ? (groupParam as StaffGroup)
     : "teaching";
+  // Tabs whose members carry a `teachers` row (teaching + additional staff),
+  // and so get the Teacher record column with Retire / Bring back.
+  const showsTeacherRecords =
+    activeGroup === "teaching" || activeGroup === "additional";
   const groupCategories = useMemo(
     () => categoriesForGroup(activeGroup),
     [activeGroup]
@@ -786,7 +775,12 @@ export default function AdminStaffPage() {
     [staff, activeGroup]
   );
   const tabCounts = useMemo(() => {
-    const counts: Record<StaffGroup, number> = { teaching: 0, office: 0, support: 0 };
+    const counts: Record<StaffGroup, number> = {
+      admin: 0,
+      teaching: 0,
+      additional: 0,
+      support: 0,
+    };
     for (const m of staff) counts[staffCategoryGroup(m.category)]++;
     return counts;
   }, [staff]);
@@ -810,7 +804,7 @@ export default function AdminStaffPage() {
       },
       category: {
         label: "Category",
-        value: (m) => getCategoryLabel(m.category),
+        value: (m) => staffCategoryLabel(m.category),
       },
       // Already in the payload — the table just never showed them, which made
       // a three-column list of the entire staff harder to use than it needed
@@ -928,8 +922,6 @@ export default function AdminStaffPage() {
     }
   };
 
-  const getCategoryLabel = (cat: StaffCategory) =>
-    CATEGORY_OPTIONS.find((c) => c.value === cat)?.label || cat;
 
   return (
     <div className="space-y-6">
@@ -1155,7 +1147,7 @@ export default function AdminStaffPage() {
                 <SortFilterHead ctl={table} col="email" />
                 <SortFilterHead ctl={table} col="phone" />
                 <SortFilterHead ctl={table} col="is_active" />
-                {activeGroup === "teaching" && (
+                {showsTeacherRecords && (
                   <SortFilterHead ctl={table} col="teacher_record" />
                 )}
                 <TableHead className="w-24 text-right">Actions</TableHead>
@@ -1164,7 +1156,7 @@ export default function AdminStaffPage() {
             <TableBody>
               {visible.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={activeGroup === "teaching" ? 10 : 9} className="py-10 text-center text-gray-500 dark:text-gray-400">
+                  <TableCell colSpan={showsTeacherRecords ? 10 : 9} className="py-10 text-center text-gray-500 dark:text-gray-400">
                     No staff match the column filters.
                   </TableCell>
                 </TableRow>
@@ -1194,7 +1186,7 @@ export default function AdminStaffPage() {
                   <TableCell className="text-gray-500">{member.subject}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">
-                      {getCategoryLabel(member.category)}
+                      {staffCategoryLabel(member.category)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-gray-500">
@@ -1212,7 +1204,7 @@ export default function AdminStaffPage() {
                   </TableCell>
                   {/* Can this person be given classes and timetable periods?
                       Separate from Active above, which is about employment. */}
-                  {activeGroup === "teaching" && (
+                  {showsTeacherRecords && (
                     <TableCell>
                       {(() => {
                         const link = teacherByStaffId.get(member.id);
@@ -1312,7 +1304,7 @@ export default function AdminStaffPage() {
                       ) : null}
                       {/* Convert-to-teacher: only for teaching categories that
                           aren't already linked to a teachers row. */}
-                      {isTeachingStaffCategory(member.category) &&
+                      {staffNeedsTeacherRecord(member.category) &&
                         !teacherByStaffId.has(member.id) && (
                         <Button
                           variant="ghost"
@@ -1607,7 +1599,7 @@ export default function AdminStaffPage() {
         }}
         hasLogin={detailMember ? hasLogin(detailMember) : false}
         teacherLinked={detailMember ? teacherByStaffId.has(detailMember.id) : false}
-        categoryLabel={detailMember ? getCategoryLabel(detailMember.category) : ""}
+        categoryLabel={detailMember ? staffCategoryLabel(detailMember.category) : ""}
       />
 
       {/* Bulk Upload Dialog */}

@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
-import { staffBulkUploadSchema } from "@nkps/shared/lib/validations";
+import {
+  staffBulkUploadSchema,
+  staffCategoryEnum,
+  staffProfileFieldsSchema,
+} from "@nkps/shared/lib/validations";
+import { STAFF_DETAIL_KEYS } from "@nkps/shared/lib/staff-profile-fields";
 import { createPortalUser } from "@nkps/shared/lib/create-portal-user";
 import { staffPortalRole } from "@nkps/shared/lib/staff-roles";
 import { promoteStaffToTeacher } from "@/lib/staff-teacher-sync";
 
-const VALID_CATEGORIES = [
-  "management", "admin", "pgt", "tgt", "prt",
-  "motherTeachers", "prePrimaryCoordinator", "primaryCoordinator",
-  "middleCoordinator", "seniorCoordinator",
-  "additionalStaff", "busDriver", "peon",
-];
+const VALID_CATEGORIES: string[] = staffCategoryEnum.options;
+const DETAIL_KEY_SET = new Set(STAFF_DETAIL_KEYS);
 
 export async function POST(request: Request) {
   const admin = await verifyAdminOrEditor("staff");
@@ -141,6 +142,50 @@ export async function POST(request: Request) {
       if (insData) insertedRows.push(...(insData as InsertedRow[]));
     }
 
+    // Profile columns → staff_details, before the teacher records below so a
+    // new teacher picks up gender and joining date. Rows are matched back by
+    // (name, category), which UNIQUE(name, category) makes exact. A profile
+    // that fails (a duplicate Emp No., say) leaves the staff row in place and
+    // is reported, rather than undoing an otherwise good import.
+    const detailsByKey = new Map<string, Record<string, unknown>>();
+    for (const s of staff) {
+      if (!s.details) continue;
+      const cat = (perRowMode ? s.category : globalCategory)!;
+      detailsByKey.set(`${s.name.trim()}|${cat}`, s.details);
+    }
+    let profilesSaved = 0;
+    for (const row of insertedRows) {
+      const raw = detailsByKey.get(`${row.name}|${row.category}`);
+      if (!raw) continue;
+      const picked = Object.fromEntries(
+        Object.entries(raw).filter(([k]) => DETAIL_KEY_SET.has(k))
+      );
+      const parsed = staffProfileFieldsSchema.safeParse(picked);
+      if (!parsed.success) {
+        errors.push({ name: row.name, error: "Added, but profile details were invalid and not saved" });
+        continue;
+      }
+      const values = Object.fromEntries(
+        Object.entries(parsed.data).filter(([, v]) => v !== undefined && v !== null)
+      );
+      if (Object.keys(values).length === 0) continue;
+      const { error: detailsErr } = await admin
+        .from("staff_details")
+        .upsert({ staff_member_id: row.id, ...values }, { onConflict: "staff_member_id" });
+      if (detailsErr) {
+        console.error("Staff bulk details upsert failed:", detailsErr);
+        errors.push({
+          name: row.name,
+          error:
+            detailsErr.code === "23505"
+              ? "Added, but profile not saved: that Emp No. is already used"
+              : "Added, but profile details could not be saved",
+        });
+      } else {
+        profilesSaved++;
+      }
+    }
+
     // For each inserted staff row: teaching staff always get a linked teachers
     // record (regardless of email, so they're immediately assignable), and a
     // login is additionally provisioned when an email is present — teaching →
@@ -185,6 +230,7 @@ export async function POST(request: Request) {
         ...(allFailed ? { error: "No staff were imported — every row failed." } : {}),
         inserted,
         usersCreated,
+        profilesSaved,
         errors,
         total: staff.length,
       },
