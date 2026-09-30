@@ -26,6 +26,9 @@ function dayOfWeekFromIsoDate(yyyymmdd: string): number {
 //   ?date=YYYY-MM-DD              → all absences on that date with teacher info
 //   ?teacher_id=<uuid>            → all absences for one teacher (history)
 //   ?from=YYYY-MM-DD&to=YYYY-MM-DD → range
+//   &include=substitutions        → each absence also carries its assigned
+//                                    cover, so a week view can show who is
+//                                    taking which period without a second call
 export async function GET(request: NextRequest) {
   const ctx = await verifyAdminOrEditorWithUser("teacher_substitutions");
   if (!ctx) {
@@ -38,12 +41,17 @@ export async function GET(request: NextRequest) {
   const teacherId = searchParams.get("teacher_id");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  const withSubstitutions = searchParams.get("include") === "substitutions";
+
+  const columns =
+    "id, teacher_id, absence_date, half_day, reason, marked_by, created_at, updated_at, teachers(id, full_name, employee_id)" +
+    (withSubstitutions
+      ? ", substitutions(id, timetable_period_id, substitute_teacher_id, substitute:teachers!substitutions_substitute_teacher_id_fkey(id, full_name))"
+      : "");
 
   let query = admin
     .from("teacher_absences")
-    .select(
-      "id, teacher_id, absence_date, half_day, reason, marked_by, created_at, updated_at, teachers(id, full_name, employee_id)"
-    )
+    .select(columns)
     .order("absence_date", { ascending: false });
 
   if (date) query = query.eq("absence_date", date);

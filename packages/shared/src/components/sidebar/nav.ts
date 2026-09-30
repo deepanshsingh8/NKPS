@@ -44,6 +44,35 @@ export function isLinkActive(href: string, pathname: string): boolean {
   return pathname.startsWith(href + "/");
 }
 
+/**
+ * The one link that should look selected: the longest href that matches.
+ *
+ * `isLinkActive` alone is a prefix test, so /timetable/substitutions matches
+ * both "Substitutions" and "Class Timetable" (/timetable) and the two rows lit
+ * up together. Wherever one link's href sits inside another's, the deeper one
+ * is the page you are actually on.
+ */
+export function activeLinkHref(
+  sections: readonly SidebarSection[],
+  pathname: string
+): string | null {
+  let best: string | null = null;
+  const walk = (items: readonly SidebarItem[]) => {
+    for (const item of items) {
+      if (item.kind === "group") {
+        walk(item.children);
+      } else if (
+        isLinkActive(item.href, pathname) &&
+        (best === null || item.href.length > best.length)
+      ) {
+        best = item.href;
+      }
+    }
+  };
+  for (const section of sections) walk(section.items);
+  return best;
+}
+
 export function groupContainsActive(
   group: SidebarGroup,
   pathname: string

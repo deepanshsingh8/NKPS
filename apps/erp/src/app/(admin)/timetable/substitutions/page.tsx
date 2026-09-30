@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { adminFetch, adminDelete } from "@nkps/shared/lib/admin-api";
-import { Button } from "@nkps/shared/components/ui/button";
+import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
+import { cn } from "@nkps/shared/lib/utils";
+import { Button, buttonVariants } from "@nkps/shared/components/ui/button";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import {
@@ -30,28 +33,27 @@ import {
   CalendarX2,
   Inbox,
   Clock,
+  X,
+  CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Teacher } from "@nkps/shared/types";
 import { SubstitutePickerDialog } from "@/components/timetable/SubstitutePickerDialog";
+import {
+  MarkPresentDialog,
+  type AbsenceToClear,
+} from "@/components/timetable/MarkPresentDialog";
+import {
+  HALF_DAY_OPTIONS,
+  formatLongDate,
+  halfDayLabel,
+  pickOne,
+  todayIso,
+  weekStartOf,
+  type AbsenceWithCover,
+} from "@/lib/timetable-week";
 
-const HALF_DAY_OPTIONS = [
-  { value: "full", label: "Full day" },
-  { value: "first_half", label: "First half (morning)" },
-  { value: "second_half", label: "Second half (afternoon)" },
-] as const;
-
-interface AbsenceRow {
-  id: string;
-  teacher_id: string;
-  absence_date: string;
-  half_day: "full" | "first_half" | "second_half";
-  reason: string | null;
-  teachers:
-    | { id: string; full_name: string; employee_id: string | null }
-    | { id: string; full_name: string; employee_id: string | null }[]
-    | null;
-}
+type AbsenceRow = AbsenceWithCover;
 
 interface SuggestPeriodPayload {
   period: {
@@ -75,33 +77,32 @@ interface SuggestPeriodPayload {
   candidate_count_total: number;
 }
 
-function pickOne<T>(rel: T | T[] | null | undefined): T | null {
-  if (!rel) return null;
-  return Array.isArray(rel) ? (rel[0] ?? null) : rel;
-}
-
-function todayIso(): string {
-  const d = new Date();
-  d.setHours(12, 0, 0, 0);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function formatTime(t: string): string {
   return t.length >= 5 ? t.slice(0, 5) : t;
 }
 
-function halfDayLabel(h: string): string {
-  return HALF_DAY_OPTIONS.find((o) => o.value === h)?.label ?? h;
-}
-
 export default function AdminSubstitutionsPage() {
   const supabase = createClient();
-  const [date, setDate] = useState(todayIso());
+  // Both in the URL so "Assign cover" on the Teacher Timetable, and the back
+  // button, land on the right day with the right teacher open.
+  const [dateParam, setDateParam] = useUrlState("date");
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : todayIso();
+  const setDate = (next: string) => setDateParam(next === todayIso() ? "" : next);
+  const [absenceParam, setAbsenceParam] = useUrlState("absence");
+  const selectedAbsenceId = absenceParam || null;
+  const setSelectedAbsenceId = useCallback(
+    (id: string | null) => setAbsenceParam(id ?? ""),
+    [setAbsenceParam]
+  );
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [absences, setAbsences] = useState<AbsenceRow[]>([]);
   const [loadingAbsences, setLoadingAbsences] = useState(false);
-  const [selectedAbsenceId, setSelectedAbsenceId] = useState<string | null>(null);
+  // Which date `absences` was loaded for. Until the list for the current date
+  // has arrived, an absence id from the URL cannot be judged stale — clearing
+  // it against the still-empty first render threw away every deep link.
+  const [absencesDate, setAbsencesDate] = useState<string | null>(null);
+  const [presentTarget, setPresentTarget] = useState<AbsenceToClear | null>(null);
 
   const [periodsForAbsence, setPeriodsForAbsence] = useState<SuggestPeriodPayload[]>([]);
   const [periodsLoading, setPeriodsLoading] = useState(false);
@@ -130,14 +131,23 @@ export default function AdminSubstitutionsPage() {
 
   const fetchAbsences = useCallback(async () => {
     setLoadingAbsences(true);
-    const res = await adminFetch(`/api/teacher-absences?date=${date}`);
+    const res = await adminFetch(
+      `/api/teacher-absences?date=${date}&include=substitutions`
+    );
     if (!res.ok) {
       toast.error("Failed to load absences");
       setAbsences([]);
     } else {
       const body = await res.json();
-      setAbsences((body.data as AbsenceRow[]) ?? []);
+      const rows = ((body.data as AbsenceRow[]) ?? []).slice();
+      rows.sort((a, b) =>
+        (pickOne(a.teachers)?.full_name ?? "").localeCompare(
+          pickOne(b.teachers)?.full_name ?? ""
+        )
+      );
+      setAbsences(rows);
     }
+    setAbsencesDate(date);
     setLoadingAbsences(false);
   }, [date]);
 
@@ -147,11 +157,12 @@ export default function AdminSubstitutionsPage() {
 
   // When date or absences change, clear the right-pane selection if it's gone.
   useEffect(() => {
+    if (absencesDate !== date) return;
     if (selectedAbsenceId && !absences.find((a) => a.id === selectedAbsenceId)) {
       setSelectedAbsenceId(null);
       setPeriodsForAbsence([]);
     }
-  }, [absences, selectedAbsenceId]);
+  }, [absences, absencesDate, date, selectedAbsenceId, setSelectedAbsenceId]);
 
   const fetchPeriodsFor = useCallback(async (absenceId: string) => {
     setPeriodsLoading(true);
@@ -176,19 +187,16 @@ export default function AdminSubstitutionsPage() {
     else setPeriodsForAbsence([]);
   }, [selectedAbsenceId, fetchPeriodsFor]);
 
-  const handleDeleteAbsence = async (id: string) => {
-    if (!confirm("Remove this absence? Any assigned substitutes for it will also be removed.")) {
-      return;
-    }
-    const res = await adminDelete(`/api/teacher-absences/${id}`, {});
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Failed to delete");
-      return;
-    }
-    toast.success("Absence removed");
-    fetchAbsences();
-  };
+  // Undo an absence — the fix for a teacher marked absent by mistake, which
+  // used to be permanent unless they happened to have no periods that day.
+  const askMarkPresent = (a: AbsenceRow) =>
+    setPresentTarget({
+      id: a.id,
+      teacherName: pickOne(a.teachers)?.full_name ?? "Teacher",
+      date: a.absence_date,
+      halfDay: a.half_day,
+      coverCount: a.substitutions?.length ?? 0,
+    });
 
   const handleUnassign = async (substitutionId: string) => {
     const res = await adminDelete(`/api/substitutions/${substitutionId}`, {});
@@ -199,7 +207,11 @@ export default function AdminSubstitutionsPage() {
     }
     toast.success("Substitute removed");
     if (selectedAbsenceId) fetchPeriodsFor(selectedAbsenceId);
+    fetchAbsences();
   };
+
+  const selectedAbsence = absences.find((a) => a.id === selectedAbsenceId) ?? null;
+  const coveredCount = periodsForAbsence.filter((r) => r.current_substitution).length;
 
   const handlePrint = async () => {
     const res = await adminFetch(`/api/substitutions/sheet?date=${date}`);
@@ -248,7 +260,7 @@ export default function AdminSubstitutionsPage() {
         {/* Left: absent list */}
         <div className="erp-table-container p-3">
           <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 px-1 pb-2">
-            Absent on {date}
+            Absent on {formatLongDate(date)}
           </div>
           {loadingAbsences ? (
             <div className="flex justify-center py-6">
@@ -264,28 +276,48 @@ export default function AdminSubstitutionsPage() {
               {absences.map((a) => {
                 const t = pickOne(a.teachers);
                 const selected = a.id === selectedAbsenceId;
+                const covered = a.substitutions?.length ?? 0;
                 return (
-                  <li key={a.id}>
+                  <li
+                    key={a.id}
+                    className={cn(
+                      "flex items-start gap-1 rounded-lg border transition-colors",
+                      selected
+                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+                        : "hover:bg-gray-50 dark:hover:bg-muted border-transparent"
+                    )}
+                  >
                     <button
                       onClick={() => setSelectedAbsenceId(a.id)}
-                      className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${
-                        selected
-                          ? "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
-                          : "hover:bg-gray-50 dark:hover:bg-muted border border-transparent"
-                      }`}
+                      className="min-w-0 flex-1 text-left px-3 py-2 text-sm"
                     >
                       <div className="font-medium text-navy-900 dark:text-white truncate">
                         {t?.full_name ?? "Unknown"}
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-2">
-                        <span>{halfDayLabel(a.half_day)}</span>
+                        <span className="shrink-0">{halfDayLabel(a.half_day)}</span>
                         {a.reason && (
                           <span className="truncate" title={a.reason}>
                             · {a.reason}
                           </span>
                         )}
                       </div>
+                      {covered > 0 && (
+                        <div className="mt-0.5 text-[11px] text-green-700 dark:text-green-300">
+                          {covered} {covered === 1 ? "substitute" : "substitutes"} assigned
+                        </div>
+                      )}
                     </button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="mt-1.5 mr-1 shrink-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                      onClick={() => askMarkPresent(a)}
+                      aria-label={`Mark ${t?.full_name ?? "teacher"} present`}
+                      title="Mark present (remove absence)"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </li>
                 );
               })}
@@ -295,6 +327,50 @@ export default function AdminSubstitutionsPage() {
 
         {/* Right: per-period substitution view */}
         <div className="erp-table-container p-4">
+          {selectedAbsence && (
+            <div className="mb-4 flex flex-col gap-3 border-b border-gray-100 pb-3 dark:border-border sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="font-heading text-lg font-semibold text-navy-900 dark:text-white truncate">
+                  {pickOne(selectedAbsence.teachers)?.full_name ?? "Unknown"}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Absent {formatLongDate(selectedAbsence.absence_date)} ·{" "}
+                  {halfDayLabel(selectedAbsence.half_day)}
+                  {selectedAbsence.reason ? ` · ${selectedAbsence.reason}` : ""}
+                </div>
+                {!periodsLoading && periodsForAbsence.length > 0 && (
+                  <div
+                    className={cn(
+                      "mt-1 text-xs font-medium",
+                      coveredCount === periodsForAbsence.length
+                        ? "text-green-700 dark:text-green-300"
+                        : "text-amber-700 dark:text-amber-300"
+                    )}
+                  >
+                    {coveredCount} of {periodsForAbsence.length}{" "}
+                    {periodsForAbsence.length === 1 ? "period" : "periods"} covered
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <Link
+                  href={`/timetable/teachers?teacher_id=${selectedAbsence.teacher_id}&week=${weekStartOf(selectedAbsence.absence_date)}`}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  <CalendarDays className="h-3.5 w-3.5 mr-1" />
+                  View timetable
+                </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => askMarkPresent(selectedAbsence)}
+                >
+                  <UserCheck className="h-3.5 w-3.5 mr-1" />
+                  Mark present
+                </Button>
+              </div>
+            </div>
+          )}
           {!selectedAbsenceId ? (
             <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400">
               <CalendarX2 className="h-7 w-7 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
@@ -308,15 +384,7 @@ export default function AdminSubstitutionsPage() {
           ) : periodsForAbsence.length === 0 ? (
             <div className="text-center py-10 text-sm text-gray-500 dark:text-gray-400">
               This teacher has no scheduled periods for the selected portion of
-              the day.
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-2"
-                onClick={() => handleDeleteAbsence(selectedAbsenceId)}
-              >
-                Remove absence
-              </Button>
+              the day, so there is nothing to cover.
             </div>
           ) : (
             <ul className="space-y-2">
@@ -400,6 +468,7 @@ export default function AdminSubstitutionsPage() {
           currentSubstituteId={picker.currentSubstituteId}
           onAssigned={() => {
             if (selectedAbsenceId) fetchPeriodsFor(selectedAbsenceId);
+            fetchAbsences();
           }}
         />
       )}
@@ -409,8 +478,29 @@ export default function AdminSubstitutionsPage() {
         onOpenChange={setMarkDialogOpen}
         teachers={teachers}
         defaultDate={date}
-        onSaved={() => {
+        onSaved={async ({ absenceId, date: savedDate }) => {
           setMarkDialogOpen(false);
+          // Open the new absence straight away — the next thing anyone does
+          // after marking someone absent is find them cover. If the form's
+          // date was changed, follow it; the date change refetches the list.
+          // On the same date, select only once the refreshed list has it, or
+          // the stale-selection check clears it against the old list.
+          if (savedDate !== date) {
+            setSelectedAbsenceId(absenceId);
+            setDate(savedDate);
+          } else {
+            await fetchAbsences();
+            setSelectedAbsenceId(absenceId);
+          }
+        }}
+      />
+
+      <MarkPresentDialog
+        absence={presentTarget}
+        onOpenChange={(open) => !open && setPresentTarget(null)}
+        onCleared={(id) => {
+          setPresentTarget(null);
+          if (id === selectedAbsenceId) setSelectedAbsenceId(null);
           fetchAbsences();
         }}
       />
@@ -426,7 +516,7 @@ interface MarkAnyProps {
   onOpenChange: (open: boolean) => void;
   teachers: Teacher[];
   defaultDate: string;
-  onSaved: () => void;
+  onSaved: (result: { absenceId: string; date: string }) => void;
 }
 
 function MarkAnyTeacherAbsentDialog({
@@ -479,7 +569,7 @@ function MarkAnyTeacherAbsentDialog({
       return;
     }
     toast.success("Marked absent");
-    onSaved();
+    onSaved({ absenceId: body.data.absence.id, date });
   };
 
   return (

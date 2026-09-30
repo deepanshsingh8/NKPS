@@ -1559,17 +1559,20 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
   {
     path: "/timetable/teachers",
     title: "Teacher Timetable",
-    purpose: "One teacher's week across all classes, and the way into marking them absent.",
+    purpose: "Every teacher's weekly load, and one teacher's dated week across all classes with their absences and cover.",
     tasks: [
       {
         name: "View a teacher's week",
-        steps: ['Choose from "Select a teacher...".', "Read the grid."],
+        steps: [
+          "Click a teacher in the list — search by name, ID or subject, or filter to \"Absent today\" or \"No periods\".",
+          "Read the grid. Use the arrows and \"This week\" to move between weeks.",
+        ],
         gotcha:
           "One slot can show several cards. A coach running a shared activity really is with more than one class at that time; the group name follows the subject.",
       },
       {
         name: "Print a teacher's timetable",
-        steps: ['Choose from "Select a teacher...".', 'Click "Print".'],
+        steps: ["Open the teacher.", 'Click "Print".'],
         gotcha:
           "A coach running a shared activity appears once per class in the same slot, so their sheet shows all of those sections stacked in that cell.",
       },
@@ -1581,7 +1584,17 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Click "Mark absent".',
         ],
         gotcha:
-          "This only RECORDS the absence. Assigning who covers each period happens on Timetable → Substitutions.",
+          "This only RECORDS the absence. Assigning who covers each period happens on Timetable → Substitutions — the toast after saving and the day's \"Assign cover\" link both go straight there.",
+      },
+      {
+        name: "See or undo an absence",
+        steps: [
+          "Open the teacher and go to the week.",
+          'An absent day shows a red "Absent" badge with how many periods are covered; each affected period says who is covering it or "No cover yet".',
+          'Click "Mark present" under the badge to remove an absence recorded by mistake.',
+        ],
+        gotcha:
+          "Mark present deletes the absence AND every substitute assigned for it that day — the confirmation says how many.",
       },
     ],
     related: ["/timetable/substitutions", "/timetable"],
@@ -1608,6 +1621,16 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         name: "Print the day's substitution sheet",
         steps: ["Set the Date.", 'Click "Print sheet".'],
         gotcha: "Disabled when nobody is absent that day.",
+      },
+      {
+        name: "Remove an absence marked by mistake",
+        steps: [
+          "Set the Date.",
+          'Click the "×" beside the teacher in the "Absent on ..." list, or select them and click "Mark present".',
+          'Confirm with "Mark present".',
+        ],
+        gotcha:
+          "Any substitutes already assigned for that absence are removed with it — the confirmation says how many, so the covering teachers can be told.",
       },
     ],
     related: ["/timetable/teachers", "/timetable"],
@@ -1699,12 +1722,21 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
     path: "/timetable",
     title: "Class Timetable",
     purpose:
-      "One class's weekly Mon-Sat period grid, which repeats for the whole academic year.",
+      "Every class's timetable progress, and each class's weekly Mon-Sat period grid, which repeats for the whole academic year.",
     tasks: [
+      {
+        name: "See which classes' timetables are finished",
+        steps: [
+          "Open the page — it lands on the list of classes for the selected year.",
+          'Use the chips — "Complete", "Has gaps", "Not started", "Missing teachers" — or search by class or class teacher.',
+        ],
+        gotcha:
+          "Complete means every working day has something in every period from 1 to that class's own last period, so a five-period nursery and a ten-period XII can both be complete. It does not mean every period has a teacher — that is the separate \"without teacher\" count on the card.",
+      },
       {
         name: "Add or edit a period",
         steps: [
-          'Pick the class in "Select a class...".',
+          "Click a class in the list (or, once one is open, switch with the class dropdown).",
           'Click any cell in the grid (an empty one shows a "+").',
           "Set Day, Period, Subject, Teacher, Start Time, End Time and Room.",
           'Click "Add" or "Update".',
@@ -1727,8 +1759,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
       {
         name: "Print the class timetable",
         steps: [
-          'Pick the class in "Select a class...".',
-          'Click "Print".',
+          "Click the printer icon on the class's card in the list, or open the class and click \"Print\".",
         ],
         needs: "A class with periods on it — an empty timetable prints a sheet that says so.",
         gotcha:

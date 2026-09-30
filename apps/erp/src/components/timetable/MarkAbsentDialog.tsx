@@ -39,7 +39,12 @@ interface Props {
   initialDate: string;
   // Receives the new absence id + the affected-periods preview, so callers
   // can navigate straight into the substitution picker if they want to.
-  onSaved: (result: { absenceId: string; affectedPeriods: AffectedPeriod[] }) => void;
+  onSaved: (result: {
+    absenceId: string;
+    affectedPeriods: AffectedPeriod[];
+    /** The date actually saved — the admin can change it in the form. */
+    date: string;
+  }) => void;
 }
 
 const HALF_DAY_OPTIONS = [
@@ -96,6 +101,7 @@ export function MarkAbsentDialog({
     onSaved({
       absenceId: body.data.absence.id,
       affectedPeriods: body.data.affected_periods ?? [],
+      date,
     });
   };
 

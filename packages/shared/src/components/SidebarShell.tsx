@@ -12,9 +12,9 @@ import { MobileNavDrawer } from "@nkps/shared/components/MobileNavDrawer";
 import { useSidebar } from "@nkps/shared/components/providers/SidebarProvider";
 import { useUnreadCount } from "@nkps/shared/hooks/useUnreadCount";
 import {
+  activeLinkHref,
   collectNavHrefs,
   groupContainsActive,
-  isLinkActive,
   sectionContainsActive,
   type SidebarGroup,
   type SidebarItem,
@@ -183,6 +183,12 @@ export function SidebarShell({
     return walk(section.items);
   };
 
+  // Longest match, not any prefix match — see activeLinkHref.
+  const activeHref = useMemo(
+    () => activeLinkHref(visibleSections, pathname),
+    [visibleSections, pathname]
+  );
+
   const isGroupOpen = (group: SidebarGroup): boolean =>
     group.label in groupOverrides
       ? groupOverrides[group.label]
@@ -192,7 +198,7 @@ export function SidebarShell({
     setGroupOverrides((prev) => ({ ...prev, [group.label]: !isGroupOpen(group) }));
 
   const renderLink = ({ icon: Icon, label, href }: SidebarLink) => {
-    const isActive = isLinkActive(href, pathname);
+    const isActive = href === activeHref;
     const badgeCount = badgeFor(href);
     const showBadge = badgeCount > 0;
     const badgeLabel = badgeCount > 99 ? "99+" : badgeCount;
@@ -322,7 +328,7 @@ export function SidebarShell({
   };
 
   const renderNestedLink = (link: SidebarLink) => {
-    const isActive = isLinkActive(link.href, pathname);
+    const isActive = link.href === activeHref;
     const badgeCount = badgeFor(link.href);
     const showBadge = badgeCount > 0;
     const badgeLabel = badgeCount > 99 ? "99+" : badgeCount;

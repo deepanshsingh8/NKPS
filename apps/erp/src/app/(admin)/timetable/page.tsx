@@ -30,12 +30,13 @@ import {
   SelectValue,
 } from "@nkps/shared/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Clock, CalendarRange, Info, Printer, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Loader2, Clock, CalendarRange, Info, Printer, ChevronDown, ArrowLeft } from "lucide-react";
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import { formatClassName, formatShortDate } from "@nkps/shared/lib/utils";
 import { teacherOptions } from "@nkps/shared/lib/teacher-options";
 import type { Class, Subject, Teacher, TimetablePeriod } from "@nkps/shared/types";
 import { NativeSelect } from "@nkps/shared/components/ui/native-select";
+import { ClassTimetableOverview } from "@/components/timetable/ClassTimetableOverview";
 
 function defaultDay(): number {
   const today = new Date().getDay(); // 0 = Sunday
@@ -438,10 +439,10 @@ const session = useAcademicSession();
     };
   });
 
-  const handlePrint = async () => {
-    if (!selectedClassId) return;
+  const handlePrint = async (classId: string = selectedClassId) => {
+    if (!classId) return;
     const res = await adminFetch(
-      `/api/timetable/sheet?class_id=${selectedClassId}`
+      `/api/timetable/sheet?class_id=${classId}`
     );
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -517,9 +518,22 @@ const session = useAcademicSession();
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
-        <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
-          Timetable
-        </h1>
+        <div className="flex items-center gap-2">
+          {selectedClassId && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setSelectedClassId("")}
+              aria-label="All classes"
+              title="All classes"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
+          <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
+            Class Timetable
+          </h1>
+        </div>
         <div className="flex gap-2 flex-wrap items-center">
           <AcademicSessionPicker state={session} />
           {/* Templates, Auto Generate and Import are each already a sidebar
@@ -549,7 +563,7 @@ const session = useAcademicSession();
           </DropdownMenu>
           <Button
             variant="outline"
-            onClick={handlePrint}
+            onClick={() => handlePrint()}
             disabled={!selectedClassId}
           >
             <Printer className="h-4 w-4 mr-1" />
@@ -558,7 +572,10 @@ const session = useAcademicSession();
         </div>
       </div>
 
-      {/* Class selector */}
+      {/* Class selector — only once a class is open. Before that the class
+          list below is the picker, and a dropdown above it would be a second
+          way to do the same thing. */}
+      {selectedClassId && (
       <div className="mb-6 w-full sm:w-72">
         <Select
           value={selectedClassId}
@@ -577,31 +594,29 @@ const session = useAcademicSession();
           </SelectContent>
         </Select>
       </div>
+      )}
 
       {!selectedClassId ? (
-        <div className="erp-table-container p-4 sm:p-6">
-          <div className="mx-auto max-w-md text-center py-12">
-            <div className="h-14 w-14 rounded-2xl bg-navy-900/5 dark:bg-white/5 flex items-center justify-center mx-auto mb-4">
-              <Clock className="h-7 w-7 text-navy-900/70 dark:text-white/70" />
+        <>
+          {academicYear && (
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-gray-100 dark:bg-muted px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300">
+              <CalendarRange className="h-3.5 w-3.5" />
+              Academic year {academicYear.name} ·{" "}
+              {formatShortDate(academicYear.start_date)}–
+              {formatShortDate(academicYear.end_date)} · each timetable repeats
+              every week until changed
             </div>
-            <h3 className="text-base font-semibold text-navy-900 dark:text-white mb-1">
-              Pick a class to edit its weekly schedule
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Timetables repeat every Monday through Saturday for the entire
-              academic year. Add or update a period once and it applies to every
-              week.
-            </p>
-            {academicYear && (
-              <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 dark:bg-muted px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300">
-                <CalendarRange className="h-3.5 w-3.5" />
-                Academic year {academicYear.name} ·{" "}
-                {formatShortDate(academicYear.start_date)}–
-                {formatShortDate(academicYear.end_date)}
-              </div>
-            )}
-          </div>
-        </div>
+          )}
+          <ClassTimetableOverview
+            classes={classes}
+            teachers={teachers}
+            onOpen={(id) => {
+              setSelectedClassId(id);
+              window.scrollTo({ top: 0 });
+            }}
+            onPrint={(id) => handlePrint(id)}
+          />
+        </>
       ) : periodsLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
