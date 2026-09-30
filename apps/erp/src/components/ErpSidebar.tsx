@@ -29,10 +29,8 @@ import {
   MapPin,
   ReceiptText,
   Home,
-  FileSpreadsheet,
   UserPlus,
   LayoutGrid,
-  TriangleAlert,
 } from "lucide-react";
 import {
   SidebarShell,
@@ -219,14 +217,30 @@ const erpSections: SidebarSection[] = [
         // links, one destination. Masters, Sheets & Prints and Fees were each
         // patched for this individually; Timetable was missed.
         hideOverview: true,
+        // Four entries, not seven. Templates, Auto Generate, Import and Clash
+        // Check are each used a few times a year while the timetable is being
+        // built, yet they sat at the same level as the three screens opened
+        // every day, and outnumbered them. They now share one hub that lays
+        // them out in the order you use them. They kept their URLs, so
+        // `activeFor` keeps this entry lit while you are inside one, and
+        // `keywords` lets the menu search still find them by name.
         children: [
           { kind: "link", icon: Clock, label: "Class Timetable", href: "/timetable" },
           { kind: "link", icon: UserCog, label: "Teacher Timetable", href: "/timetable/teachers" },
           { kind: "link", icon: RefreshCw, label: "Substitutions", href: "/timetable/substitutions" },
-      { kind: "link", icon: TriangleAlert, label: "Clash Check", href: "/timetable/clashes" },
-          { kind: "link", icon: Sparkles, label: "Auto Generate", href: "/timetable/generate" },
-          { kind: "link", icon: FileSpreadsheet, label: "Import from Excel", href: "/timetable/import" },
-          { kind: "link", icon: FileText, label: "Period Templates", href: "/timetable/templates" },
+          {
+            kind: "link",
+            icon: Settings2,
+            label: "Setup & Checks",
+            href: "/timetable/setup",
+            activeFor: [
+              "/timetable/templates",
+              "/timetable/generate",
+              "/timetable/import",
+              "/timetable/clashes",
+            ],
+            keywords: ["period templates", "auto generate", "import excel", "clash check"],
+          },
         ],
       },
     ],

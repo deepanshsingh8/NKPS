@@ -21,9 +21,9 @@ import { useSession } from "@nkps/shared/components/providers/SessionProvider";
 import { ThemeToggle } from "@nkps/shared/components/ThemeToggle";
 import { useAppLock } from "@nkps/shared/components/security/AppLockProvider";
 import {
+  activeLinkHref,
   flattenSections,
   groupContainsActive,
-  isLinkActive,
   searchDestinations,
   sectionContainsActive,
   type SidebarGroup,
@@ -126,6 +126,11 @@ export function MobileNavDrawer({
   }, [mobileOpen, x]);
 
   const destinations = useMemo(() => flattenSections(sections), [sections]);
+  // Same rule as the desktop pane: the longest matching href is the one lit.
+  const activeHref = useMemo(
+    () => activeLinkHref(sections, pathname),
+    [sections, pathname]
+  );
   const results = useMemo(
     () => searchDestinations(destinations, query),
     [destinations, query]
@@ -237,7 +242,7 @@ export function MobileNavDrawer({
     item: Extract<SidebarItem, { kind: "link" }>,
     depth: number
   ) => {
-    const active = isLinkActive(item.href, pathname);
+    const active = item.href === activeHref;
     return (
       <Link
         key={item.href}

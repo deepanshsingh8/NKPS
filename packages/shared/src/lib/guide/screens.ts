@@ -1538,6 +1538,25 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
 
   // ── Timetable ────────────────────────────────────────────────────────────
   {
+    path: "/timetable/setup",
+    title: "Setup & Checks",
+    purpose:
+      "The once-a-year timetable tools in the order you use them: Period Templates, then Auto Generate or Import from Excel, then Clash Check.",
+    tasks: [
+      {
+        name: "Build a new year's timetable",
+        steps: [
+          'Step 1 — open "Period Templates" and make sure a template has the right period times.',
+          'Step 2 — open "Auto Generate" to fill classes from a template, or "Import from Excel" to bring in an existing timetable.',
+          'Step 3 — open "Clash Check" and fix anything listed under Needs attention.',
+        ],
+        gotcha:
+          "Single periods are not edited here — that is Class Timetable. The Clash Check card shows the live count, so a green \"No clashes\" means there is nothing to open it for.",
+      },
+    ],
+    related: ["/timetable", "/timetable/templates", "/timetable/generate", "/timetable/import", "/timetable/clashes"],
+  },
+  {
     path: "/timetable/templates",
     title: "Period Templates",
     purpose:
@@ -1564,22 +1583,25 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         gotcha: "Every template must include a lunch slot, or the save is rejected.",
       },
     ],
-    related: ["/timetable/generate", "/timetable"],
+    related: ["/timetable/setup", "/timetable/generate", "/timetable"],
   },
   {
     path: "/timetable/teachers",
     title: "Teacher Timetable",
-    purpose: "One teacher's week across all classes, and the way into marking them absent.",
+    purpose: "Every teacher's weekly load, and one teacher's dated week across all classes with their absences and cover.",
     tasks: [
       {
         name: "View a teacher's week",
-        steps: ['Choose from "Select a teacher...".', "Read the grid."],
+        steps: [
+          "Click a teacher in the list — search by name, ID or subject, or filter to \"Absent today\" or \"No periods\".",
+          "Read the grid. Use the arrows and \"This week\" to move between weeks.",
+        ],
         gotcha:
           "One slot can show several cards. A coach running a shared activity really is with more than one class at that time; the group name follows the subject.",
       },
       {
         name: "Download a teacher's timetable",
-        steps: ['Choose from "Select a teacher...".', 'Click "Download PDF".'],
+        steps: ["Open the teacher.", 'Click "Download PDF".'],
         gotcha:
           "A coach running a shared activity appears once per class in the same slot, so their sheet shows all of those sections stacked in that cell.",
       },
@@ -1591,7 +1613,17 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Click "Mark absent".',
         ],
         gotcha:
-          "This only RECORDS the absence. Assigning who covers each period happens on Timetable → Substitutions.",
+          "This only RECORDS the absence. Assigning who covers each period happens on Timetable → Substitutions — the toast after saving and the day's \"Assign cover\" link both go straight there.",
+      },
+      {
+        name: "See or undo an absence",
+        steps: [
+          "Open the teacher and go to the week.",
+          'An absent day shows a red "Absent" badge with how many periods are covered; each affected period says who is covering it or "No cover yet".',
+          'Click "Mark present" under the badge to remove an absence recorded by mistake.',
+        ],
+        gotcha:
+          "Mark present deletes the absence AND every substitute assigned for it that day — the confirmation says how many.",
       },
     ],
     related: ["/timetable/substitutions", "/timetable"],
@@ -1618,6 +1650,16 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         name: "Download the day's substitution sheet",
         steps: ["Set the Date.", 'Click "Download sheet".'],
         gotcha: "Disabled when nobody is absent that day.",
+      },
+      {
+        name: "Remove an absence marked by mistake",
+        steps: [
+          "Set the Date.",
+          'Click the "×" beside the teacher in the "Absent on ..." list, or select them and click "Mark present".',
+          'Confirm with "Mark present".',
+        ],
+        gotcha:
+          "Any substitutes already assigned for that absence are removed with it — the confirmation says how many, so the covering teachers can be told.",
       },
     ],
     related: ["/timetable/teachers", "/timetable"],
@@ -1648,7 +1690,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "One line per booking, not per pair of classes — a coach taking four sections is a single row reading \"VI-A, VI-B, VII-A, VII-B\", not six.",
       },
     ],
-    related: ["/timetable", "/timetable/teachers"],
+    related: ["/timetable/setup", "/timetable", "/timetable/teachers"],
   },
   {
     path: "/timetable/generate",
@@ -1671,7 +1713,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Without Replace ticked, existing periods are left alone and those slots count as skipped. Read the \"Skipped slots\" list — it names the reason for each.",
       },
     ],
-    related: ["/timetable/templates", "/timetable", "/academics/subjects"],
+    related: ["/timetable/setup", "/timetable/templates", "/timetable", "/academics/subjects"],
   },
   {
     path: "/timetable/import",
@@ -1703,18 +1745,27 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Both columns are optional, so a sheet written before they existed imports exactly as it always did. Two rows sharing a Section, Day, Period AND Group is still an error, and a teacher in two places at once is still an error unless those rows say Shared.",
       },
     ],
-    related: ["/timetable", "/timetable/generate"],
+    related: ["/timetable/setup", "/timetable", "/timetable/generate"],
   },
   {
     path: "/timetable",
     title: "Class Timetable",
     purpose:
-      "One class's weekly Mon-Sat period grid, which repeats for the whole academic year.",
+      "Every class's timetable progress, and each class's weekly Mon-Sat period grid, which repeats for the whole academic year.",
     tasks: [
+      {
+        name: "See which classes' timetables are finished",
+        steps: [
+          "Open the page — it lands on the list of classes for the selected year.",
+          'Use the chips — "Complete", "Has gaps", "Not started", "Missing teachers" — or search by class or class teacher.',
+        ],
+        gotcha:
+          "Complete means every working day has something in every period from 1 to that class's own last period, so a five-period nursery and a ten-period XII can both be complete. It does not mean every period has a teacher — that is the separate \"without teacher\" count on the card.",
+      },
       {
         name: "Add or edit a period",
         steps: [
-          'Pick the class in "Select a class...".',
+          "Click a class in the list (or, once one is open, switch with the class dropdown).",
           'Click any cell in the grid (an empty one shows a "+").',
           "Set Day, Period, Subject, Teacher, Start Time, End Time and Room.",
           'Click "Add" or "Update".',
@@ -1737,8 +1788,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
       {
         name: "Download the class timetable",
         steps: [
-          'Pick the class in "Select a class...".',
-          'Click "Download PDF".',
+          "Click the download icon on the class's card in the list, or open the class and click \"Download PDF\".",
         ],
         needs: "A class with periods on it — an empty timetable prints a sheet that says so.",
         gotcha:

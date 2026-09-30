@@ -33,7 +33,7 @@ import {
 } from "@nkps/shared/components/ui/data-table";
 import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { toast } from "sonner";
-import { Loader2, Info, ShieldCheck, TriangleAlert, Users } from "lucide-react";
+import { ArrowLeft, Loader2, Info, ShieldCheck, TriangleAlert, Users } from "lucide-react";
 import {
   accidentalClashes,
   sharedBookings,
@@ -134,6 +134,9 @@ export default function TimetableClashesPage() {
   return (
     <div>
       <div className="mb-6">
+        <Link href="/timetable/setup" className="inline-flex items-center text-xs text-gray-500 hover:text-navy-900 dark:hover:text-white mb-1">
+          <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Setup &amp; Checks
+        </Link>
         <h1 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
           Clash Check
         </h1>

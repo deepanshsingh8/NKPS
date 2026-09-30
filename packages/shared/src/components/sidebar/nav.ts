@@ -11,6 +11,12 @@ export type SidebarLink = {
   icon: LucideIcon;
   label: string;
   href: string;
+  /** Pages that live outside `href` but belong to this entry, so it stays lit
+   *  on them — a hub whose tools kept their old URLs. */
+  activeFor?: readonly string[];
+  /** Extra words the menu search matches, for a hub whose tools no longer
+   *  have a row of their own ("clash" should still find Setup & Checks). */
+  keywords?: readonly string[];
 };
 
 export type SidebarGroup = {
@@ -44,6 +50,49 @@ export function isLinkActive(href: string, pathname: string): boolean {
   return pathname.startsWith(href + "/");
 }
 
+/**
+ * How specifically `pathname` matches this link: the length of the longest of
+ * its href / activeFor prefixes that matches, or -1 for none.
+ */
+function linkMatchLength(link: SidebarLink, pathname: string): number {
+  let best = -1;
+  for (const href of [link.href, ...(link.activeFor ?? [])]) {
+    if (isLinkActive(href, pathname) && href.length > best) best = href.length;
+  }
+  return best;
+}
+
+/**
+ * The one link that should look selected: the longest href that matches.
+ *
+ * `isLinkActive` alone is a prefix test, so /timetable/substitutions matches
+ * both "Substitutions" and "Class Timetable" (/timetable) and the two rows lit
+ * up together. Wherever one link's href sits inside another's, the deeper one
+ * is the page you are actually on.
+ */
+export function activeLinkHref(
+  sections: readonly SidebarSection[],
+  pathname: string
+): string | null {
+  let best: string | null = null;
+  let bestLength = -1;
+  const walk = (items: readonly SidebarItem[]) => {
+    for (const item of items) {
+      if (item.kind === "group") {
+        walk(item.children);
+        continue;
+      }
+      const length = linkMatchLength(item, pathname);
+      if (length > bestLength) {
+        best = item.href;
+        bestLength = length;
+      }
+    }
+  };
+  for (const section of sections) walk(section.items);
+  return best;
+}
+
 export function groupContainsActive(
   group: SidebarGroup,
   pathname: string
@@ -51,7 +100,7 @@ export function groupContainsActive(
   if (pathname === group.landingHref) return true;
   return group.children.some((child) =>
     child.kind === "link"
-      ? isLinkActive(child.href, pathname)
+      ? linkMatchLength(child, pathname) >= 0
       : groupContainsActive(child, pathname)
   );
 }
@@ -69,7 +118,7 @@ export function sectionContainsActive(
 ): boolean {
   return section.items.some((item) =>
     item.kind === "link"
-      ? isLinkActive(item.href, pathname)
+      ? linkMatchLength(item, pathname) >= 0
       : groupContainsActive(item, pathname)
   );
 }
@@ -82,6 +131,7 @@ export type FlatDestination = {
   /** ["Examinations", "Sheets & Prints"] — shown under a search result so the
    *  match is identifiable when two sections both have a "Results". */
   trail: string[];
+  keywords?: readonly string[];
 };
 
 export function flattenSections(
@@ -104,6 +154,7 @@ export function flattenSections(
           label: item.label,
           icon: item.icon,
           trail,
+          keywords: item.keywords,
         });
       } else {
         walk(item.children, [...trail, item.label]);
@@ -157,7 +208,7 @@ export function searchDestinations(
   const scored = destinations
     .map((d) => {
       const label = d.label.toLowerCase();
-      const haystack = `${d.trail.join(" ")} ${d.label}`.toLowerCase();
+      const haystack = `${d.trail.join(" ")} ${d.label} ${(d.keywords ?? []).join(" ")}`.toLowerCase();
       if (!tokens.every((t) => haystack.includes(t))) return null;
       // A hit in the destination's own name beats one that only matched its
       // category, and a name that starts with the query beats one that merely
