@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import { promoteStaffToTeacher } from "@/lib/staff-teacher-sync";
-import { isTeachingStaffCategory } from "@nkps/shared/lib/staff-roles";
+import { staffNeedsTeacherRecord } from "@nkps/shared/lib/staff-roles";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -32,9 +32,9 @@ export async function POST(_request: NextRequest, context: RouteContext) {
   if (!member) {
     return NextResponse.json({ error: "Staff member not found" }, { status: 404 });
   }
-  if (!isTeachingStaffCategory(member.category as string)) {
+  if (!staffNeedsTeacherRecord(member.category as string)) {
     return NextResponse.json(
-      { error: "Only teaching staff can be converted to a teacher." },
+      { error: "Only teaching and additional staff can be converted to a teacher." },
       { status: 400 }
     );
   }
