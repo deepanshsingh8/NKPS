@@ -6,6 +6,13 @@ import {
   normalizeNumber,
   normalizeYesNo,
 } from "./student-template";
+import {
+  NOTICE_ISSUER_OPTIONS,
+  STAFF_PROFILE_FIELDS,
+  STAFF_PROFILE_FORMAT_RULES,
+  normalizeStaffProfileValue,
+  type StaffProfileField,
+} from "./staff-profile-fields";
 
 // Indian mobile: 10 digits starting with 6-9. We accept either the bare 10
 // digits or a `+91` / `0` / `91` prefix (then strip it for storage).
@@ -1186,6 +1193,9 @@ export const staffBulkUploadSchema = z.object({
       address: z.string().optional().or(z.literal("")),
       qualifications: z.string().optional().or(z.literal("")),
       license_number: z.string().optional().or(z.literal("")),
+      // Full-profile columns (staff_details), keyed by registry key. Validated
+      // against staffProfileFieldsSchema by the route.
+      details: z.record(z.string(), z.unknown()).optional(),
     })
   ).min(1, "At least one staff member is required").max(5000, "Too many rows in one upload"),
 });
@@ -1251,6 +1261,123 @@ export const staffUpdateSchema = staffCreateSchema.partial().extend({
 
 export type StaffCreateData = z.infer<typeof staffCreateSchema>;
 export type StaffUpdateData = z.infer<typeof staffUpdateSchema>;
+
+// =============================================================
+// Staff profile (migration 131) — built from the field registry
+// =============================================================
+
+const isoDate = (v: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+
+function staffProfileInner(field: StaffProfileField): z.ZodTypeAny {
+  switch (field.type) {
+    case "date":
+      return field.key === "date_of_birth"
+        ? dobBaseSchema
+        : z.string().refine(isoDate, { message: "Date must be YYYY-MM-DD" });
+    case "year":
+      return z
+        .number({ message: "Enter a 4-digit year" })
+        .int("Enter a 4-digit year")
+        .min(1940, "Year looks too early")
+        .max(2100, "Year looks too late");
+    case "enum": {
+      const values = (field.options ?? []).map((o) => o.value);
+      return z.string().refine((v) => values.includes(v), {
+        message: `Choose a valid ${field.label}`,
+      });
+    }
+    case "boolean":
+      return z.boolean({ message: "Answer Yes or No" });
+    case "bus":
+      return z.string().uuid("Invalid bus");
+    case "longtext":
+      return z.string().max(2000, "Too long (max 2000 characters)");
+    case "text": {
+      let base = z.string().max(200, "Too long (max 200 characters)");
+      if (field.required) base = base.min(2, `${field.label} is required`);
+      if (!field.format) return base;
+      const rule = STAFF_PROFILE_FORMAT_RULES[field.format];
+      return base.refine((v) => rule.test(v), { message: rule.message });
+    }
+  }
+}
+
+/**
+ * One field of the profile payload. The value is normalised first (PAN
+ * upper-cased, +91 stripped, "Yes" → true, "OBC" → "obc", …). A blank value
+ * means "clear it" — stored as null — except on required fields, where it is
+ * rejected rather than silently skipped.
+ */
+function staffProfileFieldSchema(field: StaffProfileField): z.ZodTypeAny {
+  const inner = staffProfileInner(field);
+  return z.preprocess(
+    (v) => {
+      const n = normalizeStaffProfileValue(field, v);
+      if (n !== undefined) return n;
+      return field.required ? "" : null;
+    },
+    field.required ? inner : inner.nullable()
+  ).optional();
+}
+
+export const staffProfileFieldsSchema = z
+  .object(
+    Object.fromEntries(
+      STAFF_PROFILE_FIELDS.map((f) => [f.key, staffProfileFieldSchema(f)])
+    )
+  )
+  .strict();
+
+const optionalIsoDate = z
+  .string()
+  .nullish()
+  .transform((v) => (v && v.trim() ? v.trim() : null))
+  .refine((v) => v === null || isoDate(v), { message: "Date must be YYYY-MM-DD" });
+
+const optionalShortText = (max: number) =>
+  z
+    .string()
+    .max(max)
+    .nullish()
+    .transform((v) => (v && v.trim() ? v.trim() : null));
+
+export const staffTrainingSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    program_name: z.string().trim().min(1, "Programme name is required").max(200),
+    from_date: optionalIsoDate,
+    to_date: optionalIsoDate,
+    duration: optionalShortText(100),
+    organizing_institute: optionalShortText(200),
+  })
+  .refine((t) => !t.from_date || !t.to_date || t.to_date >= t.from_date, {
+    message: "End date cannot be before the start date",
+    path: ["to_date"],
+  });
+
+export const staffNoticeSchema = z.object({
+  id: z.string().uuid().optional(),
+  issued_by: z.enum(
+    NOTICE_ISSUER_OPTIONS.map((o) => o.value) as [string, ...string[]],
+    { message: "Choose who issued the notice" }
+  ),
+  issue_date: z.string().refine(isoDate, { message: "Date of issue is required" }),
+  reason: z.string().trim().min(1, "Reason is required").max(2000),
+  clarification: optionalShortText(2000),
+});
+
+// A save sends whichever parts changed: a section's fields, or a whole list
+// (trainings / notices) which then replaces what is stored.
+export const staffProfileUpdateSchema = z.object({
+  fields: staffProfileFieldsSchema.optional(),
+  trainings: z.array(staffTrainingSchema).max(50, "Too many trainings").optional(),
+  notices: z.array(staffNoticeSchema).max(100, "Too many notices").optional(),
+});
+
+export type StaffTrainingData = z.infer<typeof staffTrainingSchema>;
+export type StaffNoticeData = z.infer<typeof staffNoticeSchema>;
+export type StaffProfileUpdateData = z.infer<typeof staffProfileUpdateSchema>;
 
 // Section-cards CRUD (audit L4). The API used to spread arbitrary text into
 // the table, letting an editor with `site_media` write multi-MB strings to

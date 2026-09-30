@@ -96,6 +96,34 @@ export async function mirrorStaffToTeacher(
 }
 
 /**
+ * staff_details → teachers, for the two profile fields the teachers row also
+ * carries. One-way on purpose: the profile page is where these are edited now.
+ * Aadhaar is NOT mirrored even though teachers has a column for it — teachers
+ * is readable by every teacher login, staff_details is not (migration 131).
+ * Only keys present in `changed` are written, so a save of an unrelated section
+ * never blanks the teacher's joining date.
+ */
+export async function mirrorStaffDetailsToTeacher(
+  admin: SupabaseClient,
+  staffId: string,
+  changed: { gender?: unknown; date_of_joining?: unknown }
+): Promise<void> {
+  const patch: Record<string, unknown> = {};
+  if ("gender" in changed) patch.gender = changed.gender ?? null;
+  if ("date_of_joining" in changed) patch.date_of_joining = changed.date_of_joining ?? null;
+  if (Object.keys(patch).length === 0) return;
+  patch.updated_at = new Date().toISOString();
+
+  const { error } = await admin
+    .from("teachers")
+    .update(patch)
+    .eq("staff_member_id", staffId);
+  if (error) {
+    console.error("[staff-teacher-sync] mirror details→teacher:", error);
+  }
+}
+
+/**
  * Retire the teacher(s) linked to a staff member that is about to be deleted.
  *
  * Must run BEFORE the staff_members row goes, while the link still exists —
@@ -201,11 +229,16 @@ export async function promoteStaffToTeacher(
     .maybeSingle();
   if (!staff) return { error: "Staff member not found" };
 
-  const { data: existing } = await admin
-    .from("teachers")
-    .select("id")
-    .eq("staff_member_id", staffId)
-    .maybeSingle();
+  const [{ data: existing }, { data: details }] = await Promise.all([
+    admin.from("teachers").select("id").eq("staff_member_id", staffId).maybeSingle(),
+    // Gender and joining date live on the staff profile (migration 131); a
+    // teacher created after the profile was filled should not start blank.
+    admin
+      .from("staff_details")
+      .select("gender, date_of_joining")
+      .eq("staff_member_id", staffId)
+      .maybeSingle(),
+  ]);
   if (existing) return { teacher_id: existing.id as string, created: false };
 
   // Auto-generate an employee_id. We pair the 36-base timestamp with 4 hex
@@ -226,6 +259,8 @@ export async function promoteStaffToTeacher(
       address: staff.address,
       qualifications: staff.qualifications,
       photo_url: staff.photo_url,
+      gender: details?.gender ?? null,
+      date_of_joining: details?.date_of_joining ?? null,
       // Carry the staff row's active state rather than defaulting to true —
       // promoting an already-deactivated staff member must not resurrect them
       // into every teacher dropdown. (migration 116)
