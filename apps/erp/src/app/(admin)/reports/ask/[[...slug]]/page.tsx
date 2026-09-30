@@ -19,6 +19,12 @@ import { adminFetch } from "@nkps/shared/lib/admin-api";
 import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { ConversationList } from "@/components/ask/ConversationList";
 import { AnswerTable } from "@/components/ask/AnswerTable";
+import { AskProgress } from "@/components/ask/AskProgress";
+import {
+  advanceProgress,
+  startProgress,
+  type ProgressEvent,
+} from "@/components/ask/progress";
 import type {
   AskRun,
   ConversationSummary,
@@ -94,6 +100,14 @@ export default function AskPage() {
     setTurns((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   }, []);
 
+  const stepTurn = useCallback((id: string, event: ProgressEvent) => {
+    setTurns((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, progress: advanceProgress(t.progress, event) } : t
+      )
+    );
+  }, []);
+
   // ── The chat list ─────────────────────────────────────────────────────────
   const refreshList = useCallback(async (q?: string) => {
     setListLoading(true);
@@ -138,9 +152,11 @@ export default function AskPage() {
         });
       } catch {
         patchTurn(turnId, { tableBusy: false, table: null });
+      } finally {
+        stepTurn(turnId, { type: "table_loaded" });
       }
     },
-    [patchTurn]
+    [patchTurn, stepTurn]
   );
 
   const openTranscript = useCallback(
@@ -241,7 +257,14 @@ export default function AskPage() {
       setTurns([
         ...opts.prefix,
         { id: newId(), role: "user", content: trimmed },
-        { id: assistantId, role: "assistant", content: "", streaming: true, steps: [] },
+        {
+          id: assistantId,
+          role: "assistant",
+          content: "",
+          streaming: true,
+          steps: [],
+          progress: startProgress(),
+        },
       ]);
       setBusy(true);
       setError(null);
@@ -270,6 +293,7 @@ export default function AskPage() {
           const data = await res.json().catch(() => ({}));
           patchTurn(assistantId, {
             streaming: false,
+            progress: undefined,
             error: data.error ?? "That didn't work.",
           });
           // A chat that outlived its academic session, or an account whose
@@ -312,9 +336,11 @@ export default function AskPage() {
                 router.replace(`/reports/ask/${landedId}`, { scroll: false });
               }
             } else if (ev.type === "delta") {
+              if (!answer) stepTurn(assistantId, { type: "delta" });
               answer += ev.text as string;
-              patchTurn(assistantId, { content: answer, activeTool: null });
+              patchTurn(assistantId, { content: answer });
             } else if (ev.type === "round_end") {
+              stepTurn(assistantId, { type: "round_end", hadTools: Boolean(ev.hadTools) });
               // The text just streamed was a preamble, not the answer. Move it
               // to the progress list and start over, so the live view matches
               // what a reload will show.
@@ -334,11 +360,18 @@ export default function AskPage() {
                 );
               }
             } else if (ev.type === "tool_start") {
-              patchTurn(assistantId, {
-                activeTool: (ev.label as string | null) ?? (ev.name as string),
+              stepTurn(assistantId, {
+                type: "tool_start",
+                name: ev.name as string,
+                label: (ev.label as string | null) ?? null,
               });
             } else if (ev.type === "tool_done") {
-              patchTurn(assistantId, { activeTool: null });
+              stepTurn(assistantId, {
+                type: "tool_done",
+                name: ev.name as string,
+                failed: Boolean(ev.failed),
+                total: typeof ev.total === "number" ? ev.total : null,
+              });
             } else if (ev.type === "done") {
               const runs: AskRun[] = ((ev.runs as unknown[]) ?? []).map((r) => {
                 const run = r as { run_id: string; purpose: string; total: number };
@@ -350,11 +383,11 @@ export default function AskPage() {
                 // rounds were deliberately discarded above.
                 content: (ev.text as string) || answer,
                 streaming: false,
-                activeTool: null,
                 runs,
                 activeRunId: shown?.runId ?? null,
                 tableBusy: Boolean(shown),
               });
+              stepTurn(assistantId, { type: "done", loadingTable: Boolean(shown) });
               if (shown) void loadTable(assistantId, shown.runId);
               void refreshList();
             }
@@ -362,14 +395,15 @@ export default function AskPage() {
         }
 
         // The stream ended without a `done`. Only an abort does that.
-        patchTurn(assistantId, { streaming: false });
+        patchTurn(assistantId, { streaming: false, progress: undefined });
       } catch {
         if (controller.signal.aborted) {
-          patchTurn(assistantId, { streaming: false, stopped: true, activeTool: null });
+          patchTurn(assistantId, { streaming: false, stopped: true, progress: undefined });
           void refreshList();
         } else {
           patchTurn(assistantId, {
             streaming: false,
+            progress: undefined,
             error: "Couldn't reach the assistant. The report builder still works.",
           });
         }
@@ -380,7 +414,7 @@ export default function AskPage() {
         }
       }
     },
-    [allowSensitive, patchTurn, loadTable, refreshList, router]
+    [allowSensitive, patchTurn, stepTurn, loadTable, refreshList, router]
   );
 
   function submit(question: string) {
@@ -658,12 +692,7 @@ export default function AskPage() {
                   </p>
                 ))}
 
-                {turn.activeTool && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {turn.activeTool}
-                  </div>
-                )}
+                {turn.progress && <AskProgress progress={turn.progress} />}
 
                 {turn.content && (
                   <div className="rounded-lg border bg-white dark:bg-card px-4 py-3 text-sm text-navy-900 dark:text-white">
@@ -682,13 +711,6 @@ export default function AskPage() {
                   <p className="text-sm italic text-muted-foreground">
                     This answer was removed when the chat was deleted.
                   </p>
-                )}
-
-                {turn.streaming && !turn.content && !turn.activeTool && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Working through the records…
-                  </div>
                 )}
 
                 {turn.stopped && !turn.content && (

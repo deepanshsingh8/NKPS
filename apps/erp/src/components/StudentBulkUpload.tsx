@@ -269,6 +269,9 @@ export function StudentBulkUpload({
   const [step, setStep] = useState<"upload" | "preview" | "results">("upload");
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState("");
+  // Reading a workbook loads the xlsx library and parses every sheet in the
+  // browser — a second or more on a big file, with nothing on screen until now.
+  const [parsing, setParsing] = useState(false);
   const [mappedKeys, setMappedKeys] = useState<string[]>([]);
   const [unrecognizedHeaders, setUnrecognizedHeaders] = useState<string[]>([]);
   // Kept so a mapping accepted later can be applied without re-reading the file.
@@ -385,8 +388,13 @@ export function StudentBulkUpload({
       if (!file) return;
 
       setFileName(file.name);
+      setParsing(true);
 
       const reader = new FileReader();
+      reader.onerror = () => {
+        setParsing(false);
+        toast.error("Couldn't read that file. Try saving it again and re-uploading.");
+      };
       reader.onload = async (evt) => {
         try {
           const XLSX = await import("xlsx");
@@ -436,6 +444,8 @@ export function StudentBulkUpload({
           toast.success(`Parsed ${parsed.length} rows from ${file.name}`);
         } catch {
           toast.error("Failed to parse file. Please ensure it is a valid Excel or CSV file.");
+        } finally {
+          setParsing(false);
         }
       };
       reader.readAsArrayBuffer(file);
@@ -816,19 +826,33 @@ export function StudentBulkUpload({
             <div>
               <Label>Upload Excel or CSV File</Label>
               <div className="mt-2 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-navy-400 transition-colors">
-                <Upload className="h-10 w-10 mx-auto text-gray-400 mb-3" />
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                  Drop your file here or click to browse
-                </p>
-                <p className="text-xs text-gray-400 mb-4">
-                  Supports .xlsx, .xls, and .csv files
-                </p>
-                <Input
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  onChange={handleFileChange}
-                  className="max-w-xs mx-auto"
-                />
+                {parsing ? (
+                  <div className="py-6" role="status" aria-live="polite">
+                    <Loader2 className="h-10 w-10 mx-auto animate-spin text-navy-900 dark:text-white mb-3" />
+                    <p className="text-sm font-medium text-navy-900 dark:text-white">
+                      Reading {fileName}…
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Checking the columns and every row. Large files can take a few seconds.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="h-10 w-10 mx-auto text-gray-400 mb-3" />
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                      Drop your file here or click to browse
+                    </p>
+                    <p className="text-xs text-gray-400 mb-4">
+                      Supports .xlsx, .xls, and .csv files
+                    </p>
+                    <Input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={handleFileChange}
+                      className="max-w-xs mx-auto"
+                    />
+                  </>
+                )}
               </div>
             </div>
 

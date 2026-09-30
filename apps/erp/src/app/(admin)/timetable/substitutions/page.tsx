@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { adminFetch, adminDelete } from "@nkps/shared/lib/admin-api";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
@@ -24,7 +25,7 @@ import {
 import {
   Loader2,
   Plus,
-  Printer,
+  FileDown,
   Trash2,
   UserCheck,
   CalendarX2,
@@ -113,6 +114,7 @@ export default function AdminSubstitutionsPage() {
   }>({ open: false, period: null, currentSubstituteId: null });
 
   const [markDialogOpen, setMarkDialogOpen] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   // Load teachers once.
   useEffect(() => {
@@ -202,16 +204,20 @@ export default function AdminSubstitutionsPage() {
   };
 
   const handlePrint = async () => {
-    const res = await adminFetch(`/api/substitutions/sheet?date=${date}`);
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Failed to generate sheet");
-      return;
+    setPrinting(true);
+    try {
+      const res = await adminFetch(`/api/substitutions/sheet?date=${date}`);
+      const failure = await saveResponse(
+        res,
+        `substitution-sheet-${date}.pdf`,
+        "Couldn't generate the substitution sheet"
+      );
+      if (failure) toast.error(failure);
+    } catch {
+      toast.error("Couldn't download the substitution sheet. Check your connection and try again.");
+    } finally {
+      setPrinting(false);
     }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank", "noopener");
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   };
 
   return (
@@ -233,9 +239,17 @@ export default function AdminSubstitutionsPage() {
               className="w-40"
             />
           </div>
-          <Button variant="outline" onClick={handlePrint} disabled={absences.length === 0}>
-            <Printer className="h-4 w-4 mr-1" />
-            Print sheet
+          <Button
+            variant="outline"
+            onClick={handlePrint}
+            disabled={absences.length === 0 || printing}
+          >
+            {printing ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4 mr-1" />
+            )}
+            Download sheet
           </Button>
           <Button onClick={() => setMarkDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-1" />

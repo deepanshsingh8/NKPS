@@ -55,6 +55,11 @@ export async function GET(request: Request) {
       .single();
 
     if (payErr || !payment) {
+      // A failed embed or a missing column would otherwise read as "not
+      // found" with nothing in the logs to say otherwise.
+      if (payErr && payErr.code !== "PGRST116") {
+        console.error("Receipt payment query failed:", payErr);
+      }
       return NextResponse.json({ error: "Payment not found" }, { status: 404 });
     }
 
@@ -196,14 +201,19 @@ export async function GET(request: Request) {
       />
     );
 
-    const safeName = student.full_name.replace(/[^\w\-]+/g, "_");
-    const filename = `fee-receipt_${payment.receipt_number ?? paymentId}_${safeName}.pdf`;
+    // Both parts sanitised: imported receipts carry the source sheet's text
+    // in their number, and a quote or a non-Latin-1 character there would
+    // corrupt the header or make the Headers constructor throw.
+    const safe = (s: string) => s.replace(/[^\w\-]+/g, "_");
+    const filename = `fee-receipt_${safe(payment.receipt_number ?? paymentId)}_${safe(student.full_name)}.pdf`;
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${filename}"`,
+        // attachment: the buttons say Download, and every caller saves the
+        // file rather than opening a viewer tab.
+        "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "private, no-store",
       },
     });

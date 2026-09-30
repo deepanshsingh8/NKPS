@@ -29,6 +29,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 
 interface RowResult {
   index: number;
@@ -69,6 +70,7 @@ export function MarksImportDialog({
   const [file, setFile] = useState<File | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [rows, setRows] = useState<RowResult[] | null>(null);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -113,9 +115,22 @@ export function MarksImportDialog({
     }
   }
 
-  function downloadTemplate() {
+  async function downloadTemplate() {
     const url = `/api/results/export?class_id=${classId}&exam_type_id=${examTypeId}&subject_id=${subjectId}`;
-    window.open(url, "_blank");
+    setDownloadingTemplate(true);
+    try {
+      const res = await fetch(url, { credentials: "same-origin" });
+      const failure = await saveResponse(
+        res,
+        "marks-template.csv",
+        "Couldn't generate the template"
+      );
+      if (failure) toast.error(failure);
+    } catch {
+      toast.error("Couldn't download the template. Check your connection and try again.");
+    } finally {
+      setDownloadingTemplate(false);
+    }
   }
 
   const hasErrors = (summary?.errors ?? 0) > 0;
@@ -159,9 +174,13 @@ export function MarksImportDialog({
               variant="outline"
               size="sm"
               onClick={downloadTemplate}
-              disabled={disabledAll}
+              disabled={disabledAll || downloadingTemplate}
             >
-              <Download className="h-4 w-4 mr-2" />
+              {downloadingTemplate ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
               Download template
             </Button>
             <div className="flex items-center gap-2">

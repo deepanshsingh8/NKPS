@@ -1,6 +1,10 @@
 "use client";
 
-import { Download, RefreshCw, Table2 } from "lucide-react";
+import { useState } from "react";
+import { Download, Loader2, RefreshCw, Table2 } from "lucide-react";
+import { toast } from "sonner";
+import { adminFetch } from "@nkps/shared/lib/admin-api";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 import type { Turn } from "./types";
 
 /**
@@ -26,9 +30,26 @@ export function AnswerTable({
   onSelectRun: (runId: string) => void;
   onRerun: (runId: string) => void;
 }) {
+  const [exporting, setExporting] = useState(false);
   const runs = turn.runs ?? [];
   const table = turn.table ?? null;
   if (runs.length === 0) return null;
+
+  // A fetch, not a link: the export route authenticates by Bearer token, which
+  // a plain <a href> cannot send — the link answered 401 every time, and with
+  // no target it navigated the whole chat away to the error.
+  async function downloadCsv(runId: string) {
+    setExporting(true);
+    try {
+      const res = await adminFetch(`/api/ai/ask/${runId}/export`);
+      const failure = await saveResponse(res, "assistant-report.csv", "Couldn't export the list");
+      if (failure) toast.error(failure);
+    } catch {
+      toast.error("Couldn't export the list. Check your connection and try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const activeRun = runs.find((r) => r.runId === turn.activeRunId) ?? null;
 
@@ -84,13 +105,19 @@ export function AnswerTable({
         </div>
 
         {table ? (
-          <a
-            href={`/api/ai/ask/${table.runId}/export`}
-            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-navy-900 dark:text-white transition hover:border-blue-400 hover:text-blue-700"
+          <button
+            type="button"
+            disabled={exporting}
+            onClick={() => void downloadCsv(table.runId)}
+            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-navy-900 dark:text-white transition hover:border-blue-400 hover:text-blue-700 disabled:opacity-50"
           >
-            <Download className="h-3.5 w-3.5" />
-            Download CSV
-          </a>
+            {exporting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+            {exporting ? "Preparing CSV…" : "Download CSV"}
+          </button>
         ) : activeRun?.expired ? (
           <button
             type="button"

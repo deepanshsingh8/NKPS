@@ -26,6 +26,7 @@ import {
 import { Input } from "@nkps/shared/components/ui/input";
 import { Button } from "@nkps/shared/components/ui/button";
 import { toast } from "sonner";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 import {
   Save,
   Loader2,
@@ -88,6 +89,7 @@ export function PtmNotesWorkbench({
   const [loading, setLoading] = useState(true);
   const [loadingGrid, setLoadingGrid] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState(false);
 
   useEffect(() => {
     async function bootstrap() {
@@ -379,21 +381,20 @@ export function PtmNotesWorkbench({
     if (!classId) return;
     const qs = new URLSearchParams({ class_id: classId });
     if (examTypeId !== "__none__") qs.set("exam_type_id", examTypeId);
-    const res = await fetch(`/api/ptm-notes/report?${qs.toString()}`);
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Failed to generate report");
-      return;
+    setDownloadingReport(true);
+    try {
+      const res = await fetch(`/api/ptm-notes/report?${qs.toString()}`);
+      const failure = await saveResponse(
+        res,
+        "ptm-notes-report.pdf",
+        "Couldn't generate the report"
+      );
+      if (failure) toast.error(failure);
+    } catch {
+      toast.error("Couldn't download the report. Check your connection and try again.");
+    } finally {
+      setDownloadingReport(false);
     }
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "ptm-notes-report.pdf";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
   }
 
   if (loading) {
@@ -555,9 +556,13 @@ export function PtmNotesWorkbench({
                 variant="outline"
                 size="sm"
                 onClick={downloadReport}
-                disabled={!classId}
+                disabled={!classId || downloadingReport}
               >
-                <FileDown className="h-4 w-4 mr-2" />
+                {downloadingReport ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileDown className="h-4 w-4 mr-2" />
+                )}
                 Report PDF
               </Button>
             </div>

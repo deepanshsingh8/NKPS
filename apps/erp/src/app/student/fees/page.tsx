@@ -18,8 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@nkps/shared/components/ui/table";
-import { Button } from "@nkps/shared/components/ui/button";
-import { CreditCard, CheckCircle, AlertCircle, Loader2, Download } from "lucide-react";
+import { CreditCard, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import {
   computeDuesBreakdown,
   resolveBillingCutoff,
@@ -27,6 +26,7 @@ import {
   resolveStudentType,
 } from "@/lib/fees";
 import type { StopFeeLookup } from "@/lib/fees";
+import { ReceiptDownloadButton } from "@/components/ReceiptDownloadButton";
 import type {
   FeeStructure,
   FeePayment,
@@ -457,20 +457,10 @@ export default function StudentFeesPage() {
                       {p.receipt_number ?? "--"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() =>
-                          window.open(
-                            `/api/fees/receipt?payment_id=${p.id}`,
-                            "_blank",
-                            "noopener"
-                          )
-                        }
-                        title="Download fee receipt"
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
+                      <ReceiptDownloadButton
+                        paymentId={p.id}
+                        receiptNumber={p.receipt_number ?? null}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
