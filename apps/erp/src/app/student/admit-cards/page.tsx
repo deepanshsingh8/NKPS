@@ -10,6 +10,7 @@ import { Button } from "@nkps/shared/components/ui/button";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import { Download, Loader2, IdCard, CalendarClock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 
 interface DuesInfo {
   total: number;
@@ -23,21 +24,6 @@ interface ExamRow {
   schedule_count: number;
   earliest_date: string | null;
   latest_date: string | null;
-}
-
-async function downloadFromResponse(res: Response, fallbackName: string) {
-  const disposition = res.headers.get("Content-Disposition");
-  const match = disposition?.match(/filename="([^"]+)"/);
-  const filename = match?.[1] ?? fallbackName;
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
 }
 
 function fmtDate(iso: string | null): string {
@@ -179,15 +165,14 @@ export default function StudentAdmitCardsPage() {
       const res = await fetch(
         `/api/admit-cards/pdf?student_id=${studentId}&exam_type_id=${examTypeId}`
       );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        toast.error(body.message ?? body.error ?? "Failed to download admit card");
-        return;
-      }
-      await downloadFromResponse(
+      const failure = await saveResponse(
         res,
-        `admit-card-${examName.replace(/\W+/g, "_")}.pdf`
+        `admit-card-${examName.replace(/\W+/g, "_")}.pdf`,
+        "Couldn't generate the admit card"
       );
+      if (failure) toast.error(failure);
+    } catch {
+      toast.error("Couldn't download the admit card. Check your connection and try again.");
     } finally {
       setDownloading(null);
     }

@@ -16,8 +16,10 @@ import {
   SelectValue,
 } from "@nkps/shared/components/ui/select";
 import { Button } from "@nkps/shared/components/ui/button";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { formatClassName } from "@nkps/shared/lib/utils";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 import type { Class, ExamType, Subject } from "@nkps/shared/types";
 
 export default function AdminBlankMarksListPage() {
@@ -102,24 +104,14 @@ export default function AdminBlankMarksListPage() {
         examTypeId
       )}&subject_id=${encodeURIComponent(subjectId)}`;
       const res = await fetch(url);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        alert(body.error ?? "Failed to generate PDF");
-        return;
-      }
-      const blob = await res.blob();
-      const disposition = res.headers.get("Content-Disposition") ?? "";
-      const match = /filename="([^"]+)"/.exec(disposition);
-      const filename = match?.[1] ?? "blank-marks-list.pdf";
-
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = downloadUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(downloadUrl);
+      const failure = await saveResponse(
+        res,
+        "blank-marks-list.pdf",
+        "Couldn't generate the marks list"
+      );
+      if (failure) toast.error(failure);
+    } catch {
+      toast.error("Couldn't download the marks list. Check your connection and try again.");
     } finally {
       setDownloading(false);
     }
@@ -248,7 +240,11 @@ export default function AdminBlankMarksListPage() {
               onClick={handleDownload}
               disabled={!canDownload || downloading}
             >
-              <Download className="h-4 w-4 mr-2" />
+              {downloading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
               {downloading ? "Generating…" : "Download PDF"}
             </Button>
           </div>

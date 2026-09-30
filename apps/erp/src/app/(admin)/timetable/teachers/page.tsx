@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 import { Button } from "@nkps/shared/components/ui/button";
 import {
   Select,
@@ -11,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@nkps/shared/components/ui/select";
-import { Loader2, UserCog, Printer } from "lucide-react";
+import { Loader2, UserCog, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import type { Teacher } from "@nkps/shared/types";
 import {
@@ -28,6 +29,7 @@ export default function AdminTeacherTimetablePage() {
   const [periods, setPeriods] = useState<TeacherPeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodsLoading, setPeriodsLoading] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   const [absentDialog, setAbsentDialog] = useState<{
     open: boolean;
@@ -90,18 +92,22 @@ export default function AdminTeacherTimetablePage() {
 
   const handlePrint = async () => {
     if (!selectedTeacherId) return;
-    const res = await adminFetch(
-      `/api/timetable/sheet?teacher_id=${selectedTeacherId}`
-    );
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Failed to generate the timetable");
-      return;
+    setPrinting(true);
+    try {
+      const res = await adminFetch(
+        `/api/timetable/sheet?teacher_id=${selectedTeacherId}`
+      );
+      const failure = await saveResponse(
+        res,
+        "timetable.pdf",
+        "Couldn't generate the timetable"
+      );
+      if (failure) toast.error(failure);
+    } catch {
+      toast.error("Couldn't download the timetable. Check your connection and try again.");
+    } finally {
+      setPrinting(false);
     }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank", "noopener");
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   };
 
   return (
@@ -113,10 +119,14 @@ export default function AdminTeacherTimetablePage() {
         <Button
           variant="outline"
           onClick={handlePrint}
-          disabled={!selectedTeacherId}
+          disabled={!selectedTeacherId || printing}
         >
-          <Printer className="h-4 w-4 mr-1" />
-          Print
+          {printing ? (
+            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+          ) : (
+            <FileDown className="h-4 w-4 mr-1" />
+          )}
+          Download PDF
         </Button>
       </div>
 

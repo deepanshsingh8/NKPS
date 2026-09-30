@@ -1,5 +1,7 @@
 /** Shared shapes for the Ask chat. */
 
+import type { TurnProgress } from "./progress";
+
 export interface AskRun {
   runId: string;
   purpose: string;
@@ -45,8 +47,8 @@ export interface Turn {
   streaming?: boolean;
   /** What the model said before going off to look something up. */
   steps?: string[];
-  /** The lookup in flight, for the progress line. */
-  activeTool?: string | null;
+  /** The live checklist; folds to one line once the turn is done. */
+  progress?: TurnProgress;
 }
 
 export interface ConversationSummary {

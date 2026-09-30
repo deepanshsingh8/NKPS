@@ -21,6 +21,7 @@ import {
 import { Badge } from "@nkps/shared/components/ui/badge";
 import { Button } from "@nkps/shared/components/ui/button";
 import { toast } from "sonner";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 import { Download, BarChart3, Users, AlertTriangle } from "lucide-react";
 import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 import { gradeChip } from "@/lib/grades";
@@ -224,22 +225,12 @@ export default function ParentResultsPage() {
       const res = await fetch(
         `/api/results/report-card/pdf?student_id=${selectedChild}&exam_type_id=${selectedExam}`
       );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        toast.error(body.message ?? body.error ?? "Failed to download report card");
-        return;
-      }
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      const disposition = res.headers.get("Content-Disposition") ?? "";
-      const match = disposition.match(/filename="(.+)"/);
-      a.download = match?.[1] ?? "report-card.pdf";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      const failure = await saveResponse(
+        res,
+        "report-card.pdf",
+        "Failed to download report card"
+      );
+      if (failure) toast.error(failure);
     } catch (err) {
       console.error("Report card download error:", err);
       toast.error("Failed to download report card");

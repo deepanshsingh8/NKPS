@@ -208,7 +208,13 @@ export function exportFilename(
   return `${name}-${stamp}`;
 }
 
-/** Hand a generated file to the browser. No-op outside one. */
+/**
+ * Hand a generated file to the browser. No-op outside one.
+ *
+ * The object URL is revoked on a delay, not straight after `click()`. The click
+ * only *starts* the download; Safari (and iOS in particular) reads the blob
+ * afterwards, and revoking in the same tick aborts it with nothing on screen.
+ */
 export function downloadBlob(blob: Blob, filename: string): void {
   if (typeof document === "undefined") return;
   const url = URL.createObjectURL(blob);
@@ -218,7 +224,67 @@ export function downloadBlob(blob: Blob, filename: string): void {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+/** The filename a server named in Content-Disposition, if it named one. */
+export function responseFilename(res: Response): string | null {
+  const header = res.headers.get("Content-Disposition");
+  if (!header) return null;
+  const encoded = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(header);
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded[1].trim());
+    } catch {
+      // fall through to the plain form
+    }
+  }
+  const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(header);
+  return plain ? plain[1].trim() : null;
+}
+
+/**
+ * The sentence to show when a download route said no. Routes answer errors as
+ * `{ error }` JSON; anything else (a proxy's HTML page, an empty 502) gets a
+ * generic line rather than a toast full of markup.
+ */
+export async function responseError(
+  res: Response,
+  fallback = "Download failed"
+): Promise<string> {
+  try {
+    const type = res.headers.get("Content-Type") ?? "";
+    if (type.includes("application/json")) {
+      const body = (await res.json()) as { error?: unknown };
+      if (typeof body.error === "string" && body.error) return body.error;
+    }
+  } catch {
+    // unreadable body — use the fallback
+  }
+  if (res.status === 401) return "Your session has expired. Sign in again.";
+  if (res.status === 403) return "You don't have access to this file.";
+  return fallback;
+}
+
+/**
+ * Save a file a route has just answered with.
+ *
+ * Every download in the ERP is one of these: fetch, check, save. Doing it here
+ * means none of them can hand the user a JSON error renamed to `.pdf`, and none
+ * of them opens a popup after an `await` — by then the click's user activation
+ * has lapsed and the browser blocks the window without telling anyone.
+ *
+ * Returns null on success, or the message to show.
+ */
+export async function saveResponse(
+  res: Response,
+  fallbackName: string,
+  errorFallback?: string
+): Promise<string | null> {
+  if (!res.ok) return responseError(res, errorFallback);
+  const blob = await res.blob();
+  downloadBlob(blob, responseFilename(res) ?? fallbackName);
+  return null;
 }
 
 /**

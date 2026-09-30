@@ -19,6 +19,7 @@ import { Input } from "@nkps/shared/components/ui/input";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import { toast } from "sonner";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 import {
   Loader2,
   Save,
@@ -229,23 +230,14 @@ export default function AdminPtmFormatPage() {
       if (genTemplateId !== "__default__")
         qs.set("template_id", genTemplateId);
       const res = await fetch(`/api/ptm-format/pdf?${qs.toString()}`);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        toast.error(body.error ?? "Failed to generate");
-        return;
-      }
-      const blob = await res.blob();
-      const disposition = res.headers.get("Content-Disposition") ?? "";
-      const match = /filename="([^"]+)"/.exec(disposition);
-      const filename = match?.[1] ?? "ptm-format.pdf";
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      const failure = await saveResponse(
+        res,
+        "ptm-format.pdf",
+        "Couldn't generate the PTM sheet"
+      );
+      if (failure) toast.error(failure);
+    } catch {
+      toast.error("Couldn't download the PTM sheet. Check your connection and try again.");
     } finally {
       setGenerating(false);
     }

@@ -1568,8 +1568,8 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "One slot can show several cards. A coach running a shared activity really is with more than one class at that time; the group name follows the subject.",
       },
       {
-        name: "Print a teacher's timetable",
-        steps: ['Choose from "Select a teacher...".', 'Click "Print".'],
+        name: "Download a teacher's timetable",
+        steps: ['Choose from "Select a teacher...".', 'Click "Download PDF".'],
         gotcha:
           "A coach running a shared activity appears once per class in the same slot, so their sheet shows all of those sections stacked in that cell.",
       },
@@ -1605,8 +1605,8 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Candidates are only teachers free in that slot, ranked with reasons. If there are none you are told to combine classes or reschedule.",
       },
       {
-        name: "Print the day's substitution sheet",
-        steps: ["Set the Date.", 'Click "Print sheet".'],
+        name: "Download the day's substitution sheet",
+        steps: ["Set the Date.", 'Click "Download sheet".'],
         gotcha: "Disabled when nobody is absent that day.",
       },
     ],
@@ -1725,14 +1725,14 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "The grid shows one line per group. Deleting a group leaves the others alone; delete the first one and the next in line becomes the period's main group.",
       },
       {
-        name: "Print the class timetable",
+        name: "Download the class timetable",
         steps: [
           'Pick the class in "Select a class...".',
-          'Click "Print".',
+          'Click "Download PDF".',
         ],
         needs: "A class with periods on it — an empty timetable prints a sheet that says so.",
         gotcha:
-          "The PDF opens in a new tab. It shows every parallel group, one line per group, so a Games period names all three coaches — which is the whole reason it is worth printing rather than screenshotting.",
+          "The PDF downloads, ready to print. It shows every parallel group, one line per group, so a Games period names all three coaches — which is the whole reason it is worth printing rather than screenshotting.",
       },
       {
         name: "Let one teacher take several classes at once",

@@ -3,6 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import { DailySubstitutionSheetPDF, type DailySubstitutionRow } from "@/components/pdf/DailySubstitutionSheetPDF";
 import { SCHOOL } from "@nkps/shared/lib/constants";
+import { contentDispositionAttachment } from "@nkps/shared/lib/utils";
 import { HALF_DAY_CUTOFF_PERIOD } from "@nkps/shared/lib/constants";
 
 export const runtime = "nodejs";
@@ -212,7 +213,7 @@ export async function GET(request: NextRequest) {
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="substitution-sheet-${date}.pdf"`,
+      "Content-Disposition": contentDispositionAttachment(`substitution-sheet-${date}.pdf`),
     },
   });
 }

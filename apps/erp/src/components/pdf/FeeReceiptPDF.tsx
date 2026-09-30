@@ -283,12 +283,13 @@ function Copy({
   data: FeeReceiptData;
   logoData?: Buffer | Uint8Array;
 }) {
+  // "Rs." rather than a currency-style format: the built-in Helvetica has no
+  // ₹ glyph, so the symbol printed as a garbage character on every receipt.
   const formatINR = (n: number) =>
-    new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
+    `Rs. ${new Intl.NumberFormat("en-IN", {
+      minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(n);
+    }).format(n)}`;
   const amountText = formatINR(data.amount);
   const isRefunded = data.status === "refunded";
   const refundedDate = data.refunded_at

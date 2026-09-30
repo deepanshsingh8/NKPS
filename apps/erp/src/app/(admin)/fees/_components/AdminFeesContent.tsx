@@ -37,6 +37,7 @@ import {
   type TableColumns,
 } from "@nkps/shared/components/ui/data-table";
 import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
 import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import {
@@ -1314,22 +1315,23 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     columns: paymentColumns,
   });
 
-  const downloadReceipt = async (paymentId: string) => {
+  const [receiptBusyId, setReceiptBusyId] = useState<string | null>(null);
+  const downloadReceipt = async (paymentId: string, receiptNo: string | null) => {
+    setReceiptBusyId(paymentId);
     try {
       const res = await adminFetch(
         `/api/fees/receipt?payment_id=${paymentId}`
       );
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || "Failed to generate receipt");
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener");
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      const failure = await saveResponse(
+        res,
+        `fee-receipt_${receiptNo ?? paymentId}.pdf`,
+        "Failed to generate receipt"
+      );
+      if (failure) toast.error(failure);
     } catch {
-      toast.error("Failed to download receipt");
+      toast.error("Couldn't download the receipt. Check your connection and try again.");
+    } finally {
+      setReceiptBusyId(null);
     }
   };
 
@@ -2678,11 +2680,17 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                 <Button
                                   variant="ghost"
                                   size="icon-sm"
-                                  onClick={() => downloadReceipt(p.id)}
+                                  onClick={() => downloadReceipt(p.id, p.receipt_number)}
+                                  disabled={receiptBusyId === p.id}
                                   className="text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
                                   title="Download fee receipt (school + parent copy)"
+                                  aria-label="Download fee receipt"
                                 >
-                                  <Download className="h-4 w-4" />
+                                  {receiptBusyId === p.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Download className="h-4 w-4" />
+                                  )}
                                 </Button>
                                 {/* Refund applies only to genuine cash receipts that haven't been refunded yet. */}
                                 {p.status !== "refunded" &&

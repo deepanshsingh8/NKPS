@@ -56,6 +56,7 @@ import {
   TabsTrigger,
 } from "@nkps/shared/components/ui/tabs";
 import { toast } from "sonner";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 import { todayISO } from "@nkps/shared/lib/date";
 import {
   ArrowUpCircle,
@@ -1415,19 +1416,12 @@ export default function AdminStudentsPage() {
   const handleDownloadProfile = async (student: StudentRow) => {
     try {
       const res = await adminFetch(`/api/students/${student.id}/export`);
-      if (!res.ok) {
-        toast.error("Failed to export student profile");
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `student-profile-${student.admission_no}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const failure = await saveResponse(
+        res,
+        `student-profile-${student.admission_no}.xlsx`,
+        "Failed to export student profile"
+      );
+      if (failure) toast.error(failure);
     } catch {
       toast.error("Failed to export student profile");
     }

@@ -40,6 +40,7 @@ import { Input } from "@nkps/shared/components/ui/input";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Badge } from "@nkps/shared/components/ui/badge";
 import { toast } from "sonner";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 import { Save, Loader2, Download, Info, FileText } from "lucide-react";
 import { formatClassName } from "@nkps/shared/lib/utils";
 import { computeGrade, type GradeBand } from "@/lib/grading";
@@ -96,6 +97,7 @@ export default function TeacherResultsPage() {
   const [loading, setLoading] = useState(true);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const [maxMarks, setMaxMarks] = useState(100);
   const [gradeBands, setGradeBands] = useState<GradeBand[]>([]);
@@ -641,10 +643,25 @@ export default function TeacherResultsPage() {
     }
   }
 
-  function downloadExport() {
+  // Fetched rather than opened in a tab: a refusal then reads as a toast, not
+  // a page of raw JSON, and an installed app keeps its own session cookie.
+  async function downloadExport() {
     if (!selectedClassId || !selectedSubjectId || !selectedExamTypeId) return;
     const url = `/api/results/export?class_id=${selectedClassId}&subject_id=${selectedSubjectId}&exam_type_id=${selectedExamTypeId}`;
-    window.open(url, "_blank");
+    setExporting(true);
+    try {
+      const res = await fetch(url, { credentials: "same-origin" });
+      const failure = await saveResponse(
+        res,
+        "marks.csv",
+        "Couldn't export the marks"
+      );
+      if (failure) toast.error(failure);
+    } catch {
+      toast.error("Couldn't download the marks. Check your connection and try again.");
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -816,8 +833,13 @@ export default function TeacherResultsPage() {
                   variant="outline"
                   size="sm"
                   onClick={downloadExport}
+                  disabled={exporting}
                 >
-                  <Download className="h-4 w-4 mr-2" />
+                  {exporting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
                   Export CSV
                 </Button>
                 <MarksImportDialog

@@ -85,8 +85,9 @@ export async function GET(request: Request) {
       if (dues.hasOutstanding) {
         return NextResponse.json(
           {
-            error: "Outstanding fee dues",
-            message: `Result download is locked until fees are cleared. Outstanding dues: ₹${dues.total.toLocaleString("en-IN")}.`,
+            // The sentence goes in `error`: that is the field the download
+            // helpers show, and "Outstanding fee dues" alone gave no amount.
+            error: `Result download is locked until fees are cleared. Outstanding dues: ₹${dues.total.toLocaleString("en-IN")}.`,
           },
           { status: 403 }
         );

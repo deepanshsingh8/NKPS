@@ -30,8 +30,9 @@ import {
   SelectValue,
 } from "@nkps/shared/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Clock, CalendarRange, Info, Printer, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Loader2, Clock, CalendarRange, Info, FileDown, ChevronDown } from "lucide-react";
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
+import { saveResponse } from "@nkps/shared/lib/table-export";
 import { formatClassName, formatShortDate } from "@nkps/shared/lib/utils";
 import { teacherOptions } from "@nkps/shared/lib/teacher-options";
 import type { Class, Subject, Teacher, TimetablePeriod } from "@nkps/shared/types";
@@ -100,6 +101,7 @@ export default function AdminTimetablePage() {
   const [mobileDay, setMobileDay] = useState(defaultDay);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   // Period rows the admin added on top of the defaults (a zero period, or
   // periods beyond the default 8) so they have a row to click into.
@@ -440,18 +442,22 @@ const session = useAcademicSession();
 
   const handlePrint = async () => {
     if (!selectedClassId) return;
-    const res = await adminFetch(
-      `/api/timetable/sheet?class_id=${selectedClassId}`
-    );
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Failed to generate the timetable");
-      return;
+    setPrinting(true);
+    try {
+      const res = await adminFetch(
+        `/api/timetable/sheet?class_id=${selectedClassId}`
+      );
+      const failure = await saveResponse(
+        res,
+        "timetable.pdf",
+        "Couldn't generate the timetable"
+      );
+      if (failure) toast.error(failure);
+    } catch {
+      toast.error("Couldn't download the timetable. Check your connection and try again.");
+    } finally {
+      setPrinting(false);
     }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank", "noopener");
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   };
 
   // One cell of the timetable. Lifted out of the <td> so the week table and
@@ -550,10 +556,14 @@ const session = useAcademicSession();
           <Button
             variant="outline"
             onClick={handlePrint}
-            disabled={!selectedClassId}
+            disabled={!selectedClassId || printing}
           >
-            <Printer className="h-4 w-4 mr-1" />
-            Print
+            {printing ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4 mr-1" />
+            )}
+            Download PDF
           </Button>
         </div>
       </div>
