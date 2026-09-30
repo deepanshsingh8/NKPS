@@ -40,23 +40,16 @@ import {
   X,
 } from "lucide-react";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
+import { STAFF_CATEGORY_OPTIONS } from "@nkps/shared/lib/staff-roles";
+import {
+  STAFF_PROFILE_FIELDS,
+  normalizeStaffProfileValue,
+  type StaffProfileField,
+} from "@nkps/shared/lib/staff-profile-fields";
+import { staffProfileFieldsSchema } from "@nkps/shared/lib/validations";
 import type { StaffCategory } from "@nkps/shared/types";
 
-const CATEGORY_OPTIONS: { value: StaffCategory; label: string }[] = [
-  { value: "management", label: "Management" },
-  { value: "admin", label: "Administration" },
-  { value: "pgt", label: "PGT" },
-  { value: "tgt", label: "TGT" },
-  { value: "prt", label: "PRT" },
-  { value: "motherTeachers", label: "Mother Teachers" },
-  { value: "prePrimaryCoordinator", label: "Pre-primary Coordinator" },
-  { value: "primaryCoordinator", label: "Primary Coordinator" },
-  { value: "middleCoordinator", label: "Middle Coordinator" },
-  { value: "seniorCoordinator", label: "Senior Coordinator" },
-  { value: "additionalStaff", label: "Additional Staff" },
-  { value: "busDriver", label: "Bus Drivers" },
-  { value: "peon", label: "Peons" },
-];
+const CATEGORY_OPTIONS = STAFF_CATEGORY_OPTIONS;
 
 interface ParsedRow {
   name: string;
@@ -68,6 +61,11 @@ interface ParsedRow {
   address: string;
   qualifications: string;
   license_number: string;
+  // Full-profile columns (staff_details), keyed by registry key, already
+  // normalised and validated. A value that failed validation is left out and
+  // named in `warnings` rather than failing the whole row.
+  details: Record<string, unknown>;
+  warnings: string[];
   errors: string[];
 }
 
@@ -81,6 +79,8 @@ CATEGORY_LABEL_TO_VALUE["mother teacher"] = "motherTeachers";
 CATEGORY_LABEL_TO_VALUE["mother teachers"] = "motherTeachers";
 CATEGORY_LABEL_TO_VALUE["admin"] = "admin";
 CATEGORY_LABEL_TO_VALUE["administrative staff"] = "admin";
+CATEGORY_LABEL_TO_VALUE["administration"] = "admin";
+CATEGORY_LABEL_TO_VALUE["office"] = "admin";
 CATEGORY_LABEL_TO_VALUE["additional staff"] = "additionalStaff";
 CATEGORY_LABEL_TO_VALUE["bus driver"] = "busDriver";
 CATEGORY_LABEL_TO_VALUE["bus drivers"] = "busDriver";
@@ -102,20 +102,22 @@ interface StaffBulkUploadProps {
 const COLUMN_ALIASES: Record<string, string[]> = {
   name: [
     "name",
+    "name of the staff member",
     "full name",
     "staff name",
     "teacher name",
     "employee name",
     "emp name",
   ],
+  // "Designation" and "Department" are profile columns of their own now; a
+  // sheet with only a Designation column still works — see the fallback in
+  // the row loop.
   subject: [
     "subject",
-    "designation",
     "role",
     "position",
-    "dept",
-    "department",
     "subject/designation",
+    "subject / designation",
   ],
   email: [
     "email",
@@ -181,33 +183,74 @@ function normalizeHeader(header: string): string {
   return header.toLowerCase().replace(/[^a-z0-9\s/]/g, "").trim();
 }
 
+// Profile columns only live on staff_details; the staff_members ones (phone,
+// email, address, …) are already covered by COLUMN_ALIASES above.
+const DETAIL_FIELDS = STAFF_PROFILE_FIELDS.filter((f) => f.table === "staff_details");
+const DETAIL_HEADERS = new Map<string, StaffProfileField>();
+for (const f of DETAIL_FIELDS) {
+  for (const h of [f.label, f.key.replace(/_/g, " "), ...(f.aliases ?? [])]) {
+    DETAIL_HEADERS.set(normalizeHeader(h), f);
+  }
+}
+const DETAIL_PREFIX = "detail:";
+
 function mapHeaders(headers: string[]): Record<number, string> {
   const mapping: Record<number, string> = {};
+  const taken = new Set<string>();
+  const claim = (index: number, field: string) => {
+    mapping[index] = field;
+    taken.add(field);
+  };
 
+  // Pass 1: exact matches, core columns then profile columns. Exact profile
+  // matches must win over the substring pass below, or "Father's Name" would
+  // be read as the staff member's own name.
   headers.forEach((header, index) => {
     const normalized = normalizeHeader(header);
     if (!normalized) return;
-
-    // Two-pass matching: exact first, then substring fallback
-    let matched = false;
     for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
-      if (normalized === field || aliases.some((alias) => normalized === alias)) {
-        mapping[index] = field;
-        matched = true;
-        break;
+      if (!taken.has(field) && (normalized === field || aliases.includes(normalized))) {
+        claim(index, field);
+        return;
       }
     }
-    if (!matched) {
-      for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
-        if (aliases.some((alias) => normalized.includes(alias))) {
-          mapping[index] = field;
-          break;
-        }
+    const detail = DETAIL_HEADERS.get(normalized);
+    if (detail && !taken.has(DETAIL_PREFIX + detail.key)) {
+      claim(index, DETAIL_PREFIX + detail.key);
+    }
+  });
+
+  // Pass 2: substring fallback for core columns only, and only for a field no
+  // column has claimed yet — a second match must not overwrite the first.
+  headers.forEach((header, index) => {
+    if (mapping[index]) return;
+    const normalized = normalizeHeader(header);
+    if (!normalized) return;
+    for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
+      if (!taken.has(field) && aliases.some((alias) => normalized.includes(alias))) {
+        claim(index, field);
+        return;
       }
     }
   });
 
   return mapping;
+}
+
+/** Normalise + validate one profile cell; undefined value = blank. */
+function parseDetailCell(
+  field: StaffProfileField,
+  raw: string
+): { value?: unknown; warning?: string } {
+  const text = field.type === "date" ? normalizeDateString(raw) : raw;
+  const value = normalizeStaffProfileValue(field, text);
+  if (value === undefined) return {};
+  const check = staffProfileFieldsSchema.safeParse({ [field.key]: value });
+  if (!check.success) {
+    const msg = check.error.issues[0]?.message ?? "invalid";
+    return { warning: `${field.label}: ${msg} ("${raw}") — skipped` };
+  }
+  return { value: (check.data as Record<string, unknown>)[field.key] };
 }
 
 function excelSerialToDate(serial: number): string {
@@ -339,9 +382,13 @@ export function StaffBulkUpload({
             );
             return;
           }
-          if (!Object.values(columnMap).includes("subject")) {
+          if (
+            !Object.values(columnMap).includes("subject") &&
+            !Object.values(columnMap).includes(DETAIL_PREFIX + "designation") &&
+            !Object.values(columnMap).includes(DETAIL_PREFIX + "appointed_subject")
+          ) {
             toast.error(
-              'Could not find "Subject" or "Designation" column. Please check the headers.'
+              'Could not find a "Subject", "Designation" or "Appointed for Subject" column. Please check the headers.'
             );
             return;
           }
@@ -366,6 +413,8 @@ export function StaffBulkUpload({
               address: "",
               qualifications: "",
               license_number: "",
+              details: {},
+              warnings: [],
               errors: [],
             };
 
@@ -373,7 +422,15 @@ export function StaffBulkUpload({
 
             for (const [colIndex, field] of Object.entries(columnMap)) {
               const cellValue = String(row[Number(colIndex)] ?? "").trim();
-              if (field === "date_of_birth") {
+              if (field.startsWith(DETAIL_PREFIX)) {
+                const def = DETAIL_FIELDS.find(
+                  (f) => f.key === field.slice(DETAIL_PREFIX.length)
+                );
+                if (!def || !cellValue) continue;
+                const { value, warning } = parseDetailCell(def, cellValue);
+                if (warning) record.warnings.push(warning);
+                else if (value !== undefined) record.details[def.key] = value;
+              } else if (field === "date_of_birth") {
                 record[field] = normalizeDateString(cellValue);
               } else if (field === "phone") {
                 record[field] = normalizePhone(cellValue);
@@ -386,6 +443,14 @@ export function StaffBulkUpload({
               }
             }
 
+            // No Subject column (the registration proforma has none): the
+            // directory title falls back to the appointed subject, then the
+            // designation — what the old single "Subject / Designation" held.
+            if (!record.subject) {
+              const fallback =
+                record.details.appointed_subject ?? record.details.designation;
+              if (typeof fallback === "string") record.subject = fallback;
+            }
             record.errors = validateRow(record, fileCategoryCol);
             parsed.push(record);
           }
@@ -410,6 +475,9 @@ export function StaffBulkUpload({
 
   const validRows = parsedRows.filter((r) => r.errors.length === 0);
   const invalidRows = parsedRows.filter((r) => r.errors.length > 0);
+  const skipped = parsedRows.flatMap((r) =>
+    r.warnings.map((w) => `${r.name || "(no name)"} — ${w}`)
+  );
 
   const removeRow = (index: number) => {
     setParsedRows((prev) => prev.filter((_, i) => i !== index));
@@ -442,6 +510,7 @@ export function StaffBulkUpload({
             address: r.address || undefined,
             qualifications: r.qualifications || undefined,
             license_number: r.license_number || undefined,
+            details: Object.keys(r.details).length > 0 ? r.details : undefined,
           })),
         }),
       });
@@ -467,7 +536,7 @@ export function StaffBulkUpload({
           .join("\n");
         const more = data.errors.length > 5 ? `\n...and ${data.errors.length - 5} more` : "";
         toast.warning(
-          `${data.errors.length} member(s) had errors and were skipped`,
+          `${data.errors.length} row${data.errors.length === 1 ? "" : "s"} need${data.errors.length === 1 ? "s" : ""} attention`,
           { description: details + more, duration: 10000 }
         );
       }
@@ -483,7 +552,21 @@ export function StaffBulkUpload({
 
   const downloadTemplate = async () => {
     const XLSX = await import("xlsx");
-    const ws = XLSX.utils.aoa_to_sheet([
+    // Core columns first, then every profile column in registry order, so the
+    // school can fill one sheet from the registration forms. Only Name,
+    // Subject / Designation and Category are needed; blank profile cells are
+    // simply not saved.
+    const detailHeaders = DETAIL_FIELDS.map((f) => f.label);
+    const example: Record<string, string> = {
+      employee_no: "NKPS-101",
+      date_of_joining: "01/04/2015",
+      gender: "Male",
+      designation: "PGT",
+      department: "Science",
+      appointed_subject: "Mathematics",
+      ctet_qualified: "Yes",
+    };
+    const core = [
       [
         "Name",
         "Subject / Designation",
@@ -506,29 +589,17 @@ export function StaffBulkUpload({
         "M.Sc., B.Ed.",
         "",
       ],
-      [
-        "Priya Gupta",
-        "Librarian",
-        "Administrative Staff",
-        "",
-        "9876543211",
-        "",
-        "",
-        "",
-        "",
-      ],
-      [
-        "Suresh Yadav",
-        "Bus Driver",
-        "Bus Driver",
-        "",
-        "9876543212",
-        "",
-        "",
-        "",
-        "RJ14 20190001234",
-      ],
-    ]);
+      ["Priya Gupta", "PTI", "Additional Staff", "", "9876543211", "", "", "", ""],
+      ["Suresh Yadav", "Bus Driver", "Bus Driver", "", "9876543212", "", "", "", "RJ14 20190001234"],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(
+      core.map((row, i) => [
+        ...row,
+        ...(i === 0
+          ? detailHeaders
+          : DETAIL_FIELDS.map((f) => (i === 1 ? example[f.key] ?? "" : ""))),
+      ])
+    );
 
     ws["!cols"] = [
       { wch: 22 },
@@ -540,6 +611,7 @@ export function StaffBulkUpload({
       { wch: 30 },
       { wch: 20 },
       { wch: 28 },
+      ...detailHeaders.map((h) => ({ wch: Math.max(14, h.length + 2) })),
     ];
 
     const wb = XLSX.utils.book_new();
@@ -665,6 +737,22 @@ export function StaffBulkUpload({
               </div>
             )}
 
+            {skipped.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                <p className="font-medium">
+                  {skipped.length} profile cell{skipped.length === 1 ? " was" : "s were"} not
+                  in the expected format and will be left blank. The rest of each row
+                  still imports; fix these later on the staff member&apos;s profile.
+                </p>
+                <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
+                  {skipped.slice(0, 6).map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                  {skipped.length > 6 && <li>…and {skipped.length - 6} more</li>}
+                </ul>
+              </div>
+            )}
+
             <div className="border rounded-xl overflow-hidden">
               <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                 <Table>
@@ -678,6 +766,7 @@ export function StaffBulkUpload({
                       <TableHead>Email</TableHead>
                       <TableHead>Qualifications</TableHead>
                       <TableHead>License No.</TableHead>
+                      <TableHead>Profile</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="w-10"></TableHead>
                     </TableRow>
@@ -719,6 +808,23 @@ export function StaffBulkUpload({
                         </TableCell>
                         <TableCell className="text-gray-600 dark:text-gray-300">
                           {row.license_number || "—"}
+                        </TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">
+                          {Object.keys(row.details).length > 0 ? (
+                            <span className="text-gray-600 dark:text-gray-300">
+                              {Object.keys(row.details).length} fields
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                          {row.warnings.length > 0 && (
+                            <span
+                              className="ml-1.5 text-amber-600 dark:text-amber-400"
+                              title={row.warnings.join("\n")}
+                            >
+                              · {row.warnings.length} skipped
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {row.errors.length > 0 ? (

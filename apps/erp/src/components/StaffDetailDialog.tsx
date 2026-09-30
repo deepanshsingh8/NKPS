@@ -13,11 +13,12 @@ import {
 } from "@nkps/shared/components/ui/dialog";
 import { cn, formatClassName } from "@nkps/shared/lib/utils";
 import {
-  isTeachingStaffCategory,
+  staffNeedsTeacherRecord,
   staffPortalRole,
 } from "@nkps/shared/lib/staff-roles";
 import type { Gender, StaffMember } from "@nkps/shared/types";
-import { Loader2, Pencil, UserCheck, UserX } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { IdCard, Loader2, Pencil, UserCheck, UserX } from "lucide-react";
 import { StaffAvatar } from "@/components/StaffAvatar";
 
 // Read-only view of one staff member, opened from the name in the directory.
@@ -218,7 +219,7 @@ export function StaffDetailDialog({
   } | null>(null);
 
   const wantsTeaching =
-    !!member && isTeachingStaffCategory(member.category) && teacherLinked;
+    !!member && staffNeedsTeacherRecord(member.category) && teacherLinked;
 
   useEffect(() => {
     if (!member || !wantsTeaching) return;
@@ -241,6 +242,7 @@ export function StaffDetailDialog({
     loaded && member && loaded.memberId === member.id ? loaded.details : null;
   const teachingLoading = wantsTeaching && loaded?.memberId !== member?.id;
 
+  const router = useRouter();
   const portalRole = member ? staffPortalRole(member.category) : null;
 
   return (
@@ -324,7 +326,7 @@ export function StaffDetailDialog({
                 </div>
               </section>
 
-              {isTeachingStaffCategory(member.category) && (
+              {staffNeedsTeacherRecord(member.category) && (
                 <section className="space-y-3">
                   <SectionTitle>Teaching</SectionTitle>
                   {!teacherLinked ? (
@@ -428,6 +430,16 @@ export function StaffDetailDialog({
             <DialogFooter>
               <Button variant="outline" onClick={onClose}>
                 Close
+              </Button>
+              {/* Everything beyond contact details — Emp No., bank, statutory,
+                  licence, trainings, notices — lives on the profile page. */}
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => router.push(`/people/staff/${member.id}`)}
+              >
+                <IdCard className="h-4 w-4" />
+                Full profile
               </Button>
               <Button onClick={() => onEdit(member)} className="gap-2">
                 <Pencil className="h-4 w-4" />
