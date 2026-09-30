@@ -32,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@nkps/shared/components/ui/table";
-import { Loader2, RotateCcw, History } from "lucide-react";
+import { Loader2, RotateCcw, History, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
 
@@ -72,6 +72,10 @@ export function ImportHistoryPanel({ refreshKey = 0 }: { refreshKey?: number }) 
   const [target, setTarget] = useState<Batch | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [reverting, setReverting] = useState(false);
+  // Collapsed by default: it sits above the student picker on Fees → Payments,
+  // and twenty-five rows of upload log pushed the student card off the screen
+  // for a list you need only when undoing an import.
+  const [expanded, setExpanded] = useState(false);
 
   const load = useCallback(async () => {
     const res = await adminFetch("/api/fees/import-batches?limit=25");
@@ -126,79 +130,94 @@ export function ImportHistoryPanel({ refreshKey = 0 }: { refreshKey?: number }) 
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-sm font-medium">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="flex min-h-11 items-center gap-2 rounded-md text-sm font-medium hover:text-foreground/80"
+      >
+        {expanded ? (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        )}
         <History className="h-4 w-4 text-muted-foreground" />
         Import history
-      </div>
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>When</TableHead>
-              <TableHead>What</TableHead>
-              <TableHead>Session</TableHead>
-              <TableHead className="text-right">Rows</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead>By</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {batches.map((b) => (
-              <TableRow key={b.id} className={b.reverted_at ? "opacity-60" : undefined}>
-                <TableCell className="whitespace-nowrap">
-                  {new Date(b.created_at).toLocaleDateString("en-IN", {
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                </TableCell>
-                <TableCell>
-                  <div>{KIND_LABEL[b.kind] ?? b.kind}</div>
-                  {b.file_name ? (
-                    <div className="text-xs text-muted-foreground">{b.file_name}</div>
-                  ) : null}
-                  {b.source_period_start ? (
-                    <div className="text-xs text-muted-foreground">
-                      covers {b.source_period_start} to {b.source_period_end}
-                    </div>
-                  ) : null}
-                </TableCell>
-                <TableCell>{b.academic_years?.name ?? "—"}</TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {b.created_count}
-                  {b.skipped_count ? (
-                    <span className="text-muted-foreground"> (+{b.skipped_count} skipped)</span>
-                  ) : null}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {b.amount_total != null ? inr(Number(b.amount_total)) : "—"}
-                </TableCell>
-                <TableCell>{b.created_by_name ?? "—"}</TableCell>
-                <TableCell className="text-right">
-                  {b.reverted_at ? (
-                    <Badge variant="outline">
-                      Reverted{b.reverted_by_name ? ` by ${b.reverted_by_name}` : ""}
-                    </Badge>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setTarget(b);
-                        setConfirmText("");
-                      }}
-                    >
-                      <RotateCcw className="mr-2 h-4 w-4" />
-                      Revert
-                    </Button>
-                  )}
-                </TableCell>
+        <span className="font-normal text-muted-foreground">
+          ({batches.length}) · {expanded ? "Hide" : "Show"}
+        </span>
+      </button>
+      {expanded && (
+        <div className="overflow-x-auto rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>When</TableHead>
+                <TableHead>What</TableHead>
+                <TableHead>Session</TableHead>
+                <TableHead className="text-right">Rows</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>By</TableHead>
+                <TableHead />
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {batches.map((b) => (
+                <TableRow key={b.id} className={b.reverted_at ? "opacity-60" : undefined}>
+                  <TableCell className="whitespace-nowrap">
+                    {new Date(b.created_at).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </TableCell>
+                  <TableCell>
+                    <div>{KIND_LABEL[b.kind] ?? b.kind}</div>
+                    {b.file_name ? (
+                      <div className="text-xs text-muted-foreground">{b.file_name}</div>
+                    ) : null}
+                    {b.source_period_start ? (
+                      <div className="text-xs text-muted-foreground">
+                        covers {b.source_period_start} to {b.source_period_end}
+                      </div>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>{b.academic_years?.name ?? "—"}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {b.created_count}
+                    {b.skipped_count ? (
+                      <span className="text-muted-foreground"> (+{b.skipped_count} skipped)</span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {b.amount_total != null ? inr(Number(b.amount_total)) : "—"}
+                  </TableCell>
+                  <TableCell>{b.created_by_name ?? "—"}</TableCell>
+                  <TableCell className="text-right">
+                    {b.reverted_at ? (
+                      <Badge variant="outline">
+                        Reverted{b.reverted_by_name ? ` by ${b.reverted_by_name}` : ""}
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setTarget(b);
+                          setConfirmText("");
+                        }}
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Revert
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <Dialog
         open={target !== null}

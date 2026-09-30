@@ -1328,6 +1328,16 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         gotcha:
           "A waiver counts toward no-dues without a cash receipt, and can never be refunded.",
       },
+      {
+        name: "Undo a day-book import",
+        steps: [
+          'Click "Import history" above the class picker to expand it — it starts collapsed.',
+          'Click "Revert" on the batch.',
+          "Paste the batch id to confirm, then click \"Revert permanently\".",
+        ],
+        gotcha:
+          "Admin-only. The revert is refused if anything has been built on the batch's rows since.",
+      },
     ],
     related: ["/fees/academic", "/fees/dues", "/fees/change-requests"],
   },
