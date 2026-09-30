@@ -1528,6 +1528,25 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
 
   // ── Timetable ────────────────────────────────────────────────────────────
   {
+    path: "/timetable/setup",
+    title: "Setup & Checks",
+    purpose:
+      "The once-a-year timetable tools in the order you use them: Period Templates, then Auto Generate or Import from Excel, then Clash Check.",
+    tasks: [
+      {
+        name: "Build a new year's timetable",
+        steps: [
+          'Step 1 — open "Period Templates" and make sure a template has the right period times.',
+          'Step 2 — open "Auto Generate" to fill classes from a template, or "Import from Excel" to bring in an existing timetable.',
+          'Step 3 — open "Clash Check" and fix anything listed under Needs attention.',
+        ],
+        gotcha:
+          "Single periods are not edited here — that is Class Timetable. The Clash Check card shows the live count, so a green \"No clashes\" means there is nothing to open it for.",
+      },
+    ],
+    related: ["/timetable", "/timetable/templates", "/timetable/generate", "/timetable/import", "/timetable/clashes"],
+  },
+  {
     path: "/timetable/templates",
     title: "Period Templates",
     purpose:
@@ -1554,7 +1573,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         gotcha: "Every template must include a lunch slot, or the save is rejected.",
       },
     ],
-    related: ["/timetable/generate", "/timetable"],
+    related: ["/timetable/setup", "/timetable/generate", "/timetable"],
   },
   {
     path: "/timetable/teachers",
@@ -1661,7 +1680,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "One line per booking, not per pair of classes — a coach taking four sections is a single row reading \"VI-A, VI-B, VII-A, VII-B\", not six.",
       },
     ],
-    related: ["/timetable", "/timetable/teachers"],
+    related: ["/timetable/setup", "/timetable", "/timetable/teachers"],
   },
   {
     path: "/timetable/generate",
@@ -1684,7 +1703,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Without Replace ticked, existing periods are left alone and those slots count as skipped. Read the \"Skipped slots\" list — it names the reason for each.",
       },
     ],
-    related: ["/timetable/templates", "/timetable", "/academics/subjects"],
+    related: ["/timetable/setup", "/timetable/templates", "/timetable", "/academics/subjects"],
   },
   {
     path: "/timetable/import",
@@ -1716,7 +1735,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Both columns are optional, so a sheet written before they existed imports exactly as it always did. Two rows sharing a Section, Day, Period AND Group is still an error, and a teacher in two places at once is still an error unless those rows say Shared.",
       },
     ],
-    related: ["/timetable", "/timetable/generate"],
+    related: ["/timetable/setup", "/timetable", "/timetable/generate"],
   },
   {
     path: "/timetable",

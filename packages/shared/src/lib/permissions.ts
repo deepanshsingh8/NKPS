@@ -156,7 +156,9 @@ const PATH_FEATURE_OVERRIDES: ReadonlyArray<readonly [string, FeatureKey]> = [
   ["/people/teachers", "staff"],
   // Elective slots are subject configuration for XI–XII.
   ["/academics/electives", "subjects"],
-  // Timetable tooling that lives outside /timetable's own href.
+  // Timetable tooling that lives outside /timetable's own href, and the
+  // Setup & Checks hub that gathers it.
+  ["/timetable/setup", "timetable"],
   ["/timetable/clashes", "timetable"],
   ["/timetable/templates", "timetable"],
   ["/timetable/generate", "timetable"],

@@ -9,6 +9,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@nkps/shared/components/ui/dropdown-menu";
 import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPicker";
@@ -536,12 +537,10 @@ const session = useAcademicSession();
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           <AcademicSessionPicker state={session} />
-          {/* Templates, Auto Generate and Import are each already a sidebar
-              entry under Timetable, so as three more buttons here they were
-              a second doorway to the same three rooms — and on a phone they
-              wrapped into two rows of chrome above a timetable that had not
-              been drawn yet. One menu keeps them reachable from the screen
-              they are used from without spending the width. */}
+          {/* The Setup & Checks tools, reachable from the screen they are used
+              from. As separate buttons they wrapped into two rows of chrome
+              on a phone, above a timetable that had not been drawn yet; one
+              menu keeps them here without spending the width. */}
           <DropdownMenu>
             <DropdownMenuTrigger
               render={<Button variant="outline" className="gap-1.5" />}
@@ -558,6 +557,13 @@ const session = useAcademicSession();
               </DropdownMenuItem>
               <DropdownMenuItem render={<Link href="/timetable/import" />}>
                 Import from Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem render={<Link href="/timetable/clashes" />}>
+                Clash check
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem render={<Link href="/timetable/setup" />}>
+                All setup &amp; checks
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

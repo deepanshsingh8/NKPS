@@ -149,8 +149,8 @@ export default function GenerateTimetablePage() {
   return (
     <div className="space-y-6 p-6">
       <header>
-        <Link href="/timetable" className="inline-flex items-center text-xs text-gray-500 hover:text-navy-900 mb-1">
-          <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to Timetable
+        <Link href="/timetable/setup" className="inline-flex items-center text-xs text-gray-500 hover:text-navy-900 mb-1">
+          <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Setup &amp; Checks
         </Link>
         <h1 className="text-2xl font-bold text-navy-900 dark:text-white">
           Auto-Generate Timetable
