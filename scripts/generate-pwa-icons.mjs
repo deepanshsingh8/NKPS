@@ -1,12 +1,14 @@
-// Generates the home-screen icons AND the browser-tab favicons for the ERP,
-// CMS and website apps, from one copy of the school crest
-// (assets/nkps-crest.png, 709x714, the crest printed on a white page).
-// Run once; commit the results. Re-run only when the crest changes.
+// Generates the HOME-SCREEN icons for the installable ERP and CMS apps, from
+// one copy of the school crest (assets/nkps-crest.png, 709x714, the crest
+// printed on a white page). Run once; commit the results. Re-run only when
+// the crest changes.
 //
-// The crest lives at assets/ rather than in each app because it used to be
-// three byte-identical 264KB copies at apps/<app>/src/app/icon.png — where
-// Next's file convention also served each one as that app's favicon, so every
-// page load fetched a quarter-megabyte PNG to draw a 16px tab icon.
+// It deliberately does NOT touch any favicon. apps/<app>/src/app/icon.png is
+// the school's own crest, unaltered, in all three apps — it is what Google
+// shows beside nkpublicschool.com in search results and what a browser tab
+// shows. An earlier version of this script overwrote those with a 128px navy
+// tile, and the public site's search listing came out as a blurry blue badge.
+// Only the icon an installed app shows on a phone is meant to look different.
 //
 //   node scripts/generate-pwa-icons.mjs
 //
@@ -84,15 +86,6 @@ const APPS = [
     field: { r: 0x3d, g: 0x11, b: 0x0f },
     ink: "#E5C06E",
   },
-  {
-    // The public site. No label — it is the school, not one of its tools —
-    // and it gets a favicon only; there is nothing to install.
-    dir: "website",
-    label: null,
-    field: { r: 0x0a, g: 0x16, b: 0x28 },
-    ink: "#E5C06E",
-    faviconOnly: true,
-  },
 ];
 
 /** Cut the shield off its white page. Returns a trimmed RGBA PNG buffer. */
@@ -168,10 +161,9 @@ async function artwork(shield, label, ink) {
   // Liberation Sans is the metric-compatible Helvetica clone present on this
   // image; the output is a committed PNG, so the font only has to exist where
   // this script runs.
-  const layers = [];
-  if (label) {
-    layers.push({ input: shieldPng, left: Math.round((BOX - sw) / 2), top: 58 });
-    layers.push({
+  const layers = [
+    { input: shieldPng, left: Math.round((BOX - sw) / 2), top: 58 },
+    {
       input: Buffer.from(
         `<svg xmlns="http://www.w3.org/2000/svg" width="${BOX}" height="${BOX}">
            <text x="${BOX / 2}" y="466"
@@ -182,19 +174,8 @@ async function artwork(shield, label, ink) {
       ),
       left: 0,
       top: 0,
-    });
-  } else {
-    // Unlabelled: the shield uses the whole box, centred.
-    const big = await sharp(shield)
-      .resize({ height: 420, fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .toBuffer();
-    const { width: bw, height: bh } = await sharp(big).metadata();
-    layers.push({
-      input: big,
-      left: Math.round((BOX - bw) / 2),
-      top: Math.round((BOX - bh) / 2),
-    });
-  }
+    },
+  ];
 
   return sharp({
     create: { width: BOX, height: BOX, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
@@ -220,20 +201,6 @@ const shield = await shieldCutout(CREST);
 for (const app of APPS) {
   const appRoot = join(REPO_ROOT, "apps", app.dir);
   const art = await artwork(shield, app.label, app.ink);
-
-  // The browser-tab icon, via Next's app/icon.png convention. 128px rather
-  // than the crest's 709 — a favicon is drawn at 16-32px, and at that size
-  // the three-letter label is a smudge, so the tab icon is the shield alone.
-  // The field colour still tells the ERP tab from the CMS one.
-  const favicon = await artwork(shield, null, app.ink);
-  await (await tile(favicon, app.field, 128, 0.88)).toFile(
-    join(appRoot, "src", "app", "icon.png")
-  );
-
-  if (app.faviconOnly) {
-    console.log(`apps/${app.dir}: favicon written`);
-    continue;
-  }
 
   const outDir = join(appRoot, "public", "icons");
   await mkdir(outDir, { recursive: true });
