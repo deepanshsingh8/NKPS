@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
+import { readUntrustedWorkbook } from "@nkps/shared/lib/xlsx-safe";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import {
   mapFeeTemplateHeaders,
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
   // ── Parse the sheet ──
   let sheetRows: unknown[][];
   try {
-    const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+    const wb = readUntrustedWorkbook(await file.arrayBuffer());
     const first = wb.SheetNames[0];
     if (!first) throw new Error("empty workbook");
     sheetRows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[first], {

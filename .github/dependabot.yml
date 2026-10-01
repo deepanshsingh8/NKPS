@@ -1,0 +1,27 @@
+version: 2
+updates:
+  # pnpm workspace: the root lockfile covers every app and packages/shared.
+  # xlsx is installed from the SheetJS CDN tarball (the npm package is
+  # abandoned), so Dependabot cannot see it — check https://cdn.sheetjs.com/
+  # by hand.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # One PR a week for everything semver says is safe; majors stay
+      # separate because each one needs reading.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"

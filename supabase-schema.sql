@@ -8326,6 +8326,112 @@ ALTER FUNCTION public.bump_rate_limit(text, integer, integer)
   SET search_path = public;
 
 -- ============================================================================
+-- MIGRATION 133 — Supabase advisor: pinned search_path, RLS helper grants,
+-- diagnostic timetable views
+-- Mirrors scripts/migrations/cross/migration-133-db-lint.sql
+-- Pins search_path = public on 25 functions; revokes has_editor_feature from
+-- anon (the other RLS helpers stay anon-executable because anon-applicable
+-- policies call them — see the migration header); makes
+-- timetable_teacher_clashes / timetable_assignment_drift service-role only
+-- (read via GET /api/timetable/clashes).
+-- ============================================================================
+-- ── 1. Pin search_path ──────────────────────────────────────────────────────
+DO $$
+DECLARE
+  fn text;
+BEGIN
+  FOREACH fn IN ARRAY ARRAY[
+    'public.get_user_role()',
+    'public.get_my_student_id()',
+    'public.get_my_teacher_id()',
+    'public.get_my_parent_id()',
+    'public.get_my_children_ids()',
+    'public.get_my_class_ids()',
+    'public.has_editor_feature(text)',
+    'public.handle_new_user()',
+    'public.guard_profile_privileged_cols()',
+    'public.enforce_profile_role_link()',
+    'public.set_updated_at()',
+    'public.finalize_marksheet_one(uuid, uuid, uuid, jsonb, text, uuid, text)',
+    'public.finalize_year_final_one(uuid, uuid, uuid, jsonb, text, uuid, text)',
+    'public.recompute_roll_numbers(uuid, text)',
+    'public.apply_roll_numbers(uuid, uuid[])',
+    'public.trg_enrollment_insert_recompute()',
+    'public.trg_enrollment_delete_recompute()',
+    'public.trg_enrollment_update_recompute()',
+    'public.trg_student_name_recompute()',
+    'public.ptm_notes_touch_updated_at()',
+    'public.ptm_formats_touch_updated_at()',
+    'public.supplementary_attempts_touch_updated_at()',
+    'public.teacher_absences_touch_updated_at()',
+    'public.substitutions_touch_updated_at()',
+    'public.trg_learn_teacher_subject()'
+  ] LOOP
+    IF to_regprocedure(fn) IS NOT NULL THEN
+      EXECUTE format('ALTER FUNCTION %s SET search_path = public', fn);
+    ELSE
+      RAISE NOTICE 'migration 133: % not found, search_path left alone', fn;
+    END IF;
+  END LOOP;
+END $$;
+
+-- ── 2. has_editor_feature: authenticated only ───────────────────────────────
+DO $$
+DECLARE
+  callers text;
+BEGIN
+  IF to_regprocedure('public.has_editor_feature(text)') IS NULL THEN
+    RAISE NOTICE 'migration 133: has_editor_feature(text) not found, skipped';
+    RETURN;
+  END IF;
+
+  SELECT string_agg(format('%I.%I "%s"', schemaname, tablename, policyname), ', ')
+    INTO callers
+    FROM pg_policies
+   WHERE roles && ARRAY['public', 'anon']::name[]
+     AND (coalesce(qual, '') ~ '\mhas_editor_feature\s*\('
+          OR coalesce(with_check, '') ~ '\mhas_editor_feature\s*\(');
+
+  IF callers IS NOT NULL THEN
+    RAISE NOTICE 'migration 133: has_editor_feature left executable by anon; anon-applicable policies call it: %', callers;
+    RETURN;
+  END IF;
+
+  REVOKE EXECUTE ON FUNCTION public.has_editor_feature(text) FROM PUBLIC, anon;
+  GRANT  EXECUTE ON FUNCTION public.has_editor_feature(text) TO authenticated, service_role;
+END $$;
+
+-- ── 3. Diagnostic timetable views: service role only ────────────────────────
+DO $$
+DECLARE
+  v text;
+BEGIN
+  FOREACH v IN ARRAY ARRAY['public.timetable_teacher_clashes', 'public.timetable_assignment_drift'] LOOP
+    IF to_regclass(v) IS NOT NULL THEN
+      EXECUTE format('REVOKE ALL ON %s FROM PUBLIC, anon, authenticated', v);
+      EXECUTE format('GRANT SELECT ON %s TO service_role', v);
+    ELSE
+      RAISE NOTICE 'migration 133: view % not found, skipped', v;
+    END IF;
+  END LOOP;
+END $$;
+
+-- ── 4. Not RPC endpoints ────────────────────────────────────────────────────
+DO $$
+DECLARE
+  fn text;
+BEGIN
+  FOREACH fn IN ARRAY ARRAY[
+    'public.drop_temp_credential_on_password_set()',
+    'public.rls_auto_enable()'
+  ] LOOP
+    IF to_regprocedure(fn) IS NOT NULL THEN
+      EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated', fn);
+    END IF;
+  END LOOP;
+END $$;
+
+-- ============================================================================
 -- AUDIT LOG (migration 134)
 -- Mirrors scripts/migrations/base/migration-134-audit-log.sql
 -- Append-only record of privileged actions. Service role writes via

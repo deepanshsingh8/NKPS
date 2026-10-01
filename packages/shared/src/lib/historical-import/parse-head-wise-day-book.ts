@@ -39,6 +39,7 @@
 // than guessing, because guessing wrong is invisible.
 
 import * as XLSX from "xlsx";
+import { readUntrustedWorkbook } from "../xlsx-safe";
 import { excelSerialToDate } from "../student-template";
 import type {
   DayBookControlTotals,
@@ -258,7 +259,7 @@ function parseFooterModes(text: string): Record<string, number> {
 
 export function parseHeadWiseDayBook(buf: ArrayBuffer | Uint8Array): ParsedDayBook {
   // No `cellDates` — see the header note. Date cells stay numeric serials.
-  const workbook = XLSX.read(buf, { type: "array" });
+  const workbook = readUntrustedWorkbook(buf);
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) throw new Error("XLSX has no sheets");
   const sheet = workbook.Sheets[sheetName];

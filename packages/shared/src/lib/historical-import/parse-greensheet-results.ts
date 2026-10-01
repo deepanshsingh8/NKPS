@@ -16,6 +16,7 @@
 //     and record as `has_distinction`.
 
 import * as XLSX from "xlsx";
+import { readUntrustedWorkbook } from "../xlsx-safe";
 import type { ParsedResultsRow, ParsedSubjectMark } from "./types";
 
 const FIXED_COLUMNS = [
@@ -170,7 +171,7 @@ export function parseGreensheetResults(buf: ArrayBuffer | Uint8Array): {
   subjects: string[];
   warnings: string[];
 } {
-  const workbook = XLSX.read(buf, { type: "array", cellDates: false });
+  const workbook = readUntrustedWorkbook(buf, { cellDates: false });
   const warnings: string[] = [];
   const allRows: ParsedResultsRow[] = [];
   const seenSubjects = new Set<string>();

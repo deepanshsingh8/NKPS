@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyPortalUser } from "@nkps/shared/lib/verify-portal";
 import { transportChangeRequestSchema } from "@nkps/shared/lib/validations";
+import { sniffUpload, type SniffedKind } from "@nkps/shared/lib/file-sniff";
 
 const APPLICATIONS_BUCKET = "transport-applications";
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED = new Set(["application/pdf", "image/jpeg", "image/png"]);
+const ALLOWED_KINDS: readonly SniffedKind[] = ["pdf", "jpeg", "png"];
 
 // POST /api/portal/transport/change-request
 // A parent submits a transport change application for their own child. The
@@ -79,11 +81,19 @@ export async function POST(request: NextRequest) {
           { status: 415 }
         );
       }
-      const ext = file.type === "application/pdf" ? "pdf" : file.type === "image/png" ? "png" : "jpg";
-      const path = `${enrollment.student_id}/${Date.now()}.${ext}`;
+      // `file.type` is browser-supplied; store under what the bytes say, so an
+      // HTML page labelled image/png can't land in storage as an image.
+      const sniffed = await sniffUpload(file, ALLOWED_KINDS);
+      if (!sniffed) {
+        return NextResponse.json(
+          { error: "File contents do not match a PDF, JPEG, or PNG" },
+          { status: 415 }
+        );
+      }
+      const path = `${enrollment.student_id}/${Date.now()}.${sniffed.ext}`;
       const { error: uploadError } = await admin.storage
         .from(APPLICATIONS_BUCKET)
-        .upload(path, file, { contentType: file.type, upsert: false });
+        .upload(path, file, { contentType: sniffed.mime, upsert: false });
       if (uploadError) {
         console.error("Application upload error:", uploadError);
         return NextResponse.json({ error: "Failed to upload application" }, { status: 500 });
