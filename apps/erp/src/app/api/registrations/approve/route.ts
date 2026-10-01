@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { createClient } from "@nkps/shared/lib/supabase/server";
-import { sendEmail, buildWelcomeEmail } from "@nkps/shared/lib/email";
+import { sendSetPasswordEmail } from "@nkps/shared/lib/auth-links";
 import { generateSecurePassword } from "@nkps/shared/lib/password";
 import { rateLimit } from "@nkps/shared/lib/rate-limit";
+import { writeAuditLog } from "@nkps/shared/lib/audit-log";
 import {
   linkProfileToStudent,
   linkProfileToTeacher,
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
     }
 
     // M4 — defense-in-depth (auth user creation + welcome email side effect).
-    const limit = rateLimit({
+    const limit = await rateLimit({
       name: "registrations-approve",
       key: user.id,
       max: 30,
@@ -111,7 +112,9 @@ export async function POST(request: Request) {
     }
     const registration = claimed;
 
-    // Generate a cryptographically secure temporary password
+    // A random password nobody is told. The registrant gets in through the
+    // one-time set-password link emailed below; this value only ever leaves
+    // the server as the fallback for a failed email (see the end of the route).
     const password = generateSecurePassword();
     const { full_name, email, phone, role } = registration;
 
@@ -242,29 +245,32 @@ export async function POST(request: Request) {
 
     // (status already flipped at the top atomically; nothing else to do here.)
 
-    // Send welcome email with credentials. Only fall back to returning the
-    // password to the admin UI if email delivery failed — otherwise credentials
-    // travel through the controlled email channel, not the API response.
-    let emailDelivered = false;
-    try {
-      const { getErpUrl } = await import("@nkps/shared/lib/cross-app");
-      const loginUrl = getErpUrl("/portal/login");
-      const html = buildWelcomeEmail({
-        fullName: full_name,
-        email,
-        password,
-        loginUrl,
+    // Email a one-time set-password link — never the password. Only if that
+    // fails does the password come back to the admin UI, as the explicit
+    // fallback for handing over in person (must_change_password makes it
+    // single-use); otherwise no credential leaves the server at all.
+    const delivery = await sendSetPasswordEmail(supabase, {
+      email,
+      fullName: full_name,
+      role,
+      kind: "new-account",
+    });
+    const emailDelivered = delivery.delivered;
+
+    await writeAuditLog(supabase, {
+      actorId: user.id,
+      actorRole: callerProfile.role,
+      action: "registration.approve",
+      targetTable: "registration_requests",
+      targetId: id,
+      details: {
         role,
-      });
-      await sendEmail(
-        email,
-        "Your NKPS Portal Account is Approved — Login Details Inside",
-        html
-      );
-      emailDelivered = true;
-    } catch (emailError) {
-      console.error("Failed to send welcome email:", emailError);
-    }
+        created_user_id: userId,
+        link_warning: linkWarning !== null,
+        email_delivered: emailDelivered,
+      },
+      request,
+    });
 
     return NextResponse.json({
       success: true,

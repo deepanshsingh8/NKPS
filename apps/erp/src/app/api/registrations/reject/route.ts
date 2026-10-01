@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { createClient } from "@nkps/shared/lib/supabase/server";
 import { sendEmail, buildRegistrationRejectedEmail } from "@nkps/shared/lib/email";
+import { writeAuditLog } from "@nkps/shared/lib/audit-log";
 
 export async function POST(request: Request) {
   try {
@@ -77,6 +78,18 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    // The reason is free text written about the registrant, so it stays on
+    // the registration row; the audit row records only that one was given.
+    await writeAuditLog(supabase, {
+      actorId: user.id,
+      actorRole: callerProfile.role,
+      action: "registration.reject",
+      targetTable: "registration_requests",
+      targetId: id,
+      details: { role: registration.role ?? null, reason_given: Boolean(reason) },
+      request,
+    });
 
     // Send rejection email (non-blocking)
     try {

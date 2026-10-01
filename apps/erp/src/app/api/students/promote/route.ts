@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     // M5 — high-blast endpoint (one call mutates an entire class's
     // is_active / is_alumni). Cap to 10 calls per actor per hour so a
     // compromised editor token can't graduate every class in seconds.
-    const limit = rateLimit({
+    const limit = await rateLimit({
       name: "students-promote",
       key: user.id,
       max: 10,

@@ -226,7 +226,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Student export failed:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Export failed" },
+      { error: "Export failed. Please try again." },
       { status: 500 }
     );
   }

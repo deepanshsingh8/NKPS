@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { dbErrorResponse } from "@nkps/shared/lib/api-errors";
 import { z } from "zod";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
     .eq("student_id", studentId)
     .order("updated_at", { ascending: false });
   if (rowsErr) {
-    return NextResponse.json({ error: rowsErr.message }, { status: 500 });
+    return dbErrorResponse(rowsErr, "results/by-student read");
   }
 
   type Row = NonNullable<typeof rows>[number];
@@ -365,7 +366,7 @@ export async function POST(request: NextRequest) {
     .select("id, marks_obtained, max_marks, grade, is_published, updated_at")
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return dbErrorResponse(error, "results/by-student upsert");
   }
   return NextResponse.json({ data: upserted });
 }
@@ -404,7 +405,7 @@ export async function DELETE(request: NextRequest) {
 
   const { error } = await admin.from("results").delete().eq("id", id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return dbErrorResponse(error, "results/by-student delete");
   }
   return NextResponse.json({ success: true });
 }
@@ -484,7 +485,7 @@ export async function PATCH(request: NextRequest) {
 
   const { data: updated, error } = await query.select("id");
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return dbErrorResponse(error, "results/by-student unlock");
   }
   const affected = updated?.length ?? 0;
 

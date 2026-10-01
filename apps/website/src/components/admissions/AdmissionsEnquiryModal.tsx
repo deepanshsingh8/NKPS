@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
+import { Turnstile, useTurnstile } from "@nkps/shared/components/Turnstile";
 import { contactFormSchema, type ContactFormData } from "@nkps/shared/lib/validations";
 
 /**
@@ -34,6 +35,7 @@ export function AdmissionsEnquiryModal() {
     resolver: zodResolver(contactFormSchema),
     defaultValues: { subject: "Admissions" },
   });
+  const captcha = useTurnstile();
 
   // Auto-open on every visit, shortly after the page settles. No persistence
   // gate — each mount (page visit / refresh) re-opens the prompt by design.
@@ -66,7 +68,7 @@ export function AdmissionsEnquiryModal() {
     try {
       const res = await fetch("/api/contact", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...captcha.headers },
         body: JSON.stringify({ ...data, subject: "Admissions" }),
       });
 
@@ -81,6 +83,9 @@ export function AdmissionsEnquiryModal() {
       close();
     } catch {
       toast.error("Something went wrong. Please try again.");
+    } finally {
+      // A Turnstile token is single-use, pass or fail.
+      captcha.reset();
     }
   };
 
@@ -209,10 +214,12 @@ export function AdmissionsEnquiryModal() {
                 )}
               </div>
 
+              <Turnstile {...captcha.widgetProps} action="admissions-enquiry" />
+
               <div className="flex items-center gap-3 pt-1">
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !captcha.ready}
                   className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-gold-500 to-gold-400 px-6 py-3 font-semibold text-navy-900 shadow-lg shadow-gold-500/25 transition-all duration-300 hover:brightness-110 disabled:opacity-50"
                 >
                   <Send className="h-4 w-4" />

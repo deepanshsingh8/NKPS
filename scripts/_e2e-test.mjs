@@ -13,9 +13,15 @@
 // and avoid mutating the production XII-A results table except to observe.
 //
 // Run: node --env-file=.env.local scripts/_e2e-test.mjs
+//
+// The run creates a throwaway admin account with the service-role key, so it
+// refuses to point at anything but a local Supabase unless E2E_ALLOW_REMOTE=1
+// is set explicitly. The admin's password comes from E2E_ADMIN_PASSWORD or is
+// generated fresh per run, and the account is deleted when the run ends.
 
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 
 const BASE = "http://localhost:3000";
 const SUPA_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,6 +30,20 @@ const SUPA_SVC = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPA_URL || !SUPA_ANON || !SUPA_SVC) {
   console.error("Missing env vars");
+  process.exit(1);
+}
+
+// This script mints an admin with the service-role key. Against a shared or
+// production project that is a live admin account, so it only runs remotely
+// when someone has said so on purpose.
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const supaHost = new URL(SUPA_URL).hostname;
+if (!LOCAL_HOSTS.has(supaHost) && process.env.E2E_ALLOW_REMOTE !== "1") {
+  console.error(
+    `Refusing to run against ${supaHost}: not a local Supabase. ` +
+      "Set E2E_ALLOW_REMOTE=1 if you really mean to create (and then delete) " +
+      "a test admin on that project."
+  );
   process.exit(1);
 }
 
@@ -1109,25 +1129,26 @@ async function fetchFinalResult(studentId) {
 // --------------------------------------------------------------------------
 // Auth setup — create / reuse a test admin and get a session token.
 // --------------------------------------------------------------------------
-const TEST_ADMIN_EMAIL = "e2e_admin@nkps.test";
-const TEST_ADMIN_PASSWORD = "NKPS_e2e_Admin_2026!";
+// A fresh address per run, so a run never signs in as an account some earlier
+// run left behind, and a random password unless one is supplied.
+const RUN_ID = randomBytes(6).toString("hex");
+const TEST_ADMIN_EMAIL = `e2e_admin+${RUN_ID}@nkps.test`;
+const TEST_ADMIN_PASSWORD =
+  process.env.E2E_ADMIN_PASSWORD || randomBytes(24).toString("base64url");
 let adminBearer = "";
 let adminCookie = "";
+let testAdminId = null;
 
 async function setupAuth() {
   section("Auth setup");
-  // Create the test admin if missing.
-  const { data: list } = await svc.auth.admin.listUsers({ perPage: 200 });
-  let existing = list?.users?.find((u) => u.email === TEST_ADMIN_EMAIL);
-  if (!existing) {
-    const { data, error } = await svc.auth.admin.createUser({
-      email: TEST_ADMIN_EMAIL,
-      password: TEST_ADMIN_PASSWORD,
-      email_confirm: true,
-    });
-    if (error) throw error;
-    existing = data.user;
-  }
+  const { data, error: createError } = await svc.auth.admin.createUser({
+    email: TEST_ADMIN_EMAIL,
+    password: TEST_ADMIN_PASSWORD,
+    email_confirm: true,
+  });
+  if (createError) throw createError;
+  const existing = data.user;
+  testAdminId = existing?.id ?? null;
   ok("test admin user exists", Boolean(existing?.id));
 
   // Ensure profile row set to admin.
@@ -1185,6 +1206,31 @@ async function setupAuth() {
 // --------------------------------------------------------------------------
 // Run
 // --------------------------------------------------------------------------
+// Delete the throwaway admin. Idempotent, so the finally block and the signal
+// handler can both call it. Its profiles row cascades with it.
+async function teardownAuth() {
+  if (!testAdminId) return;
+  const id = testAdminId;
+  testAdminId = null;
+  const { error } = await svc.auth.admin.deleteUser(id);
+  if (error) {
+    console.error(
+      `!! Could not delete test admin ${TEST_ADMIN_EMAIL} (${id}): ${error.message}. ` +
+        "Delete it by hand: it is a live admin account."
+    );
+    fail++;
+  } else {
+    console.log(`\n  (deleted test admin ${TEST_ADMIN_EMAIL})`);
+  }
+}
+
+for (const sig of ["SIGINT", "SIGTERM"]) {
+  process.once(sig, async () => {
+    await teardownAuth();
+    process.exit(130);
+  });
+}
+
 async function main() {
   try {
     await setupAuth();
@@ -1197,6 +1243,8 @@ async function main() {
   } catch (err) {
     console.error("Fatal:", err);
     fail++;
+  } finally {
+    await teardownAuth();
   }
   console.log(`\n${"=".repeat(60)}`);
   console.log(`Results: ${pass} passed, ${fail} failed`);

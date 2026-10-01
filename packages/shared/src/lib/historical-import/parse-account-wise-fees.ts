@@ -13,6 +13,7 @@
 //   • Last row may be a "Total" row — we skip it (S.No. == "Total").
 
 import * as XLSX from "xlsx";
+import { readUntrustedWorkbook } from "../xlsx-safe";
 import type { ParsedFeePayment, ParsedFeeRow } from "./types";
 
 const MONTH_COLUMNS = [
@@ -153,7 +154,7 @@ export function parseAccountWiseFees(buf: ArrayBuffer | Uint8Array): {
   rows: ParsedFeeRow[];
   warnings: string[];
 } {
-  const workbook = XLSX.read(buf, { type: "array", cellDates: false });
+  const workbook = readUntrustedWorkbook(buf, { cellDates: false });
   const firstSheetName = workbook.SheetNames[0];
   if (!firstSheetName) {
     throw new Error("XLSX has no sheets");

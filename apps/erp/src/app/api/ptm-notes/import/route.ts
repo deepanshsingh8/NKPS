@@ -3,6 +3,7 @@ import { createClient } from "@nkps/shared/lib/supabase/server";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { getTeacherIdForUser, teacherCanAccessClass } from "@/lib/teacher-scope";
 import * as XLSX from "xlsx";
+import { MAX_SPREADSHEET_BYTES, readUntrustedWorkbook } from "@nkps/shared/lib/xlsx-safe";
 
 interface ParsedRow {
   admission_no?: string;
@@ -116,6 +117,13 @@ export async function POST(request: NextRequest) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "Missing file" }, { status: 400 });
   }
+  // Cap before the buffer is read — SheetJS needs the whole file in memory.
+  if (file.size > MAX_SPREADSHEET_BYTES) {
+    return NextResponse.json(
+      { error: `File too large. Maximum upload size is ${MAX_SPREADSHEET_BYTES / 1024 / 1024} MB.` },
+      { status: 413 }
+    );
+  }
   if (!classId) {
     return NextResponse.json({ error: "class_id is required" }, { status: 400 });
   }
@@ -173,7 +181,7 @@ export async function POST(request: NextRequest) {
   const buf = await file.arrayBuffer();
   let workbook: XLSX.WorkBook;
   try {
-    workbook = XLSX.read(new Uint8Array(buf), { type: "array", cellDates: true });
+    workbook = readUntrustedWorkbook(buf, { cellDates: true });
   } catch (err) {
     console.error("XLSX parse error:", err);
     return NextResponse.json({ error: "Could not parse file" }, { status: 400 });

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { dbErrorMessage } from "@nkps/shared/lib/api-errors";
 import type { TransportChangeRequest } from "@nkps/shared/types";
 
 // A change is "permanent" when it has no end date — it becomes the new
@@ -55,7 +56,7 @@ export async function applyTransportChange(
     .update(patch)
     .eq("id", change.enrollment_id);
 
-  if (error) return { applied: false, error: error.message };
+  if (error) return { applied: false, error: dbErrorMessage(error, "transport apply change") };
   return { applied: true };
 }
 

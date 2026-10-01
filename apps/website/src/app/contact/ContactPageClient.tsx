@@ -17,6 +17,7 @@ import {
 } from "@nkps/shared/components/SocialIcons";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
+import { Turnstile, useTurnstile } from "@nkps/shared/components/Turnstile";
 import {
   Accordion,
   AccordionContent,
@@ -74,12 +75,13 @@ export function ContactPageClient() {
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactFormSchema),
   });
+  const captcha = useTurnstile();
 
   const onSubmit = async (data: ContactFormData) => {
     try {
       const res = await fetch("/api/contact", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...captcha.headers },
         body: JSON.stringify(data),
       });
 
@@ -93,6 +95,9 @@ export function ContactPageClient() {
       reset();
     } catch {
       toast.error("Something went wrong. Please try again.");
+    } finally {
+      // A Turnstile token is single-use, pass or fail.
+      captcha.reset();
     }
   };
 
@@ -387,9 +392,11 @@ export function ContactPageClient() {
                     )}
                   </div>
 
+                  <Turnstile {...captcha.widgetProps} action="contact" />
+
                   <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !captcha.ready}
                     className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-gold-500 to-gold-400 px-8 py-3.5 font-semibold text-white shadow-lg shadow-gold-500/25 transition-all duration-300 hover:shadow-xl hover:shadow-gold-500/30 hover:brightness-110 disabled:opacity-50 disabled:hover:shadow-lg"
                   >
                     <Send className="h-4 w-4" />

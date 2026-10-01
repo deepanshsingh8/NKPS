@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Button } from "@nkps/shared/components/ui/button";
+import { Turnstile, useTurnstile } from "@nkps/shared/components/Turnstile";
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ export default function PortalRegisterPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string>("");
+  const captcha = useTurnstile();
 
   const {
     register,
@@ -39,7 +41,7 @@ export default function PortalRegisterPage() {
     try {
       const res = await fetch("/api/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...captcha.headers },
         body: JSON.stringify(data),
       });
 
@@ -55,6 +57,8 @@ export default function PortalRegisterPage() {
       toast.error("An unexpected error occurred");
     } finally {
       setLoading(false);
+      // A Turnstile token is single-use, pass or fail.
+      captcha.reset();
     }
   };
 
@@ -258,9 +262,11 @@ export default function PortalRegisterPage() {
                   </>
                 )}
 
+                <Turnstile {...captcha.widgetProps} action="register" />
+
                 <Button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !captcha.ready}
                   className="w-full h-11 bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 font-medium transition-colors"
                 >
                   {loading ? (

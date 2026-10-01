@@ -8,6 +8,7 @@
 //     a published artifact.
 
 import { NextRequest, NextResponse } from "next/server";
+import { dbErrorResponse } from "@nkps/shared/lib/api-errors";
 import { headers } from "next/headers";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
     .eq("import_batch_id", batchId)
     .eq("source", "historical_import");
   if (rowsErr) {
-    return NextResponse.json({ error: rowsErr.message }, { status: 500 });
+    return dbErrorResponse(rowsErr, "results/historical-revert read batch");
   }
   if (!rows || rows.length === 0) {
     return NextResponse.json(
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
       // The .overlaps will return PGRST116 if the column is missing. Be
       // conservative on real errors.
       if (!String(error.code ?? "").startsWith("PGRST")) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return dbErrorResponse(error, "results/historical-revert publication check");
       }
     } else {
       publishedCount += count ?? 0;
@@ -122,7 +123,7 @@ export async function POST(req: NextRequest) {
     .eq("import_batch_id", batchId)
     .eq("source", "historical_import");
   if (delErr) {
-    return NextResponse.json({ error: delErr.message }, { status: 500 });
+    return dbErrorResponse(delErr, "results/historical-revert delete results");
   }
 
   // The importer also materializes enrollment rows for the imported session.
@@ -140,7 +141,7 @@ export async function POST(req: NextRequest) {
     console.error("[results.historical-revert] enrollment delete:", enrollDelErr);
     return NextResponse.json(
       {
-        error: `Results were removed, but the imported enrollment records could not be deleted: ${enrollDelErr.message}`,
+        error: `Results were removed, but the imported enrollment records could not be deleted. Remove them by hand.`,
         deleted: count ?? rows.length,
         batch_id: batchId,
       },

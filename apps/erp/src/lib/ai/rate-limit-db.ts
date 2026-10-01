@@ -3,16 +3,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * A rate limiter the database owns.
  *
- * The shared `rateLimit()` helper is a synchronous in-memory Map, per process.
- * On a multi-instance deploy the effective limit is `max x instances`, and it
- * resets on every deploy. That is perfectly fine as politeness on an
- * authenticated admin screen, where the caller is already privileged and the
- * worst case is a slow afternoon.
+ * The shared `rateLimit()` helper is database-backed too (migration 132), but
+ * it fails OPEN to a per-process in-memory Map when the database is
+ * unreachable — right for login and password reset, where an outage must not
+ * lock everyone out.
  *
- * It is useless on the WhatsApp ingress, which is public, unauthenticated at
- * the transport layer, and costs real money per message — Meta bills each
- * service reply from 2026-10-01, plus Claude tokens on top. A limit that can
- * be multiplied by scaling out is not a limit on a bill.
+ * That trade-off is wrong on the WhatsApp ingress, which is public,
+ * unauthenticated at the transport layer, and costs real money per message —
+ * Meta bills each service reply from 2026-10-01, plus Claude tokens on top. A
+ * limit that degrades to `max x instances` is not a limit on a bill, so this
+ * one fails CLOSED.
  *
  * `bump_rate_limit` does the increment and the comparison in one statement, so
  * two concurrent messages cannot both read 4 and both write 5.

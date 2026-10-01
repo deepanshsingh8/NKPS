@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@nkps/shared/lib/api-errors";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 
 interface PeriodInput {
@@ -64,14 +65,14 @@ export async function PUT(
     .from("timetable_templates")
     .update(meta)
     .eq("id", id);
-  if (metaErr) return NextResponse.json({ error: metaErr.message }, { status: 400 });
+  if (metaErr) return dbErrorResponse(metaErr, "timetable/templates update meta", 400);
 
   // Replace all periods atomically — delete then insert.
   const { error: delErr } = await admin
     .from("timetable_template_periods")
     .delete()
     .eq("template_id", id);
-  if (delErr) return NextResponse.json({ error: delErr.message }, { status: 400 });
+  if (delErr) return dbErrorResponse(delErr, "timetable/templates clear periods", 400);
 
   const rows = periods
     .sort((a, b) => a.position - b.position)
@@ -86,7 +87,7 @@ export async function PUT(
   const { error: insErr } = await admin
     .from("timetable_template_periods")
     .insert(rows);
-  if (insErr) return NextResponse.json({ error: insErr.message }, { status: 400 });
+  if (insErr) return dbErrorResponse(insErr, "timetable/templates insert periods", 400);
 
   return NextResponse.json({ ok: true });
 }
@@ -109,6 +110,6 @@ export async function DELETE(
     return NextResponse.json({ error: "System templates cannot be deleted; clone and edit instead." }, { status: 400 });
   }
   const { error } = await admin.from("timetable_templates").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error, "timetable/templates delete", 400, { kind: "delete" });
   return NextResponse.json({ ok: true });
 }

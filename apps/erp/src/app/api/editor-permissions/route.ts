@@ -5,6 +5,7 @@ import {
   canHoldEditorCapability,
   type FeatureKey,
 } from "@nkps/shared/lib/permissions";
+import { writeAuditLog } from "@nkps/shared/lib/audit-log";
 
 // GET /api/editor-permissions?editor_id=<uuid>
 // Returns the list of feature_keys currently granted to that editor.
@@ -107,6 +108,13 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // The grants being replaced, so the audit row can say what changed.
+    const { data: previousRows } = await admin
+      .from("editor_permissions")
+      .select("feature_key")
+      .eq("editor_id", editorId);
+    const previousKeys = (previousRows ?? []).map((r) => r.feature_key as string);
+
     // Replace: delete existing rows, then insert new set.
     const { error: delError } = await admin
       .from("editor_permissions")
@@ -139,6 +147,21 @@ export async function PUT(request: NextRequest) {
         );
       }
     }
+
+    await writeAuditLog(admin, {
+      actorId: user?.id ?? null,
+      actorRole: "admin",
+      action: "editor_permissions.change",
+      targetTable: "editor_permissions",
+      targetId: editorId,
+      details: {
+        editor_role: profile.role,
+        granted: validKeys.filter((k) => !previousKeys.includes(k)),
+        revoked: previousKeys.filter((k) => !(validKeys as string[]).includes(k)),
+        feature_keys: validKeys,
+      },
+      request,
+    });
 
     return NextResponse.json({ success: true, feature_keys: validKeys });
   } catch (err) {

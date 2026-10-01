@@ -1,6 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { rateLimit, clientIp } from "@nkps/shared/lib/rate-limit";
+
+// Cost caps. This endpoint is anonymous and every character of message and
+// history is billed as input tokens on every turn, so the request shape is
+// bounded before anything reaches the model. The widget (NkpsAgent) sends at
+// most 10 history items and replies are capped at 300 output tokens, so
+// these limits sit well above anything a real conversation produces.
+const MAX_MESSAGE_CHARS = 2000;
+const MAX_HISTORY_ITEMS = 20;
+const MAX_HISTORY_CONTENT_CHARS = 4000;
+
+const chatRequestSchema = z.object({
+  message: z.string().trim().min(1).max(MAX_MESSAGE_CHARS),
+  history: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().max(MAX_HISTORY_CONTENT_CHARS),
+      })
+    )
+    .max(MAX_HISTORY_ITEMS)
+    .optional(),
+});
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -166,7 +189,7 @@ export async function POST(request: NextRequest) {
     // or a single attacker can rack up real cost. 20 messages / IP / minute
     // is generous for a human chatting and an order of magnitude below
     // anything that would be expensive.
-    const ipLimit = rateLimit({
+    const ipLimit = await rateLimit({
       name: "chat:ip",
       key: clientIp(request),
       max: 20,
@@ -182,14 +205,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { message, history } = await request.json();
-
-    if (!message || typeof message !== "string") {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      body = null;
+    }
+    const parsed = chatRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      const tooLong = parsed.error.issues.some(
+        (issue) => issue.path[0] === "message" && issue.code === "too_big"
+      );
       return NextResponse.json(
-        { reply: "Please send a valid message." },
+        {
+          reply: tooLong
+            ? `That message is too long. Please keep it under ${MAX_MESSAGE_CHARS} characters.`
+            : "Please send a valid message.",
+        },
         { status: 400 }
       );
     }
+    const { message, history } = parsed.data;
 
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json(
@@ -203,13 +239,9 @@ export async function POST(request: NextRequest) {
 
     const messages: { role: "user" | "assistant"; content: string }[] = [];
 
-    if (Array.isArray(history)) {
-      const recentHistory = history.slice(-10);
-      for (const msg of recentHistory) {
-        if (msg.role === "user" || msg.role === "assistant") {
-          messages.push({ role: msg.role, content: msg.content });
-        }
-      }
+    for (const msg of (history ?? []).slice(-10)) {
+      // The API rejects empty content blocks.
+      if (msg.content.trim()) messages.push({ role: msg.role, content: msg.content });
     }
 
     messages.push({ role: "user", content: message });

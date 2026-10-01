@@ -40,6 +40,8 @@ interface CreateResult {
   name: string;
   success: boolean;
   error?: string;
+  /** Set when the account was created but its set-password email failed. */
+  emailWarning?: string;
 }
 
 interface CreatePortalUsersDialogProps {
@@ -59,7 +61,12 @@ export function CreatePortalUsersDialog({
 }: CreatePortalUsersDialogProps) {
   const [step, setStep] = useState<"confirm" | "progress" | "results">("confirm");
   const [results, setResults] = useState<CreateResult[]>([]);
-  const [summary, setSummary] = useState({ created: 0, failed: 0, total: 0 });
+  const [summary, setSummary] = useState({
+    created: 0,
+    failed: 0,
+    emailsFailed: 0,
+    total: 0,
+  });
 
   const ready = items.filter((i) => i.email);
   const skipped = items.filter((i) => !i.email);
@@ -69,7 +76,7 @@ export function CreatePortalUsersDialog({
   const resetState = () => {
     setStep("confirm");
     setResults([]);
-    setSummary({ created: 0, failed: 0, total: 0 });
+    setSummary({ created: 0, failed: 0, emailsFailed: 0, total: 0 });
   };
 
   const handleClose = (isOpen: boolean) => {
@@ -100,18 +107,19 @@ export function CreatePortalUsersDialog({
 
       if (!res.ok) {
         setResults([{ id: "", name: "", success: false, error: data.error || "Request failed" }]);
-        setSummary({ created: 0, failed: ready.length, total: ready.length });
+        setSummary({ created: 0, failed: ready.length, emailsFailed: 0, total: ready.length });
       } else {
         setResults(data.results || []);
         setSummary({
           created: data.created || 0,
           failed: data.failed || 0,
+          emailsFailed: data.emailsFailed || 0,
           total: data.total || 0,
         });
       }
     } catch {
       setResults([{ id: "", name: "", success: false, error: "Network error" }]);
-      setSummary({ created: 0, failed: ready.length, total: ready.length });
+      setSummary({ created: 0, failed: ready.length, emailsFailed: 0, total: ready.length });
     }
 
     setStep("results");
@@ -149,7 +157,7 @@ export function CreatePortalUsersDialog({
                 </p>
               </div>
               <p className="text-xs text-green-600 dark:text-green-400">
-                Portal accounts will be created and welcome emails sent with temporary passwords.
+                Portal accounts will be created and each person emailed a one-time link to set their own password.
               </p>
             </div>
 
@@ -222,12 +230,36 @@ export function CreatePortalUsersDialog({
               </div>
             </div>
 
-            {summary.created > 0 && summary.failed === 0 && (
+            {summary.created > 0 && summary.failed === 0 && summary.emailsFailed === 0 && (
               <div className="rounded-xl bg-green-50 dark:bg-green-950/30 border border-green-200 p-4 text-center">
                 <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-1" />
                 <p className="text-sm font-medium text-green-700 dark:text-green-400">
                   All accounts created successfully!
                 </p>
+              </div>
+            )}
+
+            {/* Created, but the set-password email did not go out */}
+            {summary.emailsFailed > 0 && (
+              <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                    {summary.emailsFailed} account{summary.emailsFailed === 1 ? "" : "s"} created, but the email couldn&apos;t be sent
+                  </p>
+                </div>
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Use Reset password on Users to send a new link or get a temporary password to hand over.
+                </p>
+                <div className="max-h-32 overflow-y-auto space-y-1">
+                  {results
+                    .filter((r) => r.success && r.emailWarning)
+                    .map((r) => (
+                      <p key={r.id} className="text-xs text-amber-700 dark:text-amber-400 truncate">
+                        {r.name}
+                      </p>
+                    ))}
+                </div>
               </div>
             )}
 

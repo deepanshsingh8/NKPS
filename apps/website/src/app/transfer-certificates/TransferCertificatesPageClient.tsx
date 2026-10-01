@@ -9,6 +9,7 @@ import { SectionDivider } from "@nkps/shared/components/SectionDivider";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { SectionHeading } from "@nkps/shared/components/SectionHeading";
 import { cn } from "@nkps/shared/lib/utils";
+import { Turnstile, useTurnstile } from "@nkps/shared/components/Turnstile";
 
 interface LookupResult {
   studentName: string;
@@ -23,6 +24,7 @@ export function TransferCertificatesPageClient() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<LookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const captcha = useTurnstile();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +40,7 @@ export function TransferCertificatesPageClient() {
     try {
       const res = await fetch("/api/transfer-certificates/lookup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...captcha.headers },
         body: JSON.stringify({ admissionNo: admissionNo.trim(), dob }),
       });
 
@@ -54,6 +56,8 @@ export function TransferCertificatesPageClient() {
       setError("Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
+      // A Turnstile token is single-use, pass or fail.
+      captcha.reset();
     }
   };
 
@@ -223,9 +227,11 @@ export function TransferCertificatesPageClient() {
                   </div>
                 )}
 
+                <Turnstile {...captcha.widgetProps} action="tc-lookup" className="mt-5" />
+
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || !captcha.ready}
                   className={cn(
                     "mt-6 inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-full px-7 py-3",
                     "bg-navy-900 text-white",

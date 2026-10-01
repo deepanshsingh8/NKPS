@@ -11,6 +11,7 @@ import Link from "next/link";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Button } from "@nkps/shared/components/ui/button";
+import { Turnstile, useTurnstile } from "@nkps/shared/components/Turnstile";
 import { Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { getWebsiteUrl } from "@nkps/shared/lib/cross-app";
 import {
@@ -68,6 +69,7 @@ export function LoginCard({
 }: LoginCardProps) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const captcha = useTurnstile();
 
   const {
     register,
@@ -85,6 +87,9 @@ export function LoginCard({
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
+        // Required by Supabase Auth once Bot and Abuse Protection (Turnstile)
+        // is switched on; undefined, and ignored, until then.
+        options: { captchaToken: captcha.token ?? undefined },
       });
 
       if (error) {
@@ -150,6 +155,8 @@ export function LoginCard({
       toast.error("An unexpected error occurred");
     } finally {
       setLoading(false);
+      // A Turnstile token is single-use, pass or fail.
+      captcha.reset();
     }
   };
 
@@ -281,9 +288,11 @@ export function LoginCard({
                 )}
               </div>
 
+              <Turnstile {...captcha.widgetProps} action="login" />
+
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !captcha.ready}
                 className="w-full h-11 bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 font-medium transition-colors"
               >
                 {loading ? (

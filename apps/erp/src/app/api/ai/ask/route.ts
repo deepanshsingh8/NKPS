@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
   // which is acceptable here precisely because the caller is already
   // authenticated and privileged — the public WhatsApp ingress will need a
   // DB-backed counter instead.
-  const limit = rateLimit({
+  const limit = await rateLimit({
     name: "ai:ask",
     key: user.id,
     max: 20,

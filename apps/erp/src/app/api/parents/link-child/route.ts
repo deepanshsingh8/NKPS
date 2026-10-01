@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     //  - Per-IP: stops account-rotation attempts from the same machine.
     // A family linking several siblings, with a typo or two along the way,
     // stays well inside it; guessing a date of birth does not.
-    const parentLimit = rateLimit({
+    const parentLimit = await rateLimit({
       name: "link-child:parent",
       key: parentId,
       max: 10,
@@ -121,7 +121,7 @@ export async function POST(request: Request) {
         { status: 429 }
       );
     }
-    const ipLimit = rateLimit({
+    const ipLimit = await rateLimit({
       name: "link-child:ip",
       key: clientIp(request),
       max: 20,

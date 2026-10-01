@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
@@ -11,8 +11,10 @@ import Link from "next/link";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Button } from "@nkps/shared/components/ui/button";
+import { Turnstile, useTurnstile } from "@nkps/shared/components/Turnstile";
 import { Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { getWebsiteUrl } from "@nkps/shared/lib/cross-app";
+import { AUTH_LINK_ERROR_MESSAGES } from "@/lib/auth-confirm";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -20,6 +22,9 @@ const loginSchema = z.object({
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
+
+// The URL's query string doesn't change while this page is open.
+const noSubscribe = () => () => {};
 
 function getDashboardPath(role: string): string {
   switch (role) {
@@ -40,6 +45,18 @@ function getDashboardPath(role: string): string {
 export default function PortalLoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const captcha = useTurnstile();
+
+  // The email-link routes land here with a fixed `?error=` code when a link
+  // could not be used. Only known codes are shown; free text is ignored.
+  // Read from the URL after hydration (the server snapshot is null), without
+  // useSearchParams' Suspense requirement.
+  const linkErrorCode = useSyncExternalStore(
+    noSubscribe,
+    () => new URL(window.location.href).searchParams.get("error"),
+    () => null
+  );
+  const linkError = linkErrorCode ? (AUTH_LINK_ERROR_MESSAGES[linkErrorCode] ?? null) : null;
 
   const {
     register,
@@ -57,6 +74,9 @@ export default function PortalLoginPage() {
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
+        // Required by Supabase Auth once Bot and Abuse Protection (Turnstile)
+        // is switched on; undefined, and ignored, until then.
+        options: { captchaToken: captcha.token ?? undefined },
       });
 
       if (error) {
@@ -99,6 +119,8 @@ export default function PortalLoginPage() {
       toast.error("An unexpected error occurred");
     } finally {
       setLoading(false);
+      // A Turnstile token is single-use, pass or fail.
+      captcha.reset();
     }
   };
 
@@ -187,6 +209,15 @@ export default function PortalLoginPage() {
               </p>
             </div>
 
+            {linkError && (
+              <p
+                role="alert"
+                className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400"
+              >
+                {linkError}
+              </p>
+            )}
+
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-navy-900 dark:text-white font-medium">
@@ -246,9 +277,11 @@ export default function PortalLoginPage() {
                 )}
               </div>
 
+              <Turnstile {...captcha.widgetProps} action="portal-login" />
+
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !captcha.ready}
                 className="w-full h-11 bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 font-medium transition-colors"
               >
                 {loading ? (
