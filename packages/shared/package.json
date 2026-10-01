@@ -10,6 +10,7 @@
     "@googlemaps/js-api-loader": "^2.0.2",
     "@react-pdf/renderer": "^4.5.1",
     "resend": "^6.12.2",
+    "server-only": "^0.0.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {

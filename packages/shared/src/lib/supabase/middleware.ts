@@ -1,11 +1,30 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import {
+  FEATURE_CATALOG,
   featureKeyForPath,
   isAdminOnlyPath,
 } from "@nkps/shared/lib/permissions";
+import { getErpUrl } from "@nkps/shared/lib/cross-app";
+import {
+  buildCsp,
+  createNonce,
+  type CspSources,
+} from "@nkps/shared/lib/security/csp";
+import {
+  isCsrfExempt,
+  passesOriginCheck,
+} from "@nkps/shared/lib/security/csrf";
 
-// updateSession is consumed by apps/erp's proxy.ts. The ERP app serves:
+// updateSession is the whole proxy for apps/erp and apps/cms. In order:
+//   1. /api/*  — CSRF origin check on writes, then straight through. No CSP
+//      (JSON isn't a document), no session, no DB call.
+//   2. pages   — a fresh CSP nonce, then the app's auth + role gate.
+// The app passes a ProxyPolicy naming which gate to run and its own CSP
+// origins / webhook exemptions; the mechanism lives here so the two apps
+// cannot drift apart.
+//
+// The ERP app serves:
 //   /              admin dashboard
 //   /login         admin login
 //   /people, /exams, /fees, /timetable, /calendar, /attendance, /academics,
@@ -17,8 +36,23 @@ import {
 //   /parent/*      parent dashboard (parent role only)
 //   /auth/*        Supabase auth callbacks (no proxy needed)
 //
-// CMS lives at apps/cms with its own simple proxy. Website lives at
-// apps/website with no proxy.
+// The CMS app serves /, /login, /offline and the six CMS feature pages
+// (gallery, articles, site-media, disclosure, transfer-certificates, contact)
+// to admins, staff and teachers holding a CMS grant — see cmsGate. Portal
+// flows (change-password, settings) live on the ERP. Website has no proxy.
+
+export interface ProxyPolicy {
+  app: "erp" | "cms";
+  /** Third-party origins this app's pages load from, beyond the baseline. */
+  csp: CspSources;
+  /** Exact /api paths called server-to-server (webhooks). They send no
+   *  Origin / Sec-Fetch-Site and authenticate themselves in the route. */
+  csrfExemptPaths?: readonly string[];
+}
+
+const CMS_FEATURE_KEYS = FEATURE_CATALOG.filter((f) => f.group === "cms").map(
+  (f) => f.key
+);
 
 const LOGIN_PAGES = ["/login", "/portal/login"];
 
@@ -78,9 +112,52 @@ function isAdminAreaPath(pathname: string): boolean {
   );
 }
 
-export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
+export async function updateSession(
+  request: NextRequest,
+  policy: ProxyPolicy
+): Promise<NextResponse> {
+  const pathname = request.nextUrl.pathname;
 
+  // API routes bail out BEFORE getUser(). Nothing below runs for them — no
+  // redirect, no role gate — so the GoTrue round trip getUser() makes would
+  // be bought and thrown away on every single API call.
+  //
+  // The refreshed-cookie side effect it also carried is not load-bearing here:
+  // Bearer-authed handlers (verify-admin / verify-portal) never read the
+  // session cookie, and every cookie-authed handler builds its own server
+  // client and calls getUser() itself — inside a route handler that write goes
+  // through Next's cookie store and lands on the response the same way.
+  //
+  // What does run is the CSRF origin check (lib/security/csrf.ts): header
+  // reads only, no DB.
+  if (pathname.startsWith("/api/")) {
+    if (
+      !isCsrfExempt(request, policy.csrfExemptPaths ?? []) &&
+      !passesOriginCheck(request)
+    ) {
+      return NextResponse.json(
+        { error: "Cross-origin request blocked" },
+        { status: 403 }
+      );
+    }
+    return NextResponse.next();
+  }
+
+  const nonce = createNonce();
+  const csp = buildCsp(nonce, policy.csp);
+
+  // Every pass-through response forwards the nonce on the REQUEST: Next reads
+  // the nonce out of the request's CSP header while rendering, and getNonce()
+  // reads x-nonce. Built fresh each time because Supabase's setAll below
+  // rewrites the request cookies and needs a new response to carry them.
+  const forward = () => {
+    const headers = new Headers(request.headers);
+    headers.set("x-nonce", nonce);
+    headers.set("Content-Security-Policy", csp);
+    return NextResponse.next({ request: { headers } });
+  };
+
+  let supabaseResponse = forward();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -93,7 +170,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          supabaseResponse = NextResponse.next({ request });
+          supabaseResponse = forward();
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );
@@ -102,20 +179,27 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const pathname = request.nextUrl.pathname;
+  const gate = policy.app === "cms" ? cmsGate : erpGate;
+  const response = (await gate(request, supabase)) ?? supabaseResponse;
+  response.headers.set("Content-Security-Policy", csp);
+  return response;
+}
 
-  // API routes bail out BEFORE getUser(). Nothing below this line runs for
-  // them — no redirect, no role gate — so the GoTrue round trip getUser()
-  // makes was bought and thrown away on every single API call.
-  //
-  // The refreshed-cookie side effect it also carried is not load-bearing here:
-  // Bearer-authed handlers (verify-admin / verify-portal) never read the
-  // session cookie, and every cookie-authed handler builds its own server
-  // client and calls getUser() itself — inside a route handler that write goes
-  // through Next's cookie store and lands on the response the same way.
-  if (pathname.startsWith("/api/")) {
-    return supabaseResponse;
-  }
+type ProxySupabase = ReturnType<typeof createServerClient>;
+
+function redirectTo(request: NextRequest, pathname: string): NextResponse {
+  const url = request.nextUrl.clone();
+  url.pathname = pathname;
+  return NextResponse.redirect(url);
+}
+
+/** ERP auth + role gate. Returns a redirect, or null to let the request
+ *  through. */
+async function erpGate(
+  request: NextRequest,
+  supabase: ProxySupabase
+): Promise<NextResponse | null> {
+  const pathname = request.nextUrl.pathname;
 
   const {
     data: { user },
@@ -248,5 +332,82 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  return supabaseResponse;
+  return null;
+}
+
+/**
+ * CMS auth + role gate — the same rules as the ERP admin area, applied to the
+ * CMS's pages:
+ *   - no session → /login (except /login and the /offline fallback);
+ *   - must_change_password → the ERP's /portal/change-password, which is where
+ *     that flow lives (the CMS has no /portal routes);
+ *   - admin → everything; staff → the CMS root, plus each feature page they
+ *     hold the grant for; teachers → the same, but only once they hold at
+ *     least one CMS-group grant;
+ *   - students, parents, and teachers with no CMS grant → their own ERP
+ *     dashboard. Before this gate any signed-in account could load the CMS
+ *     page shells; the API routes were already gated by verifyAdminOrEditor.
+ * A signed-in account that cannot use the CMS is left on /login so it can sign
+ * out and go to the right app.
+ */
+async function cmsGate(
+  request: NextRequest,
+  supabase: ProxySupabase
+): Promise<NextResponse | null> {
+  const pathname = request.nextUrl.pathname;
+  const isLogin = pathname === "/login";
+  // The PWA offline fallback must be reachable with no session — the service
+  // worker precaches it, and it renders no user data.
+  if (pathname === "/offline") return null;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return isLogin ? null : redirectTo(request, "/login");
+
+  // Issued together for the same reason as in erpGate: this runs on every
+  // CMS navigation.
+  const [profileRes, grantsRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("role, must_change_password")
+      .eq("id", user.id)
+      .single(),
+    supabase
+      .from("editor_permissions")
+      .select("feature_key")
+      .eq("editor_id", user.id)
+      .in("feature_key", CMS_FEATURE_KEYS),
+  ]);
+
+  const role: string = profileRes.data?.role ?? "student";
+  if (profileRes.data?.must_change_password) {
+    return NextResponse.redirect(getErpUrl("/portal/change-password"));
+  }
+
+  const grants = new Set<string>(
+    (grantsRes.data ?? []).map((g: { feature_key: string }) => g.feature_key)
+  );
+  const canEnter =
+    role === "admin" ||
+    role === "staff" ||
+    (role === "teacher" && grants.size > 0);
+
+  if (isLogin) return canEnter ? redirectTo(request, "/") : null;
+  if (!canEnter) {
+    return NextResponse.redirect(getErpUrl(getDashboardPath(role)));
+  }
+
+  // Per-feature gate, as in the ERP admin area. The root is every editor's
+  // landing page; a feature page needs its own grant; an unmapped page is
+  // open to staff and closed to teachers (see permissions.ts).
+  if (role !== "admin" && pathname !== "/") {
+    const featureKey = featureKeyForPath(pathname);
+    if (featureKey ? !grants.has(featureKey) : role === "teacher") {
+      return redirectTo(request, "/");
+    }
+  }
+
+  return null;
 }
