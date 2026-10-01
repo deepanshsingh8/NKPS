@@ -399,16 +399,15 @@ export function GalleryPageClient({
 
               {/* Event Cards */}
               {filteredEvents.length > 0 ? (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                >
+                // Transform-only entrance: the first cover image is the page's
+                // LCP element, and an `opacity: 0` start would keep it hidden
+                // in the server HTML until framer-motion hydrates.
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredEvents.map((evt, i) => (
                     <motion.div
                       key={evt.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
+                      initial={{ y: 20 }}
+                      animate={{ y: 0 }}
                       transition={{ delay: i * 0.05 }}
                       className="group cursor-pointer bg-white rounded-2xl border border-navy-900/5 overflow-hidden shadow-sm hover:shadow-xl hover:border-gold-500/20 transition-all duration-300 hover:-translate-y-1"
                       onClick={() => fetchEventImages(evt)}
@@ -420,6 +419,10 @@ export function GalleryPageClient({
                             alt={evt.title}
                             fill
                             sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                            // The first row is above the fold: load it eagerly,
+                            // and the LCP candidate at high priority.
+                            loading={i < 3 ? "eager" : "lazy"}
+                            fetchPriority={i === 0 ? "high" : "auto"}
                             className="object-cover transition-transform duration-500 group-hover:scale-105"
                           />
                         ) : (
@@ -455,7 +458,7 @@ export function GalleryPageClient({
                       </div>
                     </motion.div>
                   ))}
-                </motion.div>
+                </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-20">
                   <div className="rounded-full bg-cream-100 p-6">

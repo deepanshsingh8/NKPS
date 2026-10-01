@@ -13,7 +13,8 @@ import { contactFormSchema, type ContactFormData } from "@nkps/shared/lib/valida
 
 /**
  * Admissions enquiry pop-up shown on the /admissions page. It opens
- * automatically every time the page is visited (per product requirement —
+ * automatically, on the visitor's first scroll, every time the page is
+ * visited (per product requirement —
  * each admissions visit should surface the enquiry prompt), captures the
  * visitor's enquiry, and can be dismissed — either way the admissions page
  * remains fully visible underneath. Closing it only hides it for the current
@@ -37,12 +38,22 @@ export function AdmissionsEnquiryModal() {
   });
   const captcha = useTurnstile();
 
-  // Auto-open on every visit, shortly after the page settles. No persistence
-  // gate — each mount (page visit / refresh) re-opens the prompt by design.
+  // Auto-open on every visit once the visitor starts reading: the first
+  // scroll past a third of a screen. No persistence gate — each mount (page
+  // visit / refresh) re-opens the prompt by design.
+  //
+  // Not on a timer: a modal covering the page on arrival is what Google ranks
+  // down as an intrusive mobile interstitial, and the timed open made this
+  // pop-up the page's Largest Contentful Paint (5.3s on mobile). LCP stops
+  // recording at the first scroll, so opening then costs nothing.
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const t = setTimeout(() => setOpen(true), 600);
-    return () => clearTimeout(t);
+    const onScroll = () => {
+      if (window.scrollY < window.innerHeight / 3) return;
+      window.removeEventListener("scroll", onScroll);
+      setOpen(true);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   // Closing only hides it for the current view; it reopens on the next visit.

@@ -107,3 +107,28 @@ also added seven new checks to this file without ever parsing it.
 4. Reserved words that read as ordinary nouns are the trap: `check`, `order`,
    `user`, `table`, `column`, `default`, `references`. If a column name is one
    of those, rename it — quoting it just moves the problem.
+
+## 2026-10-01 — Measure once at the end; never benchmark by swapping code with `git stash`
+
+**What happened:** Mid-way through the website speed fixes I started a
+rebuild → Lighthouse → `git stash` → rebuild → Lighthouse loop to get a
+local before/after. The user interrupted it and repeated "start with the speed
+fixes". The interrupted command had already run `git stash`, so every fix
+vanished from the working tree and sat in `stash@{0}` until I noticed.
+
+**Why it was wrong:** The loop cost ~10 minutes per round and told me little.
+Lighthouse's default *simulated* throttling is unreliable against localhost:
+JS finishes before first paint, so the simulator charges every paint for the
+JS. The real numbers come from the deployed preview (or PSI/CrUX), not a
+laptop.
+
+**How to apply next time:**
+1. Diagnose from the existing production Lighthouse/HTML, apply the fixes,
+   verify behaviour in the browser, then measure once, on a Vercel preview.
+2. Need a baseline build? Build it from a separate worktree or a commit, never
+   by stashing the working tree. A stash plus an interrupt loses work.
+3. A hidden Browser pane fires no scroll events and runs no smooth scrolls;
+   use `scrollTo({behavior:'instant'})` and dispatch `scroll` yourself.
+4. A console error seen only in the Browser pane on production (React #418
+   here) can come from the pane itself. Check Lighthouse's
+   `errors-in-console` from a clean Chrome before chasing it.
