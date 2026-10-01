@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
+import { sniffUpload } from "@nkps/shared/lib/file-sniff";
 
 export async function POST(request: NextRequest) {
   try {
@@ -62,41 +63,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Magic-byte sniff is cheap insurance — `file.type` is browser-supplied
-    // and trivially spoofable. We only inspect the first 12 bytes.
-    const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
-    const looksJpeg = head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
-    const looksPng =
-      head[0] === 0x89 &&
-      head[1] === 0x50 &&
-      head[2] === 0x4e &&
-      head[3] === 0x47;
-    const looksWebp =
-      head[0] === 0x52 &&
-      head[1] === 0x49 &&
-      head[2] === 0x46 &&
-      head[3] === 0x46 &&
-      head[8] === 0x57 &&
-      head[9] === 0x45 &&
-      head[10] === 0x42 &&
-      head[11] === 0x50;
-    if (!(looksJpeg || looksPng || looksWebp)) {
+    // and trivially spoofable. Store under what the bytes say, not the label.
+    const sniffed = await sniffUpload(file, ["jpeg", "png", "webp"]);
+    if (!sniffed) {
       return NextResponse.json(
         { error: "File contents do not match an image format" },
         { status: 415 }
       );
     }
 
-    const ext = looksPng ? "png" : looksWebp ? "webp" : "jpg";
-    const contentType = looksPng
-      ? "image/png"
-      : looksWebp
-        ? "image/webp"
-        : "image/jpeg";
-    const path = `avatars/${user.id}.${ext}`;
+    const path = `avatars/${user.id}.${sniffed.ext}`;
 
     const { error: uploadError } = await admin.storage
       .from("avatars")
-      .upload(path, file, { upsert: true, contentType });
+      .upload(path, file, { upsert: true, contentType: sniffed.mime });
 
     if (uploadError) {
       console.error("Avatar upload error:", uploadError);
