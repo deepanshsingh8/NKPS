@@ -7,7 +7,7 @@ import { SCHOOL } from "@nkps/shared/lib/constants";
 
 export const metadata: Metadata = buildMetadata({
   title: "Contact NK Public School — Grand Sikar Road, Jaipur",
-  description: `Contact NK Public School, Rajawas, Jaipur. Call ${SCHOOL.phone[0]} or ${SCHOOL.phone[1]}, email ${SCHOOL.email[0]}, or visit us at ${SCHOOL.address.full}. Office hours ${SCHOOL.officeHours}.`,
+  description: `Contact NK Public School, Rajawas, Jaipur: call ${SCHOOL.phone[0]}, email ${SCHOOL.email[0]} or visit us on Grand Sikar Road. Open ${SCHOOL.officeHours}.`,
   path: "/contact",
 });
 

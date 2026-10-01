@@ -5,9 +5,9 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { buildMetadata, breadcrumbJsonLd, faqJsonLd } from "@nkps/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Admissions — Apply to NK Public School Jaipur (CBSE, Nursery–XII)",
+  title: "Admissions — NK Public School Jaipur (CBSE, Nursery–XII)",
   description:
-    "Admission process, eligibility, fees and FAQ for NK Public School, Rajawas, Jaipur — a CBSE co-ed school (Nursery to Class XII). Call the school office to begin your admission today.",
+    "Admissions at NK Public School, Rajawas, Jaipur, a CBSE co-ed school for Nursery to Class XII: process, eligibility, fees and FAQ. Call the office to begin.",
   path: "/admissions",
 });
 

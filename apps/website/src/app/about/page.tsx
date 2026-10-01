@@ -16,7 +16,7 @@ import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 export const metadata: Metadata = buildMetadata({
   title: "About NK Public School — Legacy Since 1985 in Jaipur",
   description:
-    "Learn about NK Public School — a CBSE affiliated school in Jaipur founded in 1985 by Late Shri R.K. Choudhary. Four decades of discipline, academic excellence and character building at Rajawas.",
+    "NK Public School, a CBSE school in Rajawas, Jaipur, founded in 1985 by Late Shri R.K. Choudhary. Four decades of discipline, academics and character building.",
   path: "/about",
 });
 

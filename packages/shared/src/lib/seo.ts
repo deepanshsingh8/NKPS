@@ -17,6 +17,30 @@ export const SITE_URL = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
 
 const DEFAULT_OG_IMAGE = `${SITE_URL}/opengraph-image`;
 
+// The website layout's title template appends " | NK Public School". A title
+// that already names the school would carry the brand twice ("… NK Public
+// School Jaipur | NK Public School") and run past the ~60 characters Google
+// shows, so such a title opts out of the template.
+const NAMES_SCHOOL = /N\.?\s?K\.? Public School|NKPS/i;
+
+export function namesSchool(text: string): boolean {
+  return NAMES_SCHOOL.test(text);
+}
+
+export function pageTitle(title: string): Metadata["title"] {
+  return namesSchool(title) ? { absolute: title } : title;
+}
+
+// Google truncates a meta description at roughly 155–160 characters. Cut
+// CMS-authored text (article excerpts) at a word boundary instead of letting
+// the result page chop it mid-word.
+export function snippet(text: string, max = 158): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max - 1);
+  return cut.slice(0, cut.lastIndexOf(" ")).replace(/[\s,;:.\u2013\u2014-]+$/, "") + "\u2026";
+}
+
 type BuildMetadataArgs = {
   title: string;
   description: string;
@@ -36,7 +60,7 @@ export function buildMetadata({
   const ogImage = image || DEFAULT_OG_IMAGE;
 
   return {
-    title,
+    title: pageTitle(title),
     description,
     alternates: { canonical: url },
     openGraph: {
