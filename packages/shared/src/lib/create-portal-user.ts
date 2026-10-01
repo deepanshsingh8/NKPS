@@ -1,5 +1,6 @@
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { generateSecurePassword } from "@nkps/shared/lib/password";
+import { sendSetPasswordEmail } from "@nkps/shared/lib/auth-links";
 
 interface CreatePortalUserParams {
   email: string;
@@ -15,7 +16,20 @@ interface CreatePortalUserResult {
   success: boolean;
   userId?: string;
   error?: string;
+  /**
+   * Whether the set-password email went out. Only meaningful when `success`.
+   * An account whose email failed exists but nobody can sign in to it until an
+   * admin uses Reset password on Users (which mails a fresh link and shows a
+   * temporary password), so callers must report this rather than say "sent".
+   */
+  emailDelivered?: boolean;
+  /** Why the email was not sent — safe to show to an admin. */
+  emailError?: string;
 }
+
+/** Shown to an admin when the account exists but its email did not go out. */
+export const EMAIL_NOT_SENT_MESSAGE =
+  "Account created, but the email couldn't be sent — use Reset password on Users to try again.";
 
 export async function createPortalUser({
   email,
@@ -57,6 +71,8 @@ export async function createPortalUser({
     };
   }
 
+  // A random password nobody is ever told: the account is entered through
+  // the one-time set-password link emailed below, never with this value.
   const password = generateSecurePassword();
 
   const { data: newUser, error } = await supabase.auth.admin.createUser({
@@ -101,21 +117,23 @@ export async function createPortalUser({
     }
   }
 
-  try {
-    const { sendEmail, buildWelcomeEmail } = await import("@nkps/shared/lib/email");
-    const { getErpUrl } = await import("@nkps/shared/lib/cross-app");
-    const loginUrl = getErpUrl("/portal/login");
-    const html = buildWelcomeEmail({
-      fullName,
-      email,
-      password,
-      loginUrl,
-      role,
-    });
-    await sendEmail(email, "Your NKPS Portal Account", html);
-  } catch (emailError) {
-    console.error(`Failed to send welcome email to ${email}:`, emailError);
-  }
+  // must_change_password stays true (set above). The link lands on
+  // /portal/reset-password, which the proxy exempts from the forced-change
+  // redirect and which clears the flag through complete-password-change once
+  // a password is set. Should the person open the link and wander off without
+  // setting one, the flag sends them to /portal/change-password — which needs
+  // no current password — instead of into a portal they have no password for.
+  const delivery = await sendSetPasswordEmail(supabase, {
+    email,
+    fullName,
+    role,
+    kind: "new-account",
+  });
 
-  return { success: true, userId: newUser.user?.id };
+  return {
+    success: true,
+    userId: newUser.user?.id,
+    emailDelivered: delivery.delivered,
+    ...(delivery.delivered ? {} : { emailError: delivery.reason }),
+  };
 }

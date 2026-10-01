@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Button } from "@nkps/shared/components/ui/button";
+import { MIN_PASSWORD_LENGTH } from "@nkps/shared/lib/password-policy";
 import { Loader2, KeyRound, CheckCircle } from "lucide-react";
 
 export default function ResetPasswordPage() {
@@ -18,8 +19,11 @@ export default function ResetPasswordPage() {
   const [sessionReady, setSessionReady] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
 
-  // The auth callback route exchanges the code server-side and sets session
-  // cookies before redirecting here. We just need to verify the session exists.
+  // Both "Forgot password" and every new-account / admin-reset email land
+  // here: /auth/confirm verifies the one-time token server-side and sets the
+  // session cookies before redirecting. We just need to verify the session
+  // exists. The proxy exempts this page from the must_change_password
+  // redirect, and saving the password clears that flag.
   useEffect(() => {
     const url = new URL(window.location.href);
     const errorDescription = url.searchParams.get("error_description");
@@ -42,8 +46,8 @@ export default function ResetPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      toast.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -86,7 +90,7 @@ export default function ResetPasswordPage() {
 
       await supabase.auth.signOut();
       setSuccess(true);
-      toast.success("Password reset successfully!");
+      toast.success("Password saved!");
       setTimeout(() => router.push("/portal/login"), 2000);
     } catch {
       toast.error("An unexpected error occurred");
@@ -105,10 +109,10 @@ export default function ResetPasswordPage() {
                 <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
-                Password Reset!
+                Password Set!
               </h2>
               <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">
-                Your password has been reset successfully. Redirecting to login...
+                Your password has been saved. Redirecting to login...
               </p>
             </div>
           ) : (
@@ -118,10 +122,10 @@ export default function ResetPasswordPage() {
                   <KeyRound className="h-8 w-8 text-gold-600 dark:text-gold-400" />
                 </div>
                 <h2 className="font-heading text-2xl font-bold text-navy-900 dark:text-white">
-                  Set New Password
+                  Set Your Password
                 </h2>
                 <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">
-                  Enter your new password below.
+                  Choose a password below. You&apos;ll sign in with it and your email.
                 </p>
               </div>
 
@@ -139,7 +143,7 @@ export default function ResetPasswordPage() {
               ) : !sessionReady ? (
                 <div className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-navy-900 dark:text-white mx-auto mb-3" />
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Verifying your reset link...</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Verifying your link...</p>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-5">
@@ -150,12 +154,12 @@ export default function ResetPasswordPage() {
                     <Input
                       id="new-password"
                       type="password"
-                      placeholder="At least 6 characters"
+                      placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="h-11 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900 dark:focus:border-gold-500 dark:focus:ring-gold-500"
                       required
-                      minLength={6}
+                      minLength={MIN_PASSWORD_LENGTH}
                     />
                   </div>
 
@@ -171,7 +175,7 @@ export default function ResetPasswordPage() {
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="h-11 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900 dark:focus:border-gold-500 dark:focus:ring-gold-500"
                       required
-                      minLength={6}
+                      minLength={MIN_PASSWORD_LENGTH}
                     />
                   </div>
 

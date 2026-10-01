@@ -39,6 +39,7 @@ import { TableExportButton } from "@nkps/shared/components/ui/table-export-butto
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@nkps/shared/components/ui/tabs";
 import { LinkHealthPanel } from "@/components/admin/LinkHealthPanel";
 import { toast } from "sonner";
+import { MIN_PASSWORD_LENGTH } from "@nkps/shared/lib/password-policy";
 import {
   Plus,
   Trash2,
@@ -113,6 +114,7 @@ export default function AdminUsersPage() {
     name: string;
     email: string;
     password: string;
+    emailDelivered: boolean;
     emailWarning: string | null;
     flagWarning: string | null;
   } | null>(null);
@@ -291,10 +293,11 @@ export default function AdminUsersPage() {
       toast.success("User created successfully");
       if (data.email_warning) {
         toast.warning(data.email_warning, { duration: 10000 });
-        // Email delivery failed — show password so admin can share manually.
+        // Email delivery failed — show the generated password so the admin can
+        // hand it over. (Absent when the admin typed one: they already have it.)
         setGeneratedPassword(data.generated_password ?? null);
       } else {
-        toast.success("Login details sent to the user via email");
+        toast.success("A link to set their password was emailed to the user");
       }
       // L16 — surface the auto-created staff_members default so the admin
       // remembers to recategorize ('tgt' / '—' is rarely the right slot).
@@ -359,7 +362,7 @@ export default function AdminUsersPage() {
   const handleResetPassword = async (profile: Profile) => {
     if (
       !confirm(
-        `Reset the password for ${profile.full_name}?\n\nTheir current password stops working immediately. You will be shown a temporary one to give them, and they must set their own at next login.`
+        `Reset the password for ${profile.full_name}?\n\nTheir current password stops working immediately. They will be emailed a link to set a new one, and you will be shown a temporary password to give them in person in case the email doesn't reach them.`
       )
     )
       return;
@@ -382,6 +385,7 @@ export default function AdminUsersPage() {
         name: (data.full_name as string) || profile.full_name,
         email: (data.email as string) || profile.email || "",
         password: data.temporary_password as string,
+        emailDelivered: data.email_delivered === true,
         emailWarning: (data.email_warning as string | null) ?? null,
         flagWarning: (data.flag_warning as string | null) ?? null,
       });
@@ -436,11 +440,11 @@ export default function AdminUsersPage() {
       setApprovedName(name);
       if (data.email_delivered === false && data.generated_password) {
         // Fallback path — email failed, surface password so admin can share manually.
-        toast.warning("Registration approved, but sending the welcome email failed. Share the password below with the user.", { duration: 10000 });
+        toast.warning("Registration approved, but the set-password email couldn't be sent. Share the password below with the user.", { duration: 10000 });
         setApprovePassword(data.generated_password);
         setApproveDialogOpen(true);
       } else {
-        toast.success("Registration approved — login details sent via email");
+        toast.success("Registration approved — a set-password link was emailed");
       }
       if (data.link_warning) {
         toast.warning(data.link_warning, { duration: 12000 });
@@ -753,7 +757,7 @@ export default function AdminUsersPage() {
                               size="sm"
                               onClick={() => handleResetPassword(profile)}
                               disabled={resettingId === profile.id}
-                              title="Set a new temporary password and show it to you — works even when reset emails are not going out"
+                              title="Email them a set-password link and show you a temporary password to hand over — works even when email is not going out"
                             >
                               {resettingId === profile.id ? (
                                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -989,6 +993,12 @@ export default function AdminUsersPage() {
               </Button>
             </div>
 
+            {resetResult?.emailDelivered && (
+              <p className="text-xs text-green-700 dark:text-green-400">
+                A link to set a new password was also emailed to them. The
+                email does not contain this password.
+              </p>
+            )}
             {resetResult?.emailWarning && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 {resetResult.emailWarning}
@@ -1030,7 +1040,7 @@ export default function AdminUsersPage() {
                   </div>
                   <div>
                     <DialogTitle>User Created Successfully</DialogTitle>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Save the temporary password below</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">The email didn&apos;t go out — hand over this temporary password</p>
                   </div>
                 </div>
               </DialogHeader>
@@ -1138,16 +1148,22 @@ export default function AdminUsersPage() {
                 </div>
                 <div className="erp-form-group">
                   <Label htmlFor="password">
-                    Password (leave blank to auto-generate)
+                    Temporary password (optional)
                   </Label>
                   <Input
                     id="password"
                     type="text"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Auto-generated if empty"
+                    placeholder="Leave blank — they set their own from the email"
+                    minLength={MIN_PASSWORD_LENGTH}
                     className="h-10"
                   />
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Either way they are emailed a link to set their own password.
+                    Fill this in only to hand a password over in person (at least{" "}
+                    {MIN_PASSWORD_LENGTH} characters); they must change it at first login.
+                  </p>
                 </div>
 
                 <DialogFooter>
@@ -1344,7 +1360,7 @@ export default function AdminUsersPage() {
 
           <div className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-300">
-              A welcome email with login credentials has been sent. The temporary password is also shown below for your reference:
+              The set-password email couldn&apos;t be sent. Share this temporary password with them directly:
             </p>
             <div className="flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 p-4">
               <code className="flex-1 text-sm font-mono font-semibold text-navy-900 dark:text-white">

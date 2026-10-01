@@ -5,6 +5,7 @@ import Image from "next/image";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { MIN_PASSWORD_LENGTH } from "@nkps/shared/lib/password-policy";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Button } from "@nkps/shared/components/ui/button";
@@ -200,8 +201,8 @@ function SettingsContent() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (newPassword.length < 6) {
-      toast.error("New password must be at least 6 characters");
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      toast.error(`New password must be at least ${MIN_PASSWORD_LENGTH} characters`);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -494,7 +495,7 @@ function SettingsContent() {
                 />
                 <SettingsRow
                   label="New password"
-                  hint="At least 6 characters."
+                  hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
                   stacked
                   control={
                     <div className="grid gap-2.5 sm:grid-cols-2">
@@ -508,7 +509,7 @@ function SettingsContent() {
                           onChange={(e) => setNewPassword(e.target.value)}
                           className="h-11"
                           required
-                          minLength={6}
+                          minLength={MIN_PASSWORD_LENGTH}
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -521,7 +522,7 @@ function SettingsContent() {
                           onChange={(e) => setConfirmPassword(e.target.value)}
                           className="h-11"
                           required
-                          minLength={6}
+                          minLength={MIN_PASSWORD_LENGTH}
                         />
                       </div>
                     </div>
