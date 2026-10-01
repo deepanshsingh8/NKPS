@@ -68,6 +68,29 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Pages of the old PHP site that Google still crawls (Search Console →
+  // Pages → 404 / 403 / 5xx, 2026-10). A permanent redirect hands each one's
+  // standing to its new equivalent instead of an error. Only URLs Google has
+  // actually reported belong here; the hundreds of spam URLs in the same report
+  // (/word/word123/abc-123/, /123456789, /012345678.htm) should stay 404.
+  //
+  // The .php entries only work once the Vercel firewall stops challenging
+  // `.php` requests for them: it answers before this config runs, and Google
+  // gets a 403 (verified with Search Console's live test).
+  async redirects() {
+    return [
+      { source: "/index.php", destination: "/", permanent: true },
+      { source: "/pages.php", destination: "/", permanent: true },
+      { source: "/admission-information.php", destination: "/admissions", permanent: true },
+      { source: "/scholarship-schemes.php", destination: "/admissions", permanent: true },
+      { source: "/ptm-schedule.php", destination: "/academic-calendar", permanent: true },
+      { source: "/classroom.php", destination: "/facilities", permanent: true },
+      { source: "/circular.php", destination: "/articles", permanent: true },
+      { source: "/news", destination: "/articles", permanent: true },
+      { source: "/blood-donation-camp", destination: "/articles", permanent: true },
+      { source: "/our-staff-non", destination: "/about", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {
