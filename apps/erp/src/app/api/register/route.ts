@@ -3,6 +3,8 @@ import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { registrationRequestSchema } from "@nkps/shared/lib/validations";
 import { sendEmail, buildRegistrationReceivedEmail } from "@nkps/shared/lib/email";
 import { rateLimit, clientIp } from "@nkps/shared/lib/rate-limit";
+import { verifyTurnstileRequest } from "@nkps/shared/lib/turnstile-server";
+import { TURNSTILE_FAILED_MESSAGE } from "@nkps/shared/lib/turnstile";
 
 export async function POST(request: Request) {
   try {
@@ -20,6 +22,12 @@ export async function POST(request: Request) {
         { error: "Too many registration attempts. Please try again later." },
         { status: 429 }
       );
+    }
+
+    // Bot check (no-op until the Turnstile keys are configured).
+    const captcha = await verifyTurnstileRequest(request);
+    if (!captcha.ok) {
+      return NextResponse.json({ error: TURNSTILE_FAILED_MESSAGE }, { status: 403 });
     }
 
     const body = await request.json();

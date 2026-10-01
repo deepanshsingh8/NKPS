@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { rateLimit, clientIp } from "@nkps/shared/lib/rate-limit";
+import { verifyTurnstile } from "@nkps/shared/lib/turnstile-server";
+import { TURNSTILE_FAILED_MESSAGE, TURNSTILE_HEADER } from "@nkps/shared/lib/turnstile";
 
 const TC_BUCKET = "transfer-certificates";
 const SIGNED_URL_TTL_SECONDS = 60;
@@ -61,6 +63,14 @@ export async function POST(request: NextRequest) {
       { error: "Too many lookup attempts. Please try again later." },
       { status: 429 }
     );
+  }
+
+  // Bot check (no-op until the Turnstile keys are configured). A failure here
+  // says nothing about whether the admission number exists, so it can have its
+  // own message.
+  const captcha = await verifyTurnstile(request.headers.get(TURNSTILE_HEADER), ip);
+  if (!captcha.ok) {
+    return NextResponse.json({ error: TURNSTILE_FAILED_MESSAGE }, { status: 403 });
   }
 
   let body: unknown;

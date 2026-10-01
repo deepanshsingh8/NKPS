@@ -3,6 +3,8 @@ import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { sendEmail, buildPasswordResetEmail } from "@nkps/shared/lib/email";
 import { SCHOOL } from "@nkps/shared/lib/constants";
 import { rateLimit, clientIp } from "@nkps/shared/lib/rate-limit";
+import { verifyTurnstileRequest } from "@nkps/shared/lib/turnstile-server";
+import { TURNSTILE_FAILED_MESSAGE } from "@nkps/shared/lib/turnstile";
 
 // Always wait at least this long before responding so an attacker can't tell
 // from latency whether the email was registered or not.
@@ -17,6 +19,13 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(payload as object, { status });
   };
+
+  // Bot check (no-op until the Turnstile keys are configured). Says nothing
+  // about the email, so it cannot leak membership.
+  const captcha = await verifyTurnstileRequest(request);
+  if (!captcha.ok) {
+    return finalize({ error: TURNSTILE_FAILED_MESSAGE }, 403);
+  }
 
   try {
     const { email } = await request.json();

@@ -16,7 +16,9 @@
     "GMAIL_APP_PASSWORD",
     "FROM_EMAIL",
     "REPLY_TO_EMAIL",
-    "RESEND_API_KEY"
+    "RESEND_API_KEY",
+    "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+    "TURNSTILE_SECRET_KEY"
   ],
   "tasks": {
     "build": {
