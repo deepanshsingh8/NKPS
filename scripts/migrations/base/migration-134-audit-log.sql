@@ -24,9 +24,10 @@
 -- Admins only, via RLS. Editors never: the log describes the admins' own
 -- actions, including the grants editors hold.
 --
--- Filed under cross/: both the CMS and the ERP admin proxies write to it. On a
--- deployment without this table, writeAuditLog() logs the failure and the
--- write it describes still succeeds.
+-- Filed under base/: the shared admin proxy writes to it from the CMS as well
+-- as the ERP, so every deployment tier needs the table. (Should it ever be
+-- missing, writeAuditLog() logs the failure and the write it describes still
+-- succeeds.)
 --
 -- SAFE TO RE-RUN.
 

@@ -115,7 +115,7 @@ Two ERP tables have a shape worth knowing before you query them:
 
 - `transfer_certificates.student_id` → `students(id)` (ON DELETE SET NULL — TCs survive student deletion). For CMS-only deployments, skip the FK constraint.
 - `staff_members` rows can be linked to `teachers` in ERP deployments.
-- **`audit_log`** *(migration 134, `cross/`)* — append-only record of privileged
+- **`audit_log`** *(migration 134, `base/`)* — append-only record of privileged
   actions: user create / delete / role change / password reset, editor grants,
   registration approve / reject, and every write through either app's
   `/api/admin` proxy (column names only, never values). Written by

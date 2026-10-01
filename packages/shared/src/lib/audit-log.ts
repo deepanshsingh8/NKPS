@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { clientIp } from "@nkps/shared/lib/rate-limit";
 
 // Append-only record of who changed what (public.audit_log, migration 134).
 //
@@ -31,17 +32,16 @@ export interface AuditEntry {
   targetTable?: string | null;
   targetId?: string | number | null;
   details?: Record<string, unknown> | null;
-  /** The incoming request (or its headers), for the client IP. */
-  request?: Request | Headers | null;
+  /** The incoming request, for the client IP. */
+  request?: Request | null;
 }
 
-function clientIp(source: Request | Headers | null | undefined): string | null {
-  if (!source) return null;
-  const headers = source instanceof Headers ? source : source.headers;
-  // Vercel sets x-forwarded-for to "client, proxy1, …"; the first entry is the
-  // client. Behind no proxy at all there is nothing trustworthy to record.
-  const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || headers.get("x-real-ip") || null;
+function auditIp(request: Request | null | undefined): string | null {
+  if (!request) return null;
+  // Same source of truth as the rate limiter, so the two never disagree about
+  // who the caller was (and both honour TRUSTED_IP_HEADER / Vercel's header).
+  const ip = clientIp(request);
+  return ip === "unknown" ? null : ip;
 }
 
 /**
@@ -59,7 +59,7 @@ export async function writeAuditLog(admin: SupabaseClient, entry: AuditEntry): P
       target_table: entry.targetTable ?? null,
       target_id: entry.targetId == null ? null : String(entry.targetId),
       details: entry.details ?? null,
-      ip: clientIp(entry.request),
+      ip: auditIp(entry.request),
     });
     if (error) {
       console.error(`[audit-log] ${entry.action} not recorded:`, error);
