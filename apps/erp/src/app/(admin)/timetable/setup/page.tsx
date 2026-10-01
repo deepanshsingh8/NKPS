@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@nkps/shared/lib/supabase/client";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
 import { cn } from "@nkps/shared/lib/utils";
 import {
@@ -104,14 +103,12 @@ export default function TimetableSetupPage() {
       setTemplates({ total: active.length, custom: active.filter((t) => !t.is_system).length });
     })();
     (async () => {
-      const { data, error } = await createClient()
-        .from("timetable_teacher_clashes")
-        .select("*");
-      if (error) {
+      const res = await adminFetch("/api/timetable/clashes");
+      if (!res.ok) {
         setClashError(true);
         return;
       }
-      const rows = (data ?? []) as ClashViewRow[];
+      const rows = ((await res.json()) as { clashes?: ClashViewRow[] }).clashes ?? [];
       setClashes({
         problems: accidentalClashes(rows).length,
         shared: sharedBookings(rows).length,

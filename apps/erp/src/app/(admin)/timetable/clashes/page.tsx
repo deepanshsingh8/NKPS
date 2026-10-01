@@ -17,7 +17,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@nkps/shared/lib/supabase/client";
+import { adminFetch } from "@nkps/shared/lib/admin-api";
 import {
   Table,
   TableBody,
@@ -62,18 +62,15 @@ export default function TimetableClashesPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("timetable_teacher_clashes")
-        .select("*")
-        .order("day_of_week")
-        .order("a_start");
-      if (error) {
+      // Server-side: the view is not granted to browser sessions.
+      const res = await adminFetch("/api/timetable/clashes");
+      if (!res.ok) {
         toast.error("Failed to load the clash report");
         setLoading(false);
         return;
       }
-      setRows((data ?? []) as ClashViewRow[]);
+      const body = (await res.json()) as { clashes?: ClashViewRow[] };
+      setRows(body.clashes ?? []);
       setLoading(false);
     };
     fetchData();
