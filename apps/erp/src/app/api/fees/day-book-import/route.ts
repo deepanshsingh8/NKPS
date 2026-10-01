@@ -24,6 +24,7 @@
 // rather than being written twice or silently ignored.
 
 import { NextRequest, NextResponse } from "next/server";
+import { dbErrorMessage, dbErrorResponse, logDbError } from "@nkps/shared/lib/api-errors";
 import { classSortOrder } from "@nkps/shared/lib/constants";
 import { randomUUID } from "node:crypto";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
@@ -193,7 +194,7 @@ export async function POST(req: NextRequest) {
       .eq("is_active", true),
   ]);
   for (const res of [streamsRes, classesRes, studentsRes, structuresRes]) {
-    if (res.error) return NextResponse.json({ error: res.error.message }, { status: 500 });
+    if (res.error) return dbErrorResponse(res.error, "fees/day-book-import load lookups");
   }
 
   // Alias-aware: the file says "XI-Arts" and the school stores the stream as
@@ -636,7 +637,9 @@ export async function POST(req: NextRequest) {
       .upsert(chunk, { onConflict: "receipt_number", ignoreDuplicates: true })
       .select("id");
     if (error) {
-      insertErrors.push(error.message);
+      insertErrors.push(
+        `Records ${i + 1}–${i + chunk.length}: ${dbErrorMessage(error, "fees/day-book-import insert")}`
+      );
       continue;
     }
     const n = (data ?? []).length;
@@ -674,9 +677,9 @@ export async function POST(req: NextRequest) {
   // The receipts are in and correct; a missing registry row costs the revert
   // button, not the money. Surface it instead of failing the whole import.
   if (batchErr) {
+    logDbError(batchErr, "fees/day-book-import register batch");
     warnings.push(
-      `Payments were imported, but the batch could not be registered ` +
-        `(${batchErr.message}). Batch id: ${batchId} — keep it for a revert.`
+      `Payments were imported, but the batch could not be registered. Batch id: ${batchId} — keep it for a revert.`
     );
   }
 
@@ -847,7 +850,7 @@ async function loadLedgerState(admin: AdminClient, academicYearId: string) {
       // double-count a receipt as already imported and drop a real one.
       .order("id", { ascending: true })
       .range(from, from + PAGE - 1);
-    if (error) return { importedByReceipt, settledByStudentStructure, nativeByStudent, error: error.message };
+    if (error) return { importedByReceipt, settledByStudentStructure, nativeByStudent, error: dbErrorMessage(error, "fees/day-book-import ledger") };
     const rows = data ?? [];
 
     for (const p of rows) {
@@ -925,7 +928,7 @@ async function materializeClasses(
       .from("streams")
       .insert(missingStreams.map((name) => ({ name, kind: "stream" })))
       .select("id, name");
-    if (error) return { error: `Failed to create streams: ${error.message}` };
+    if (error) return { error: `Failed to create streams: ${dbErrorMessage(error, "fees/day-book-import")}` };
     for (const s of data ?? []) {
       const fresh = buildStreamLookup([{ id: s.id as string, name: String(s.name) }]);
       for (const [k, v] of fresh) if (!streamByName.has(k)) streamByName.set(k, v);
@@ -951,7 +954,7 @@ async function materializeClasses(
       .from("classes")
       .insert(toInsert)
       .select("id, name, section, stream_id");
-    if (error) return { error: `Failed to create classes: ${error.message}` };
+    if (error) return { error: `Failed to create classes: ${dbErrorMessage(error, "fees/day-book-import")}` };
     for (const c of data ?? []) {
       classesByKey.set(classKey(c.name as string, c.section as string, c.stream_id as string | null), {
         id: c.id as string,
@@ -1001,7 +1004,7 @@ async function createStubStudents(
   const { error: insErr } = await admin
     .from("students")
     .upsert(studentRows, { onConflict: "admission_no", ignoreDuplicates: true });
-  if (insErr) return { error: `Failed to create students: ${insErr.message}`, byAdmissionNo, warnings };
+  if (insErr) return { error: `Failed to create students: ${dbErrorMessage(insErr, "fees/day-book-import")}`, byAdmissionNo, warnings };
 
   // Re-read rather than trusting the insert's return: ignoreDuplicates omits
   // rows that already existed, and we need an id for every one of them.
@@ -1012,7 +1015,7 @@ async function createStubStudents(
       "admission_no",
       toCreate.map((s) => s.admission_no)
     );
-  if (readErr) return { error: `Failed to read back students: ${readErr.message}`, byAdmissionNo, warnings };
+  if (readErr) return { error: `Failed to read back students: ${dbErrorMessage(readErr, "fees/day-book-import")}`, byAdmissionNo, warnings };
 
   for (const s of reread ?? []) {
     byAdmissionNo.set(normalizeAdmissionNo(String(s.admission_no)), {
@@ -1063,7 +1066,7 @@ async function createStubStudents(
         ignoreDuplicates: true,
       });
     if (error) {
-      return { error: `Failed to create enrollments: ${error.message}`, byAdmissionNo, warnings };
+      return { error: `Failed to create enrollments: ${dbErrorMessage(error, "fees/day-book-import")}`, byAdmissionNo, warnings };
     }
 
     const history = enrollments.map((e) => ({
@@ -1079,7 +1082,7 @@ async function createStubStudents(
     const { error: histErr } = await admin.from("student_status_history").insert(history);
     // The enrollment carries the same reason on its cache columns, so a failed
     // history write loses the audit row, not the explanation.
-    if (histErr) warnings.push(`Status history was not recorded: ${histErr.message}`);
+    if (histErr) warnings.push(`Status history was not recorded: ${dbErrorMessage(histErr, "fees/day-book-import status history")}`);
   }
 
   return { error: null as string | null, byAdmissionNo, warnings };

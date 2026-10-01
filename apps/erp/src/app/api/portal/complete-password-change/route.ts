@@ -100,8 +100,17 @@ export async function POST(request: Request) {
 
   if (passwordError) {
     console.error("Failed to set new password:", passwordError);
+    // Supabase Auth's weak/same-password messages are written for the person
+    // choosing the password ("Password should contain at least one..."), so
+    // those two pass through. Anything else is an internal failure.
+    const userFacing =
+      passwordError.code === "weak_password" || passwordError.code === "same_password";
     return NextResponse.json(
-      { error: passwordError.message || "Could not set that password." },
+      {
+        error: userFacing
+          ? passwordError.message
+          : "Could not set that password. Please try again.",
+      },
       { status: 400 }
     );
   }

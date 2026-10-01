@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse, logDbError } from "@nkps/shared/lib/api-errors";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 
 /**
@@ -88,7 +89,8 @@ export async function POST(request: Request) {
     .select("id")
     .single();
   if (error || !created) {
-    return NextResponse.json({ error: error?.message ?? "Failed to create" }, { status: 400 });
+    if (error) return dbErrorResponse(error, "timetable/templates create", 400);
+    return NextResponse.json({ error: "Failed to create" }, { status: 400 });
   }
 
   if (cloneRows.length > 0) {
@@ -102,7 +104,8 @@ export async function POST(request: Request) {
     }));
     const { error: pErr } = await admin.from("timetable_template_periods").insert(rows);
     if (pErr) {
-      return NextResponse.json({ error: `Template created but periods failed: ${pErr.message}` }, { status: 400 });
+      logDbError(pErr, "timetable/templates clone periods");
+      return NextResponse.json({ error: "Template created, but its periods could not be copied." }, { status: 400 });
     }
   }
 

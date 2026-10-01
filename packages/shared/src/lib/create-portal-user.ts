@@ -84,7 +84,19 @@ export async function createPortalUser({
 
   if (error) {
     console.error(`Failed to create ${role} user for ${email}:`, error);
-    return { success: false, error: error.message };
+    // Auth's own message can be "Database error saving new user", which says
+    // nothing useful and hints at internals; name only the cases a person can
+    // act on.
+    const exists = error.code === "email_exists" || error.code === "user_already_exists";
+    const invalid = error.code === "email_address_invalid" || error.code === "validation_failed";
+    return {
+      success: false,
+      error: exists
+        ? "An account with this email address already exists."
+        : invalid
+          ? "That email address is not valid."
+          : "The login could not be created. Please try again.",
+    };
   }
 
   if (newUser.user) {

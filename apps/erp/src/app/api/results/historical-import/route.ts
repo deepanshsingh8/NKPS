@@ -15,6 +15,7 @@
 //     exam_type_id) so re-imports overwrite rather than duplicate.
 
 import { NextRequest, NextResponse } from "next/server";
+import { dbErrorMessage, dbErrorResponse } from "@nkps/shared/lib/api-errors";
 import { classSortOrder } from "@nkps/shared/lib/constants";
 import { randomUUID } from "node:crypto";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
@@ -155,7 +156,7 @@ export async function POST(req: NextRequest) {
     ]);
   for (const r of [streamsRes, classesRes, studentsRes, subjectsRes, examTypesRes]) {
     if (r.error) {
-      return NextResponse.json({ error: r.error.message }, { status: 500 });
+      return dbErrorResponse(r.error, "results/historical-import load lookups");
     }
   }
 
@@ -307,7 +308,7 @@ export async function POST(req: NextRequest) {
       .select("id, name");
     if (streamInsErr) {
       return NextResponse.json(
-        { error: `Failed to create streams: ${streamInsErr.message}` },
+        { error: `Failed to create streams: ${dbErrorMessage(streamInsErr, "results/historical-import")}` },
         { status: 500 }
       );
     }
@@ -346,7 +347,7 @@ export async function POST(req: NextRequest) {
       .select("id, name, section, stream_id");
     if (classInsErr) {
       return NextResponse.json(
-        { error: `Failed to create classes: ${classInsErr.message}` },
+        { error: `Failed to create classes: ${dbErrorMessage(classInsErr, "results/historical-import")}` },
         { status: 500 }
       );
     }
@@ -415,7 +416,7 @@ export async function POST(req: NextRequest) {
       });
     if (enrollErr) {
       return NextResponse.json(
-        { error: `Failed to create enrollments: ${enrollErr.message}` },
+        { error: `Failed to create enrollments: ${dbErrorMessage(enrollErr, "results/historical-import")}` },
         { status: 500 }
       );
     }
@@ -436,7 +437,7 @@ export async function POST(req: NextRequest) {
       .select("id, name");
     if (insErr) {
       return NextResponse.json(
-        { error: `Failed to create subjects: ${insErr.message}` },
+        { error: `Failed to create subjects: ${dbErrorMessage(insErr, "results/historical-import")}` },
         { status: 500 }
       );
     }
@@ -463,7 +464,7 @@ export async function POST(req: NextRequest) {
       .single();
     if (insErr || !inserted) {
       return NextResponse.json(
-        { error: `Failed to create exam_type "${name}": ${insErr?.message ?? "no data"}` },
+        { error: `Failed to create exam_type "${name}": ${insErr ? dbErrorMessage(insErr, "results/historical-import exam_type") : "no data"}` },
         { status: 500 }
       );
     }
@@ -536,7 +537,9 @@ export async function POST(req: NextRequest) {
       })
       .select("id");
     if (chunkErr) {
-      insertErrors.push(chunkErr.message);
+      insertErrors.push(
+        `Records ${i + 1}–${i + chunk.length}: ${dbErrorMessage(chunkErr, "results/historical-import insert")}`
+      );
       continue;
     }
     const insertedCount = (inserted ?? []).length;
