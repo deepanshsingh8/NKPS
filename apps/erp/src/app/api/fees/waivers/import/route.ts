@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
+import { readUntrustedWorkbook } from "@nkps/shared/lib/xlsx-safe";
 import { verifyAdminWithUser } from "@nkps/shared/lib/verify-admin";
 import { parseFeeAmount, parseFeeDate } from "@nkps/shared/lib/fee-template";
 import { validateWaiver, buildWaiverRow } from "@/lib/fee-waiver";
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
 
   let sheetRows: unknown[][];
   try {
-    const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+    const wb = readUntrustedWorkbook(await file.arrayBuffer());
     const first = wb.SheetNames[0];
     if (!first) throw new Error("empty");
     sheetRows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[first], {

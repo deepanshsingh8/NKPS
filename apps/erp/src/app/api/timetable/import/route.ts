@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
+import { readUntrustedWorkbook } from "@nkps/shared/lib/xlsx-safe";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 
 /**
@@ -144,7 +145,7 @@ export async function POST(request: Request) {
   let workbook: XLSX.WorkBook;
   try {
     const buf = await file.arrayBuffer();
-    workbook = XLSX.read(new Uint8Array(buf), { type: "array" });
+    workbook = readUntrustedWorkbook(buf);
   } catch {
     return NextResponse.json({ error: "Invalid Excel file" }, { status: 400 });
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@nkps/shared/lib/supabase/server";
 import { computeGrade, resolveGradeScaleForClass } from "@/lib/grading";
 import * as XLSX from "xlsx";
+import { readUntrustedWorkbook } from "@nkps/shared/lib/xlsx-safe";
 
 interface ParsedRow {
   admission_no?: string;
@@ -134,7 +135,7 @@ export async function POST(request: NextRequest) {
   const buf = await file.arrayBuffer();
   let workbook: XLSX.WorkBook;
   try {
-    workbook = XLSX.read(new Uint8Array(buf), { type: "array" });
+    workbook = readUntrustedWorkbook(buf);
   } catch (err) {
     console.error("XLSX parse error:", err);
     return NextResponse.json({ error: "Could not parse file" }, { status: 400 });
