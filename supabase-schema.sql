@@ -8248,7 +8248,7 @@ REVOKE ALL ON public.staff_details, public.staff_trainings, public.staff_notices
 
 -- ============================================================================
 -- AUDIT LOG (migration 134)
--- Mirrors scripts/migrations/cross/migration-134-audit-log.sql
+-- Mirrors scripts/migrations/base/migration-134-audit-log.sql
 -- Append-only record of privileged actions. Service role writes via
 -- writeAuditLog(); a trigger refuses UPDATE/DELETE/TRUNCATE (service_role
 -- bypasses RLS but not triggers) except the FK's actor_id → NULL. Admins read.
