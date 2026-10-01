@@ -1,15 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { linkErrorPath, safeNext } from "@/lib/auth-confirm";
 
-// Only allow same-origin relative redirects. `next` is attacker-supplied; a
-// value like `//evil.com` or `/\evil.com` is normalized by some browsers to a
-// protocol-relative off-site redirect (open redirect → phishing).
-function safeNext(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) {
-    return "/portal/login";
-  }
-  return value;
-}
+// PKCE code-exchange callback for Supabase-hosted auth flows.
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -49,10 +42,9 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    const errorRedirect = isPasswordReset
-      ? `/portal/reset-password?error_description=${encodeURIComponent(error.message)}`
-      : `/portal/login?error=${encodeURIComponent(error.message)}`;
-    return NextResponse.redirect(`${origin}${errorRedirect}`);
+    // The reason stays in the server log; the browser gets a fixed code.
+    console.error("[auth/callback] exchangeCodeForSession failed:", error.code ?? error.message);
+    return NextResponse.redirect(`${origin}${linkErrorPath(next)}`);
   }
 
   return response;

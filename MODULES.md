@@ -115,6 +115,14 @@ Two ERP tables have a shape worth knowing before you query them:
 
 - `transfer_certificates.student_id` → `students(id)` (ON DELETE SET NULL — TCs survive student deletion). For CMS-only deployments, skip the FK constraint.
 - `staff_members` rows can be linked to `teachers` in ERP deployments.
+- **`audit_log`** *(migration 134, `base/`)* — append-only record of privileged
+  actions: user create / delete / role change / password reset, editor grants,
+  registration approve / reject, and every write through either app's
+  `/api/admin` proxy (column names only, never values). Written by
+  `writeAuditLog()` on the service role; a trigger refuses UPDATE / DELETE /
+  TRUNCATE even for the service role; admins read it through RLS. A deployment
+  without the table loses only the log: `writeAuditLog()` reports the failure
+  and never blocks the action it describes.
 
 ## Local development
 
@@ -202,9 +210,17 @@ No email ever contains a password. Every account email carries a one-time
    token (this sends nothing).
 2. The link is built on `NEXT_PUBLIC_ERP_URL` — never the request's Origin —
    as `/auth/confirm?token_hash=…&type=recovery&next=/portal/reset-password`.
-3. `apps/erp/src/app/auth/confirm/route.ts` calls `verifyOtp` server-side,
-   sets the session cookies, and redirects to `next` (same-origin paths only).
-4. `/portal/reset-password` posts to `/api/portal/complete-password-change`,
+3. Opening the link (`GET /auth/confirm`, `apps/erp/src/app/auth/confirm/page.tsx`)
+   does **not** spend the token. It shows a page with a **Continue** button.
+   Mail scanners (Outlook Safe Links, Defender, antivirus gateways) open every
+   link before the person does, and a GET that verified the token used it up,
+   so the person got "invalid or expired". Scanners follow links; they don't
+   submit forms.
+4. Continue POSTs to `/auth/confirm/verify`, which checks the request is
+   same-origin, calls `verifyOtp` server-side, sets the session cookies and
+   303-redirects to `next` (same-origin paths only). A failure redirects with
+   the fixed code `?error=link_invalid_or_expired`, never Supabase's message.
+5. `/portal/reset-password` posts to `/api/portal/complete-password-change`,
    which sets the password and clears `must_change_password`.
 
 New accounts are created with a random password nobody is told,
@@ -326,7 +342,7 @@ In order, with a fresh browser session:
 - [ ] `https://cms.nkpublicschool.com/login` loads → log in as admin → CMS dashboard renders, gallery/articles/contact lists work
 - [ ] `https://erp.nkpublicschool.com/login` loads → log in as admin → ERP dashboard renders, students/exams pages work
 - [ ] Log into ERP, then open `https://cms.nkpublicschool.com` in the same tab — you should already be authenticated (cross-subdomain cookie working). If not, recheck the cookie domain in Step 4.
-- [ ] Trigger a portal forgot-password — the email link points to `https://erp.nkpublicschool.com/auth/confirm?token_hash=…` and lands on the set-password page; saving a password there lets you sign in with it.
+- [ ] Trigger a portal forgot-password — the email link points to `https://erp.nkpublicschool.com/auth/confirm?token_hash=…` opens a page with a **Continue** button, and Continue lands on the set-password page; saving a password there lets you sign in with it.
 - [ ] Editor login: an editor account with only CMS permissions can access cms.* but is bounced from erp.*, and vice versa.
 
 ### Step 7 — Optional: legacy URL redirects

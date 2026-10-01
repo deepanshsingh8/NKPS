@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorMessage } from "@nkps/shared/lib/api-errors";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import { feeScheduleSchema } from "@nkps/shared/lib/validations";
 import type { FeeStructure } from "@nkps/shared/types";
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
     const { data: existingRows, error: existingError } = await existingQuery;
     if (existingError) {
       return NextResponse.json(
-        { error: `Failed to load current schedule: ${existingError.message}` },
+        { error: `Failed to load current schedule: ${dbErrorMessage(existingError, "fees/schedule")}` },
         { status: 500 }
       );
     }
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
       const { error } = await admin.from("fee_structures").insert(inserts);
       if (error) {
         return NextResponse.json(
-          { error: `Failed to add schedule rows: ${error.message}` },
+          { error: `Failed to add schedule rows: ${dbErrorMessage(error, "fees/schedule")}` },
           { status: 400 }
         );
       }
@@ -140,7 +141,7 @@ export async function POST(request: Request) {
         .eq("id", row.id);
       if (error) {
         return NextResponse.json(
-          { error: `Failed to update schedule row: ${error.message}` },
+          { error: `Failed to update schedule row: ${dbErrorMessage(error, "fees/schedule")}` },
           { status: 400 }
         );
       }
@@ -158,7 +159,7 @@ export async function POST(request: Request) {
       if (!error) continue;
       if (error.code !== FK_VIOLATION) {
         return NextResponse.json(
-          { error: `Failed to remove schedule row: ${error.message}` },
+          { error: `Failed to remove schedule row: ${dbErrorMessage(error, "fees/schedule")}` },
           { status: 400 }
         );
       }
@@ -169,7 +170,7 @@ export async function POST(request: Request) {
       if (deactivateError) {
         return NextResponse.json(
           {
-            error: `Failed to deactivate a paid schedule row: ${deactivateError.message}`,
+            error: `Failed to deactivate a paid schedule row: ${dbErrorMessage(deactivateError, "fees/schedule")}`,
           },
           { status: 400 }
         );

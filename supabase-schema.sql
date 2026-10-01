@@ -8245,3 +8245,87 @@ CREATE POLICY "staff_notices_select_staff_feature"
   );
 
 REVOKE ALL ON public.staff_details, public.staff_trainings, public.staff_notices FROM anon;
+
+-- ============================================================================
+-- AUDIT LOG (migration 134)
+-- Mirrors scripts/migrations/base/migration-134-audit-log.sql
+-- Append-only record of privileged actions. Service role writes via
+-- writeAuditLog(); a trigger refuses UPDATE/DELETE/TRUNCATE (service_role
+-- bypasses RLS but not triggers) except the FK's actor_id → NULL. Admins read.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.audit_log (
+  id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  at            timestamptz NOT NULL DEFAULT now(),
+  actor_id      uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  actor_role    text,
+  action        text NOT NULL CHECK (action ~ '^[a-z_]+(\.[a-z_]+)+$'),
+  target_table  text,
+  target_id     text,
+  details       jsonb,
+  ip            text
+);
+
+COMMENT ON TABLE public.audit_log IS
+  'Append-only record of privileged actions (migration 134). Written by the '
+  'service role via writeAuditLog(); read by admins. Never holds passwords, '
+  'tokens or field values.';
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_at
+  ON public.audit_log (at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_actor_at
+  ON public.audit_log (actor_id, at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_target
+  ON public.audit_log (target_table, target_id);
+
+-- ─── Append-only trigger ────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.audit_log_append_only()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  -- The FK's ON DELETE SET NULL, when a login is removed. Nothing else about
+  -- the row may change.
+  IF TG_OP = 'UPDATE'
+     AND OLD.actor_id IS NOT NULL
+     AND NEW.actor_id IS NULL
+     AND (NEW.id, NEW.at, NEW.actor_role, NEW.action, NEW.target_table,
+          NEW.target_id, NEW.details, NEW.ip)
+         IS NOT DISTINCT FROM
+         (OLD.id, OLD.at, OLD.actor_role, OLD.action, OLD.target_table,
+          OLD.target_id, OLD.details, OLD.ip)
+  THEN
+    RETURN NEW;
+  END IF;
+
+  RAISE EXCEPTION 'audit_log is append-only (% refused)', TG_OP
+    USING ERRCODE = 'insufficient_privilege';
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.audit_log_append_only() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS trg_audit_log_append_only ON public.audit_log;
+CREATE TRIGGER trg_audit_log_append_only
+  BEFORE UPDATE OR DELETE ON public.audit_log
+  FOR EACH ROW EXECUTE FUNCTION public.audit_log_append_only();
+
+DROP TRIGGER IF EXISTS trg_audit_log_no_truncate ON public.audit_log;
+CREATE TRIGGER trg_audit_log_no_truncate
+  BEFORE TRUNCATE ON public.audit_log
+  FOR EACH STATEMENT EXECUTE FUNCTION public.audit_log_append_only();
+
+-- ─── RLS: admins read, nobody writes from a client ──────────────────────────
+
+ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "audit_log_select_admin" ON public.audit_log;
+CREATE POLICY "audit_log_select_admin"
+  ON public.audit_log FOR SELECT TO authenticated
+  USING ((SELECT public.get_user_role()) = 'admin');
+
+REVOKE ALL ON public.audit_log FROM anon;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.audit_log FROM authenticated;
+REVOKE ALL ON SEQUENCE public.audit_log_id_seq FROM anon, authenticated;

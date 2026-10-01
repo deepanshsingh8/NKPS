@@ -18,8 +18,9 @@ import {
  * Supabase's own mailer and email templates are not used. We ask GoTrue for
  * the token with `auth.admin.generateLink` (which sends nothing), build the
  * link ourselves, and send it through Resend (lib/email.ts). `/auth/confirm`
- * then calls `verifyOtp` server-side, sets the session cookies, and redirects
- * to `next` — by default the reset-password page, which sets the password and
+ * shows a Continue button (so a mail scanner opening the link doesn't spend
+ * the token); its POST to /auth/confirm/verify calls `verifyOtp` server-side,
+ * sets the session cookies, and redirects to `next` — by default the reset-password page, which sets the password and
  * clears `must_change_password` through /api/portal/complete-password-change.
  */
 

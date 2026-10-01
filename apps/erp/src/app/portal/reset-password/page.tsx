@@ -8,6 +8,7 @@ import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Button } from "@nkps/shared/components/ui/button";
 import { MIN_PASSWORD_LENGTH } from "@nkps/shared/lib/password-policy";
+import { AUTH_LINK_ERROR_MESSAGES, LINK_ERROR_CODE } from "@/lib/auth-confirm";
 import { Loader2, KeyRound, CheckCircle } from "lucide-react";
 
 export default function ResetPasswordPage() {
@@ -25,11 +26,15 @@ export default function ResetPasswordPage() {
   // exists. The proxy exempts this page from the must_change_password
   // redirect, and saving the password clears that flag.
   useEffect(() => {
+    // Only fixed codes are honoured: the URL is anyone's to write, so free
+    // text in it must never be painted on this page.
     const url = new URL(window.location.href);
-    const errorDescription = url.searchParams.get("error_description");
+    const errorCode = url.searchParams.get("error") ?? url.searchParams.get("error_description");
 
-    if (errorDescription) {
-      setLinkError(errorDescription);
+    if (errorCode) {
+      setLinkError(
+        AUTH_LINK_ERROR_MESSAGES[errorCode] ?? AUTH_LINK_ERROR_MESSAGES[LINK_ERROR_CODE]
+      );
       return;
     }
 
