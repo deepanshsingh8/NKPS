@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   }
   const { user } = auth;
 
-  const limit = rateLimit({
+  const limit = await rateLimit({
     name: "parent-invite",
     key: user.id,
     max: 30,

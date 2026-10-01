@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
     // Rate-limit by user and IP to stop a stolen account from brute-forcing
     // admission_no/DOB pairs against the directory.
-    const userLimit = rateLimit({
+    const userLimit = await rateLimit({
       name: "link-self:user",
       key: user.id,
       max: 10,
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
         { status: 429 }
       );
     }
-    const ipLimit = rateLimit({
+    const ipLimit = await rateLimit({
       name: "link-self:ip",
       key: clientIp(request),
       max: 20,

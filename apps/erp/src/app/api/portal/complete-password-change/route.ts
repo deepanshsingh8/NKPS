@@ -79,7 +79,7 @@ export async function POST(request: Request) {
   // Metered per user, not per IP: this is an authenticated service-role write,
   // and a legitimate caller uses it once. Generous enough to absorb retries
   // after a network failure.
-  const limit = rateLimit({
+  const limit = await rateLimit({
     name: "complete-password-change",
     key: user.id,
     max: 10,

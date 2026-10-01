@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   if (!caller) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { admin, user, role } = caller;
 
-  const limit = rateLimit({
+  const limit = await rateLimit({
     name: "ai-guide",
     key: user.id,
     max: 30,

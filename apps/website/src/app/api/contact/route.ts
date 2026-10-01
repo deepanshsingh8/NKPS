@@ -47,7 +47,7 @@ export async function POST(request: Request) {
   try {
     // Cap contact form to 5 submissions / IP / hour to keep the admin inbox
     // clean. Honest visitors rarely submit twice in a row.
-    const ipLimit = rateLimit({
+    const ipLimit = await rateLimit({
       name: "contact:ip",
       key: clientIp(request),
       max: 5,

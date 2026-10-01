@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     const normalizedEmail = email.trim().toLowerCase();
 
     // Two-tier rate limit: prevents both per-IP floods and per-target spamming.
-    const ipLimit = rateLimit({
+    const ipLimit = await rateLimit({
       name: "forgot-password:ip",
       key: clientIp(request),
       max: 10,
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
         429
       );
     }
-    const emailLimit = rateLimit({
+    const emailLimit = await rateLimit({
       name: "forgot-password:email",
       key: normalizedEmail,
       max: 3,

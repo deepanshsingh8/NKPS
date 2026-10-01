@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     // Public endpoint — cap at 5 registrations per IP per hour to keep the
     // admin queue clean. The window is generous enough to absorb a family of
     // siblings registering from one home network.
-    const ipLimit = rateLimit({
+    const ipLimit = await rateLimit({
       name: "register:ip",
       key: clientIp(request),
       max: 5,

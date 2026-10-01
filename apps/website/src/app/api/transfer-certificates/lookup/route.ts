@@ -50,7 +50,7 @@ function extractBucketPath(fileUrl: string): string | null {
 export async function POST(request: NextRequest) {
   const ip = clientIp(request);
 
-  const ipLimit = rateLimit({
+  const ipLimit = await rateLimit({
     name: "tc-lookup:ip",
     key: ip,
     max: 5,
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
 
   // Per-admission_no limiter sits behind the IP limiter so a botnet rotating
   // IPs can't free-fire on a single admission number either.
-  const admLimit = rateLimit({
+  const admLimit = await rateLimit({
     name: "tc-lookup:adm",
     key: admNo.toLowerCase(),
     max: 5,

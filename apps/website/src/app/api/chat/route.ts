@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
     // or a single attacker can rack up real cost. 20 messages / IP / minute
     // is generous for a human chatting and an order of magnitude below
     // anything that would be expensive.
-    const ipLimit = rateLimit({
+    const ipLimit = await rateLimit({
       name: "chat:ip",
       key: clientIp(request),
       max: 20,

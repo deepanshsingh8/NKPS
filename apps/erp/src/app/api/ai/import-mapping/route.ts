@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   const caller = await verifyStaffMember();
   if (!caller) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const limit = rateLimit({
+  const limit = await rateLimit({
     name: "ai:import-mapping",
     key: caller.user.id,
     max: 20,
