@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Button } from "@nkps/shared/components/ui/button";
+import { MIN_PASSWORD_LENGTH } from "@nkps/shared/lib/password-policy";
 import { Loader2, ShieldCheck, CheckCircle } from "lucide-react";
 
 export default function ChangePasswordPage() {
@@ -19,8 +20,8 @@ export default function ChangePasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      toast.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
       return;
     }
 
@@ -37,8 +38,8 @@ export default function ChangePasswordPage() {
       // The server sets the password AND clears must_change_password, in that
       // order. Both belong to one route on purpose: when the browser changed
       // the password itself and then asked the server to clear the flag, the
-      // two could be separated, and anyone holding the temporary password
-      // mailed to them could clear the flag while keeping that password.
+      // two could be separated, and anyone holding a temporary password could
+      // clear the flag while keeping that password.
       //
       // The flag column is also locked against browser writes (migration 061),
       // so it has to go through a service-role route regardless.
@@ -110,8 +111,8 @@ export default function ChangePasswordPage() {
                   Set Your Password
                 </h2>
                 <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">
-                  You&apos;re using a temporary password. Please create a new one to
-                  continue.
+                  Choose a password of your own to continue. You&apos;ll sign in
+                  with it from now on.
                 </p>
               </div>
 
@@ -123,12 +124,12 @@ export default function ChangePasswordPage() {
                   <Input
                     id="new-password"
                     type="password"
-                    placeholder="At least 6 characters"
+                    placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="h-11 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900 dark:focus:border-gold-500 dark:focus:ring-gold-500"
                     required
-                    minLength={6}
+                    minLength={MIN_PASSWORD_LENGTH}
                   />
                 </div>
 
@@ -147,7 +148,7 @@ export default function ChangePasswordPage() {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="h-11 border-gray-200 dark:border-border focus:border-navy-900 focus:ring-navy-900 dark:focus:border-gold-500 dark:focus:ring-gold-500"
                     required
-                    minLength={6}
+                    minLength={MIN_PASSWORD_LENGTH}
                   />
                 </div>
 

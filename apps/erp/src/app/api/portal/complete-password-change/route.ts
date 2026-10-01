@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { rateLimit } from "@nkps/shared/lib/rate-limit";
+import { MIN_PASSWORD_LENGTH } from "@nkps/shared/lib/password-policy";
 
 // Sets the caller's own password and clears their `must_change_password` flag,
 // in that order, using the service-role client.
@@ -18,8 +19,9 @@ import { rateLimit } from "@nkps/shared/lib/rate-limit";
 // two together. A user who logged in with the temporary password mailed to
 // them (see create-portal-user.ts and registrations/approve) could POST here
 // directly, clear the flag, and keep that emailed password indefinitely — with
-// the whole dashboard open to them. Temporary credentials travel by plaintext
-// email, so that is precisely the state the flag exists to end.
+// the whole dashboard open to them. (Account emails now carry a set-password
+// link rather than a password, but an admin-issued temporary password is still
+// handed over in person, and the flag exists to end exactly that state.)
 //
 // Doing the password write here makes the two inseparable: the flag can only
 // drop after Supabase Auth has accepted a new password for this user.
@@ -30,11 +32,10 @@ import { rateLimit } from "@nkps/shared/lib/rate-limit";
 // carries a valid access token, and we act on that token's own user — a caller
 // can never affect anyone else's row.
 
-// Matches the floor the two client forms enforce. Deliberately not raised
-// here: a server minimum stricter than the one the form checks would reject a
-// password the user was told was acceptable. Raise both together, and set the
-// same floor in Supabase Auth config, as one change.
-const MIN_PASSWORD_LENGTH = 6;
+// The floor comes from lib/password-policy.ts, the same constant the
+// change-password and reset-password forms check, so the server can never
+// reject a password the form called acceptable. Keep Supabase Auth's own
+// minimum (dashboard setting) at least this high.
 
 export async function POST(request: Request) {
   const authHeader = request.headers.get("authorization");

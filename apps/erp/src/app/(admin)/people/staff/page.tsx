@@ -468,7 +468,7 @@ export default function AdminStaffPage() {
       const roleLabel = role === "teacher" ? "teacher" : "staff";
       if (
         !confirm(
-          `Create a ${roleLabel} login for "${member.name}"? A welcome email with temporary credentials will be sent to ${member.email}.`
+          `Create a ${roleLabel} login for "${member.name}"? A welcome email with a link to set their password will be sent to ${member.email}.`
         )
       ) {
         return;
@@ -496,7 +496,12 @@ export default function AdminStaffPage() {
           return;
         }
         if (data.created > 0) {
-          toast.success("Login created — welcome email sent");
+          const warning = data.results?.[0]?.emailWarning as string | undefined;
+          if (warning) {
+            toast.warning(warning, { duration: 12000 });
+          } else {
+            toast.success("Login created — set-password email sent");
+          }
         } else {
           const reason = data.results?.[0]?.error ?? "Could not create login";
           toast.error(reason);
@@ -725,8 +730,12 @@ export default function AdminStaffPage() {
               "Failed to add staff member"
           );
         }
-        if (resData.userCreated) {
-          toast.success("Staff member added — portal account created & login email sent");
+        if (resData.userCreated && resData.emailWarning) {
+          toast.warning(`Staff member added. ${resData.emailWarning}`, {
+            duration: 12000,
+          });
+        } else if (resData.userCreated) {
+          toast.success("Staff member added — portal account created & set-password email sent");
         } else {
           toast.success("Staff member added");
         }
@@ -1284,7 +1293,7 @@ export default function AdminStaffPage() {
                               staffPortalRole(member.category) === "teacher"
                                 ? "teacher"
                                 : "staff"
-                            } login (sends a welcome email)`}
+                            } login (emails a set-password link)`}
                             className="text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50"
                           >
                             {creatingLoginId === member.id ? (

@@ -104,22 +104,22 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Click "Add User" (top right).',
           'Fill "Full Name", "Email", "Phone (optional)".',
           'Pick a "Role" — admin, staff, teacher, student or parent.',
-          'Leave "Password" blank to auto-generate.',
-          'Click "Create User" — the success dialog shows the temporary password with a copy button.',
+          'Leave "Temporary password (optional)" blank unless you want to hand a password over in person.',
+          'Click "Create User" — they are emailed a one-time link to set their own password.',
         ],
         gotcha:
-          'The "Add User" button is hidden while the Registrations tab is open. If the welcome email fails you must copy the password out of that dialog yourself.',
+          'The "Add User" button is hidden while the Registrations tab is open. The email never contains a password, and its link expires after about an hour (they can then use Forgot password on the login page). If the email fails, the dialog shows a temporary password to copy and hand over yourself.',
       },
       {
         name: "Reset someone's password",
         steps: [
           "Find the row using the search box or a role tab.",
           'Click "Reset password" and confirm.',
-          "Copy the temporary password from the dialog and hand it over.",
+          "They are emailed a link to set a new password. The dialog also shows a temporary password — copy it and hand it over if the email does not reach them.",
         ],
         adminOnly: true,
         gotcha:
-          "This does not depend on email, so it is the way in when reset links are not arriving. Their old password stops working the moment you confirm, the temporary one is shown once and never again, and they are forced to set their own at next login. You cannot reset your own password here — use Change Password instead.",
+          "It works even when email is not going out, so it is also the fix for an account whose welcome email failed. Their old password stops working the moment you confirm, the temporary one is shown once and never again (it is not in the email), and they are forced to set their own at next login. You cannot reset your own password here — use Change Password instead.",
       },
       {
         name: "Change someone's role",
@@ -158,7 +158,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         steps: [
           'Open the "Registrations" tab — the badge shows the pending count.',
           "Use the Pending / Approved / Rejected / All sub-tabs.",
-          'Click "Approve" to create the account and email the login, or "Reject" with an optional reason.',
+          'Click "Approve" to create the account and email them a set-password link, or "Reject" with an optional reason.',
         ],
         gotcha:
           "Approval can raise a link warning when the new account could not be tied to a student record — you then have to use Link record yourself.",
@@ -287,7 +287,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         ],
         adminOnly: true,
         gotcha:
-          "The header checkbox selects every student matching the current filters, not just the visible page.",
+          "The header checkbox selects every student matching the current filters, not just the visible page. Each student is emailed a one-time link to set their own password; the results list anyone whose email could not be sent — fix those with Reset password on Users.",
       },
     ],
     related: ["/academics/classes", "/academics/years", "/administration/users", "/fees/payments"],
@@ -332,13 +332,13 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         name: "Create a portal login for a staff member",
         steps: [
           "Find the row and click the green person-plus icon.",
-          "Accept the confirm — it names the email the credentials go to.",
+          "Accept the confirm — it names the email the set-password link goes to.",
         ],
         adminOnly: true,
         needs:
           "The row must have an email and a login-eligible category. Without an email the cell reads \"No email\" instead.",
         gotcha:
-          "A green tick means the login already exists. Editors do not see this control at all.",
+          "A green tick means the login already exists. Editors do not see this control at all. If the toast says the email couldn't be sent, the login exists but nobody can use it yet — use Reset password on Users.",
       },
       {
         name: "Make someone selectable as a class or subject teacher",

@@ -4,6 +4,8 @@ import { createClient } from "@nkps/shared/lib/supabase/server";
 import { createUserSchema } from "@nkps/shared/lib/validations";
 import { generateSecurePassword } from "@nkps/shared/lib/password";
 import { rateLimit } from "@nkps/shared/lib/rate-limit";
+import { MIN_PASSWORD_LENGTH } from "@nkps/shared/lib/password-policy";
+import { sendSetPasswordEmail } from "@nkps/shared/lib/auth-links";
 import {
   linkProfileToStudent,
   linkProfileToTeacher,
@@ -69,8 +71,31 @@ export async function POST(request: Request) {
 
     const { full_name, email, phone, role } = result.data;
 
-    // Generate a cryptographically secure default password
-    const password = body.password || generateSecurePassword();
+    // An admin may type a password to hand over in person; otherwise the
+    // account gets a random one nobody is told, and the person gets in through
+    // the set-password link emailed below. Either way the email carries no
+    // password, and must_change_password (set below) makes a typed one
+    // single-use.
+    const typedPassword: unknown = body.password;
+    if (
+      typedPassword !== undefined &&
+      typedPassword !== null &&
+      typedPassword !== "" &&
+      (typeof typedPassword !== "string" ||
+        typedPassword.length < MIN_PASSWORD_LENGTH)
+    ) {
+      return NextResponse.json(
+        {
+          error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters, or leave it blank to send a set-password link only.`,
+        },
+        { status: 400 }
+      );
+    }
+    const adminTypedPassword =
+      typeof typedPassword === "string" && typedPassword.length > 0;
+    const password = adminTypedPassword
+      ? (typedPassword as string)
+      : generateSecurePassword();
 
     const supabase = createAdminClient();
 
@@ -215,32 +240,23 @@ export async function POST(request: Request) {
       }
     }
 
-    // Send welcome email with credentials. We don't abort user creation if
-    // this fails, but we DO surface the failure so the admin knows to share
-    // the credentials manually (otherwise the new user can never log in).
+    // Email a one-time set-password link (never the password). We don't abort
+    // user creation if this fails, but we DO surface the failure: a random
+    // password nobody knows plus an email that never arrived is an account no
+    // one can enter. As the explicit fallback, a generated password comes back
+    // for the admin to hand over in person; must_change_password makes it
+    // single-use. A typed password the admin already has, so it is not echoed.
     let emailWarning: string | null = null;
-    try {
-      const { sendEmail, buildWelcomeEmail } = await import("@nkps/shared/lib/email");
-      const { getErpUrl } = await import("@nkps/shared/lib/cross-app");
-      const loginUrl = getErpUrl("/portal/login");
-      const html = buildWelcomeEmail({
-        fullName: full_name,
-        email,
-        password,
-        loginUrl,
-        role,
-      });
-      await sendEmail(
-        email,
-        "Welcome to NKPS Portal — Your Login Details Inside",
-        html
-      );
-    } catch (emailError) {
-      console.error("Failed to send welcome email:", emailError);
-      emailWarning =
-        emailError instanceof Error
-          ? `Welcome email not sent: ${emailError.message}. Please share the temporary password with the user manually.`
-          : "Welcome email not sent. Please share the temporary password with the user manually.";
+    const delivery = await sendSetPasswordEmail(supabase, {
+      email,
+      fullName: full_name,
+      role,
+      kind: "new-account",
+    });
+    if (!delivery.delivered) {
+      emailWarning = adminTypedPassword
+        ? `Set-password email not sent (${delivery.reason}). Give them the password you typed, or use Reset password later to send a new link.`
+        : `Set-password email not sent (${delivery.reason}). Share the temporary password below with the user directly.`;
     }
 
     // L16 — when we auto-create a teachers + staff_members shadow row, the
@@ -256,7 +272,10 @@ export async function POST(request: Request) {
       user: newUser.user,
       email_warning: emailWarning,
       staff_notice: staffNotice,
-      ...(emailWarning ? { generated_password: password } : {}),
+      email_delivered: delivery.delivered,
+      ...(emailWarning && !adminTypedPassword
+        ? { generated_password: password }
+        : {}),
     });
   } catch (err) {
     console.error("API error:", err);
