@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@nkps/shared/lib/api-errors";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import {
   ELECTIVE_CLASSES,
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
       .update({ applies_to_classes: merged, is_active: true })
       .eq("id", existing.id);
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return dbErrorResponse(error, "electives/options", 400);
     }
     return NextResponse.json({ id: existing.id, applies_to_classes: merged });
   }
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return dbErrorResponse(error, "electives/options", 400);
   }
   return NextResponse.json({ id: data?.id, applies_to_classes: classes });
 }
@@ -122,7 +123,7 @@ export async function PATCH(request: Request) {
 
   if (raw.length === 0) {
     const { error } = await admin.from("elective_slot_options").delete().eq("id", id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) return dbErrorResponse(error, "electives/options", 400);
     return NextResponse.json({ ok: true, deleted: true });
   }
 
@@ -131,7 +132,7 @@ export async function PATCH(request: Request) {
     .from("elective_slot_options")
     .update({ applies_to_classes: classes })
     .eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error, "electives/options", 400);
   return NextResponse.json({ ok: true, applies_to_classes: classes });
 }
 
@@ -143,6 +144,6 @@ export async function DELETE(request: Request) {
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const { error } = await admin.from("elective_slot_options").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error, "electives/options", 400);
   return NextResponse.json({ ok: true });
 }

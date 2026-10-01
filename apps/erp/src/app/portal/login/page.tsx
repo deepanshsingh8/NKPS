@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
@@ -14,6 +14,7 @@ import { Button } from "@nkps/shared/components/ui/button";
 import { Turnstile, useTurnstile } from "@nkps/shared/components/Turnstile";
 import { Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { getWebsiteUrl } from "@nkps/shared/lib/cross-app";
+import { AUTH_LINK_ERROR_MESSAGES } from "@/lib/auth-confirm";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -21,6 +22,9 @@ const loginSchema = z.object({
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
+
+// The URL's query string doesn't change while this page is open.
+const noSubscribe = () => () => {};
 
 function getDashboardPath(role: string): string {
   switch (role) {
@@ -42,6 +46,17 @@ export default function PortalLoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const captcha = useTurnstile();
+
+  // The email-link routes land here with a fixed `?error=` code when a link
+  // could not be used. Only known codes are shown; free text is ignored.
+  // Read from the URL after hydration (the server snapshot is null), without
+  // useSearchParams' Suspense requirement.
+  const linkErrorCode = useSyncExternalStore(
+    noSubscribe,
+    () => new URL(window.location.href).searchParams.get("error"),
+    () => null
+  );
+  const linkError = linkErrorCode ? (AUTH_LINK_ERROR_MESSAGES[linkErrorCode] ?? null) : null;
 
   const {
     register,
@@ -193,6 +208,15 @@ export default function PortalLoginPage() {
                 Enter your credentials to access your dashboard
               </p>
             </div>
+
+            {linkError && (
+              <p
+                role="alert"
+                className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400"
+              >
+                {linkError}
+              </p>
+            )}
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               <div className="space-y-2">

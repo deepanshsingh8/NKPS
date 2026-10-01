@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@nkps/shared/lib/api-errors";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 
 /**
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
       .delete()
       .in("class_id", classIds)
       .in("day_of_week", days);
-    if (delErr) return NextResponse.json({ error: delErr.message }, { status: 400 });
+    if (delErr) return dbErrorResponse(delErr, "timetable/generate wipe", 400);
   }
 
   // Load existing periods for cross-class teacher conflict check (after optional wipe).
@@ -261,10 +262,9 @@ export async function POST(request: Request) {
       // unchanged — but the conflict target has to name the real constraint.
       .upsert(chunk, { onConflict: "class_id,day_of_week,period_number,group_no", ignoreDuplicates: !replace });
     if (insertErr) {
-      return NextResponse.json(
-        { error: insertErr.message, generated, skipped, conflicts, partial: true },
-        { status: 400 }
-      );
+      return dbErrorResponse(insertErr, "timetable/generate insert", 400, {
+        extra: { generated, skipped, conflicts, partial: true },
+      });
     }
   }
 

@@ -522,8 +522,12 @@ export function StaffBulkUpload({
         return;
       }
 
-      const userMsg = data.usersCreated > 0
-        ? ` — ${data.usersCreated} portal account${data.usersCreated === 1 ? "" : "s"} created & emailed`
+      // Accounts whose set-password email failed are still accounts, but must
+      // not be counted as "emailed" — they come back as rows needing attention.
+      const usersCreated: number = data.usersCreated ?? 0;
+      const emailed = usersCreated - (data.emailsFailed ?? 0);
+      const userMsg = usersCreated > 0
+        ? ` — ${usersCreated} portal account${usersCreated === 1 ? "" : "s"} created, ${emailed} emailed a set-password link`
         : "";
       toast.success(
         `Successfully imported ${data.inserted} staff member${data.inserted === 1 ? "" : "s"}${userMsg}`

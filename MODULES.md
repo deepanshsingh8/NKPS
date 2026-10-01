@@ -115,6 +115,14 @@ Two ERP tables have a shape worth knowing before you query them:
 
 - `transfer_certificates.student_id` → `students(id)` (ON DELETE SET NULL — TCs survive student deletion). For CMS-only deployments, skip the FK constraint.
 - `staff_members` rows can be linked to `teachers` in ERP deployments.
+- **`audit_log`** *(migration 134, `base/`)* — append-only record of privileged
+  actions: user create / delete / role change / password reset, editor grants,
+  registration approve / reject, and every write through either app's
+  `/api/admin` proxy (column names only, never values). Written by
+  `writeAuditLog()` on the service role; a trigger refuses UPDATE / DELETE /
+  TRUNCATE even for the service role; admins read it through RLS. A deployment
+  without the table loses only the log: `writeAuditLog()` reports the failure
+  and never blocks the action it describes.
 
 ## Local development
 
@@ -174,10 +182,10 @@ Per-app required vars. Missing one will either fail the build or break a runtime
 | `ANTHROPIC_API_KEY` | ✅ | – | – | Chatbot on the public site |
 | `NEXT_PUBLIC_GA_ID` | ✅ | – | – | GA4 measurement ID; leave blank to disable |
 | `NEXT_PUBLIC_GSC_VERIFICATION` | ✅ | – | – | Search Console meta-tag verification token (only if verifying via tag) |
-| `GMAIL_USER` | ✅ | – | ✅ | Gmail address used for SMTP |
-| `GMAIL_APP_PASSWORD` | ✅ | – | ✅ | Gmail app password (not the account password) |
-| `FROM_EMAIL` | ✅ | – | ✅ | `NK Public School <noreply@…>` — must use the `GMAIL_USER` mailbox |
+| `RESEND_API_KEY` | ✅ | – | ✅ | Resend API key — every transactional email goes through Resend |
+| `FROM_EMAIL` | ✅ | – | ✅ | `NK Public School <noreply@nkpublicschool.com>` — must be on a domain verified in Resend |
 | `REPLY_TO_EMAIL` | ✅ | – | ✅ | Where replies route (e.g. `nkps.rajawas@gmail.com`) |
+| `TRUSTED_IP_HEADER` | ✅ | ✅ | ✅ | The proxy-set header holding the real client IP for rate limiting (`x-vercel-forwarded-for` on Vercel). Unset, the limiter trusts `x-forwarded-for`, which a client can spoof |
 | `NEXT_PUBLIC_WEBAUTHN_RP_ID` | – | ✅ | ✅ | Face ID / App Lock. Bare apex domain — `nkpublicschool.com`, no scheme, port or path. Must equal the Relying Party ID under Authentication → Passkeys in Supabase. Leave unset locally to fall back to the current hostname. **Changing it invalidates every passkey already registered.** |
 | `NEXT_PUBLIC_WEBAUTHN_RP_ORIGINS` | – | ✅ | ✅ | Comma-separated app origins, e.g. `https://erp.nkpublicschool.com,https://cms.nkpublicschool.com`. Must match the project's Relying Party Origins. |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | ⚪ | ⚪ | ⚪ | Cloudflare Turnstile site key (bot check on contact, admissions enquiry, TC lookup, register, forgot-password, every password sign-in). Optional: unset = no widget. Inlined at build, so redeploy after setting. Set it together with `TURNSTILE_SECRET_KEY`, and enable Turnstile in Supabase Auth with the same widget's secret, or logins fail. |
@@ -186,10 +194,49 @@ Per-app required vars. Missing one will either fail the build or break a runtime
 
 Why each app sends mail:
 - **website** — public contact form (`apps/website/src/app/api/contact/route.ts`).
-- **erp** — portal forgot-password, register, registration approve/reject.
+- **erp** — account set-password links (staff/teacher/student/parent logins,
+  Users → Add user, registration approval, admin Reset password), portal
+  forgot-password, register, registration reject.
 - **cms** — does not send mail directly; only manages submissions.
 
-> Note: production uses Gmail SMTP via `nodemailer` (see `packages/shared/src/lib/email.ts`). `RESEND_API_KEY` mentioned in some older notes is not used.
+#### How email and password links work
+
+All mail is sent by **Resend** (`packages/shared/src/lib/email.ts`).
+**Supabase's mailer and its Authentication → Email Templates are not used** —
+nothing in the app calls a Supabase method that sends mail, so editing those
+templates changes nothing.
+
+No email ever contains a password. Every account email carries a one-time
+**set-password link**, built by `packages/shared/src/lib/auth-links.ts`:
+
+1. `auth.admin.generateLink({ type: "recovery", email })` mints a recovery
+   token (this sends nothing).
+2. The link is built on `NEXT_PUBLIC_ERP_URL` — never the request's Origin —
+   as `/auth/confirm?token_hash=…&type=recovery&next=/portal/reset-password`.
+3. Opening the link (`GET /auth/confirm`, `apps/erp/src/app/auth/confirm/page.tsx`)
+   does **not** spend the token. It shows a page with a **Continue** button.
+   Mail scanners (Outlook Safe Links, Defender, antivirus gateways) open every
+   link before the person does, and a GET that verified the token used it up,
+   so the person got "invalid or expired". Scanners follow links; they don't
+   submit forms.
+4. Continue POSTs to `/auth/confirm/verify`, which checks the request is
+   same-origin, calls `verifyOtp` server-side, sets the session cookies and
+   303-redirects to `next` (same-origin paths only). A failure redirects with
+   the fixed code `?error=link_invalid_or_expired`, never Supabase's message.
+5. `/portal/reset-password` posts to `/api/portal/complete-password-change`,
+   which sets the password and clears `must_change_password`.
+
+New accounts are created with a random password nobody is told,
+`email_confirm: true` and `must_change_password: true`. The link expires with
+Supabase Auth's **Email OTP Expiration** (default 3600s; the emails say "about
+60 minutes" — `RECOVERY_LINK_TTL_MINUTES` in `auth-links.ts`), and minting a
+new one invalidates the previous one. An expired link is replaced through
+**Forgot password** on the login page, or by an admin's **Reset password** on
+Users, which also shows the admin a temporary password to hand over in person
+for when mail is down.
+
+`/auth/callback` (PKCE code exchange) also exists, but the email flows above
+only use `/auth/confirm`.
 
 ---
 
@@ -236,7 +283,7 @@ Two safe approaches — pick one:
 **Approach A (recommended): change Root Directory just before the merge.**
 1. Existing Vercel project → Settings → General → **Root Directory** → `apps/website` → Save.
 2. Settings → Git → **Production Branch** = `main` (likely already is).
-3. Settings → Environment Variables → add the website-column vars from the table above (the existing project already has Supabase/Anthropic/GA vars; just add the missing cross-app URL vars: `NEXT_PUBLIC_WEBSITE_URL`, `NEXT_PUBLIC_CMS_URL`, `NEXT_PUBLIC_ERP_URL`, plus `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `FROM_EMAIL`, `REPLY_TO_EMAIL` if not already present).
+3. Settings → Environment Variables → add the website-column vars from the table above (the existing project already has Supabase/Anthropic/GA vars; just add the missing cross-app URL vars: `NEXT_PUBLIC_WEBSITE_URL`, `NEXT_PUBLIC_CMS_URL`, `NEXT_PUBLIC_ERP_URL`, plus `RESEND_API_KEY`, `FROM_EMAIL`, `REPLY_TO_EMAIL` if not already present).
 4. Don't trigger a deploy yet — the merge in Step 5 will trigger it.
 
 **Approach B (zero-risk, slightly more work):** create a brand-new `nkps-website` project the same way as Step 1 (root = `apps/website`), assign it the apex domain after Step 5, and delete the old project once verified.
@@ -268,11 +315,15 @@ In Supabase Studio → **Authentication → URL Configuration**:
    ```
 3. **Cookie domain**: `.nkpublicschool.com` (leading dot — required so the auth cookie set on one subdomain is readable from the others).
 
-In Supabase Studio → **Authentication → Email Templates**, update the link in each template (Confirm signup, Reset password, Magic link, Invite user) to use:
-```
-https://erp.nkpublicschool.com/auth/callback?...
-```
-The ERP app owns the `/auth/callback` route. If you currently use the default `{{ .SiteURL }}/auth/callback`, change `SiteURL` references to the literal ERP URL, or update the Site URL above to the ERP subdomain (only if your password-reset/signup flows live exclusively in ERP, which they do today).
+Supabase's **Email Templates** need no changes: the app never asks Supabase
+to send mail. Password and account links are minted with
+`auth.admin.generateLink`, wrapped in `https://erp.nkpublicschool.com/auth/confirm?…`
+and sent through Resend (see "How email and password links work" above), so
+they do not depend on the Site URL, the redirect allow-list or the templates.
+Do check **Authentication → Providers → Email**: "Email OTP Expiration" sets
+how long those links live (the emails say about 60 minutes), and "Minimum
+password length" should be at least `MIN_PASSWORD_LENGTH`
+(`packages/shared/src/lib/password-policy.ts`, currently 8).
 
 ### Step 5 — Merge `phase-3-monorepo` → `main`
 
@@ -294,7 +345,7 @@ In order, with a fresh browser session:
 - [ ] `https://cms.nkpublicschool.com/login` loads → log in as admin → CMS dashboard renders, gallery/articles/contact lists work
 - [ ] `https://erp.nkpublicschool.com/login` loads → log in as admin → ERP dashboard renders, students/exams pages work
 - [ ] Log into ERP, then open `https://cms.nkpublicschool.com` in the same tab — you should already be authenticated (cross-subdomain cookie working). If not, recheck the cookie domain in Step 4.
-- [ ] Trigger a portal forgot-password — the email link points to `https://erp.nkpublicschool.com/auth/callback…` and successfully signs the user in.
+- [ ] Trigger a portal forgot-password — the email link points to `https://erp.nkpublicschool.com/auth/confirm?token_hash=…` opens a page with a **Continue** button, and Continue lands on the set-password page; saving a password there lets you sign in with it.
 - [ ] Editor login: an editor account with only CMS permissions can access cms.* but is bounced from erp.*, and vice versa.
 
 ### Step 7 — Optional: legacy URL redirects

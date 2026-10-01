@@ -5,6 +5,11 @@ import { SCHOOL } from "@nkps/shared/lib/constants";
 import { rateLimit, clientIp } from "@nkps/shared/lib/rate-limit";
 import { verifyTurnstileRequest } from "@nkps/shared/lib/turnstile-server";
 import { TURNSTILE_FAILED_MESSAGE } from "@nkps/shared/lib/turnstile";
+import {
+  generateSetPasswordLink,
+  RECOVERY_LINK_TTL_MINUTES,
+  SET_PASSWORD_PATH,
+} from "@nkps/shared/lib/auth-links";
 
 // Always wait at least this long before responding so an attacker can't tell
 // from latency whether the email was registered or not.
@@ -61,43 +66,28 @@ export async function POST(request: Request) {
       return finalize({ success: true });
     }
 
-    // Build the reset link on the configured ERP URL ONLY. We must NOT use the
-    // request's Origin/Host headers here: those are attacker-controlled, and an
-    // attacker could request a reset for a victim while spoofing
-    // `Origin: https://evil.tld`, causing the genuine one-time recovery token
-    // to be emailed to the victim inside a link that points at the attacker's
-    // server (token-exfiltration → account takeover). /auth/confirm and the
-    // reset-password page both live on the ERP app, so getErpUrl() is correct.
-    const { getErpUrl } = await import("@nkps/shared/lib/cross-app");
-    const origin = getErpUrl();
-
     const supabase = createAdminClient();
 
-    // Ask Supabase to generate a one-time recovery token for this email.
-    // If the email isn't registered, Supabase returns an error — we swallow
-    // it and return success so the endpoint doesn't leak membership info.
-    const { data, error } = await supabase.auth.admin.generateLink({
-      type: "recovery",
-      email: normalizedEmail,
-    });
+    // Mint a one-time recovery token and wrap it in our own /auth/confirm
+    // link, always on the configured ERP URL — never the request's Origin
+    // (see lib/auth-links.ts for why). If the email isn't registered, Supabase
+    // returns an error; we swallow it and return success so the endpoint
+    // doesn't leak membership info.
+    const link = await generateSetPasswordLink(
+      supabase,
+      normalizedEmail,
+      SET_PASSWORD_PATH
+    );
 
-    if (error || !data?.properties?.hashed_token) {
-      if (error) {
-        console.error("generateLink error:", error.message);
-      }
+    if (!link.ok) {
+      console.error("generateLink error:", link.error);
       return finalize({ success: true });
     }
-
-    // Build our own link pointing at /auth/confirm. This avoids Supabase's
-    // /auth/v1/verify redirect entirely — which is fragile across flow types
-    // and redirect-allowlist configurations — and lets us verifyOtp
-    // server-side with full control over the final destination.
-    const tokenHash = data.properties.hashed_token;
-    const resetLink = `${origin}/auth/confirm?token_hash=${encodeURIComponent(tokenHash)}&type=recovery&next=${encodeURIComponent("/portal/reset-password")}`;
+    const resetLink = link.url;
 
     // Best-effort: personalise the greeting using the user's profile name.
     let fullName: string | undefined;
-    const userId = data.user?.id;
+    const userId = link.userId;
     if (userId) {
       const { data: profile } = await supabase
         .from("profiles")
@@ -112,7 +102,7 @@ export async function POST(request: Request) {
         fullName,
         email: normalizedEmail,
         resetLink,
-        expiresInMinutes: 60,
+        expiresInMinutes: RECOVERY_LINK_TTL_MINUTES,
       });
       await sendEmail(
         normalizedEmail,
@@ -120,11 +110,11 @@ export async function POST(request: Request) {
         html
       );
     } catch (emailError) {
+      // Same response as an unknown address. Reporting the failure here would
+      // tell a caller that this address IS registered (only registered
+      // addresses reach the send), which is the enumeration the rest of this
+      // route is built to prevent. The failure is logged for us instead.
       console.error("Failed to send password reset email:", emailError);
-      return finalize(
-        { error: "We couldn't send the reset email. Please try again in a moment." },
-        500
-      );
     }
 
     return finalize({ success: true });

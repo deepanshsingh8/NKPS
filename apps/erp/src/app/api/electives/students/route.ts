@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse, logDbError } from "@nkps/shared/lib/api-errors";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import {
   describeElectiveClasses,
@@ -172,7 +173,7 @@ export async function POST(request: Request) {
       { onConflict: "student_id,slot" }
     );
   if (upsertErr) {
-    return NextResponse.json({ error: upsertErr.message }, { status: 400 });
+    return dbErrorResponse(upsertErr, "electives/students save pick", 400);
   }
 
   // Retire the superseded subject's mirror row. Scoped to this class, so a
@@ -191,9 +192,10 @@ export async function POST(request: Request) {
         .eq("student_id", studentId)
         .eq("class_subject_id", previousClassSubjectId);
       if (delErr) {
+        logDbError(delErr, "electives/students retire mirror");
         return NextResponse.json(
           {
-            error: `Pick saved, but the previous subject could not be removed from the student's subject list (${delErr.message}). Save the pick again.`,
+            error: `Pick saved, but the previous subject could not be removed from the student's subject list. Save the pick again.`,
           },
           { status: 500 }
         );
@@ -214,9 +216,10 @@ export async function POST(request: Request) {
       { onConflict: "student_id,class_subject_id", ignoreDuplicates: true }
     );
   if (mirrorErr) {
+    logDbError(mirrorErr, "electives/students mirror");
     return NextResponse.json(
       {
-        error: `Pick saved, but it could not be added to the student's subject list (${mirrorErr.message}), so it will not appear in reports or exports. Save the pick again.`,
+        error: `Pick saved, but it could not be added to the student's subject list, so it will not appear in reports or exports. Save the pick again.`,
       },
       { status: 500 }
     );
@@ -272,9 +275,10 @@ export async function DELETE(request: Request) {
         .eq("student_id", studentId)
         .eq("class_subject_id", classSubjectId);
       if (mirrorErr) {
+        logDbError(mirrorErr, "electives/students remove mirror");
         return NextResponse.json(
           {
-            error: `Could not remove the subject from the student's subject list (${mirrorErr.message}). Nothing was changed — try again.`,
+            error: `Could not remove the subject from the student's subject list. Nothing was changed — try again.`,
           },
           { status: 500 }
         );
@@ -287,6 +291,6 @@ export async function DELETE(request: Request) {
     .delete()
     .eq("student_id", studentId)
     .eq("slot", slot);
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error, "electives/students delete pick", 400);
   return NextResponse.json({ ok: true });
 }

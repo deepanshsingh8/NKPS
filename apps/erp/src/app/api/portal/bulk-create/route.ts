@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { verifyAdminWithUser } from "@nkps/shared/lib/verify-admin";
-import { createPortalUser } from "@nkps/shared/lib/create-portal-user";
+import {
+  createPortalUser,
+  EMAIL_NOT_SENT_MESSAGE,
+} from "@nkps/shared/lib/create-portal-user";
 import { rateLimit } from "@nkps/shared/lib/rate-limit";
 import { promoteStaffToTeacher } from "@/lib/staff-teacher-sync";
 import { staffPortalRole } from "@nkps/shared/lib/staff-roles";
@@ -63,9 +66,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const results: { id: string; name: string; success: boolean; error?: string }[] = [];
+  // `emailWarning` is set on a created row whose set-password email did not
+  // go out: the account exists (so it counts as created) but nobody has been
+  // told how to get in.
+  const results: {
+    id: string;
+    name: string;
+    success: boolean;
+    error?: string;
+    emailWarning?: string;
+  }[] = [];
   let created = 0;
   let failed = 0;
+  let emailsFailed = 0;
 
   // For staff, the login role depends on category (teaching → teacher, office →
   // staff, drivers/peons → no login). Fetch categories once so the per-item
@@ -140,8 +153,18 @@ export async function POST(request: Request) {
     if (userResult.success && userResult.userId) {
       // createPortalUser already set role + the link (student_id / teacher_id)
       // in one update; no second write needed. (Phase 1 — canonical linking.)
-      results.push({ id: item.id, name: item.fullName, success: true });
       created++;
+      if (userResult.emailDelivered) {
+        results.push({ id: item.id, name: item.fullName, success: true });
+      } else {
+        emailsFailed++;
+        results.push({
+          id: item.id,
+          name: item.fullName,
+          success: true,
+          emailWarning: EMAIL_NOT_SENT_MESSAGE,
+        });
+      }
     } else {
       results.push({
         id: item.id,
@@ -157,6 +180,7 @@ export async function POST(request: Request) {
     results,
     created,
     failed,
+    emailsFailed,
     total: items.length,
   });
 }

@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { SCHOOL } from "@nkps/shared/lib/constants";
+import { MIN_PASSWORD_LENGTH } from "@nkps/shared/lib/password-policy";
 
 /**
  * Escape a string for safe interpolation into HTML email bodies. User-supplied
@@ -106,48 +107,74 @@ function emailWrapper(body: string): string {
 // Email Templates
 // ---------------------------------------------------------------------------
 
-interface WelcomeEmailParams {
+// Set-password emails: a new login, or an admin reset. Neither carries a
+// password — only a one-time link to the reset-password page, minted by
+// lib/auth-links.ts. Send them through sendSetPasswordEmail() there rather
+// than calling these builders directly.
+
+interface SetPasswordEmailParams {
   fullName: string;
   email: string;
-  password: string;
-  loginUrl: string;
   role: string;
+  /** One-time /auth/confirm link. Never logged, never shown to an admin. */
+  setPasswordUrl: string;
+  loginUrl: string;
+  forgotPasswordUrl: string;
+  expiresInMinutes: number;
 }
 
-export function buildWelcomeEmail({ fullName, email, password, loginUrl, role }: WelcomeEmailParams): string {
-  const roleLabel = escapeHtml(role.charAt(0).toUpperCase() + role.slice(1));
-  const safeName = escapeHtml(fullName);
+function renderSetPasswordEmail(
+  { fullName, email, setPasswordUrl, loginUrl, forgotPasswordUrl, expiresInMinutes }: SetPasswordEmailParams,
+  { heading, intro, extraNote }: { heading: string; intro: string; extraNote?: string }
+): string {
+  const safeName = escapeHtml(fullName.trim() || "there");
   const safeEmail = escapeHtml(email);
-  const safePassword = escapeHtml(password);
+  const safeLink = escapeHtml(setPasswordUrl);
+  const safeLogin = escapeHtml(loginUrl);
+  const safeForgot = escapeHtml(forgotPasswordUrl);
   return emailWrapper(`
-    <h2 style="margin:0 0 12px;font-size:22px;color:#1a2332;font-weight:700;">Welcome to the ${SCHOOL.shortName} Portal</h2>
+    <h2 style="margin:0 0 12px;font-size:22px;color:#1a2332;font-weight:700;">${heading}</h2>
     <p style="margin:0 0 20px;font-size:15px;color:#444;line-height:1.6;">
       Hello <strong>${safeName}</strong>,
     </p>
     <p style="margin:0 0 24px;font-size:15px;color:#444;line-height:1.6;">
-      An account has been created for you on the <strong>${SCHOOL.name}</strong> portal as a
-      <strong>${roleLabel}</strong>. Please use the temporary credentials below to sign in for the first time.
+      ${intro}
     </p>
 
-    <!-- Credentials card -->
+    <!-- Login email -->
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#faf8f3;border:1px solid #e8e4d9;border-radius:8px;margin-bottom:24px;">
       <tr>
         <td style="padding:20px 24px;">
-          <p style="margin:0 0 6px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Username (Email)</p>
-          <p style="margin:0 0 18px;font-size:15px;color:#1a2332;font-weight:600;word-break:break-all;">${safeEmail}</p>
-          <p style="margin:0 0 6px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Temporary Password</p>
-          <p style="margin:0;font-size:16px;color:#1a2332;font-weight:700;font-family:'Courier New',monospace;letter-spacing:1px;background:#ffffff;border:1px dashed #d4a843;border-radius:6px;padding:10px 14px;display:inline-block;">${safePassword}</p>
+          <p style="margin:0 0 6px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Your login email</p>
+          <p style="margin:0;font-size:15px;color:#1a2332;font-weight:600;word-break:break-all;">${safeEmail}</p>
         </td>
       </tr>
     </table>
 
-    <!-- Important notice -->
+    <!-- CTA -->
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 20px;">
+      <tr>
+        <td style="background-color:#1a2332;border-radius:8px;">
+          <a href="${safeLink}" style="display:inline-block;padding:14px 36px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">
+            Set your password
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin:0 0 28px;font-size:13px;color:#888;text-align:center;">
+      Button not working? Copy and paste this link into your browser:<br>
+      <a href="${safeLink}" style="color:#d4a843;word-break:break-all;">${safeLink}</a>
+    </p>
+
+    <!-- Expiry notice -->
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#fff8e6;border-left:4px solid #d4a843;border-radius:6px;margin-bottom:28px;">
       <tr>
         <td style="padding:14px 18px;">
           <p style="margin:0;font-size:14px;color:#8a6d1a;line-height:1.6;">
-            <strong>Important:</strong> For your security, you will be required to set a new password
-            the first time you log in. The temporary password above will no longer work after that.
+            <strong>This link works once and expires in about ${expiresInMinutes} minutes.</strong>
+            If it has expired, use <a href="${safeForgot}" style="color:#8a6d1a;">Forgot password</a>
+            on the login page, enter <strong>${safeEmail}</strong>, and we'll email you a fresh link.
           </p>
         </td>
       </tr>
@@ -155,41 +182,46 @@ export function buildWelcomeEmail({ fullName, email, password, loginUrl, role }:
 
     <!-- Steps -->
     <h3 style="margin:0 0 12px;font-size:16px;color:#1a2332;font-weight:700;">How to get started</h3>
-    <ol style="margin:0 0 28px;padding-left:20px;font-size:14px;color:#444;line-height:1.8;">
-      <li>Click the <strong>Sign In to Portal</strong> button below.</li>
-      <li>Enter your email and the temporary password shown above.</li>
-      <li>When prompted, create a new password that only you know.</li>
-      <li>You're in — explore the portal dashboard.</li>
+    <ol style="margin:0 0 24px;padding-left:20px;font-size:14px;color:#444;line-height:1.8;">
+      <li>Click <strong>Set your password</strong> above.</li>
+      <li>Choose a password of at least ${MIN_PASSWORD_LENGTH} characters that only you know, and confirm it.</li>
+      <li>Sign in at <a href="${safeLogin}" style="color:#d4a843;word-break:break-all;">${safeLogin}</a> with your email and that password.</li>
     </ol>
-
-    <!-- CTA -->
-    <table cellpadding="0" cellspacing="0" style="margin:0 auto 20px;">
-      <tr>
-        <td style="background-color:#1a2332;border-radius:8px;">
-          <a href="${loginUrl}" style="display:inline-block;padding:14px 36px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">
-            Sign In to Portal
-          </a>
-        </td>
-      </tr>
-    </table>
-
-    <p style="margin:0 0 24px;font-size:13px;color:#888;text-align:center;">
-      Button not working? Copy and paste this link into your browser:<br>
-      <a href="${loginUrl}" style="color:#d4a843;word-break:break-all;">${loginUrl}</a>
-    </p>
+    ${extraNote ? `<p style="margin:0 0 24px;font-size:14px;color:#444;line-height:1.6;">${extraNote}</p>` : ""}
 
     <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
 
     <p style="margin:0;font-size:13px;color:#888;line-height:1.6;">
       If you weren't expecting this email or believe it was sent to you by mistake, please contact us at
-      <a href="mailto:${SCHOOL.email[0]}" style="color:#d4a843;">${SCHOOL.email[0]}</a>
-      and do not share the credentials above with anyone.
+      <a href="mailto:${SCHOOL.email[0]}" style="color:#d4a843;">${SCHOOL.email[0]}</a>.
+      The school will never ask you to tell anyone your password.
     </p>
   `);
 }
 
+/** A login has just been created for this person. */
+export function buildWelcomeEmail(params: SetPasswordEmailParams): string {
+  const roleLabel = escapeHtml(params.role.charAt(0).toUpperCase() + params.role.slice(1));
+  return renderSetPasswordEmail(params, {
+    heading: `Welcome to the ${SCHOOL.shortName} Portal`,
+    intro: `An account has been created for you on the <strong>${SCHOOL.name}</strong> portal as a
+      <strong>${roleLabel}</strong>. To start using it, set your own password with the button below.`,
+  });
+}
+
+/** An administrator has replaced this person's password from Users. */
+export function buildAdminPasswordResetEmail(params: SetPasswordEmailParams): string {
+  return renderSetPasswordEmail(params, {
+    heading: `Your ${SCHOOL.shortName} portal password has been reset`,
+    intro: `A school administrator has reset the password for your <strong>${SCHOOL.name}</strong> portal
+      account, so your previous password no longer works. Set a new one with the button below.`,
+    extraNote: `If the school gave you a temporary password in person, you can sign in with that instead &mdash;
+      you'll be asked to choose your own password straight away.`,
+  });
+}
+
 // ---------------------------------------------------------------------------
-// Password Reset Email (sent from our own /api/auth/forgot-password route)
+// Password Reset Email (sent from /api/portal/forgot-password)
 // ---------------------------------------------------------------------------
 
 interface PasswordResetEmailParams {
@@ -207,6 +239,7 @@ export function buildPasswordResetEmail({
 }: PasswordResetEmailParams): string {
   const greetingName = escapeHtml(fullName && fullName.trim().length > 0 ? fullName : "there");
   const safeEmail = escapeHtml(email);
+  const safeLink = escapeHtml(resetLink);
   return emailWrapper(`
     <h2 style="margin:0 0 12px;font-size:22px;color:#1a2332;font-weight:700;">Reset your ${SCHOOL.shortName} portal password</h2>
     <p style="margin:0 0 20px;font-size:15px;color:#444;line-height:1.6;">
@@ -221,7 +254,7 @@ export function buildPasswordResetEmail({
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 20px;">
       <tr>
         <td style="background-color:#1a2332;border-radius:8px;">
-          <a href="${resetLink}" style="display:inline-block;padding:14px 36px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">
+          <a href="${safeLink}" style="display:inline-block;padding:14px 36px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">
             Reset Password
           </a>
         </td>
@@ -230,7 +263,7 @@ export function buildPasswordResetEmail({
 
     <p style="margin:0 0 28px;font-size:13px;color:#888;text-align:center;">
       Button not working? Copy and paste this link into your browser:<br>
-      <a href="${resetLink}" style="color:#d4a843;word-break:break-all;">${resetLink}</a>
+      <a href="${safeLink}" style="color:#d4a843;word-break:break-all;">${safeLink}</a>
     </p>
 
     <!-- Steps -->

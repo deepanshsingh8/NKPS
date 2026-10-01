@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import type { FeatureKey } from "@nkps/shared/lib/permissions";
+import { friendlyDbError } from "@nkps/shared/lib/api-errors";
+import { writeAuditLog } from "@nkps/shared/lib/audit-log";
 import {
   ROW_DEPENDENCIES,
   countRowDependencies,
@@ -282,19 +284,40 @@ export function createAdminProxyHandler(config: AdminProxyConfig) {
         }
         // Don't echo Supabase's error.message — it can leak column/table names
         // and constraint hints. The detailed log above is enough for debugging.
+        const friendly = friendlyDbError(result.error, action);
         return NextResponse.json(
-          { error: "Operation failed. Please check your input and try again." },
-          { status: 500 }
+          { error: friendly.message },
+          { status: friendly.status ?? 500 }
         );
       }
 
-      // Cheap structured audit trail. Real audit_log table is the bigger fix
-      // tracked separately in the bug audit (H22 follow-up).
-      console.info(
-        `[admin-proxy] ok actor=${user.id} table=${table} action=${action} match=${
-          match ? `${match.column}=${match.value}` : "(none)"
-        }`
-      );
+      // Audit trail (migration 134). Column NAMES only, never their values:
+      // the proxy writes fee amounts, phone numbers and addresses, and the log
+      // must not become a second copy of them. The match value is recorded
+      // only when it is the row's id, for the same reason.
+      const rows = Array.isArray(result.data)
+        ? (result.data as Array<{ id?: unknown }>)
+        : [];
+      const matchedById = Boolean(match && match.column === "id");
+      const insertedId =
+        action === "insert" && rows.length === 1 ? rows[0]?.id : undefined;
+      await writeAuditLog(admin, {
+        actorId: user.id,
+        actorRole: role,
+        action: `admin_proxy.${action as ProxyAction}`,
+        targetTable: table,
+        targetId: matchedById
+          ? String(match.value)
+          : typeof insertedId === "string" || typeof insertedId === "number"
+            ? insertedId
+            : null,
+        details: {
+          columns: data && typeof data === "object" ? Object.keys(data) : [],
+          ...(match && !matchedById ? { match_column: match.column } : {}),
+          ...(action !== "delete" ? { rows: rows.length } : {}),
+        },
+        request,
+      });
       return NextResponse.json({ success: true, data: result.data });
     } catch {
       return NextResponse.json(
