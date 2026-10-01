@@ -28,6 +28,11 @@ const playfair = Playfair_Display({
 // Public-site routes live in apps/website/.
 export const metadata: Metadata = {
   title: "NKPS Portal",
+  // Staff/parent/student portal: nothing here belongs in search results (the
+  // public site is nkpublicschool.com). noindex, not a robots.txt Disallow —
+  // a blocked URL can still be indexed from links, and Google can't read a
+  // noindex on a page it isn't allowed to fetch.
+  robots: { index: false, follow: false },
   appleWebApp: {
     capable: true,
     // "black" rather than "default" or "black-translucent". The status bar has
