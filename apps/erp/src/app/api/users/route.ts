@@ -6,6 +6,7 @@ import { generateSecurePassword } from "@nkps/shared/lib/password";
 import { rateLimit } from "@nkps/shared/lib/rate-limit";
 import { MIN_PASSWORD_LENGTH } from "@nkps/shared/lib/password-policy";
 import { sendSetPasswordEmail } from "@nkps/shared/lib/auth-links";
+import { writeAuditLog } from "@nkps/shared/lib/audit-log";
 import {
   linkProfileToStudent,
   linkProfileToTeacher,
@@ -267,6 +268,20 @@ export async function POST(request: Request) {
         ? "A staff_members entry was auto-created with default category 'tgt' and subject '—'. Visit /people/staff to recategorize."
         : null;
 
+    await writeAuditLog(supabase, {
+      actorId: user.id,
+      actorRole: callerProfile.role,
+      action: "user.create",
+      targetTable: "profiles",
+      targetId: newUser.user?.id ?? null,
+      details: {
+        role,
+        password_typed_by_admin: adminTypedPassword,
+        email_delivered: delivery.delivered,
+      },
+      request,
+    });
+
     return NextResponse.json({
       success: true,
       user: newUser.user,
@@ -337,6 +352,23 @@ export async function PATCH(request: Request) {
 
     const supabase = createAdminClient();
 
+    // For the audit row: the role this account is moving away from.
+    const { data: before } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", id)
+      .maybeSingle();
+    const audit = (details: Record<string, unknown> = {}) =>
+      writeAuditLog(supabase, {
+        actorId: user.id,
+        actorRole: callerProfile.role,
+        action: "user.role_change",
+        targetTable: "profiles",
+        targetId: id,
+        details: { from: (before?.role as string | undefined) ?? null, to: role, ...details },
+        request,
+      });
+
     // Switching a login TO teacher requires a linked teacher record (migration
     // 068). Staff-role accounts carry no teacher link and there's no
     // teacher-linking UI, so this used to dead-end with "needs a linked teacher
@@ -374,6 +406,7 @@ export async function PATCH(request: Request) {
       if (!linked.ok) {
         return NextResponse.json({ error: linked.error }, { status: linked.status });
       }
+      await audit();
       return NextResponse.json({ success: true });
     }
 
@@ -409,13 +442,15 @@ export async function PATCH(request: Request) {
     // Editor capability is only valid for staff/teacher (and admin, which
     // bypasses the table). When the new role can't hold capability, drop any
     // stale grants so a future re-promotion doesn't reinstate the old set.
-    if (role === "admin" || role === "student" || role === "parent") {
+    const dropsGrants = role === "admin" || role === "student" || role === "parent";
+    if (dropsGrants) {
       await supabase
         .from("editor_permissions")
         .delete()
         .eq("editor_id", id);
     }
 
+    await audit(dropsGrants ? { editor_permissions_cleared: true } : {});
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Update role error:", err);
@@ -528,21 +563,35 @@ export async function DELETE(request: Request) {
     const { error } = await supabase.auth.admin.deleteUser(id);
 
     if (error) {
+      // The detail (which table still points at this profile) stays in the
+      // server log; it names tables and constraints.
       console.error("Delete user error:", error);
-      const raw = error.message ?? "";
-      const isFkViolation =
-        raw.toLowerCase().includes("foreign key") ||
-        raw.toLowerCase().includes("violates");
+      const raw = (error.message ?? "").toLowerCase();
+      const isFkViolation = raw.includes("foreign key") || raw.includes("violates");
       return NextResponse.json(
         {
           error: isFkViolation
-            ? `Cannot delete user: this account is still referenced by other records (${raw}). Run migration 027 if you haven't already.`
-            : raw || "Failed to delete user",
+            ? "Cannot delete user: this account is still referenced by other records."
+            : "Failed to delete user",
         },
-        { status: 500 }
+        { status: isFkViolation ? 409 : 500 }
       );
     }
 
+    await writeAuditLog(supabase, {
+      actorId: user.id,
+      actorRole: callerProfile.role,
+      action: "user.delete",
+      targetTable: "profiles",
+      targetId: id,
+      details: {
+        role: (profile?.role as string | undefined) ?? null,
+        student_deleted: Boolean(profile?.student_id),
+        teacher_retired: Boolean(profile?.teacher_id),
+        parent_deleted: Boolean(profile?.parent_id),
+      },
+      request,
+    });
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Delete user error:", err);

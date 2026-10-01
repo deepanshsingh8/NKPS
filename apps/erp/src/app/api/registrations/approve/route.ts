@@ -4,6 +4,7 @@ import { createClient } from "@nkps/shared/lib/supabase/server";
 import { sendSetPasswordEmail } from "@nkps/shared/lib/auth-links";
 import { generateSecurePassword } from "@nkps/shared/lib/password";
 import { rateLimit } from "@nkps/shared/lib/rate-limit";
+import { writeAuditLog } from "@nkps/shared/lib/audit-log";
 import {
   linkProfileToStudent,
   linkProfileToTeacher,
@@ -255,6 +256,21 @@ export async function POST(request: Request) {
       kind: "new-account",
     });
     const emailDelivered = delivery.delivered;
+
+    await writeAuditLog(supabase, {
+      actorId: user.id,
+      actorRole: callerProfile.role,
+      action: "registration.approve",
+      targetTable: "registration_requests",
+      targetId: id,
+      details: {
+        role,
+        created_user_id: userId,
+        link_warning: linkWarning !== null,
+        email_delivered: emailDelivered,
+      },
+      request,
+    });
 
     return NextResponse.json({
       success: true,

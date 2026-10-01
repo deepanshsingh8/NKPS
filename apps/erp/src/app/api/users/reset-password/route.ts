@@ -4,6 +4,7 @@ import { createClient } from "@nkps/shared/lib/supabase/server";
 import { generateSecurePassword } from "@nkps/shared/lib/password";
 import { rateLimit } from "@nkps/shared/lib/rate-limit";
 import { sendSetPasswordEmail } from "@nkps/shared/lib/auth-links";
+import { writeAuditLog } from "@nkps/shared/lib/audit-log";
 import { z } from "zod";
 
 /**
@@ -174,6 +175,21 @@ export async function POST(request: Request) {
       emailWarning =
         "This account has no email address on record, so nothing could be sent. Share the password below directly.";
     }
+
+    // Never the password or the link — only that a reset happened.
+    await writeAuditLog(admin, {
+      actorId: user.id,
+      actorRole: callerProfile.role,
+      action: "user.password_reset",
+      targetTable: "profiles",
+      targetId: id,
+      details: {
+        role: (target.role as string | null) ?? null,
+        must_change_password: !flagError,
+        email_delivered: emailWarning === null,
+      },
+      request,
+    });
 
     return NextResponse.json({
       success: true,

@@ -10,6 +10,7 @@ import {
 } from "@nkps/shared/lib/student-template";
 import { fetchSessionRoster } from "@/lib/student-roster";
 import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
+import { writeAuditLog } from "@nkps/shared/lib/audit-log";
 import {
   logHistoricalCorrection,
   parseHistoricalCorrection,
@@ -1088,10 +1089,11 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const admin = await verifyAdminOrEditor("students");
-    if (!admin) {
+    const auth = await verifyAdminOrEditorWithUser("students");
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const { admin, user, role: actorRole } = auth;
 
     const body = await request.json();
 
@@ -1127,14 +1129,24 @@ export async function DELETE(request: NextRequest) {
     //    user cascades into profiles via the FK on profiles.id.
     const { data: linkedProfiles } = await admin
       .from("profiles")
-      .select("id")
+      .select("id, student_id")
       .in("student_id", ids);
     if (linkedProfiles?.length) {
       for (const p of linkedProfiles) {
         const { error: authErr } = await admin.auth.admin.deleteUser(p.id);
         if (authErr) {
           console.error(`[students.DELETE] auth delete ${p.id}:`, authErr);
+          continue;
         }
+        await writeAuditLog(admin, {
+          actorId: user.id,
+          actorRole,
+          action: "user.delete",
+          targetTable: "profiles",
+          targetId: p.id as string,
+          details: { role: "student", via: "student_delete", student_id: p.student_id },
+          request,
+        });
       }
     }
 
