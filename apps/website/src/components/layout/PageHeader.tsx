@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
@@ -35,12 +34,12 @@ export function PageHeader({ title, subtitle }: PageHeaderProps) {
         }}
       />
 
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="relative mx-auto max-w-4xl px-6 text-center"
-      >
+      {/* CSS-only, transform-only entrance. This block holds the page's H1 and
+          is the LCP element on every inner page: a framer-motion
+          `initial={{ opacity: 0 }}` kept it invisible until hydration (~4s
+          render delay on mobile). A CSS animation runs before any JS, and
+          keeping opacity at 1 means the first frame already counts as painted. */}
+      <div className="relative mx-auto max-w-4xl px-6 text-center motion-safe:animate-in motion-safe:slide-in-from-bottom-8 motion-safe:duration-600 motion-safe:ease-out">
         {/* Breadcrumbs */}
         <nav className="flex items-center justify-center gap-1.5 text-sm mb-6" aria-label="Breadcrumb">
           <Link href="/" className="text-gray-400 hover:text-gold-400 transition-colors">
@@ -63,16 +62,14 @@ export function PageHeader({ title, subtitle }: PageHeaderProps) {
         <h1 className="font-heading text-4xl font-bold text-white md:text-5xl">
           {title}
         </h1>
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: 64 }}
-          transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
-          className="mx-auto mt-4 h-1 rounded bg-gold-500"
+        <div
+          className="dash-grow-w mx-auto mt-4 h-1 w-16 rounded bg-gold-500"
+          style={{ animationDelay: "300ms", animationFillMode: "backwards" }}
         />
         {subtitle && (
           <p className="mt-4 text-lg text-gray-300">{subtitle}</p>
         )}
-      </motion.div>
+      </div>
     </section>
   );
 }

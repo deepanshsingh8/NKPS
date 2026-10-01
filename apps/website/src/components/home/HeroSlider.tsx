@@ -229,7 +229,11 @@ export function HeroSlider({ cards }: HeroSliderProps = {}) {
             alt={activeSlide.alt}
             fill
             className="object-cover object-[50%_30%] md:object-center"
-            priority={safeCurrent === 0}
+            // Slide 0 is the LCP element. Next 16 deprecated `priority`, and
+            // the preload it emitted carried no fetch priority; an eager,
+            // high-priority <img> is discovered in the HTML just as early.
+            loading={safeCurrent === 0 ? "eager" : "lazy"}
+            fetchPriority={safeCurrent === 0 ? "high" : "auto"}
             sizes="100vw"
           />
         </motion.div>

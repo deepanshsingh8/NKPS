@@ -55,7 +55,7 @@ export default async function AboutPage() {
           alt="NK Public School Jaipur campus — Grand Sikar Road, Rajawas"
           fill
           className="object-cover"
-          priority
+          preload
         />
         <div className="absolute inset-0 bg-gradient-to-b from-navy-950/70 via-navy-900/50 to-navy-950/80" />
         <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">

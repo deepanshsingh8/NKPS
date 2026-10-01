@@ -106,7 +106,7 @@ export function FacilitiesContent({ heroImage, cards }: FacilitiesContentProps) 
           alt="NK Public School Campus Building"
           fill
           className="object-cover"
-          priority
+          preload
         />
         <div className="absolute inset-0 bg-gradient-to-r from-navy-950/80 via-navy-900/60 to-navy-950/80" />
         <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
