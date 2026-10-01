@@ -7,7 +7,7 @@ import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 export const metadata: Metadata = buildMetadata({
   title: "Student Life & Activities — NK Public School Jaipur",
   description:
-    "Co-curricular life at NK Public School, Jaipur — our student council and house captains, music, dance, art, debate, quiz, literary and science clubs plus annual events that shape character beyond the classroom.",
+    "Student life at NK Public School, Jaipur: student council, house captains, music, dance, art, debate, quiz and science clubs, and annual events.",
   path: "/student-life",
 });
 

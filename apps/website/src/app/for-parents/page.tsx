@@ -3,12 +3,13 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageTransition } from "@nkps/shared/components/PageTransition";
 import { AnimatedSection } from "@nkps/shared/components/AnimatedSection";
 import { Users, ClipboardCheck, Lightbulb, BookOpenCheck } from "lucide-react";
-import { buildMetadata } from "@nkps/shared/lib/seo";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "For Parents — NK Public School Jaipur",
   description:
-    "Obligations, expectations and recommendations for parents and guardians of NK Public School students. Guidelines on home–school cooperation, diary use, attendance and discipline.",
+    "Guidelines for parents of NK Public School, Jaipur students: obligations, expectations, home–school cooperation, diary use, attendance and discipline.",
   path: "/for-parents",
 });
 
@@ -109,6 +110,12 @@ function SectionCard({
 export default function ForParentsPage() {
   return (
     <PageTransition>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "For Parents", path: "/for-parents" },
+        ])}
+      />
       <PageHeader
         title="For Parents"
         subtitle="Guidelines, expectations and recommendations for parents and guardians"

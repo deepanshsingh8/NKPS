@@ -17,7 +17,7 @@ import { buildMetadata } from "@nkps/shared/lib/seo";
 export const metadata: Metadata = buildMetadata({
   title: "Best CBSE School in Jaipur — NK Public School Since 1985",
   description:
-    "NK Public School, Rajawas — CBSE affiliated co-ed school in Jaipur offering Nursery to Class XII. 40+ years of holistic education, 4,000+ students, 200+ faculty on Grand Sikar Road.",
+    "NK Public School, Rajawas: a CBSE co-ed school in Jaipur for Nursery to Class XII on Grand Sikar Road. 40+ years, 4,000+ students and 200+ faculty.",
   path: "/",
 });
 

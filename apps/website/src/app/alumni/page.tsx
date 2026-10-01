@@ -7,7 +7,7 @@ import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 export const metadata: Metadata = buildMetadata({
   title: "Alumni — NK Public School Jaipur | Achievements & Network",
   description:
-    "Meet the alumni of NK Public School, Jaipur and their achievements across medicine, engineering, civil services, business and more. Join our growing alumni network.",
+    "Meet NK Public School, Jaipur alumni and their achievements in medicine, engineering, civil services, business and more. Join our growing alumni network.",
   path: "/alumni",
 });
 

@@ -13,7 +13,14 @@ import {
 } from "@nkps/shared/components/SocialIcons";
 import { getArticleBySlug, getPublishedArticles } from "@nkps/shared/lib/articles";
 import { SCHOOL } from "@nkps/shared/lib/constants";
-import { SITE_URL } from "@nkps/shared/lib/seo";
+import { JsonLd } from "@/components/seo/JsonLd";
+import {
+  SITE_URL,
+  breadcrumbJsonLd,
+  namesSchool,
+  pageTitle,
+  snippet,
+} from "@nkps/shared/lib/seo";
 
 export const revalidate = 300;
 
@@ -33,15 +40,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: "Article Not Found" };
   }
 
-  const description =
+  const description = snippet(
     article.meta_description ||
-    article.excerpt ||
-    `Read "${article.title}" on NK Public School.`;
+      article.excerpt ||
+      `Read "${article.title}" on NK Public School.`
+  );
   const canonical = `${SITE_URL}/articles/${article.slug}`;
   const images = article.cover_image_url ? [article.cover_image_url] : [];
 
   return {
-    title: article.title,
+    title: pageTitle(article.title),
     description,
     alternates: { canonical },
     openGraph: {
@@ -94,11 +102,18 @@ export default async function ArticleDetailPage({ params }: PageProps) {
     image: article.cover_image_url ? [article.cover_image_url] : undefined,
     datePublished: article.published_at,
     dateModified: article.updated_at,
-    author: { "@type": "Organization", name: authorName },
+    // A named writer is a Person (E-E-A-T: Google weighs who wrote it); an
+    // unsigned piece is by the school itself.
+    author:
+      article.author_name && !namesSchool(article.author_name)
+        ? { "@type": "Person", name: article.author_name }
+        : { "@type": "Organization", name: "NK Public School", url: SITE_URL },
     publisher: {
       "@type": "Organization",
       name: "NK Public School",
-      logo: { "@type": "ImageObject", url: `${SITE_URL}/logo.png` },
+      // /logo.png 404s; the file is /images/logo.png. A broken publisher
+      // logo makes the Article ineligible for rich results.
+      logo: { "@type": "ImageObject", url: `${SITE_URL}/images/logo.png` },
     },
     mainEntityOfPage: { "@type": "WebPage", "@id": canonical },
     keywords: article.tags.length > 0 ? article.tags.join(", ") : undefined,
@@ -106,6 +121,13 @@ export default async function ArticleDetailPage({ params }: PageProps) {
 
   return (
     <PageTransition>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "Articles", path: "/articles" },
+          { name: article.title, path: `/articles/${article.slug}` },
+        ])}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -192,7 +214,21 @@ export default async function ArticleDetailPage({ params }: PageProps) {
           )}
 
           <div className="article-prose">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {/* The page already has its H1 (the title above). A body
+                `# heading` that repeats the title is dropped; any other is
+                demoted, so the page keeps exactly one H1. */}
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                h1: ({ children, className, id }) =>
+                  typeof children === "string" &&
+                  children.trim() === article.title.trim() ? null : (
+                    <h2 className={className} id={id}>
+                      {children}
+                    </h2>
+                  ),
+              }}
+            >
               {article.content}
             </ReactMarkdown>
           </div>

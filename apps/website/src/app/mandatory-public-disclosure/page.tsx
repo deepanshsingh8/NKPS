@@ -15,12 +15,13 @@ import {
 } from "@/lib/disclosure";
 import { ExternalLink, FileText, Download } from "lucide-react";
 import type { DisclosureItem, DisclosureBoardResult } from "@nkps/shared/types";
-import { buildMetadata } from "@nkps/shared/lib/seo";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Mandatory Public Disclosure — NK Public School Jaipur",
   description:
-    "CBSE mandatory public disclosure for NK Public School, Rajawas, Jaipur — affiliation details, infrastructure, staff, results, documents and statutory information.",
+    "CBSE mandatory public disclosure for NK Public School, Rajawas, Jaipur: affiliation, infrastructure, staff, results, documents and statutory information.",
   path: "/mandatory-public-disclosure",
 });
 
@@ -146,6 +147,12 @@ export default async function MandatoryPublicDisclosurePage() {
 
   return (
     <PageTransition>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "Mandatory Public Disclosure", path: "/mandatory-public-disclosure" },
+        ])}
+      />
       <PageHeader
         title="Mandatory Public Disclosure"
         subtitle="As per CBSE requirements"

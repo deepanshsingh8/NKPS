@@ -9,7 +9,7 @@ import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 export const metadata: Metadata = buildMetadata({
   title: "Academics & CBSE Curriculum — NK Public School Jaipur",
   description:
-    "CBSE curriculum at NK Public School, Jaipur — structured pre-primary, primary, secondary and senior-secondary programs with experienced faculty in Science, Commerce and Humanities streams.",
+    "CBSE curriculum at NK Public School, Jaipur: pre-primary to senior-secondary, with Science, Commerce and Humanities streams taught by experienced faculty.",
   path: "/academics",
 });
 

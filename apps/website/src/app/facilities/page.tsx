@@ -7,7 +7,7 @@ import { buildMetadata, breadcrumbJsonLd } from "@nkps/shared/lib/seo";
 export const metadata: Metadata = buildMetadata({
   title: "Facilities — Smart Classrooms, Labs, Library — NKPS Jaipur",
   description:
-    "Modern facilities at NK Public School, Jaipur — smart classrooms, science and computer labs, 10,000-volume library, sports grounds, auditorium, indoor games and school bus transport.",
+    "Facilities at NK Public School, Jaipur: smart classrooms, science and computer labs, a 10,000-volume library, sports grounds, auditorium and school buses.",
   path: "/facilities",
 });
 

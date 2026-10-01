@@ -76,17 +76,21 @@ function AnimatedHeading({
 
   const lines = text.split("\n");
 
+  // A <p>, not the page's H1: the caption changes per slide and is a
+  // tagline ("Sprawling Campus"), not what the page is about. The per-letter
+  // spans are hidden from assistive tech, which reads the sr-only copy.
   return (
-    <h1
+    <p
       className="font-heading text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold leading-[1.08] text-white"
       style={{ letterSpacing: "-0.03em" }}
     >
+      <span className="sr-only">{lines.join(" ")}</span>
       {lines.map((line, lineIdx) => {
         const prevChars = lines
           .slice(0, lineIdx)
           .reduce((sum, l) => sum + l.length, 0);
         return (
-          <span key={lineIdx} className="block">
+          <span key={lineIdx} className="block" aria-hidden="true">
             {line.split("").map((char, charIdx) => {
               const globalIdx = prevChars + charIdx;
               const isGoldLine = lineIdx === lines.length - 1;
@@ -114,7 +118,7 @@ function AnimatedHeading({
           </span>
         );
       })}
-    </h1>
+    </p>
   );
 }
 
@@ -357,6 +361,12 @@ export function HeroSlider({ cards }: HeroSliderProps = {}) {
                   <ArrowRight className="h-4 w-4 md:h-5 md:w-5 transition-transform duration-300 group-hover:translate-x-0.5" />
                 </Link>
               </FadeIn>
+
+              {/* The page's one H1: what the page is, in the words people
+                  search with. Server-rendered and painted with the HTML. */}
+              <h1 className="mb-3 text-xs md:text-sm font-semibold uppercase tracking-[0.2em] text-gold-300/90">
+                NK Public School &middot; CBSE School in Jaipur
+              </h1>
 
               <AnimatedHeading
                 text={activeSlide.title}
