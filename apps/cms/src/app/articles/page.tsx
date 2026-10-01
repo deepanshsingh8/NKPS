@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { adminFetch, adminDelete, adminPatch } from "@nkps/shared/lib/admin-api";
 import { uploadToStorage } from "@nkps/shared/lib/supabase/upload";
-import { slugify } from "@nkps/shared/lib/articles";
+import { slugify } from "@nkps/shared/lib/slugify";
 import { SITE_URL } from "@nkps/shared/lib/seo";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Input } from "@nkps/shared/components/ui/input";

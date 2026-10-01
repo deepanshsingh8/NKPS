@@ -1,26 +1,46 @@
 import type { NextConfig } from "next";
 
-// Content-Security-Policy. 'unsafe-inline' on script-src is required because
-// Next's App Router injects inline hydration/bootstrap scripts without a nonce;
-// the remaining directives (connect/img/frame/object/base/form) still constrain
+// Content-Security-Policy — static, and deliberately so.
+//
+// apps/erp and apps/cms use a per-request nonce (no 'unsafe-inline' on
+// script-src), built in their proxies. This site does NOT, by design: a nonce
+// only works on a page rendered for that request, so adopting one would force
+// every page here to render dynamically and throw away static generation and
+// ISR — the CDN-cached HTML that keeps the public site fast and cheap. The
+// trade-off is accepted here because the site has no login and no user data
+// to steal; the ERP and CMS, which have both, carry the strict policy.
+//
+// So 'unsafe-inline' stays on script-src: Next's App Router injects inline
+// hydration/bootstrap scripts that can't carry a nonce on a static page. The
+// remaining directives (connect/img/frame/object/base/form) still constrain
 // exfiltration and clickjacking. Origins: Supabase (storage images), Google
 // Maps (contact-page location embed), Google Analytics (gtag via
-// @next/third-parties).
+// @next/third-parties), Cloudflare Turnstile (bot check on public forms:
+// api.js script + challenge iframe).
+const isDev = process.env.NODE_ENV === "development";
+const TURNSTILE = "https://challenges.cloudflare.com";
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com",
+  // React needs 'unsafe-eval' in development only, for its error overlays.
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://www.googletagmanager.com ${TURNSTILE}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co https://www.google-analytics.com",
   "font-src 'self' data:",
   "connect-src 'self' https://*.supabase.co https://www.googletagmanager.com https://www.google-analytics.com https://*.analytics.google.com",
-  "frame-src 'self' https://www.google.com",
+  `frame-src 'self' https://www.google.com ${TURNSTILE}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
+  // The one tightening that is free on a static site: everything it loads is
+  // HTTPS, so a stray http:// URL in CMS content gets upgraded rather than
+  // loaded in the clear. (Not in dev, where it would upgrade localhost.)
+  ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // No `X-Powered-By: Next.js` — it only tells a scanner what to try.
+  poweredByHeader: false,
   transpilePackages: ["@nkps/shared"],
   images: {
     // Public marketing site: let Next optimize images (responsive WebP +
@@ -58,10 +78,18 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-DNS-Prefetch-Control", value: "on" },
+          // TODO(owner decision): add `; preload` and submit the domain to
+          // hstspreload.org. Deliberately not done here: preload is baked into
+          // browser builds and takes months to undo, and it would bind every
+          // subdomain of nkpublicschool.com to HTTPS forever.
           {
             key: "Strict-Transport-Security",
             value: "max-age=31536000; includeSubDomains",
           },
+          // Puts this window in its own browsing-context group, so a page this
+          // site opens (or that opens it) can't hold a window.opener handle
+          // into it. Same-origin popups (print windows) are unaffected.
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",

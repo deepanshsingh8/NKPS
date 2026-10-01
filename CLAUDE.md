@@ -215,6 +215,14 @@ only — parallel groups differ from the canonical assignment by design).
   removing the app and re-adding it. Don't put a `?v=` on a `next/image` src —
   Next 16 rejects local image query strings unless `images.localPatterns.search`
   matches, so the version belongs on the manifest and `<link>` icons only.
+- **CSP and CSRF live in the proxy.** ERP and CMS build a per-request nonce
+  CSP in `packages/shared/src/lib/security/csp.ts` (no `'unsafe-inline'` on
+  scripts); a new third-party origin goes in that app's `ProxyPolicy.csp` in
+  `src/proxy.ts`, or it is silently blocked. An inline `<script>` needs
+  `nonce={await getNonce()}`. The same proxy 403s a cookie-authed `/api` write
+  whose `Sec-Fetch-Site`/`Origin` isn't this host; a new server-to-server
+  webhook goes in `csrfExemptPaths`. The website keeps a static CSP in its
+  `next.config.ts` so it can stay static/ISR.
 - **shadcn/ui** on base-ui primitives, not Radix. There is no `asChild` — use the
   `render` prop or a controlled `open`/`onOpenChange`.
 - **Icons.** Lucide React throughout; brand icons are hand-rolled SVGs in

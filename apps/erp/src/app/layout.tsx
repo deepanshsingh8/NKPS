@@ -8,6 +8,7 @@ import {
   ThemeProvider,
   THEME_INIT_SCRIPT,
 } from "@nkps/shared/components/providers/ThemeProvider";
+import { getNonce } from "@nkps/shared/lib/security/nonce";
 import "./globals.css";
 
 const inter = Inter({
@@ -61,9 +62,13 @@ export const viewport: Viewport = {
   // the light colour mid-session; ThemeProvider owns the tag instead.
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // The proxy's per-request CSP nonce (no 'unsafe-inline' on script-src), so
+  // the theme script below is allowed to run. Reading it also makes every page
+  // render dynamically, which the nonce needs — see lib/security/nonce.ts.
+  const nonce = await getNonce();
   return (
     // suppressHydrationWarning because the script below writes to <html>'s
     // class and style before React sees the document. It suppresses the warning
@@ -74,7 +79,14 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* suppressHydrationWarning: browsers hide a nonce from the DOM once
+            the page has parsed (it reads back as ""), which React would
+            otherwise report as a server/client attribute mismatch. */}
+        <script
+          nonce={nonce}
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
+        />
       </head>
       <body className="min-h-screen antialiased">
         <ThemeProvider>
