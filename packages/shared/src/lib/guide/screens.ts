@@ -195,6 +195,26 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
     related: ["/administration/users"],
   },
   {
+    path: "/administration/audit-log",
+    title: "Audit Log",
+    purpose:
+      "Read-only history of who created, deleted or re-roled logins, reset passwords, changed editor permissions, handled registrations, and added, edited or deleted records.",
+    tasks: [
+      {
+        name: "See who changed something",
+        steps: [
+          'Open "Audit Log" under Administration.',
+          'Narrow it with "Show" — User accounts, Editor permissions, Registrations or Data changes.',
+          'Newest entries are first; click "Load older entries" at the bottom to go further back.',
+        ],
+        adminOnly: true,
+        gotcha:
+          "Data changes list which fields were touched, never their old or new values, and name the table rather than the record. Entries cannot be edited or deleted by anyone, including admins. A login deleted since shows as \"Deleted user\". Only changes made after the log was switched on (migration 134) appear.",
+      },
+    ],
+    related: ["/administration/users"],
+  },
+  {
     path: "/people/students",
     title: "Students",
     purpose:
