@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     }
 
     // M4 — defense-in-depth (auth user creation + welcome email side effect).
-    const limit = rateLimit({
+    const limit = await rateLimit({
       name: "registrations-approve",
       key: user.id,
       max: 30,

@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     // M4 — defense-in-depth. The route already requires admin, but creating an
     // auth user + sending a welcome email is a costly side effect; a future
     // regression that lowers the gate would expose unbounded user creation.
-    const limit = rateLimit({
+    const limit = await rateLimit({
       name: "erp-users-create",
       key: user.id,
       max: 30,

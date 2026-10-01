@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     // A reset is the one operation that hands out a working credential, so it
     // is the one worth bounding even behind an admin gate: a stolen admin
     // session should not be able to walk the whole staff table.
-    const limit = rateLimit({
+    const limit = await rateLimit({
       name: "erp-users-reset-password",
       key: user.id,
       max: 20,

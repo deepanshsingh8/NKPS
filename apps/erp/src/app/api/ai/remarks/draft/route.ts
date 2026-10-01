@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
 
   // Per-user: one class draft is one model call over ~40 students, so this is
   // the expensive endpoint of the two.
-  const limit = rateLimit({
+  const limit = await rateLimit({
     name: "ai:remarks",
     key: user.id,
     max: 10,

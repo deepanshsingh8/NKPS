@@ -35,6 +35,7 @@ import { validatePhotoFile } from "@nkps/shared/lib/photo-spec";
 import { SessionProvider } from "@nkps/shared/components/providers/SessionProvider";
 import { AppLockProvider } from "@nkps/shared/components/security/AppLockProvider";
 import { ThemeToggle } from "@nkps/shared/components/ThemeToggle";
+import { Turnstile, useTurnstile } from "@nkps/shared/components/Turnstile";
 import {
   SettingsGroup,
   SettingsRow,
@@ -83,6 +84,9 @@ function SettingsContent() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordChanged, setPasswordChanged] = useState(false);
+  // The current-password check below is a password sign-in, which Supabase
+  // Auth rejects without a captcha token once Turnstile is switched on there.
+  const captcha = useTurnstile();
 
   useEffect(() => {
     async function fetchProfile() {
@@ -217,7 +221,9 @@ function SettingsContent() {
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: profile?.email ?? "",
       password: currentPassword,
+      options: { captchaToken: captcha.token ?? undefined },
     });
+    captcha.reset();
 
     if (signInError) {
       toast.error("Current password is incorrect");
@@ -528,10 +534,15 @@ function SettingsContent() {
                     </div>
                   }
                 />
+                {captcha.enabled && (
+                  <div className="px-4 pt-3">
+                    <Turnstile {...captcha.widgetProps} action="change-password" />
+                  </div>
+                )}
                 <div className="flex justify-end px-4 py-3">
                   <Button
                     type="submit"
-                    disabled={changingPassword}
+                    disabled={changingPassword || !captcha.ready}
                     variant="outline"
                     className="h-11"
                   >

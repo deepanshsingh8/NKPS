@@ -188,6 +188,9 @@ Per-app required vars. Missing one will either fail the build or break a runtime
 | `TRUSTED_IP_HEADER` | ✅ | ✅ | ✅ | The proxy-set header holding the real client IP for rate limiting (`x-vercel-forwarded-for` on Vercel). Unset, the limiter trusts `x-forwarded-for`, which a client can spoof |
 | `NEXT_PUBLIC_WEBAUTHN_RP_ID` | – | ✅ | ✅ | Face ID / App Lock. Bare apex domain — `nkpublicschool.com`, no scheme, port or path. Must equal the Relying Party ID under Authentication → Passkeys in Supabase. Leave unset locally to fall back to the current hostname. **Changing it invalidates every passkey already registered.** |
 | `NEXT_PUBLIC_WEBAUTHN_RP_ORIGINS` | – | ✅ | ✅ | Comma-separated app origins, e.g. `https://erp.nkpublicschool.com,https://cms.nkpublicschool.com`. Must match the project's Relying Party Origins. |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | ⚪ | ⚪ | ⚪ | Cloudflare Turnstile site key (bot check on contact, admissions enquiry, TC lookup, register, forgot-password, every password sign-in). Optional: unset = no widget. Inlined at build, so redeploy after setting. Set it together with `TURNSTILE_SECRET_KEY`, and enable Turnstile in Supabase Auth with the same widget's secret, or logins fail. |
+| `TURNSTILE_SECRET_KEY` | ⚪ | – | ⚪ | Turnstile secret for server-side Siteverify. Enforced only when the site key is also set. CMS has no route that verifies (its only Turnstile use is Supabase sign-in, which Supabase verifies). |
+| `TRUSTED_IP_HEADER` | ⚪ | ⚪ | ⚪ | Optional override for the header rate limits key on. Unset on Vercel = `x-vercel-forwarded-for`. Set to `cf-connecting-ip` only if Cloudflare is switched from DNS-only to proxied. |
 
 Why each app sends mail:
 - **website** — public contact form (`apps/website/src/app/api/contact/route.ts`).

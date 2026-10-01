@@ -3,6 +3,8 @@ import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { sendEmail, buildPasswordResetEmail } from "@nkps/shared/lib/email";
 import { SCHOOL } from "@nkps/shared/lib/constants";
 import { rateLimit, clientIp } from "@nkps/shared/lib/rate-limit";
+import { verifyTurnstileRequest } from "@nkps/shared/lib/turnstile-server";
+import { TURNSTILE_FAILED_MESSAGE } from "@nkps/shared/lib/turnstile";
 import {
   generateSetPasswordLink,
   RECOVERY_LINK_TTL_MINUTES,
@@ -23,6 +25,13 @@ export async function POST(request: Request) {
     return NextResponse.json(payload as object, { status });
   };
 
+  // Bot check (no-op until the Turnstile keys are configured). Says nothing
+  // about the email, so it cannot leak membership.
+  const captcha = await verifyTurnstileRequest(request);
+  if (!captcha.ok) {
+    return finalize({ error: TURNSTILE_FAILED_MESSAGE }, 403);
+  }
+
   try {
     const { email } = await request.json();
 
@@ -33,7 +42,7 @@ export async function POST(request: Request) {
     const normalizedEmail = email.trim().toLowerCase();
 
     // Two-tier rate limit: prevents both per-IP floods and per-target spamming.
-    const ipLimit = rateLimit({
+    const ipLimit = await rateLimit({
       name: "forgot-password:ip",
       key: clientIp(request),
       max: 10,
@@ -45,7 +54,7 @@ export async function POST(request: Request) {
         429
       );
     }
-    const emailLimit = rateLimit({
+    const emailLimit = await rateLimit({
       name: "forgot-password:email",
       key: normalizedEmail,
       max: 3,

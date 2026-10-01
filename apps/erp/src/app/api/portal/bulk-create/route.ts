@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   }
   const { admin, user } = auth;
 
-  const limit = rateLimit({
+  const limit = await rateLimit({
     name: "portal-bulk-create",
     key: user.id,
     max: 5,

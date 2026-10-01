@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   const portal = await verifyPortalUser({ allow: ["parent", "student"] });
   if (!portal) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const limit = rateLimit({
+  const limit = await rateLimit({
     name: "ai:parent",
     key: portal.userId,
     max: 15,
