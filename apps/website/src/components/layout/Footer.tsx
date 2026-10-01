@@ -8,6 +8,8 @@ const resources = [
   { label: "Student Life", href: "/student-life" },
   { label: "Gallery", href: "/gallery" },
   { label: "Articles", href: "/articles" },
+  { label: "Academic Calendar", href: "/academic-calendar" },
+  { label: "Alumni", href: "/alumni" },
   { label: "For Parents", href: "/for-parents" },
   { label: "Contact", href: "/contact" },
 ];
