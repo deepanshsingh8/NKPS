@@ -397,6 +397,7 @@ export function NkpsAgent() {
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={handleKeyDown}
                       placeholder="Type your question..."
+                      maxLength={2000}
                       disabled={isLoading}
                       className="flex-1 min-w-0 h-11 px-4 text-base sm:text-sm rounded-full border border-navy-900/20 focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 disabled:opacity-50 text-navy-900 dark:text-white placeholder:text-navy-900/40"
                     />
