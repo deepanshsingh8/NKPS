@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse, logDbError } from "@nkps/shared/lib/api-errors";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 
 /**
@@ -68,7 +69,8 @@ export async function POST(request: Request) {
         .eq("class_id", classId)
         .eq("day_of_week", Number(dayStr));
       if (delErr) {
-        return NextResponse.json({ error: `Pre-wipe failed: ${delErr.message}` }, { status: 400 });
+        logDbError(delErr, "timetable/import pre-wipe");
+        return NextResponse.json({ error: "Could not clear the existing periods before importing." }, { status: 400 });
       }
     }
   }
@@ -109,7 +111,7 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: insErr.message }, { status: 400 });
+    return dbErrorResponse(insErr, "timetable/import insert", 400);
   }
   return NextResponse.json({ ok: true, inserted: insertRows.length });
 }

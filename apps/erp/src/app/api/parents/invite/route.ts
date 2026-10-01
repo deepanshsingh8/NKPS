@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { verifyAdminWithUser } from "@nkps/shared/lib/verify-admin";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
-import { createPortalUser } from "@nkps/shared/lib/create-portal-user";
+import {
+  createPortalUser,
+  EMAIL_NOT_SENT_MESSAGE,
+} from "@nkps/shared/lib/create-portal-user";
 import { rateLimit } from "@nkps/shared/lib/rate-limit";
 import { ensureParentRecord, linkParentToStudentRecord } from "@/lib/identity/link";
 import { z } from "zod";
@@ -25,7 +28,7 @@ export async function POST(request: Request) {
   }
   const { user } = auth;
 
-  const limit = rateLimit({
+  const limit = await rateLimit({
     name: "parent-invite",
     key: user.id,
     max: 30,
@@ -90,6 +93,9 @@ export async function POST(request: Request) {
     );
   }
 
+  const emailDelivered = Boolean(created.emailDelivered);
+  const emailWarning = emailDelivered ? null : EMAIL_NOT_SENT_MESSAGE;
+
   // Only the student_parents junction remains — idempotent, low-risk.
   const linked = await linkParentToStudentRecord(admin, {
     studentId: student_id,
@@ -103,6 +109,8 @@ export async function POST(request: Request) {
       {
         success: true,
         user_id: created.userId,
+        email_delivered: emailDelivered,
+        email_warning: emailWarning,
         link_warning: `Account created, but linking to ${student.full_name} failed: ${linked.error} Use the "Link record" tool.`,
       },
       { status: 200 }
@@ -112,6 +120,8 @@ export async function POST(request: Request) {
   return NextResponse.json({
     success: true,
     user_id: created.userId,
+    email_delivered: emailDelivered,
+    email_warning: emailWarning,
     linked: { student_name: student.full_name, admission_no: student.admission_no, relationship },
   });
 }

@@ -61,7 +61,7 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const ipLimit = rateLimit({
+  const ipLimit = await rateLimit({
     name: "tc-download:ip",
     key: clientIp(request),
     max: 30,

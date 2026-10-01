@@ -6,12 +6,14 @@ import Link from "next/link";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Button } from "@nkps/shared/components/ui/button";
+import { Turnstile, useTurnstile } from "@nkps/shared/components/Turnstile";
 import { Loader2, ArrowLeft, Mail, CheckCircle } from "lucide-react";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const captcha = useTurnstile();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,7 +24,7 @@ export default function ForgotPasswordPage() {
       // branded email via Resend instead of Supabase's default plain template.
       const res = await fetch("/api/portal/forgot-password", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...captcha.headers },
         body: JSON.stringify({ email }),
       });
 
@@ -37,6 +39,8 @@ export default function ForgotPasswordPage() {
       toast.error("An unexpected error occurred");
     } finally {
       setLoading(false);
+      // A Turnstile token is single-use, pass or fail.
+      captcha.reset();
     }
   };
 
@@ -107,9 +111,11 @@ export default function ForgotPasswordPage() {
                   />
                 </div>
 
+                <Turnstile {...captcha.widgetProps} action="forgot-password" />
+
                 <Button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !captcha.ready}
                   className="w-full h-11 bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900 font-medium"
                 >
                   {loading ? (

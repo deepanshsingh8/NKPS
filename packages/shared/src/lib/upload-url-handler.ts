@@ -75,7 +75,7 @@ export function createUploadUrlHandler(config: UploadUrlConfig) {
     }
     const { admin, user } = auth;
 
-    const limit = rateLimit({
+    const limit = await rateLimit({
       name: "upload-url",
       key: user.id,
       max: MAX_MINTS_PER_HOUR,

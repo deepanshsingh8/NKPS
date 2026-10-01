@@ -9,6 +9,7 @@ import { createClient } from "@nkps/shared/lib/supabase/client";
 import { useSession } from "@nkps/shared/components/providers/SessionProvider";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Button } from "@nkps/shared/components/ui/button";
+import { Turnstile, useTurnstile } from "@nkps/shared/components/Turnstile";
 import {
   authenticateBiometric,
   listBiometricFactors,
@@ -42,6 +43,9 @@ export function LockScreen({
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
+  // Supabase Auth demands a captcha token on every password sign-in once
+  // Turnstile is switched on there, and unlocking IS a password sign-in.
+  const captcha = useTurnstile();
   const promptedRef = useRef(false);
 
   useEffect(() => {
@@ -117,8 +121,10 @@ export function LockScreen({
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: user.email,
       password,
+      options: { captchaToken: captcha.token ?? undefined },
     });
     setBusy(false);
+    captcha.reset();
     if (signInError) {
       setError("That password doesn't match.");
       return;
@@ -225,9 +231,10 @@ export function LockScreen({
                 aria-label="Password"
                 className="h-12 border-white/15 bg-white/5 text-base text-white placeholder:text-white/40 focus:border-gold-500"
               />
+              <Turnstile {...captcha.widgetProps} action="unlock" theme="dark" />
               <Button
                 type="submit"
-                disabled={busy || password.length === 0}
+                disabled={busy || password.length === 0 || !captcha.ready}
                 className="h-12 w-full bg-gold-500 text-base font-semibold text-navy-900 hover:bg-gold-400"
               >
                 {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

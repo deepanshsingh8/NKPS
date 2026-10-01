@@ -3,7 +3,8 @@ import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { createClient } from "@nkps/shared/lib/supabase/server";
 import { generateSecurePassword } from "@nkps/shared/lib/password";
 import { rateLimit } from "@nkps/shared/lib/rate-limit";
-import { SCHOOL } from "@nkps/shared/lib/constants";
+import { sendSetPasswordEmail } from "@nkps/shared/lib/auth-links";
+import { writeAuditLog } from "@nkps/shared/lib/audit-log";
 import { z } from "zod";
 
 /**
@@ -19,8 +20,10 @@ import { z } from "zod";
  * So this route does not depend on email to succeed. It sets a fresh temporary
  * password, flags the account for a forced change at next login, and RETURNS
  * the password to the admin who asked — to be read out or handed over in
- * person. The welcome-mail attempt is best effort on top; its failure is
- * reported, not fatal.
+ * person. On top of that, best effort, it emails the user a one-time
+ * set-password link (lib/auth-links.ts). The email never contains the
+ * temporary password: that stays on the admin's screen, the fallback for when
+ * mail is not working. Its failure is reported, not fatal.
  *
  * Returning a credential in a response body is a deliberate trade. It is
  * confined to an admin-only route over TLS, the password is single-use in
@@ -65,7 +68,7 @@ export async function POST(request: Request) {
     // A reset is the one operation that hands out a working credential, so it
     // is the one worth bounding even behind an admin gate: a stolen admin
     // session should not be able to walk the whole staff table.
-    const limit = rateLimit({
+    const limit = await rateLimit({
       name: "erp-users-reset-password",
       key: user.id,
       max: 20,
@@ -152,36 +155,41 @@ export async function POST(request: Request) {
       console.error("[users.reset-password] must_change_password:", flagError);
     }
 
-    // Best effort. The reset has already succeeded without it.
+    // Best effort. The reset has already succeeded without it. The link is
+    // minted after the password change, so it is the newest token; either it
+    // or the temporary password gets them in, and both end at a password of
+    // their own choosing (reset-password and change-password both clear the
+    // flag through complete-password-change).
     let emailWarning: string | null = null;
     if (target.email) {
-      try {
-        const { sendEmail, buildWelcomeEmail } = await import(
-          "@nkps/shared/lib/email"
-        );
-        const { getErpUrl } = await import("@nkps/shared/lib/cross-app");
-        await sendEmail(
-          target.email as string,
-          `Your ${SCHOOL.shortName} portal password has been reset`,
-          buildWelcomeEmail({
-            fullName: (target.full_name as string) ?? "",
-            email: target.email as string,
-            password,
-            loginUrl: getErpUrl("/portal/login"),
-            role: (target.role as string) ?? "staff",
-          })
-        );
-      } catch (emailError) {
-        console.error("[users.reset-password] welcome email:", emailError);
-        emailWarning =
-          emailError instanceof Error
-            ? `Email not sent (${emailError.message}). Share the password below directly.`
-            : "Email not sent. Share the password below directly.";
+      const delivery = await sendSetPasswordEmail(admin, {
+        email: target.email as string,
+        fullName: (target.full_name as string) ?? "",
+        role: (target.role as string) ?? "staff",
+        kind: "admin-reset",
+      });
+      if (!delivery.delivered) {
+        emailWarning = `Set-password email not sent (${delivery.reason}). Share the password below directly.`;
       }
     } else {
       emailWarning =
         "This account has no email address on record, so nothing could be sent. Share the password below directly.";
     }
+
+    // Never the password or the link — only that a reset happened.
+    await writeAuditLog(admin, {
+      actorId: user.id,
+      actorRole: callerProfile.role,
+      action: "user.password_reset",
+      targetTable: "profiles",
+      targetId: id,
+      details: {
+        role: (target.role as string | null) ?? null,
+        must_change_password: !flagError,
+        email_delivered: emailWarning === null,
+      },
+      request,
+    });
 
     return NextResponse.json({
       success: true,
@@ -193,6 +201,7 @@ export async function POST(request: Request) {
       flag_warning: flagError
         ? "The forced password change could not be recorded, so this password will not expire on its own. Ask them to change it from their profile."
         : null,
+      email_delivered: emailWarning === null,
       email_warning: emailWarning,
     });
   } catch (err) {

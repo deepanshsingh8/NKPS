@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
-import { createPortalUser } from "@nkps/shared/lib/create-portal-user";
+import {
+  createPortalUser,
+  EMAIL_NOT_SENT_MESSAGE,
+} from "@nkps/shared/lib/create-portal-user";
 import {
   mirrorStaffToTeacher,
   promoteStaffToTeacher,
@@ -86,29 +89,38 @@ export async function POST(request: NextRequest) {
     // Auto-provision a login only when there's an email, with the role their
     // category maps to: teaching → 'teacher' (linked to the record above),
     // office → 'staff', drivers/peons → no login. See lib/staff-roles.
-    let userCreated = false;
+    let login: Awaited<ReturnType<typeof createPortalUser>> | null = null;
     if (email?.trim()) {
       if (portalRole === "teacher" && teacherId) {
-        const result = await createPortalUser({
+        login = await createPortalUser({
           email: email.trim(),
           fullName: name.trim(),
           role: "teacher",
           phone: phone || null,
           teacherId,
         });
-        userCreated = result.success;
       } else if (portalRole === "staff") {
-        const result = await createPortalUser({
+        login = await createPortalUser({
           email: email.trim(),
           fullName: name.trim(),
           role: "staff",
           phone: phone || null,
         });
-        userCreated = result.success;
       }
     }
+    const userCreated = login?.success ?? false;
+    // Account made but its set-password email did not go out — say so, so the
+    // screen doesn't claim an email that never left.
+    const emailWarning =
+      userCreated && !login?.emailDelivered ? EMAIL_NOT_SENT_MESSAGE : null;
 
-    return NextResponse.json({ success: true, data, userCreated });
+    return NextResponse.json({
+      success: true,
+      data,
+      userCreated,
+      emailDelivered: userCreated ? Boolean(login?.emailDelivered) : null,
+      emailWarning,
+    });
   } catch (err) {
     console.error("[Staff Create Error]", err);
     return NextResponse.json(

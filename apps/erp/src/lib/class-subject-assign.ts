@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { dbErrorMessage } from "@nkps/shared/lib/api-errors";
 
 /**
  * Writing (class, subject, teacher) rows into `class_subjects`.
@@ -137,7 +138,7 @@ export async function assignSubjectsToClasses(
       } else {
         errors.push({
           label: p.label ?? `${p.class_id}/${p.subject_id}`,
-          error: rowErr.message,
+          error: dbErrorMessage(rowErr, "class-subject-assign insert"),
         });
       }
     }

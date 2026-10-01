@@ -1165,11 +1165,14 @@ export default function AdminStudentsPage() {
         toast.error(json.error || "Failed to invite guardian");
         return;
       }
+      if (json.email_warning) {
+        toast.warning(json.email_warning, { duration: 12000 });
+      }
       if (json.link_warning) {
         toast.warning(json.link_warning);
-      } else {
+      } else if (!json.email_warning) {
         toast.success(
-          `Invited ${inviteForm.full_name.trim()} as ${inviteForm.relationship} of ${inviteStudent.full_name}. A welcome email with login details was sent.`
+          `Invited ${inviteForm.full_name.trim()} as ${inviteForm.relationship} of ${inviteStudent.full_name}. A welcome email with a set-password link was sent.`
         );
       }
       setInviteStudent(null);
@@ -2561,7 +2564,7 @@ export default function AdminStudentsPage() {
                     <DialogTitle>Invite a guardian</DialogTitle>
                     <p className="text-xs text-gray-500 mt-0.5">
                       Creates a parent login linked to {inviteStudent.full_name} (
-                      {inviteStudent.admission_no}) and emails them their credentials.
+                      {inviteStudent.admission_no}) and emails them a link to set their password.
                     </p>
                   </div>
                 </div>

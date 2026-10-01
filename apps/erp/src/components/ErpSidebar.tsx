@@ -2,6 +2,7 @@
 
 import {
   LayoutDashboard,
+  History,
   Users,
   UserCheck,
   GraduationCap,
@@ -266,6 +267,7 @@ const erpSections: SidebarSection[] = [
     label: "Administration",
     items: [
       { kind: "link", icon: Users, label: "Users & Access", href: "/administration/users" },
+      { kind: "link", icon: History, label: "Audit Log", href: "/administration/audit-log" },
     ],
   },
 ];

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { MIN_PASSWORD_LENGTH } from "@nkps/shared/lib/password-policy";
 import { Input } from "@nkps/shared/components/ui/input";
 import { Label } from "@nkps/shared/components/ui/label";
 import { Button } from "@nkps/shared/components/ui/button";
@@ -34,6 +35,7 @@ import { validatePhotoFile } from "@nkps/shared/lib/photo-spec";
 import { SessionProvider } from "@nkps/shared/components/providers/SessionProvider";
 import { AppLockProvider } from "@nkps/shared/components/security/AppLockProvider";
 import { ThemeToggle } from "@nkps/shared/components/ThemeToggle";
+import { Turnstile, useTurnstile } from "@nkps/shared/components/Turnstile";
 import {
   SettingsGroup,
   SettingsRow,
@@ -82,6 +84,9 @@ function SettingsContent() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordChanged, setPasswordChanged] = useState(false);
+  // The current-password check below is a password sign-in, which Supabase
+  // Auth rejects without a captcha token once Turnstile is switched on there.
+  const captcha = useTurnstile();
 
   useEffect(() => {
     async function fetchProfile() {
@@ -200,8 +205,8 @@ function SettingsContent() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (newPassword.length < 6) {
-      toast.error("New password must be at least 6 characters");
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      toast.error(`New password must be at least ${MIN_PASSWORD_LENGTH} characters`);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -216,7 +221,9 @@ function SettingsContent() {
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: profile?.email ?? "",
       password: currentPassword,
+      options: { captchaToken: captcha.token ?? undefined },
     });
+    captcha.reset();
 
     if (signInError) {
       toast.error("Current password is incorrect");
@@ -494,7 +501,7 @@ function SettingsContent() {
                 />
                 <SettingsRow
                   label="New password"
-                  hint="At least 6 characters."
+                  hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
                   stacked
                   control={
                     <div className="grid gap-2.5 sm:grid-cols-2">
@@ -508,7 +515,7 @@ function SettingsContent() {
                           onChange={(e) => setNewPassword(e.target.value)}
                           className="h-11"
                           required
-                          minLength={6}
+                          minLength={MIN_PASSWORD_LENGTH}
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -521,16 +528,21 @@ function SettingsContent() {
                           onChange={(e) => setConfirmPassword(e.target.value)}
                           className="h-11"
                           required
-                          minLength={6}
+                          minLength={MIN_PASSWORD_LENGTH}
                         />
                       </div>
                     </div>
                   }
                 />
+                {captcha.enabled && (
+                  <div className="px-4 pt-3">
+                    <Turnstile {...captcha.widgetProps} action="change-password" />
+                  </div>
+                )}
                 <div className="flex justify-end px-4 py-3">
                   <Button
                     type="submit"
-                    disabled={changingPassword}
+                    disabled={changingPassword || !captcha.ready}
                     variant="outline"
                     className="h-11"
                   >

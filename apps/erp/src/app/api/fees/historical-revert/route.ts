@@ -23,6 +23,7 @@
 
 
 import { NextRequest, NextResponse } from "next/server";
+import { dbErrorResponse, logDbError } from "@nkps/shared/lib/api-errors";
 import { headers } from "next/headers";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
     .eq("import_batch_id", batchId)
     .eq("source", "historical_import");
   if (rowsErr) {
-    return NextResponse.json({ error: rowsErr.message }, { status: 500 });
+    return dbErrorResponse(rowsErr, "fees/historical-revert read batch");
   }
   if (!rows || rows.length === 0) {
     return NextResponse.json(
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
     .eq("import_batch_id", batchId)
     .eq("source", "historical_import");
   if (delErr) {
-    return NextResponse.json({ error: delErr.message }, { status: 500 });
+    return dbErrorResponse(delErr, "fees/historical-revert delete payments");
   }
 
   // Enrollments and stub students created by the same batch. Payments are
@@ -145,9 +146,10 @@ export async function POST(req: NextRequest) {
     .eq("source", "historical_import");
 
   if (enrollReadErr) {
+    logDbError(enrollReadErr, "fees/historical-revert read enrollments");
     warnings.push(
-      `Payments were deleted, but the batch's enrollments could not be read ` +
-        `(${enrollReadErr.message}). Remove them by hand.`
+      `Payments were deleted, but the batch's enrollments could not be read. ` +
+        `Remove them by hand.`
     );
   } else if (batchEnrollments && batchEnrollments.length > 0) {
     const { error: enrollDelErr, count: enrollCount } = await admin
@@ -156,9 +158,10 @@ export async function POST(req: NextRequest) {
       .eq("import_batch_id", batchId)
       .eq("source", "historical_import");
     if (enrollDelErr) {
+      logDbError(enrollDelErr, "fees/historical-revert delete enrollments");
       warnings.push(
         `Payments were deleted, but ${batchEnrollments.length} enrollment(s) ` +
-          `could not be removed (${enrollDelErr.message}).`
+          `could not be removed.`
       );
     } else {
       enrollmentsDeleted = enrollCount ?? batchEnrollments.length;
@@ -176,9 +179,9 @@ export async function POST(req: NextRequest) {
     .update({ reverted_at: new Date().toISOString(), reverted_by: userId })
     .eq("id", batchId);
   if (stampErr) {
+    logDbError(stampErr, "fees/historical-revert stamp batch");
     warnings.push(
-      `The batch was reverted but could not be marked as such ` +
-        `(${stampErr.message}). It will still appear as active in the import history.`
+      `The batch was reverted but could not be marked as such. It will still appear as active in the import history.`
     );
   }
 
@@ -227,10 +230,8 @@ async function deleteStubStudents(
     if (error) {
       // Fail closed: an unreadable dependency means we cannot prove the
       // student is unreferenced, so nothing is deleted.
-      warnings.push(
-        `Stub students were kept: could not check ${dep.table} ` +
-          `(${error.message}).`
-      );
+      logDbError(error, `fees/historical-revert check ${dep.table}`);
+      warnings.push("Stub students were kept: their other records could not be checked.");
       return { deleted: 0, warnings };
     }
     for (const row of data ?? []) {
@@ -247,7 +248,8 @@ async function deleteStubStudents(
     .eq("is_active", false)
     .eq("is_alumni", false);
   if (stubErr) {
-    warnings.push(`Stub students were kept: ${stubErr.message}`);
+    logDbError(stubErr, "fees/historical-revert read stubs");
+    warnings.push("Stub students were kept: they could not be read.");
     return { deleted: 0, warnings };
   }
 
@@ -269,7 +271,8 @@ async function deleteStubStudents(
       removable.map((s) => s.id as string)
     );
   if (delErr) {
-    warnings.push(`Stub students could not be deleted: ${delErr.message}`);
+    logDbError(delErr, "fees/historical-revert delete stubs");
+    warnings.push("Stub students could not be deleted.");
     return { deleted: 0, warnings };
   }
   return { deleted: count ?? removable.length, warnings };

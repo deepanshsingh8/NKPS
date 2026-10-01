@@ -6,7 +6,10 @@ import {
   staffProfileFieldsSchema,
 } from "@nkps/shared/lib/validations";
 import { STAFF_DETAIL_KEYS } from "@nkps/shared/lib/staff-profile-fields";
-import { createPortalUser } from "@nkps/shared/lib/create-portal-user";
+import {
+  createPortalUser,
+  EMAIL_NOT_SENT_MESSAGE,
+} from "@nkps/shared/lib/create-portal-user";
 import { staffPortalRole } from "@nkps/shared/lib/staff-roles";
 import { promoteStaffToTeacher } from "@/lib/staff-teacher-sync";
 
@@ -191,6 +194,9 @@ export async function POST(request: Request) {
     // login is additionally provisioned when an email is present — teaching →
     // teacher, office → staff, drivers/peons → no login.
     let usersCreated = 0;
+    // Logins that exist but whose set-password email did not go out. Counted
+    // apart from usersCreated so the summary never says "emailed" for them.
+    let emailsFailed = 0;
     for (const s of insertedRows) {
       const portalRole = staffPortalRole(s.category);
 
@@ -201,23 +207,29 @@ export async function POST(request: Request) {
       }
 
       if (!s.email?.trim()) continue;
+      let userResult: Awaited<ReturnType<typeof createPortalUser>> | null = null;
       if (portalRole === "teacher" && teacherId) {
-        const userResult = await createPortalUser({
+        userResult = await createPortalUser({
           email: s.email.trim(),
           fullName: s.name.trim(),
           role: "teacher",
           phone: s.phone || null,
           teacherId,
         });
-        if (userResult.success) usersCreated++;
       } else if (portalRole === "staff") {
-        const userResult = await createPortalUser({
+        userResult = await createPortalUser({
           email: s.email.trim(),
           fullName: s.name.trim(),
           role: "staff",
           phone: s.phone || null,
         });
-        if (userResult.success) usersCreated++;
+      }
+      if (userResult?.success) {
+        usersCreated++;
+        if (!userResult.emailDelivered) {
+          emailsFailed++;
+          errors.push({ name: s.name, error: EMAIL_NOT_SENT_MESSAGE });
+        }
       }
     }
 
@@ -230,6 +242,7 @@ export async function POST(request: Request) {
         ...(allFailed ? { error: "No staff were imported — every row failed." } : {}),
         inserted,
         usersCreated,
+        emailsFailed,
         profilesSaved,
         errors,
         total: staff.length,

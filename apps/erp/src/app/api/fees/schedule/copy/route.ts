@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorMessage } from "@nkps/shared/lib/api-errors";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import { feeScheduleCopySchema } from "@nkps/shared/lib/validations";
 import type { FeeStructure } from "@nkps/shared/types";
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
     const { data: sourceRows, error: sourceError } = await sourceQuery;
     if (sourceError) {
       return NextResponse.json(
-        { error: `Failed to read source schedule: ${sourceError.message}` },
+        { error: `Failed to read source schedule: ${dbErrorMessage(sourceError, "fees/schedule/copy")}` },
         { status: 500 }
       );
     }
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
       if (existingError) {
         return NextResponse.json(
           {
-            error: `Failed to read ${target.class_name}'s schedule: ${existingError.message}`,
+            error: `Failed to read ${target.class_name}'s schedule: ${dbErrorMessage(existingError, "fees/schedule/copy")}`,
           },
           { status: 500 }
         );
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
         if (error.code !== FK_VIOLATION) {
           return NextResponse.json(
             {
-              error: `Failed to clear ${target.class_name}'s schedule: ${error.message}`,
+              error: `Failed to clear ${target.class_name}'s schedule: ${dbErrorMessage(error, "fees/schedule/copy")}`,
             },
             { status: 400 }
           );
@@ -137,7 +138,7 @@ export async function POST(request: Request) {
         if (deactivateError) {
           return NextResponse.json(
             {
-              error: `Failed to deactivate a paid row in ${target.class_name}: ${deactivateError.message}`,
+              error: `Failed to deactivate a paid row in ${target.class_name}: ${dbErrorMessage(deactivateError, "fees/schedule/copy")}`,
             },
             { status: 400 }
           );
@@ -157,7 +158,7 @@ export async function POST(request: Request) {
       if (insertError) {
         return NextResponse.json(
           {
-            error: `Failed to copy into ${target.class_name}: ${insertError.message}`,
+            error: `Failed to copy into ${target.class_name}: ${dbErrorMessage(insertError, "fees/schedule/copy")}`,
           },
           { status: 400 }
         );

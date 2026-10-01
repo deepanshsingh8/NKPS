@@ -115,10 +115,12 @@ export function isFeatureKey(value: unknown): value is FeatureKey {
 }
 
 // Routes editors can never access in apps/erp, regardless of permissions.
-// (Prevents self-elevation via /administration/users; locks down master
+// (Prevents self-elevation via /administration/users; keeps the audit log —
+// which records the admins' own actions — to admins; locks down master
 // config screens.)
 export const ADMIN_ONLY_PREFIXES = [
   "/administration/users",
+  "/administration/audit-log",
   "/registrations",
   "/exams/grade-master",
   "/exams/header-footer",

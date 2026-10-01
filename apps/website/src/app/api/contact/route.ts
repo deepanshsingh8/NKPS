@@ -4,6 +4,8 @@ import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { contactFormSchema, emailDomain } from "@nkps/shared/lib/validations";
 import { SCHOOL } from "@nkps/shared/lib/constants";
 import { rateLimit, clientIp } from "@nkps/shared/lib/rate-limit";
+import { verifyTurnstileRequest } from "@nkps/shared/lib/turnstile-server";
+import { TURNSTILE_FAILED_MESSAGE } from "@nkps/shared/lib/turnstile";
 
 // DNS lookups need the Node.js runtime (not edge).
 export const runtime = "nodejs";
@@ -47,7 +49,7 @@ export async function POST(request: Request) {
   try {
     // Cap contact form to 5 submissions / IP / hour to keep the admin inbox
     // clean. Honest visitors rarely submit twice in a row.
-    const ipLimit = rateLimit({
+    const ipLimit = await rateLimit({
       name: "contact:ip",
       key: clientIp(request),
       max: 5,
@@ -58,6 +60,12 @@ export async function POST(request: Request) {
         { error: "Too many submissions. Please try again later." },
         { status: 429 }
       );
+    }
+
+    // Bot check (no-op until the Turnstile keys are configured).
+    const captcha = await verifyTurnstileRequest(request);
+    if (!captcha.ok) {
+      return NextResponse.json({ error: TURNSTILE_FAILED_MESSAGE }, { status: 403 });
     }
 
     const body = await request.json();

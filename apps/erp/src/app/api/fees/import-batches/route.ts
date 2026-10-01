@@ -9,6 +9,7 @@
 // grant may run an import, but the audit trail and the undo are the admin's.
 
 import { NextRequest, NextResponse } from "next/server";
+import { dbErrorResponse } from "@nkps/shared/lib/api-errors";
 import { headers } from "next/headers";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 
@@ -94,7 +95,7 @@ export async function GET(req: NextRequest) {
   if (academicYearId) query = query.eq("academic_year_id", academicYearId);
 
   const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse(error, "fees/import-batches list");
   const batches = (data ?? []) as unknown as ImportBatchRow[];
 
   // Actor names are resolved with a second query rather than an embedded

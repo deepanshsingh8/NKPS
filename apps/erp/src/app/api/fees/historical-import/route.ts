@@ -16,6 +16,7 @@
 // unique `receipt_number`.
 
 import { NextRequest, NextResponse } from "next/server";
+import { dbErrorMessage, dbErrorResponse } from "@nkps/shared/lib/api-errors";
 import { classSortOrder } from "@nkps/shared/lib/constants";
 import { randomUUID } from "node:crypto";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
@@ -163,13 +164,13 @@ export async function POST(req: NextRequest) {
     admin.from("students").select("id, admission_no, full_name, father_name"),
   ]);
   if (streamsRes.error) {
-    return NextResponse.json({ error: streamsRes.error.message }, { status: 500 });
+    return dbErrorResponse(streamsRes.error, "fees/historical-import load streams");
   }
   if (classesRes.error) {
-    return NextResponse.json({ error: classesRes.error.message }, { status: 500 });
+    return dbErrorResponse(classesRes.error, "fees/historical-import load classes");
   }
   if (studentsRes.error) {
-    return NextResponse.json({ error: studentsRes.error.message }, { status: 500 });
+    return dbErrorResponse(studentsRes.error, "fees/historical-import load students");
   }
 
   const streamByName = new Map<string, string>();
@@ -373,7 +374,7 @@ export async function POST(req: NextRequest) {
       .select("id, name");
     if (streamInsErr) {
       return NextResponse.json(
-        { error: `Failed to create streams: ${streamInsErr.message}` },
+        { error: `Failed to create streams: ${dbErrorMessage(streamInsErr, "fees/historical-import")}` },
         { status: 500 }
       );
     }
@@ -412,7 +413,7 @@ export async function POST(req: NextRequest) {
       .select("id, name, section, stream_id");
     if (classInsErr) {
       return NextResponse.json(
-        { error: `Failed to create classes: ${classInsErr.message}` },
+        { error: `Failed to create classes: ${dbErrorMessage(classInsErr, "fees/historical-import")}` },
         { status: 500 }
       );
     }
@@ -450,7 +451,7 @@ export async function POST(req: NextRequest) {
     .eq("academic_year_id", academicYearId)
     .eq("fee_type", "Historical");
   if (estErr) {
-    return NextResponse.json({ error: estErr.message }, { status: 500 });
+    return dbErrorResponse(estErr, "fees/historical-import load structures");
   }
   const structureByBucket = new Map<string, string>();
   for (const s of existingStructures ?? []) {
@@ -481,7 +482,7 @@ export async function POST(req: NextRequest) {
       .select("id, class_name, stream_id");
     if (insErr) {
       return NextResponse.json(
-        { error: `Failed to create historical fee structures: ${insErr.message}` },
+        { error: `Failed to create historical fee structures: ${dbErrorMessage(insErr, "fees/historical-import")}` },
         { status: 500 }
       );
     }
@@ -524,7 +525,9 @@ export async function POST(req: NextRequest) {
       .upsert(chunk, { onConflict: "receipt_number", ignoreDuplicates: true })
       .select("id");
     if (chunkErr) {
-      insertErrors.push(chunkErr.message);
+      insertErrors.push(
+        `Records ${i + 1}–${i + chunk.length}: ${dbErrorMessage(chunkErr, "fees/historical-import insert")}`
+      );
       continue;
     }
     const insertedCount = (inserted ?? []).length;
