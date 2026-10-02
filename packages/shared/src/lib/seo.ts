@@ -136,7 +136,6 @@ export const schoolJsonLd = {
         propertyID: "CBSE Affiliation Number",
         value: SCHOOL.affiliationNumber,
       },
-      numberOfStudents: 4000,
       employee: SCHOOL.leadership.map((l) => ({
         "@type": "Person",
         name: l.name,

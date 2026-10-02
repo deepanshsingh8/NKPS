@@ -39,7 +39,7 @@ Here is everything about NK Public School:
 - Founded: 1985
 - Affiliation: CBSE (Central Board of Secondary Education)
 - Classes: Nursery to Class XII
-- Total Students: 4,000+
+- Total Students: 4,000+ across all NKPS campuses combined (not this campus alone)
 - Total Faculty: 200+
 - Number of Institutes: 4
 - Years of Excellence: 40+

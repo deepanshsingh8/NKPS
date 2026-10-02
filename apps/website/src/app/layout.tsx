@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     template: "%s | NK Public School",
   },
   description:
-    "NK Public School (NKPS), Rajawas — a CBSE affiliated co-educational school in Jaipur offering Nursery to Class XII. 40+ years of holistic education, 4,000+ students, 200+ faculty.",
+    "NK Public School (NKPS), Rajawas — a CBSE co-ed school in Jaipur for Nursery to Class XII. 40+ years; part of the 4,000-student NKPS family.",
   keywords: [
     "NK Public School",
     "NKPS",
@@ -62,7 +62,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "NK Public School — Best CBSE School in Jaipur Since 1985",
     description:
-      "Premier CBSE school in Jaipur offering holistic education from Nursery to Class XII. 40+ years, 4,000+ students.",
+      "Premier CBSE school in Jaipur offering holistic education from Nursery to Class XII. 40+ years, 4,000+ students across NKPS campuses.",
     url: SITE_URL,
     type: "website",
     locale: "en_IN",

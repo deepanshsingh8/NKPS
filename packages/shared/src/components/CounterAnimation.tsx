@@ -7,11 +7,13 @@ import { cn } from "@nkps/shared/lib/utils";
 interface CounterAnimationProps {
   end: number;
   suffix?: string;
+  /** Footnote mark (e.g. "*") pointing at an explanation the caller renders. */
+  marker?: string;
   label: string;
   light?: boolean;
 }
 
-export function CounterAnimation({ end, suffix = "", label, light }: CounterAnimationProps) {
+export function CounterAnimation({ end, suffix = "", marker, label, light }: CounterAnimationProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const [count, setCount] = useState(0);
@@ -48,6 +50,11 @@ export function CounterAnimation({ end, suffix = "", label, light }: CounterAnim
       >
         {count}
         {suffix}
+        {marker && (
+          <sup className="ml-0.5 text-[0.45em] font-sans font-medium text-gold-400 align-super">
+            {marker}
+          </sup>
+        )}
       </div>
       <div
         className={cn(
