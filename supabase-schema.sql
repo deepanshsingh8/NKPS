@@ -4776,12 +4776,12 @@ SELECT 'hero_slider', E'Best CBSE School\nin Jaipur', 'Empowering young minds wi
 WHERE NOT EXISTS (SELECT 1 FROM section_cards WHERE section='hero_slider');
 
 INSERT INTO section_cards (section, title, subtitle, cta_text, cta_link, image_url, sort_order, is_active, is_default, default_snapshot)
-SELECT 'hero_slider', E'Excellence in\nCBSE Education', 'CBSE affiliated institution nurturing 20,000+ students across Jaipur',
+SELECT 'hero_slider', E'Excellence in\nCBSE Education', 'CBSE affiliated school — part of the 4,000-strong NKPS family',
   'Learn More', '/about',
   COALESCE((SELECT current_url FROM site_media WHERE slot='hero_slide_2'), '/images/hero/campus-2.avif'),
   1, true, true,
   jsonb_build_object('title', E'Excellence in\nCBSE Education',
-    'subtitle','CBSE affiliated institution nurturing 20,000+ students across Jaipur',
+    'subtitle','CBSE affiliated school — part of the 4,000-strong NKPS family',
     'cta_text','Learn More','cta_link','/about','image_url','/images/hero/campus-2.avif')
 WHERE NOT EXISTS (SELECT 1 FROM section_cards WHERE section='hero_slider');
 

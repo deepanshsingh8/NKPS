@@ -226,13 +226,13 @@ insert into section_cards (
 )
 select
   'hero_slider', E'Excellence in\nCBSE Education',
-  'CBSE affiliated institution nurturing 20,000+ students across Jaipur',
+  'CBSE affiliated school — part of the 4,000-strong NKPS family',
   'Learn More', '/about',
   coalesce((select current_url from site_media where slot = 'hero_slide_2'), '/images/hero/campus-2.avif'),
   1, true, true,
   jsonb_build_object(
     'title', E'Excellence in\nCBSE Education',
-    'subtitle', 'CBSE affiliated institution nurturing 20,000+ students across Jaipur',
+    'subtitle', 'CBSE affiliated school — part of the 4,000-strong NKPS family',
     'cta_text', 'Learn More', 'cta_link', '/about',
     'image_url', '/images/hero/campus-2.avif'
   )

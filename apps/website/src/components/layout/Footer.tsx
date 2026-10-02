@@ -29,7 +29,7 @@ export function Footer() {
                 Ready to Enroll Your Child?
               </h3>
               <p className="mt-2 text-gray-400 text-sm md:text-base">
-                Admissions are open for the academic session 2026-27. Join 4,000+ students building their future.
+                Admissions are open for the academic session 2026-27. Join the NKPS family of 4,000+ students across our campuses.
               </p>
             </div>
             <Link

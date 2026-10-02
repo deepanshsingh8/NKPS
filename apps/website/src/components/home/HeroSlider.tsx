@@ -8,9 +8,10 @@ import Image from "next/image";
 import { cn } from "@nkps/shared/lib/utils";
 import { useMouseMotion } from "@nkps/shared/hooks/useMousePosition";
 import type { SectionCard } from "@nkps/shared/types";
+import { SCHOOL } from "@nkps/shared/lib/constants";
 
 const stats = [
-  { number: "4,000+", label: "Students", icon: Users },
+  { number: "4,000+", marker: "*", label: "Students", icon: Users },
   { number: "40+", label: "Years", icon: CalendarDays },
   { number: "200+", label: "Faculty", icon: GraduationCap },
   { number: "4", label: "Institutes", icon: Building2 },
@@ -341,7 +342,7 @@ export function HeroSlider({ cards }: HeroSliderProps = {}) {
       >
         <div className="flex-1" />
 
-        <div className="pb-40 md:pb-36 lg:pb-28">
+        <div className="pb-52 md:pb-44 lg:pb-36">
           <div className="lg:grid lg:grid-cols-2 lg:items-end lg:gap-12">
             {/* Left — Main content */}
             <div>
@@ -448,6 +449,11 @@ export function HeroSlider({ cards }: HeroSliderProps = {}) {
                   <div className="text-center md:text-left">
                     <span className="block text-lg md:text-2xl font-semibold text-white leading-tight">
                       {stat.number}
+                      {stat.marker && (
+                        <sup className="ml-0.5 text-[0.55em] font-medium text-gold-400">
+                          {stat.marker}
+                        </sup>
+                      )}
                     </span>
                     <span className="block text-[10px] md:text-xs uppercase tracking-wider text-gray-400/80">
                       {stat.label}
@@ -457,6 +463,9 @@ export function HeroSlider({ cards }: HeroSliderProps = {}) {
               );
             })}
           </div>
+          <p className="mt-3 border-t border-white/10 pt-2.5 text-center text-[10px] md:text-xs text-gray-400/80">
+            <span className="text-gold-400">*</span> {SCHOOL.statsFootnote}
+          </p>
         </motion.div>
       </div>
 

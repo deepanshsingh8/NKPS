@@ -3,7 +3,7 @@ export const SCHOOL = {
   shortName: "NKPS",
   tagline: "Empowering Young Minds Since 1985",
   description:
-    "NK Public School, affiliated to CBSE, is a premier educational institution in Jaipur offering holistic education from Nursery to Class XII. Founded in 1985, we nurture over 4000 students with academic excellence and character building.",
+    "NK Public School, affiliated to CBSE, is a premier educational institution in Jaipur offering holistic education from Nursery to Class XII. Founded in 1985, the NKPS family nurtures over 4,000 students across its campuses with academic excellence and character building.",
   founded: 1985,
   founder: {
     name: "Late Shri R.K. Choudhary",
@@ -56,12 +56,16 @@ export const SCHOOL = {
         "At NK Public School, we believe every child is unique. Our dedicated faculty ensures holistic development through academic excellence and co-curricular activities.",
     },
   ],
+  // The 4,000 is every NKPS campus together, not this one — read alone it
+  // says this campus is that big, which is how search summaries repeated it.
+  // The marker ties the figure to `statsFootnote` wherever it is shown.
   stats: [
-    { label: "Students", value: 4000, suffix: "+" },
+    { label: "Students", value: 4000, suffix: "+", marker: "*" },
     { label: "Years of Excellence", value: 40, suffix: "+" },
     { label: "Dedicated Faculty", value: 200, suffix: "+" },
     { label: "Institutes", value: 4, suffix: "" },
   ],
+  statsFootnote: "4,000+ students across all NKPS campuses, with a 20,000+ strong alumni network.",
   achievementStats: [
     { label: "Alumni Network", value: 20000, suffix: "+" },
     { label: "Years of Legacy", value: 40, suffix: "+" },

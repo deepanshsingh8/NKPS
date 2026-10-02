@@ -88,7 +88,7 @@ export default async function OpengraphImage() {
               <span style={{ color: "#fbbf24", fontWeight: 700, fontSize: 32 }}>
                 4,000+
               </span>
-              <span style={{ color: "#94a3b8" }}>Students</span>
+              <span style={{ color: "#94a3b8" }}>Students, all campuses</span>
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               <span style={{ color: "#fbbf24", fontWeight: 700, fontSize: 32 }}>

@@ -17,7 +17,7 @@ import { buildMetadata } from "@nkps/shared/lib/seo";
 export const metadata: Metadata = buildMetadata({
   title: "Best CBSE School in Jaipur — NK Public School Since 1985",
   description:
-    "NK Public School, Rajawas: a CBSE co-ed school in Jaipur for Nursery to Class XII on Grand Sikar Road. 40+ years, 4,000+ students and 200+ faculty.",
+    "NK Public School, Rajawas: a CBSE co-ed school in Jaipur for Nursery to Class XII on Grand Sikar Road. 40+ years; part of the 4,000-student NKPS family.",
   path: "/",
 });
 
@@ -47,7 +47,7 @@ export default async function HomePage() {
         items={[
           "CBSE Affiliated",
           "Established 1985",
-          "4000+ Students",
+          "4,000+ Students Across NKPS",
           "Holistic Education",
           "Sports Excellence",
           "Smart Classrooms",
@@ -65,9 +65,10 @@ export default async function HomePage() {
           <p className="mt-6 text-base md:text-lg leading-relaxed text-gray-700">
             NK Public School (NKPS), located on Grand Sikar Road in Rajawas, is a
             CBSE-affiliated co-educational institution in North Jaipur. For over
-            40 years we have served more than 4,000 students from Nursery to
-            Class XII, combining rigorous academics with sports, arts and
-            character education. Our campus on the outskirts of Jaipur offers
+            40 years we have taught children from Nursery to Class XII —
+            part of an NKPS family of more than 4,000 students across four
+            campuses and 20,000+ alumni — combining rigorous academics with
+            sports, arts and character education. Our campus on the outskirts of Jaipur offers
             smart classrooms, modern science and computer labs, a 10,000-volume
             library, expansive sports grounds, an auditorium, and safe bus
             transport across the city — everything a modern CBSE school in

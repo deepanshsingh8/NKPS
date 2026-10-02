@@ -66,6 +66,7 @@ export function StatsCounter({ backgroundImage }: StatsCounterProps = {}) {
                   <CounterAnimation
                     end={stat.value}
                     suffix={stat.suffix}
+                    marker={"marker" in stat ? stat.marker : undefined}
                     label={stat.label}
                     light
                   />
@@ -74,6 +75,10 @@ export function StatsCounter({ backgroundImage }: StatsCounterProps = {}) {
             );
           })}
         </motion.div>
+
+        <p className="mt-8 text-center text-xs md:text-sm text-gray-400">
+          <span className="text-gold-400">*</span> {SCHOOL.statsFootnote}
+        </p>
       </div>
     </section>
   );
