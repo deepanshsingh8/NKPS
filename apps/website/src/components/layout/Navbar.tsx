@@ -4,7 +4,15 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { Menu, X, Phone, Mail, ChevronDown } from "lucide-react";
+import {
+  Menu,
+  X,
+  Phone,
+  Mail,
+  ChevronDown,
+  GraduationCap,
+  PenSquare,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@nkps/shared/lib/utils";
 import { NAV_LINKS, NAV_MORE_LINKS, SCHOOL } from "@nkps/shared/lib/constants";
@@ -13,13 +21,33 @@ import {
   InstagramIcon,
   YoutubeIcon,
 } from "@nkps/shared/components/SocialIcons";
-import { getErpUrl } from "@nkps/shared/lib/cross-app";
+import { getCmsUrl, getErpUrl } from "@nkps/shared/lib/cross-app";
+
+// The website has no login of its own — "Login" asks which app you mean.
+const LOGIN_OPTIONS = [
+  {
+    label: "ERP Login",
+    description: "Students, parents & staff",
+    href: getErpUrl("/portal/login"),
+    icon: GraduationCap,
+  },
+  {
+    label: "CMS Login",
+    description: "Website content editors",
+    href: getCmsUrl("/login"),
+    icon: PenSquare,
+  },
+] as const;
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  // One dropdown open at a time — opening Login closes More and vice versa.
+  const [openMenu, setOpenMenu] = useState<"more" | "login" | null>(null);
   const moreRef = useRef<HTMLDivElement>(null);
+  const loginRef = useRef<HTMLDivElement>(null);
+  const moreOpen = openMenu === "more";
+  const loginOpen = openMenu === "login";
   const pathname = usePathname();
   const isHome = pathname === "/";
   const moreActive = NAV_MORE_LINKS.some((l) => l.href === pathname);
@@ -32,24 +60,32 @@ export function Navbar() {
   }, []);
 
   useEffect(() => {
-    // Close both menus when the user navigates to a new page.
+    // Close every menu when the user navigates to a new page.
     // pathname is an external system (the URL); syncing UI to it is the intent.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobileOpen(false);
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMoreOpen(false);
+    setOpenMenu(null);
   }, [pathname]);
 
   useEffect(() => {
-    if (!moreOpen) return;
+    if (!openMenu) return;
+    const ref = openMenu === "more" ? moreRef : loginRef;
     const handleClick = (e: MouseEvent) => {
-      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
-        setMoreOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpenMenu(null);
       }
     };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenMenu(null);
+    };
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [moreOpen]);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [openMenu]);
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
@@ -130,7 +166,7 @@ export function Navbar() {
             {/* "More" dropdown — secondary pages (Student Life, Gallery, Articles) */}
             <div ref={moreRef} className="relative">
               <button
-                onClick={() => setMoreOpen((o) => !o)}
+                onClick={() => setOpenMenu(moreOpen ? null : "more")}
                 aria-expanded={moreOpen}
                 aria-haspopup="true"
                 className={cn(
@@ -164,7 +200,7 @@ export function Navbar() {
                         <Link
                           key={link.href}
                           href={link.href}
-                          onClick={() => setMoreOpen(false)}
+                          onClick={() => setOpenMenu(null)}
                           className={cn(
                             "block rounded-xl px-3.5 py-2 text-sm font-medium transition-colors duration-200",
                             isActive
@@ -182,17 +218,58 @@ export function Navbar() {
             </div>
           </div>
 
-          {/* ERP Login + Mobile Hamburger */}
+          {/* Login chooser + Mobile Hamburger */}
           <div className="flex items-center gap-2">
-            {/* ERP Login - shimmer button */}
-            <Link
-              href={getErpUrl("/portal/login")}
-              className="group relative hidden lg:inline-flex items-center gap-1.5 overflow-hidden rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-3.5 py-1.5 text-xs font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25 hover:scale-[1.02]"
-            >
-              {/* Shimmer effect */}
-              <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-              <span className="relative z-10">Login</span>
-            </Link>
+            {/* Login - shimmer button opening an ERP / CMS chooser */}
+            <div ref={loginRef} className="relative hidden lg:block">
+              <button
+                onClick={() => setOpenMenu(loginOpen ? null : "login")}
+                aria-expanded={loginOpen}
+                aria-haspopup="true"
+                className="group relative inline-flex items-center gap-1 overflow-hidden rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-3.5 py-1.5 text-xs font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25 hover:scale-[1.02]"
+              >
+                {/* Shimmer effect */}
+                <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                <span className="relative z-10">Login</span>
+                <ChevronDown
+                  className={cn(
+                    "relative z-10 w-3.5 h-3.5 transition-transform duration-300",
+                    loginOpen && "rotate-180"
+                  )}
+                />
+              </button>
+
+              <AnimatePresence>
+                {loginOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                    transition={{ duration: 0.18, ease: "easeOut" }}
+                    className="absolute right-0 mt-2 w-60 overflow-hidden rounded-2xl border border-white/10 bg-navy-900/95 backdrop-blur-xl shadow-xl shadow-black/30 p-1.5"
+                  >
+                    {LOGIN_OPTIONS.map(({ label, description, href, icon: Icon }) => (
+                      <a
+                        key={href}
+                        href={href}
+                        onClick={() => setOpenMenu(null)}
+                        className="flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-white/10"
+                      >
+                        <Icon className="mt-0.5 h-4 w-4 flex-shrink-0 text-gold-400" />
+                        <span>
+                          <span className="block text-sm font-semibold text-white">
+                            {label}
+                          </span>
+                          <span className="block text-xs text-white/60">
+                            {description}
+                          </span>
+                        </span>
+                      </a>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             {/* Mobile Hamburger - morphs to X */}
             <motion.button
@@ -274,7 +351,7 @@ export function Navbar() {
                   );
                 })}
 
-                {/* ERP Login */}
+                {/* Login — one button per app; the website has no login of its own */}
                 <motion.div
                   initial={{ opacity: 0, x: 60 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -284,15 +361,19 @@ export function Navbar() {
                     delay: (NAV_LINKS.length + NAV_MORE_LINKS.length) * 0.04,
                     ease: "easeOut",
                   }}
-                  className="mt-3"
+                  className="mt-3 flex flex-col items-center gap-2.5"
                 >
-                  <Link
-                    href={getErpUrl("/portal/login")}
-                    onClick={() => setMobileOpen(false)}
-                    className="inline-flex items-center rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-7 py-2.5 text-sm font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25"
-                  >
-                    Login
-                  </Link>
+                  {LOGIN_OPTIONS.map(({ label, href, icon: Icon }) => (
+                    <a
+                      key={href}
+                      href={href}
+                      onClick={() => setMobileOpen(false)}
+                      className="inline-flex min-h-11 min-w-48 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-7 py-2.5 text-sm font-semibold text-navy-900 transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/25"
+                    >
+                      <Icon className="h-4 w-4" />
+                      {label}
+                    </a>
+                  ))}
                 </motion.div>
               </nav>
 
