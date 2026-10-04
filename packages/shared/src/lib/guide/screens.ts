@@ -1875,6 +1875,16 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Personal columns are withheld unless you tick "Include PII" first. If a turn ran more than one report, chips above the table let you switch between them.',
       },
       {
+        name: "Wait for a long answer",
+        steps: [
+          "Watch the panel under your question. It ticks off each step, with a clock for the whole answer and for the step it is on.",
+          "Switch tabs or open another chat if you like. The answer keeps going, and a spinner marks its chat in the list on the left.",
+          'Press "Stop" to cancel it.',
+        ],
+        gotcha:
+          'A chat opened while its answer is still being written says "Still working on this answer" and fills in by itself once the answer is saved.',
+      },
+      {
         name: "Come back to an earlier question",
         steps: [
           "Pick it from the list on the left.",

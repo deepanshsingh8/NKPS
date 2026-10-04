@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, MessageSquarePlus, Pencil, Search, Trash2, X } from "lucide-react";
+import { Check, Loader2, MessageSquarePlus, Pencil, Search, Trash2, X } from "lucide-react";
 import type { ConversationSummary } from "./types";
 
 /**
@@ -12,10 +12,14 @@ import type { ConversationSummary } from "./types";
  *
  * Search is over titles only. Searching message bodies would mean indexing the
  * student facts migration 114 went out of its way to contain.
+ *
+ * A chat with an answer still being written carries a spinner, so one left
+ * working in the background can be seen to be working.
  */
 export function ConversationList({
   conversations,
   activeId,
+  answeringIds,
   loading,
   onNew,
   onOpen,
@@ -25,6 +29,7 @@ export function ConversationList({
 }: {
   conversations: ConversationSummary[];
   activeId: string | null;
+  answeringIds: ReadonlySet<string>;
   loading: boolean;
   onNew: () => void;
   onOpen: (id: string) => void;
@@ -131,6 +136,12 @@ export function ConversationList({
                   }
                   title={c.title ?? "Untitled chat"}
                 >
+                  {answeringIds.has(c.id) && (
+                    <Loader2
+                      aria-label="Answering"
+                      className="mr-1.5 inline h-3.5 w-3.5 -translate-y-px animate-spin text-blue-600 dark:text-blue-400"
+                    />
+                  )}
                   {c.title ?? "Untitled chat"}
                 </button>
 
