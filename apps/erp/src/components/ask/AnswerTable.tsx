@@ -84,11 +84,15 @@ export function AnswerTable({
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
         <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-navy-900 dark:text-white">
-          <Table2 className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+          {turn.tableBusy ? (
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-blue-600 dark:text-blue-400" />
+          ) : (
+            <Table2 className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+          )}
           {table
             ? `${table.total.toLocaleString("en-IN")} student${table.total === 1 ? "" : "s"}`
             : turn.tableBusy
-              ? "Loading…"
+              ? "Loading the list…"
               : `${(activeRun?.total ?? 0).toLocaleString("en-IN")} students`}
           {/* Naming the query the table came from is what makes a mismatch
               with the answer visible instead of silent. */}
@@ -149,8 +153,25 @@ export function AnswerTable({
         </p>
       )}
 
+      {/* Rows-to-be while the first page loads. A header over nothing is
+          the half-finished look this whole screen is trying to get rid of. */}
+      {turn.tableBusy && !table && (
+        <div aria-hidden className="space-y-2.5 px-4 py-3">
+          <div className="h-3 w-full animate-pulse rounded bg-muted" />
+          {[0, 1, 2, 3, 4].map((r) => (
+            <div key={r} className="h-3 animate-pulse rounded bg-muted/60" />
+          ))}
+        </div>
+      )}
+
       {table && (
-        <div className="overflow-x-auto">
+        // Dimmed while another report's rows are on their way, so the old
+        // rows are not mistaken for the new ones.
+        <div
+          className={
+            turn.tableBusy ? "overflow-x-auto opacity-50 transition" : "overflow-x-auto transition"
+          }
+        >
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-cream-50 dark:bg-background text-left">

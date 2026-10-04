@@ -5,21 +5,30 @@
  * as it took. The model thinks silently for most of that, so for twenty or
  * thirty seconds nothing on screen moved and the page read as frozen. Every
  * stage here is driven by a real event from the stream; none is on a timer,
- * so the list can never claim work that has not happened.
+ * so the list can never claim work that has not happened. What does move on a
+ * timer is each stage's own clock, which is how a long stage still reads as
+ * alive.
  */
 
 export type ProgressState = "active" | "done" | "failed";
 
 export interface ProgressStep {
   id: string;
-  /** Which kind of stage, so later events can find the step they finish. */
-  kind: "understand" | "lookup" | "check" | "write" | "table";
+  /**
+   * Which kind of stage, so later events can find the step they finish.
+   * `resume` is a chat reopened while its answer was still being written: the
+   * stream that knew the stages belongs to another page, so all that is known
+   * is that the answer has not landed yet.
+   */
+  kind: "understand" | "lookup" | "check" | "write" | "table" | "resume";
   /** Tool name, for matching a `tool_done` to its `tool_start`. */
   tool?: string;
   label: string;
   /** A short result once it lands, e.g. "744 found". */
   detail?: string;
   state: ProgressState;
+  startedAt: number;
+  endedAt?: number;
 }
 
 export interface TurnProgress {
@@ -44,15 +53,37 @@ export function startProgress(now = Date.now()): TurnProgress {
   return {
     startedAt: now,
     steps: [
-      { id: nextId(), kind: "understand", label: "Understanding your question", state: "active" },
+      {
+        id: nextId(),
+        kind: "understand",
+        label: "Understanding your question",
+        state: "active",
+        startedAt: now,
+      },
+    ],
+  };
+}
+
+/** A reopened chat whose answer is still being written somewhere else. */
+export function resumeProgress(askedAt: number): TurnProgress {
+  return {
+    startedAt: askedAt,
+    steps: [
+      {
+        id: nextId(),
+        kind: "resume",
+        label: "Still working on this answer",
+        state: "active",
+        startedAt: askedAt,
+      },
     ],
   };
 }
 
 /** Finish every running stage except lookups, which finish on their own event. */
-function settle(steps: ProgressStep[]): ProgressStep[] {
+function settle(steps: ProgressStep[], now: number): ProgressStep[] {
   return steps.map((s) =>
-    s.state === "active" && s.kind !== "lookup" ? { ...s, state: "done" } : s
+    s.state === "active" && s.kind !== "lookup" ? { ...s, state: "done", endedAt: now } : s
   );
 }
 
@@ -77,8 +108,14 @@ export function advanceProgress(
       return {
         ...progress,
         steps: [
-          ...settle(steps),
-          { id: nextId(), kind: "write", label: "Writing the answer", state: "active" },
+          ...settle(steps, now),
+          {
+            id: nextId(),
+            kind: "write",
+            label: "Writing the answer",
+            state: "active",
+            startedAt: now,
+          },
         ],
       };
     }
@@ -94,13 +131,14 @@ export function advanceProgress(
       return {
         ...progress,
         steps: [
-          ...settle(steps),
+          ...settle(steps, now),
           {
             id: nextId(),
             kind: "lookup",
             tool: event.name,
             label: lookupLabel(event.name, event.label),
             state: "active",
+            startedAt: now,
           },
         ],
       };
@@ -113,6 +151,7 @@ export function advanceProgress(
       const finished: ProgressStep = {
         ...steps[i],
         state: event.failed ? "failed" : "done",
+        endedAt: now,
         detail: event.failed
           ? "couldn't complete"
           : typeof event.total === "number"
@@ -126,20 +165,35 @@ export function advanceProgress(
         ...progress,
         steps: stillRunning
           ? next
-          : [...next, { id: nextId(), kind: "check", label: "Checking the results", state: "active" }],
+          : [
+              ...next,
+              {
+                id: nextId(),
+                kind: "check",
+                label: "Checking the results",
+                state: "active",
+                startedAt: now,
+              },
+            ],
       };
     }
 
     case "done": {
-      const settled = settle(steps).map((s) =>
-        s.state === "active" ? { ...s, state: "done" as const } : s
+      const settled = settle(steps, now).map((s) =>
+        s.state === "active" ? { ...s, state: "done" as const, endedAt: now } : s
       );
       return event.loadingTable
         ? {
             ...progress,
             steps: [
               ...settled,
-              { id: nextId(), kind: "table", label: "Preparing the full list", state: "active" },
+              {
+                id: nextId(),
+                kind: "table",
+                label: "Preparing the full list",
+                state: "active",
+                startedAt: now,
+              },
             ],
           }
         : { ...progress, steps: settled, finishedAt: now };
@@ -147,6 +201,6 @@ export function advanceProgress(
 
     case "table_loaded":
       if (progress.finishedAt) return progress;
-      return { ...progress, steps: settle(steps), finishedAt: now };
+      return { ...progress, steps: settle(steps, now), finishedAt: now };
   }
 }

@@ -49,6 +49,12 @@ export interface Turn {
   steps?: string[];
   /** The live checklist; folds to one line once the turn is done. */
   progress?: TurnProgress;
+  /**
+   * A reopened chat whose answer the server is still writing. A placeholder
+   * only: the stream that knows the stages belongs to whichever page asked,
+   * so this one watches the saved transcript until the answer lands.
+   */
+  pending?: boolean;
 }
 
 export interface ConversationSummary {

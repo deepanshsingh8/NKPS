@@ -126,6 +126,9 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 
   --animate-marquee: marquee 30s linear infinite;
+  /* An indeterminate progress bar: a segment two-fifths of the track wide,
+     sliding from fully off the left edge to fully off the right. */
+  --animate-indeterminate: indeterminate 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 :root {
@@ -726,6 +729,11 @@ html {
 @keyframes marquee {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
+}
+
+@keyframes indeterminate {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
 }
 
 @keyframes float {
