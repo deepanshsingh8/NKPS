@@ -16,6 +16,7 @@ export type AuditAction =
   | "user.create"
   | "user.delete"
   | "user.role_change"
+  | "user.super_admin_change"
   | "user.password_reset"
   | "editor_permissions.change"
   | "registration.approve"

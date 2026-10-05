@@ -44,7 +44,7 @@ async function loadCaller(accessToken: string, featureKey?: FeatureKey | "any") 
   const [profileRes, permRes] = await Promise.all([
     admin
       .from("profiles")
-      .select("role, must_change_password")
+      .select("role, must_change_password, is_super_admin")
       .eq("id", user.id)
       .single(),
     featureKey === undefined
@@ -97,7 +97,21 @@ export async function verifyAdminWithUser() {
   if (!user || !profile) return null;
   if (profile.must_change_password) return null;
   if (profile.role !== "admin") return null;
-  return { admin, user };
+  return { admin, user, isSuperAdmin: profile.is_super_admin === true };
+}
+
+/**
+ * Admin with `profiles.is_super_admin` (migration 135). The only thing a
+ * super admin may do that an admin may not is move money out: refund a fee
+ * payment directly, or approve/reject a refund request. Keep it that narrow —
+ * every other admin screen must keep working for every admin.
+ *
+ * Fails closed if `must_change_password = true`.
+ */
+export async function verifySuperAdminWithUser() {
+  const auth = await verifyAdminWithUser();
+  if (!auth || !auth.isSuperAdmin) return null;
+  return auth;
 }
 
 /**
@@ -170,7 +184,8 @@ export async function getCallerAccess(): Promise<
  * The returned `role` discriminates admin vs editor — used by routes that
  * need to gate further actions (e.g. fees-editors can create payments
  * directly but must file a change request for edits/deletes; admins
- * skip the request flow).
+ * skip the request flow). `isSuperAdmin` (migration 135) is the narrower
+ * right to refund directly; it is false for every editor.
  *
  * Fails closed if `must_change_password = true`.
  */
@@ -186,10 +201,15 @@ export async function verifyAdminOrEditorWithUser(featureKey?: FeatureKey) {
   if (!user || !profile) return null;
   if (profile.must_change_password) return null;
   if (profile.role === "admin") {
-    return { admin, user, role: "admin" as const };
+    return {
+      admin,
+      user,
+      role: "admin" as const,
+      isSuperAdmin: profile.is_super_admin === true,
+    };
   }
   if (!perm) return null;
-  return { admin, user, role: "editor" as const };
+  return { admin, user, role: "editor" as const, isSuperAdmin: false };
 }
 
 /**

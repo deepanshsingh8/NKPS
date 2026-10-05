@@ -29,6 +29,7 @@ import {
   formatFieldValue,
   visibleFields,
 } from "@/lib/change-request-display";
+import { isRefundRequest } from "@/lib/fee-change-requests";
 
 type RequestStatus = "pending" | "approved" | "rejected" | "cancelled";
 
@@ -134,6 +135,8 @@ function subjectLine(
 export default function FeeChangeRequestsPage() {
   const supabase = useMemo(() => createClient(), []);
   const [userRole, setUserRole] = useState<"admin" | "editor" | null>(null);
+  // Super admins (migration 135) are the only reviewers of refund requests.
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [requests, setRequests] = useState<ChangeRequest[]>([]);
   const [listLabels, setListLabels] = useState<EntityLabels>({});
@@ -156,11 +159,12 @@ export default function FeeChangeRequestsPage() {
       setUserId(user.id);
       const { data } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, is_super_admin")
         .eq("id", user.id)
         .maybeSingle();
       if (cancelled) return;
       setUserRole(data?.role === "admin" ? "admin" : "editor");
+      setIsSuperAdmin(data?.role === "admin" && data?.is_super_admin === true);
     })();
     return () => {
       cancelled = true;
@@ -282,6 +286,15 @@ export default function FeeChangeRequestsPage() {
                   <Badge className={`text-[10px] ${STATUS_COLORS[r.status]}`}>
                     {r.status}
                   </Badge>
+                  {r.status === "pending" &&
+                    isRefundRequest(r.action, r.proposed_changes) && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300"
+                      >
+                        Needs super admin
+                      </Badge>
+                    )}
                   <span className="text-xs text-gray-500">
                     {r.target_table === "fee_payments" ? "Payment" : r.target_table}
                   </span>
@@ -316,6 +329,12 @@ export default function FeeChangeRequestsPage() {
 
   const isAdmin = userRole === "admin";
   const detailReq = detail?.request;
+  const detailIsRefund = detailReq
+    ? isRefundRequest(detailReq.action, detailReq.proposed_changes)
+    : false;
+  // Approve/Reject: any admin for edits, deletes and waivers; a super admin
+  // for refunds. The routes enforce the same rule.
+  const canReview = isAdmin && (isSuperAdmin || !detailIsRefund);
   const detailLabels = detail?.entity_labels ?? {};
   const detailSubject = detailReq
     ? subjectLine(
@@ -349,8 +368,8 @@ export default function FeeChangeRequestsPage() {
         </h1>
         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
           {isAdmin
-            ? "Editor-filed proposals to modify recorded fee payments. Approve to apply the change, reject to leave the original record untouched."
-            : "Your requests to modify recorded fee payments. An admin reviews each request before any change applies."}
+            ? "Proposals to modify recorded fee payments — editor edits, deletes and waivers, and every refund. Approve to apply the change, reject to leave the original record untouched. Refunds are reviewed by a super admin."
+            : "Your requests to modify recorded fee payments. An admin reviews each request — a super admin for refunds — before any change applies."}
         </p>
       </div>
 
@@ -535,7 +554,12 @@ export default function FeeChangeRequestsPage() {
                         Cancel request
                       </Button>
                     )}
-                    {isAdmin && (
+                    {isAdmin && !canReview && (
+                      <span className="self-center text-xs text-amber-700 dark:text-amber-300">
+                        Refunds are approved by a super admin.
+                      </span>
+                    )}
+                    {canReview && (
                       <>
                         <Button
                           variant="outline"

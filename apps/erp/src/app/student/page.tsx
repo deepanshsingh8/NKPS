@@ -16,6 +16,7 @@ import { cn } from "@nkps/shared/lib/utils";
 import { Meter, toneForPercent } from "@nkps/shared/components/charts/Meter";
 import { UpcomingEvents } from "@nkps/shared/components/UpcomingEvents";
 import { StudentLinkPrompt } from "@/components/StudentLinkPrompt";
+import { getCurrentEnrollment } from "@/lib/current-enrollment";
 import type { Profile } from "@nkps/shared/types";
 
 interface StudentStats {
@@ -61,14 +62,9 @@ export default function StudentDashboard() {
       // Enrollment, latest result and latest payment all hang off student_id
       // alone, so they go out together. Only the attendance counts have to
       // wait, since they are scoped to the class the enrollment names.
-      const [{ data: enrollment }, { data: resultData }, { data: feeData }] =
+      const [enrollment, { data: resultData }, { data: feeData }] =
         await Promise.all([
-          supabase
-            .from("student_enrollments")
-            .select("class_id")
-            .eq("student_id", studentId)
-            .limit(1)
-            .single(),
+          getCurrentEnrollment(supabase, studentId),
           supabase
             .from("results")
             .select("marks_obtained, max_marks, grade")

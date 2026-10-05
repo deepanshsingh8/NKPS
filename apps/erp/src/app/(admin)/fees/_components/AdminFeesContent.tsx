@@ -56,6 +56,7 @@ import { classSortIndex, CLASS_ORDER } from "@nkps/shared/lib/constants";
 import { FeeScheduleImportDialog } from "@/components/FeeScheduleImportDialog";
 import { StudentConcessionImportDialog } from "@/components/StudentConcessionImportDialog";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
+import { isRefundRequest } from "@/lib/fee-change-requests";
 import {
   resolveEffectiveFeeStructures,
   resolveEffectiveFeeLines,
@@ -656,11 +657,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   const searchParams = useSearchParams();
   const initialStudentId = searchParams.get("student_id");
 
-  // Caller role — admins refund/edit directly; editors must file change
-  // requests instead. Stays null until loaded, which keeps the dialog
-  // disabled rather than guessing wrong. (See migration-056 + the
-  // EDITOR_MUST_REQUEST gate in /api/admin and /api/fees/.../refund.)
+  // Caller role — editors must file change requests for edits/deletes; a
+  // refund is stricter still: only a *super admin* (migration 135) refunds
+  // directly, everyone else files a refund request. Stays null until loaded,
+  // which keeps the dialog disabled rather than guessing wrong. (See
+  // migration-056 + the EDITOR_MUST_REQUEST gate in /api/admin and
+  // /api/fees/.../refund.)
   const [userRole, setUserRole] = useState<"admin" | "editor" | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean | null>(null);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -670,17 +674,49 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       if (!user || cancelled) return;
       const { data } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, is_super_admin")
         .eq("id", user.id)
         .maybeSingle();
       if (cancelled) return;
       setUserRole(data?.role === "admin" ? "admin" : "editor");
+      setIsSuperAdmin(data?.role === "admin" && data?.is_super_admin === true);
     })();
     return () => {
       cancelled = true;
     };
   }, [supabase]);
   const isEditor = userRole === "editor";
+  // Everyone but a super admin requests a refund rather than performing it.
+  const mustRequestRefund = userRole !== null && isSuperAdmin !== true;
+
+  // Payments with a refund request awaiting a super admin. Shown as a chip on
+  // the row (and the Refund button hidden) so a second request isn't filed —
+  // the API would 409 on the one-pending-per-row index anyway, but the chip
+  // is how the desk sees that the refund is in flight rather than forgotten.
+  const [pendingRefundIds, setPendingRefundIds] = useState<Set<string>>(new Set());
+  const loadPendingRefunds = useCallback(async () => {
+    try {
+      const res = await adminFetch("/api/fees/change-requests?status=pending");
+      if (!res.ok) return;
+      const data = await res.json();
+      const ids = new Set<string>();
+      for (const r of (data.requests ?? []) as Array<{
+        target_id: string | null;
+        action: string;
+        proposed_changes: Record<string, unknown> | null;
+      }>) {
+        if (r.target_id && isRefundRequest(r.action, r.proposed_changes)) {
+          ids.add(r.target_id);
+        }
+      }
+      setPendingRefundIds(ids);
+    } catch {
+      // The chip is a courtesy; the API still refuses a duplicate request.
+    }
+  }, []);
+  useEffect(() => {
+    void loadPendingRefunds();
+  }, [loadPendingRefunds]);
 
   // Fee structures state
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
@@ -1935,10 +1971,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     }
     setRefundSubmitting(true);
     try {
-      // Editor branch: file a change request instead of refunding directly.
-      // The proposed_changes describe a refund — admin's approve endpoint
-      // stamps refunded_at/refunded_by from the approver, not the requester.
-      if (isEditor) {
+      // Request branch (editors and non-super admins): file a change request
+      // instead of refunding directly. The proposed_changes describe a refund
+      // — the approve endpoint stamps refunded_at/refunded_by from the
+      // approving super admin, not the requester.
+      if (mustRequestRefund) {
         const res = await adminFetch("/api/fees/change-requests", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1959,14 +1996,15 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           toast.error(data.error ?? "Failed to file refund request");
           return;
         }
-        toast.success("Refund request filed for admin review.");
+        toast.success("Refund request filed — a super admin will review it.");
         setRefundOpen(false);
         setRefundForm({ amount: "", reason: "" });
         setRefundPaymentId(null);
+        void loadPendingRefunds();
         return;
       }
 
-      // Admin branch: direct refund.
+      // Super-admin branch: direct refund.
       const res = await adminFetch(
         `/api/fees/payments/${refundPaymentId}/refund`,
         {
@@ -2693,7 +2731,15 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                   )}
                                 </Button>
                                 {/* Refund applies only to genuine cash receipts that haven't been refunded yet. */}
-                                {p.status !== "refunded" &&
+                                {pendingRefundIds.has(p.id) ? (
+                                  <Badge
+                                    variant="secondary"
+                                    className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 text-[10px]"
+                                    title="A refund request for this payment is awaiting a super admin"
+                                  >
+                                    Refund requested
+                                  </Badge>
+                                ) : p.status !== "refunded" &&
                                 p.payment_method !== "waiver" ? (
                                   <Button
                                     variant="ghost"
@@ -3543,13 +3589,13 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {isEditor ? "Request Refund" : "Refund Payment"}
+              {mustRequestRefund ? "Request Refund" : "Refund Payment"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {isEditor
-                ? "Editors can't refund directly — your request goes to an admin for review. They'll see the original payment and your reason side by side before approving."
+              {mustRequestRefund
+                ? "Only a super admin can refund. Your request goes to them for review — they'll see the original payment and your reason side by side. The payment and the student's dues stay as they are until it is approved."
                 : "One refund per payment. The amount can be partial (≤ original receipt) but cannot be split across multiple refund events."}
             </p>
             <div>
@@ -3588,15 +3634,15 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
             <Button
               onClick={handleRefund}
-              disabled={refundSubmitting || userRole === null}
+              disabled={refundSubmitting || userRole === null || isSuperAdmin === null}
               className="bg-amber-500 hover:bg-amber-600 text-white"
             >
               {refundSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {isEditor ? "Filing request..." : "Refunding..."}
+                  {mustRequestRefund ? "Filing request..." : "Refunding..."}
                 </>
-              ) : isEditor ? (
+              ) : mustRequestRefund ? (
                 "Submit Refund Request"
               ) : (
                 "Confirm Refund"

@@ -325,9 +325,124 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const { id, role } = await request.json();
+    const body = await request.json();
+    const { id, role } = body;
 
-    if (!id || !role) {
+    if (!id || typeof id !== "string") {
+      return NextResponse.json({ error: "User id is required" }, { status: 400 });
+    }
+
+    // ── Super-admin grant / revoke (migration 135) ─────────────────────────
+    // `{ id, is_super_admin: boolean }`. The flag is service-role-only at the
+    // DB, so this is the only way to set it. Who may call it:
+    //   - a super admin, or
+    //   - while NO super admin exists yet, any admin (the bootstrap — there is
+    //     no other way in without SQL). The window closes on the first grant.
+    // The last super admin cannot be revoked: refunds would then have nobody
+    // able to approve them.
+    if (typeof body.is_super_admin === "boolean") {
+      const supabase = createAdminClient();
+      const wanted: boolean = body.is_super_admin;
+
+      const [{ data: callerRow }, { count: superCount }, { data: target }] =
+        await Promise.all([
+          supabase
+            .from("profiles")
+            .select("is_super_admin")
+            .eq("id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("profiles")
+            .select("id", { count: "exact", head: true })
+            .eq("is_super_admin", true),
+          supabase
+            .from("profiles")
+            .select("role, is_super_admin")
+            .eq("id", id)
+            .maybeSingle(),
+        ]);
+
+      const callerIsSuper = callerRow?.is_super_admin === true;
+      const bootstrap = (superCount ?? 0) === 0;
+      if (!callerIsSuper && !bootstrap) {
+        return NextResponse.json(
+          { error: "Only a super admin can grant or revoke super admin." },
+          { status: 403 }
+        );
+      }
+      if (!target) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+      if (wanted && target.role !== "admin") {
+        return NextResponse.json(
+          { error: "Only an admin can be made a super admin. Change the role first." },
+          { status: 400 }
+        );
+      }
+      if (!wanted && target.is_super_admin && (superCount ?? 0) <= 1) {
+        return NextResponse.json(
+          {
+            error:
+              "This is the last super admin. Grant someone else first, then revoke.",
+          },
+          { status: 409 }
+        );
+      }
+      if (target.is_super_admin === wanted) {
+        return NextResponse.json({ success: true, unchanged: true });
+      }
+
+      const { error: flagErr } = await supabase
+        .from("profiles")
+        .update({ is_super_admin: wanted, updated_at: new Date().toISOString() })
+        .eq("id", id);
+      if (flagErr) {
+        console.error("Update is_super_admin error:", flagErr);
+        return NextResponse.json(
+          { error: "Failed to update super admin" },
+          { status: 500 }
+        );
+      }
+
+      await writeAuditLog(supabase, {
+        actorId: user.id,
+        actorRole: callerProfile.role,
+        action: "user.super_admin_change",
+        targetTable: "profiles",
+        targetId: id,
+        details: { to: wanted, bootstrap: bootstrap && !callerIsSuper },
+        request,
+      });
+      return NextResponse.json({ success: true });
+    }
+
+    // ── Activate / deactivate ─────────────────────────────────────────────
+    // `{ id, is_active: boolean }`. Used to be a browser-client UPDATE from the
+    // users page, which the migration-061 column grant (full_name, phone,
+    // avatar_url only) silently refused. Admin-only like the rest of PATCH.
+    if (typeof body.is_active === "boolean") {
+      if (id === user.id) {
+        return NextResponse.json(
+          { error: "You cannot deactivate your own login" },
+          { status: 400 }
+        );
+      }
+      const supabase = createAdminClient();
+      const { error: activeErr } = await supabase
+        .from("profiles")
+        .update({ is_active: body.is_active, updated_at: new Date().toISOString() })
+        .eq("id", id);
+      if (activeErr) {
+        console.error("Update is_active error:", activeErr);
+        return NextResponse.json(
+          { error: "Failed to update user status" },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    if (!role) {
       return NextResponse.json(
         { error: "User id and role are required" },
         { status: 400 }

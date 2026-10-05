@@ -24,6 +24,12 @@ import { saveResponse } from "@nkps/shared/lib/table-export";
 import { Download, BarChart3, AlertTriangle } from "lucide-react";
 import { NativeSelect } from "@nkps/shared/components/ui/native-select";
 import { gradeChip } from "@/lib/grades";
+import {
+  ClassTestsCard,
+  ExamRemark,
+  NonScholasticTable,
+  type NonScholasticGroup,
+} from "@/components/results/ResultExtras";
 
 interface SubjectResult {
   subject_id: string;
@@ -43,6 +49,8 @@ interface ExamGroup {
   total_max: number;
   percentage: number;
   overall_grade: string;
+  remark: string | null;
+  non_scholastic?: NonScholasticGroup[];
 }
 
 
@@ -254,19 +262,23 @@ export default function StudentResultsPage() {
                 <CardHeader>
                   <CardTitle className="text-navy-900 dark:text-white flex items-center justify-between">
                     <span>{exam.exam_type_name}</span>
-                    <div className="flex items-center gap-3">
-                      <Badge
-                        className={`text-sm px-3 py-1 ${gradeChip(exam.overall_grade)}`}
-                      >
-                        {exam.overall_grade}
-                      </Badge>
-                      <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
-                        {exam.percentage}%
-                      </span>
-                    </div>
+                    {exam.subjects.length > 0 && (
+                      <div className="flex items-center gap-3">
+                        <Badge
+                          className={`text-sm px-3 py-1 ${gradeChip(exam.overall_grade)}`}
+                        >
+                          {exam.overall_grade}
+                        </Badge>
+                        <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
+                          {exam.percentage}%
+                        </span>
+                      </div>
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
+                  {/* An exam can carry only non-scholastic grades; no marks table then. */}
+                  {exam.subjects.length > 0 && (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
@@ -345,12 +357,18 @@ export default function StudentResultsPage() {
                       </TableBody>
                     </Table>
                   </div>
+                  )}
+
+                  <NonScholasticTable groups={exam.non_scholastic} />
+                  <ExamRemark remark={exam.remark} />
                 </CardContent>
               </Card>
             </TabsContent>
           ))}
         </Tabs>
       )}
+
+      {studentId && <ClassTestsCard studentId={studentId} />}
     </div>
   );
 }

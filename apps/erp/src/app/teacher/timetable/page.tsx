@@ -1,34 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
+import { todayISO } from "@nkps/shared/lib/date";
+import { dayOfWeekFromDate } from "@nkps/shared/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@nkps/shared/components/ui/card";
 import { Loader2, Clock } from "lucide-react";
 import { categoricalChip } from "@nkps/shared/lib/palette";
-
-interface TimetableEntry {
-  id: string;
-  day_of_week: number;
-  period_number: number;
-  start_time: string;
-  end_time: string;
-  room: string | null;
-  subject: { name: string } | null;
-  class: { name: string; section: string } | null;
-}
+import {
+  currentYearId,
+  fetchCoverPeriods,
+  fetchOwnAbsence,
+  fetchTeacherPeriods,
+  periodNumbers,
+  type CoverPeriod,
+  type TeacherPeriod,
+} from "@/lib/teacher-timetable";
+import { halfDayShort, type HalfDay } from "@/lib/timetable-week";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_NUMBERS = [1, 2, 3, 4, 5, 6]; // Monday=1 through Saturday=6
-const PERIODS = [1, 2, 3, 4, 5, 6, 7, 8];
 
 // Color palette for visual distinction by subject
 
 export default function TeacherTimetablePage() {
-  const [entries, setEntries] = useState<TimetableEntry[]>([]);
+  const [entries, setEntries] = useState<TeacherPeriod[]>([]);
+  const [linked, setLinked] = useState(true);
+  const [covers, setCovers] = useState<CoverPeriod[]>([]);
+  const [absentToday, setAbsentToday] = useState<HalfDay | null>(null);
   const [loading, setLoading] = useState(true);
   const [subjectColorMap, setSubjectColorMap] = useState<
     Record<string, string>
   >({});
+
+  const todayDow = useMemo(() => dayOfWeekFromDate(), []);
 
   useEffect(() => {
     async function fetchData() {
@@ -47,20 +52,21 @@ export default function TeacherTimetablePage() {
 
       const teacherId = profileData?.teacher_id;
       if (!teacherId) {
+        setLinked(false);
         setLoading(false);
         return;
       }
 
-      const { data } = await supabase
-        .from("timetable_periods")
-        .select(
-          "id, day_of_week, period_number, start_time, end_time, room, subject:subjects(name), class:classes(name, section)"
-        )
-        .eq("teacher_id", teacherId)
-        .order("period_number", { ascending: true });
-
-      const timetableData = (data ?? []) as unknown as TimetableEntry[];
+      const today = todayISO();
+      const yearId = await currentYearId(supabase);
+      const [timetableData, todaysCovers, ownAbsence] = await Promise.all([
+        fetchTeacherPeriods(supabase, teacherId, yearId),
+        fetchCoverPeriods(supabase, teacherId, today),
+        fetchOwnAbsence(supabase, teacherId, today),
+      ]);
       setEntries(timetableData);
+      setCovers(todaysCovers);
+      setAbsentToday(ownAbsence?.half_day ?? null);
 
       // Build subject color map
       const subjects = [
@@ -85,6 +91,22 @@ export default function TeacherTimetablePage() {
     entries
       .filter((e) => e.day_of_week === day && e.period_number === period)
       .sort((a, b) => (a.start_time ?? "").localeCompare(b.start_time ?? ""));
+
+  // A cover slot may sit outside the teacher's own week (a zero period they
+  // never teach), so the row list has to account for both.
+  const periodList = useMemo(
+    () =>
+      periodNumbers([
+        ...entries,
+        ...covers.flatMap((c) => (c.period ? [c.period] : [])),
+      ]),
+    [entries, covers]
+  );
+
+  const getCovers = (day: number, period: number) =>
+    day === todayDow
+      ? covers.filter((c) => c.period?.period_number === period)
+      : [];
 
   if (loading) {
     return (
@@ -111,7 +133,12 @@ export default function TeacherTimetablePage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {entries.length === 0 ? (
+          {!linked ? (
+            <p className="text-center py-12 text-gray-500 dark:text-gray-400 text-sm">
+              Your login is not linked to a teacher record yet. Ask the school
+              office to link it under Users &amp; Access.
+            </p>
+          ) : entries.length === 0 && covers.length === 0 ? (
             <p className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
               No timetable configured yet.
             </p>
@@ -123,25 +150,34 @@ export default function TeacherTimetablePage() {
                     <th className="border border-gray-200 dark:border-border bg-navy-900 text-white px-3 py-2 text-sm font-medium">
                       Period
                     </th>
-                    {DAYS.map((day) => (
+                    {DAYS.map((day, i) => (
                       <th
                         key={day}
                         className="border border-gray-200 dark:border-border bg-navy-900 text-white px-3 py-2 text-sm font-medium min-w-[140px]"
                       >
                         {day}
+                        {absentToday && DAY_NUMBERS[i] === todayDow && (
+                          <span className="ml-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                            Absent today
+                            {absentToday !== "full"
+                              ? ` · ${halfDayShort(absentToday)}`
+                              : ""}
+                          </span>
+                        )}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {PERIODS.map((period) => (
+                  {periodList.map((period) => (
                     <tr key={period}>
                       <td className="border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted px-3 py-2 text-center text-sm font-medium text-navy-900 dark:text-white">
                         {period}
                       </td>
                       {DAY_NUMBERS.map((day) => {
                         const cellEntries = getEntries(day, period);
-                        if (cellEntries.length === 0) {
+                        const cellCovers = getCovers(day, period);
+                        if (cellEntries.length === 0 && cellCovers.length === 0) {
                           return (
                             <td
                               key={day}
@@ -189,6 +225,38 @@ export default function TeacherTimetablePage() {
                                   </div>
                                 );
                               })}
+                              {cellCovers.map((cover) => (
+                                <div
+                                  key={cover.id}
+                                  className="rounded-lg border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
+                                >
+                                  <p className="font-semibold">
+                                    Cover: {cover.period?.class?.name ?? ""}
+                                    {cover.period?.class?.section
+                                      ? `-${cover.period.class.section}`
+                                      : ""}
+                                    {" — "}
+                                    {cover.period?.subject?.name ?? "--"}
+                                  </p>
+                                  {cover.absent_teacher_name && (
+                                    <p className="opacity-75">
+                                      for {cover.absent_teacher_name}
+                                    </p>
+                                  )}
+                                  {cover.period?.start_time &&
+                                    cover.period.end_time && (
+                                      <p className="opacity-60">
+                                        {cover.period.start_time.slice(0, 5)}–
+                                        {cover.period.end_time.slice(0, 5)}
+                                      </p>
+                                    )}
+                                  {cover.period?.room && (
+                                    <p className="opacity-60">
+                                      Room: {cover.period.room}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
                             </div>
                           </td>
                         );

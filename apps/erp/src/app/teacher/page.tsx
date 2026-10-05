@@ -15,11 +15,19 @@ import {
   ArrowRight,
   FileWarning,
   MapPin,
+  Repeat,
 } from "lucide-react";
 import { cn, dayOfWeekFromDate, formatTime12, timeStringToMinutes, nowMinutes } from "@nkps/shared/lib/utils";
 import { UpcomingEvents } from "@nkps/shared/components/UpcomingEvents";
 import type { Profile } from "@nkps/shared/types";
 import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
+import {
+  currentYearId,
+  fetchCoverPeriods,
+  fetchTeacherPeriods,
+  type CoverPeriod,
+  type TeacherPeriod,
+} from "@/lib/teacher-timetable";
 
 interface TeacherStats {
   classCount: number;
@@ -27,18 +35,7 @@ interface TeacherStats {
   pendingAttendance: boolean;
 }
 
-interface TimetablePeriodRow {
-  id: string;
-  period_number: number;
-  group_no?: number;
-  group_label?: string | null;
-  start_time: string;
-  end_time: string;
-  room: string | null;
-  day_of_week: number;
-  subject: { name: string } | null;
-  class: { name: string; section: string } | null;
-}
+type TimetablePeriodRow = TeacherPeriod;
 
 interface PendingResult {
   class_id: string;
@@ -65,6 +62,7 @@ export default function TeacherDashboard() {
     null
   );
   const [pendingResults, setPendingResults] = useState<PendingResult[]>([]);
+  const [covers, setCovers] = useState<CoverPeriod[]>([]);
   const [loading, setLoading] = useState(true);
 
   const todayDow = useMemo(() => dayOfWeekFromDate(), []);
@@ -94,21 +92,32 @@ export default function TeacherDashboard() {
         return;
       }
 
+      // Classes are year-scoped, so without this filter last year's sections
+      // (and next year's, once set up) count towards "My Classes" too. With no
+      // year flagged current everything is kept rather than showing zero.
+      const yearId = await currentYearId(supabase);
+
       // Fetch assigned classes via class_subjects
-      const { data: classSubjects } = await supabase
+      let classSubjectsQuery = supabase
         .from("class_subjects")
-        .select("class_id, subject_id, classes(id, name, section), subjects(id, name)")
+        .select("class_id, subject_id, classes!inner(id, name, section, academic_year_id), subjects(id, name)")
         .eq("teacher_id", teacherId);
+      if (yearId) {
+        classSubjectsQuery = classSubjectsQuery.eq("classes.academic_year_id", yearId);
+      }
+      const { data: classSubjects } = await classSubjectsQuery;
 
       const classIds = [
         ...new Set((classSubjects ?? []).map((cs) => cs.class_id)),
       ];
 
       // Also check if class teacher
-      const { data: classTeacherClasses } = await supabase
+      let classTeacherQuery = supabase
         .from("classes")
         .select("id")
         .eq("class_teacher_id", teacherId);
+      if (yearId) classTeacherQuery = classTeacherQuery.eq("academic_year_id", yearId);
+      const { data: classTeacherClasses } = await classTeacherQuery;
 
       const allClassIds = [
         ...new Set([
@@ -145,17 +154,12 @@ export default function TeacherDashboard() {
         pendingAttendance,
       });
 
-      // Today's periods for this teacher
-      const { data: ttRows } = await supabase
-        .from("timetable_periods")
-        .select(
-          "id, period_number, start_time, end_time, room, day_of_week, group_no, group_label, subject:subjects(name), class:classes(name, section)"
-        )
-        .eq("teacher_id", teacherId)
-        .order("day_of_week", { ascending: true })
-        .order("period_number", { ascending: true });
-
-      const allRows = (ttRows ?? []) as unknown as TimetablePeriodRow[];
+      // This teacher's week (current year only) and today's cover duty.
+      const [allRows, todaysCovers] = await Promise.all([
+        fetchTeacherPeriods(supabase, teacherId, yearId),
+        fetchCoverPeriods(supabase, teacherId, today),
+      ]);
+      setCovers(todaysCovers);
       const todaysRows = allRows.filter((r) => r.day_of_week === todayDow);
       todaysRows.sort((a, b) => a.period_number - b.period_number);
       setTodayPeriods(todaysRows);
@@ -183,17 +187,11 @@ export default function TeacherDashboard() {
       }
 
       // Pending results: for each (class_subject) x (exam_type) compute shortfall.
-      const { data: currentYear } = await supabase
-        .from("academic_years")
-        .select("id")
-        .eq("is_current", true)
-        .single();
-
-      if (currentYear && classSubjects && classSubjects.length > 0) {
+      if (yearId && classSubjects && classSubjects.length > 0) {
         const { data: examTypes } = await supabase
           .from("exam_types")
           .select("id, name")
-          .eq("academic_year_id", currentYear.id)
+          .eq("academic_year_id", yearId)
           .order("sort_order", { ascending: true });
 
         if (examTypes && examTypes.length > 0) {
@@ -295,7 +293,7 @@ export default function TeacherDashboard() {
   const nextTodayPeriod = useMemo(
     () =>
       todayPeriods.find(
-        (p) => timeStringToMinutes(p.start_time) > now && !p.room?.includes("BREAK")
+        (p) => timeStringToMinutes(p.start_time) > now && !p.is_break
       ) ??
       todayPeriods.find(
         (p) =>
@@ -507,6 +505,43 @@ export default function TeacherDashboard() {
           ))}
         </div>
       </div>
+
+      {/* Today's cover periods — substitutions assigned to this teacher */}
+      {covers.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <Repeat className="h-5 w-5 text-blue-500" />
+            <h2 className="erp-section-title">Today&apos;s cover periods</h2>
+          </div>
+          <div className="erp-card p-0 overflow-hidden ring-1 ring-blue-200 dark:ring-blue-800">
+            <ul className="divide-y divide-gray-100 dark:divide-border">
+              {covers.map((c) => (
+                <li key={c.id} className="flex items-center gap-4 px-4 py-3 text-sm">
+                  <div className="w-20 shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                    {formatTime12(c.period?.start_time)}
+                    {c.period?.end_time ? ` – ${formatTime12(c.period.end_time)}` : ""}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-navy-900 dark:text-white truncate">
+                      {c.period?.subject?.name ?? "—"}
+                      {" · "}
+                      {c.period?.class?.name}-{c.period?.class?.section}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {c.absent_teacher_name ? `Covering for ${c.absent_teacher_name}` : "Cover period"}
+                      {c.period?.room ? ` • ${c.period.room}` : ""}
+                      {c.note ? ` • ${c.note}` : ""}
+                    </p>
+                  </div>
+                  <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-semibold">
+                    Cover
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Today's Timetable */}
       <div>

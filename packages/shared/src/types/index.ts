@@ -148,6 +148,9 @@ export interface Profile {
   avatar_url: string | null;
   is_active: boolean;
   must_change_password: boolean;
+  /** Admin who may refund fee payments directly and approve refund requests
+   *  (migration 135). Always false for non-admin roles. */
+  is_super_admin: boolean;
   teacher_id: string | null;
   student_id: string | null;
   parent_id: string | null;

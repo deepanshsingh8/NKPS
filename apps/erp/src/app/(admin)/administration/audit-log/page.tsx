@@ -37,6 +37,7 @@ const ACTION_PHRASES: Record<string, string> = {
   "user.create": "created a login for",
   "user.delete": "deleted the login of",
   "user.role_change": "changed the role of",
+  "user.super_admin_change": "changed the super-admin flag of",
   "user.password_reset": "reset the password of",
   "editor_permissions.change": "changed the editor permissions of",
   "registration.approve": "approved the registration of",

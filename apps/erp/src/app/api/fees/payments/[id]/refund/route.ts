@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import { feeRefundSchema } from "@nkps/shared/lib/validations";
+import { SUPER_ADMIN_REQUIRED_MESSAGE } from "@/lib/fee-change-requests";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -8,6 +9,7 @@ interface RouteContext {
 
 // POST /api/fees/payments/[id]/refund
 // Marks a previously-recorded payment as refunded with reason + amount.
+// Super admins only (migration 135); everyone else files a change request.
 // The DB CHECK constraint (`fee_payments_refund_consistent`) enforces that
 // `refund_amount > 0` whenever status flips to 'refunded'.
 //
@@ -21,17 +23,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { admin, user, role } = auth;
+  const { admin, user, isSuperAdmin } = auth;
 
   const { id } = await context.params;
 
-  // Refund mutates an existing fee_payments row, so editors must route
-  // through the change-request flow. Admins refund directly.
-  if (role === "editor") {
+  // A refund is money leaving the school. Only a super admin (migration 135)
+  // refunds directly; every other caller — editor or plain admin — files a
+  // change request that a super admin approves. The structured 403 is what
+  // the fees UI pattern-matches to switch the dialog into request mode.
+  if (!isSuperAdmin) {
     return NextResponse.json(
       {
-        error:
-          "Editors cannot refund directly. File a change request for an admin to review.",
+        error: SUPER_ADMIN_REQUIRED_MESSAGE,
         code: "EDITOR_MUST_REQUEST",
         table: "fee_payments",
         action: "update",
