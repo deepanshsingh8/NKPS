@@ -21,6 +21,9 @@ export interface SessionProfile {
   email: string | null;
   role: string | null;
   avatar_url: string | null;
+  /** Admin who may refund directly / approve refund requests (migration 135).
+   *  Null when the column is not yet on this database. */
+  is_super_admin: boolean | null;
 }
 
 export interface SessionState {
@@ -75,7 +78,7 @@ function useSessionQuery(enabled: boolean): SessionState {
       const [profileRes, permRes] = await Promise.all([
         supabase
           .from("profiles")
-          .select("full_name, email, role, avatar_url")
+          .select("full_name, email, role, avatar_url, is_super_admin")
           .eq("id", user.id)
           .single(),
         supabase

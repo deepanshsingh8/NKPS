@@ -10,6 +10,20 @@ export interface ReportCardSubject {
   grade: string | null;
 }
 
+export interface ReportCardNonScholasticEntry {
+  sub_subject_id: string;
+  sub_subject_name: string;
+  grade_label: string | null;
+  remarks: string | null;
+}
+
+/** One non-scholastic area (e.g. "Work Education") and its graded indicators. */
+export interface ReportCardNonScholasticGroup {
+  parent_id: string;
+  parent_name: string;
+  sub_subjects: ReportCardNonScholasticEntry[];
+}
+
 export interface ReportCardExamGroup {
   exam_type_id: string;
   exam_type_name: string;
@@ -20,6 +34,12 @@ export interface ReportCardExamGroup {
   percentage: number;
   overall_grade: string;
   remark: string | null;
+  /**
+   * Published non-scholastic grades for this exam, grouped by area. Optional
+   * because the PDF route and marksheet snapshots build virtual exam groups
+   * by hand and have no non-scholastic data to attach.
+   */
+  non_scholastic?: ReportCardNonScholasticGroup[];
 }
 
 export interface ReportCardStudent {
@@ -206,15 +226,18 @@ export async function getReportCardData(
     query = query.eq("is_published", true);
   }
 
+  // Exam types belonging to the requested session, shared by the scholastic
+  // and non-scholastic queries below. `null` = no year filter requested.
+  let yearExamTypeIds: string[] | null = null;
   if (academicYearId) {
     const { data: examTypes } = await supabase
       .from("exam_types")
       .select("id")
       .eq("academic_year_id", academicYearId);
+    yearExamTypeIds = (examTypes ?? []).map((et) => et.id as string);
 
-    if (examTypes && examTypes.length > 0) {
-      const examTypeIds = examTypes.map((et) => et.id);
-      query = query.in("exam_type_id", examTypeIds);
+    if (yearExamTypeIds.length > 0) {
+      query = query.in("exam_type_id", yearExamTypeIds);
     }
   }
 
@@ -277,6 +300,118 @@ export async function getReportCardData(
       group.overall_grade =
         computeGrade(group.percentage, gradeBands) ?? "";
     }
+  }
+
+  // Non-scholastic grades, per exam. These were entered and published
+  // alongside the scholastic marks but never left the result-master PDF
+  // branch, so the portals never saw them. Published-only for non-staff
+  // callers, exactly like `results` above; the most recent row per
+  // (exam, indicator) wins so a re-grade replaces rather than duplicates.
+  let nsQuery = supabase
+    .from("non_scholastic_assessments")
+    .select(
+      `exam_type_id, sub_subject_id, grade_label, remarks, updated_at,
+       exam_types(id, name, sort_order),
+       sub:non_scholastic_sub_subjects(id, name, sort_order, is_active,
+         parent:non_scholastic_subjects(id, name, sort_order, is_active))`
+    )
+    .eq("student_id", studentId)
+    .order("updated_at", { ascending: false });
+  if (!includeUnpublished) {
+    nsQuery = nsQuery.eq("is_published", true);
+  }
+  if (yearExamTypeIds) {
+    // A session with no exam types has no assessments either; PostgREST
+    // rejects an empty `.in()`, so use an impossible filter instead.
+    nsQuery =
+      yearExamTypeIds.length > 0
+        ? nsQuery.in("exam_type_id", yearExamTypeIds)
+        : nsQuery.eq("exam_type_id", "00000000-0000-0000-0000-000000000000");
+  }
+  const { data: nsRows } = await nsQuery;
+
+  type NsMaster = { id: string; name: string; sort_order: number; is_active: boolean };
+  type NsRow = {
+    exam_type_id: string;
+    sub_subject_id: string;
+    grade_label: string | null;
+    remarks: string | null;
+    exam_types:
+      | { id: string; name: string; sort_order: number }
+      | { id: string; name: string; sort_order: number }[]
+      | null;
+    sub: (NsMaster & { parent: NsMaster | NsMaster[] | null }) | (NsMaster & { parent: unknown })[] | null;
+  };
+  type NsBucket = ReportCardNonScholasticGroup & {
+    parent_sort: number;
+    sub_sorts: Record<string, number>;
+  };
+  const nsByExam = new Map<string, Map<string, NsBucket>>();
+  const seenNs = new Set<string>();
+  for (const r of (nsRows ?? []) as unknown as NsRow[]) {
+    const dedupKey = `${r.exam_type_id}:${r.sub_subject_id}`;
+    if (seenNs.has(dedupKey)) continue;
+    seenNs.add(dedupKey);
+
+    const sub = Array.isArray(r.sub) ? r.sub[0] : r.sub;
+    if (!sub || !sub.is_active) continue;
+    const parent = Array.isArray(sub.parent) ? sub.parent[0] : sub.parent;
+    if (!parent || !parent.is_active) continue;
+    const examType = Array.isArray(r.exam_types) ? r.exam_types[0] : r.exam_types;
+    if (!examType) continue;
+
+    // An exam can carry non-scholastic grades without a single scholastic
+    // mark (a co-curricular assessment round), so create the group if the
+    // results loop above never did.
+    if (!examGroups[examType.id]) {
+      examGroups[examType.id] = {
+        exam_type_id: examType.id,
+        exam_type_name: examType.name,
+        sort_order: examType.sort_order,
+        subjects: [],
+        total_obtained: 0,
+        total_max: 0,
+        percentage: 0,
+        overall_grade: "",
+        remark: null,
+      };
+    }
+
+    const buckets = nsByExam.get(examType.id) ?? new Map<string, NsBucket>();
+    const bucket: NsBucket = buckets.get(parent.id) ?? {
+      parent_id: parent.id,
+      parent_name: parent.name,
+      parent_sort: parent.sort_order ?? 0,
+      sub_subjects: [],
+      sub_sorts: {},
+    };
+    bucket.sub_subjects.push({
+      sub_subject_id: sub.id,
+      sub_subject_name: sub.name,
+      grade_label: r.grade_label,
+      remarks: r.remarks,
+    });
+    bucket.sub_sorts[sub.id] = sub.sort_order ?? 0;
+    buckets.set(parent.id, bucket);
+    nsByExam.set(examType.id, buckets);
+  }
+
+  for (const [examTypeId, buckets] of nsByExam) {
+    examGroups[examTypeId].non_scholastic = Array.from(buckets.values())
+      .sort(
+        (a, b) =>
+          a.parent_sort - b.parent_sort ||
+          a.parent_name.localeCompare(b.parent_name)
+      )
+      .map(({ parent_id, parent_name, sub_subjects, sub_sorts }) => ({
+        parent_id,
+        parent_name,
+        sub_subjects: sub_subjects.sort(
+          (x, y) =>
+            sub_sorts[x.sub_subject_id] - sub_sorts[y.sub_subject_id] ||
+            x.sub_subject_name.localeCompare(y.sub_subject_name)
+        ),
+      }));
   }
 
   // Attach class-teacher remarks per exam

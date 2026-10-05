@@ -22,3 +22,17 @@ export function useIsAdmin(): boolean | null {
   if (loading) return null;
   return profile?.role === "admin";
 }
+
+/**
+ * Whether the signed-in user is a super admin (migration 135): an admin who
+ * may refund fee payments directly and approve refund requests. Same UX-only
+ * caveat as `useIsAdmin` — the refund and approve routes re-check server-side.
+ *
+ * Returns `null` while loading. False for every editor and for an admin who
+ * has not been granted the flag.
+ */
+export function useIsSuperAdmin(): boolean | null {
+  const { loading, profile } = useSession();
+  if (loading) return null;
+  return profile?.role === "admin" && profile.is_super_admin === true;
+}

@@ -56,6 +56,7 @@ import {
   RotateCcwKey,
 } from "lucide-react";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
+import { useIsSuperAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import type { Profile, UserRole, RegistrationRequest, RegistrationStatus } from "@nkps/shared/types";
 import { EditorPermissionsDialog } from "@/components/EditorPermissionsDialog";
 
@@ -338,13 +339,17 @@ export default function AdminUsersPage() {
 
   const handleDeactivate = async (profile: Profile) => {
     const newStatus = !profile.is_active;
-    const { error } = await supabase
-      .from("profiles")
-      .update({ is_active: newStatus })
-      .eq("id", profile.id);
-
-    if (error) {
-      toast.error("Failed to update user status");
+    // Through the API: migration 061 lets the browser client update only
+    // full_name / phone / avatar_url on profiles, so a direct UPDATE here was
+    // refused at the column grant.
+    const res = await adminFetch("/api/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: profile.id, is_active: newStatus }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error || "Failed to update user status");
       return;
     }
 
@@ -352,6 +357,43 @@ export default function AdminUsersPage() {
       newStatus ? "User activated" : "User deactivated"
     );
     await fetchProfiles();
+  };
+
+  // Super admin (migration 135): the one extra right to refund fee payments
+  // and approve refund requests. Only a super admin may grant it — except
+  // while nobody holds it yet, when any admin may set the first one.
+  const isSuperAdmin = useIsSuperAdmin();
+  const superAdminCount = profiles.filter((p) => p.is_super_admin).length;
+  const canManageSuperAdmin = isSuperAdmin === true || superAdminCount === 0;
+  const [superBusyId, setSuperBusyId] = useState<string | null>(null);
+  const handleSuperAdminToggle = async (profile: Profile) => {
+    const wanted = !profile.is_super_admin;
+    if (
+      !confirm(
+        wanted
+          ? `Make ${profile.full_name} a super admin? They will be able to refund fee payments and approve refund requests.`
+          : `Revoke super admin from ${profile.full_name}? They will no longer be able to refund or approve refunds.`
+      )
+    ) {
+      return;
+    }
+    setSuperBusyId(profile.id);
+    try {
+      const res = await adminFetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: profile.id, is_super_admin: wanted }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || "Failed to update super admin");
+        return;
+      }
+      toast.success(wanted ? "Super admin granted" : "Super admin revoked");
+      await fetchProfiles();
+    } finally {
+      setSuperBusyId(null);
+    }
   };
 
   // Admin-initiated password reset. The self-service "Forgot password" flow
@@ -707,6 +749,15 @@ export default function AdminUsersPage() {
                               ))}
                             </SelectContent>
                           </Select>
+                          {profile.is_super_admin && (
+                            <Badge
+                              variant="secondary"
+                              className="ml-1 bg-gold-100 text-gold-800 dark:bg-gold-900/30 dark:text-gold-300"
+                              title="Can refund fee payments and approve refund requests"
+                            >
+                              Super
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge
@@ -725,6 +776,26 @@ export default function AdminUsersPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {profile.role === "admin" && canManageSuperAdmin && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSuperAdminToggle(profile)}
+                                disabled={superBusyId === profile.id}
+                                title={
+                                  profile.is_super_admin
+                                    ? "Remove the right to refund fee payments and approve refund requests"
+                                    : "Grant the right to refund fee payments and approve refund requests"
+                                }
+                              >
+                                {superBusyId === profile.id ? (
+                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                ) : (
+                                  <ShieldCheck className="h-4 w-4 mr-1" />
+                                )}
+                                {profile.is_super_admin ? "Revoke super admin" : "Super admin"}
+                              </Button>
+                            )}
                             {(profile.role === "staff" || profile.role === "teacher") && (
                               <Button
                                 variant="outline"

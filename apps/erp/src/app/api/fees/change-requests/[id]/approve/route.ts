@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminWithUser } from "@nkps/shared/lib/verify-admin";
 import { feeChangeRequestReviewSchema } from "@nkps/shared/lib/validations";
 import { validateWaiver } from "@/lib/fee-waiver";
+import {
+  isRefundRequest,
+  SUPER_ADMIN_REQUIRED_MESSAGE,
+} from "@/lib/fee-change-requests";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -28,7 +32,7 @@ const FEE_PAYMENT_EDITABLE_COLUMNS = new Set<string>([
 ]);
 
 // POST /api/fees/change-requests/[id]/approve
-//   Admin-only. Atomically:
+//   Admin-only; a refund request needs a super admin (migration 135). Atomically:
 //     1. Claims the pending request (flips status → approved).
 //     2. Re-reads the live target row (snapshot for the audit log).
 //     3. Applies proposed_changes (or deletes the row for action='delete').
@@ -40,7 +44,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { admin, user } = auth;
+  const { admin, user, isSuperAdmin } = auth;
 
   const { id } = await context.params;
   const body = await request.json().catch(() => ({}));
@@ -52,6 +56,26 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
   const { review_notes } = parsed.data;
+
+  // Refund requests are reserved for super admins. Checked before the claim
+  // so a plain admin's click never flips the row even momentarily; the claim
+  // below re-reads the row, so a request edited in between cannot slip past.
+  if (!isSuperAdmin) {
+    const { data: peek } = await admin
+      .from("fee_change_requests")
+      .select("action, proposed_changes")
+      .eq("id", id)
+      .maybeSingle();
+    if (
+      peek &&
+      isRefundRequest(peek.action, peek.proposed_changes as Record<string, unknown> | null)
+    ) {
+      return NextResponse.json(
+        { error: SUPER_ADMIN_REQUIRED_MESSAGE, code: "SUPER_ADMIN_REQUIRED" },
+        { status: 403 }
+      );
+    }
+  }
 
   // Atomic claim — flips pending → approved and returns the row that was
   // actually modified. Two admins clicking "approve" simultaneously: only
@@ -89,6 +113,30 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json(
       { error: `This request is already ${existing.status}` },
       { status: 409 }
+    );
+  }
+
+  // The pre-claim peek and the claim are two reads; if the request was turned
+  // into a refund in between, a plain admin must still not apply it.
+  if (
+    !isSuperAdmin &&
+    isRefundRequest(
+      claimed.action,
+      claimed.proposed_changes as Record<string, unknown> | null
+    )
+  ) {
+    await admin
+      .from("fee_change_requests")
+      .update({
+        status: "pending",
+        reviewed_by: null,
+        reviewed_at: null,
+        review_notes: null,
+      })
+      .eq("id", id);
+    return NextResponse.json(
+      { error: SUPER_ADMIN_REQUIRED_MESSAGE, code: "SUPER_ADMIN_REQUIRED" },
+      { status: 403 }
     );
   }
 

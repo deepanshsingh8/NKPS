@@ -23,6 +23,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import type { AttendanceStatus } from "@nkps/shared/types";
+import { getCurrentEnrollment } from "@/lib/current-enrollment";
 
 interface AttendanceRecord {
   date: string;
@@ -77,12 +78,7 @@ export default function StudentAttendancePage() {
       }
 
       // Get enrollment
-      const { data: enrollment } = await supabase
-        .from("student_enrollments")
-        .select("class_id")
-        .eq("student_id", studentId)
-        .limit(1)
-        .single();
+      const enrollment = await getCurrentEnrollment(supabase, studentId);
 
       if (!enrollment) {
         setLoading(false);

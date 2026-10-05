@@ -131,6 +131,18 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         gotcha: "It saves immediately. There is no confirm step.",
       },
       {
+        name: "Make an admin a super admin",
+        steps: [
+          'Open the "Admins" tab.',
+          'Click "Super admin" on the row (it reads "Revoke super admin" if they already are one).',
+        ],
+        adminOnly: true,
+        needs:
+          "You must be a super admin yourself. The one exception: while nobody is a super admin yet, any admin may set the first one.",
+        gotcha:
+          "Super admin adds exactly one right: refunding fee payments directly and approving or rejecting refund requests. Everything else is the same for every admin. The last super admin cannot be revoked — grant someone else first. Changing their role away from admin clears the flag.",
+      },
+      {
         name: "Grant editor permissions",
         steps: [
           'Click "Permissions" on the row.',
@@ -1336,7 +1348,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Click "Confirm Refund".',
         ],
         gotcha:
-          "Editors cannot refund directly — the dialog becomes \"Request Refund\" and files a change request an admin approves at Fees → Change Requests. One refund per payment; it can be partial but not split.",
+          "Only a super admin refunds directly. For everyone else — editors and other admins — the dialog becomes \"Request Refund\" and files a change request a super admin approves at Fees → Change Requests; the payment stays as it is, and the student's dues only move once it is approved. A row shows \"Refund requested\" while one is pending. One refund per payment; it can be partial but not split.",
       },
       {
         name: "Record a waiver or concession",
@@ -1387,7 +1399,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
     path: "/fees/change-requests",
     title: "Fee Change Requests",
     purpose:
-      "The approval queue for editor-filed proposals to modify recorded fee payments.",
+      "The approval queue for proposals to modify recorded fee payments — editor edits, deletes and waivers, and every refund request.",
     tasks: [
       {
         name: "Approve or reject a request",
@@ -1397,6 +1409,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Check the "Payment for" / "Waiver for" header — it names the student, the fee head and the session the request is about.',
           'Read the "Proposed change" diff.',
           'Click "Approve & apply" or "Reject".',
+          'A card marked "Needs super admin" is a refund — only a super admin sees Approve and Reject on it.',
         ],
         adminOnly: true,
         gotcha:

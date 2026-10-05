@@ -294,11 +294,15 @@ CREATE TABLE profiles (
   avatar_url text,
   is_active boolean DEFAULT true,
   must_change_password boolean DEFAULT false,
+  -- Admin who may refund fee payments directly and approve refund requests
+  -- (migration 135). Set only through /api/users; cleared when role leaves admin.
+  is_super_admin boolean NOT NULL DEFAULT false,
   teacher_id uuid REFERENCES teachers(id) ON DELETE SET NULL,
   student_id uuid REFERENCES students(id) ON DELETE SET NULL,
   parent_id uuid REFERENCES parents(id) ON DELETE SET NULL,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT profiles_super_admin_is_admin CHECK (NOT is_super_admin OR role = 'admin')
 );
 
 -- 2g. Subjects
@@ -898,10 +902,18 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
 -- Guard: a regular authenticated user (parent/student/teacher editing their own
 -- profile row) must not change privileged columns. Service role and admins
 -- bypass. Prevents the self-promote-to-admin escalation. (migration 061)
+-- is_super_admin is stricter: only the service role may change it, so no
+-- admin session can promote itself from a client. (migration 135)
 CREATE OR REPLACE FUNCTION public.guard_profile_privileged_cols()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF auth.role() = 'service_role' OR public.get_user_role() = 'admin' THEN
+  IF auth.role() = 'service_role' THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.is_super_admin IS DISTINCT FROM OLD.is_super_admin THEN
+    RAISE EXCEPTION 'is_super_admin may only be changed through the server';
+  END IF;
+  IF public.get_user_role() = 'admin' THEN
     RETURN NEW;
   END IF;
   IF NEW.role                  IS DISTINCT FROM OLD.role
@@ -915,6 +927,18 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Only an admin can be a super admin: clear the flag when the role leaves
+-- 'admin' (migration 135). The CHECK on the table is the backstop.
+CREATE OR REPLACE FUNCTION public.sync_profile_super_admin()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.role IS DISTINCT FROM 'admin' THEN
+    NEW.is_super_admin := false;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 -- Enforce role ↔ link consistency (migration 068). Composes with the guard
 -- above: that one decides WHO may change role/link columns; this one decides
@@ -1432,6 +1456,11 @@ CREATE TRIGGER guard_profile_privileged_cols
   BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION public.guard_profile_privileged_cols();
 
+-- Super-admin ↔ role sync (migration 135).
+CREATE TRIGGER sync_profile_super_admin
+  BEFORE INSERT OR UPDATE OF role, is_super_admin ON profiles
+  FOR EACH ROW EXECUTE FUNCTION public.sync_profile_super_admin();
+
 -- Role↔link integrity (migration 068): fires on INSERT and on role/link changes.
 CREATE TRIGGER enforce_profile_role_link
   BEFORE INSERT OR UPDATE ON profiles
@@ -1904,8 +1933,11 @@ CREATE POLICY "Students can read own payment orders"
 -- ── Timetable Periods ──────────────────────────────────────────────────────
 ALTER TABLE timetable_periods ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public can read timetable periods"
+-- Signed-in users only (migration 136): the anon key must not enumerate the
+-- school's schedule, rooms and teacher ids. Every reader is logged in.
+CREATE POLICY "Signed-in users can read timetable periods"
   ON timetable_periods FOR SELECT
+  TO authenticated
   USING (true);
 
 CREATE POLICY "Admins can insert timetable periods"
@@ -2251,13 +2283,19 @@ CREATE INDEX IF NOT EXISTS idx_student_remarks_exam ON student_remarks(exam_type
 
 ALTER TABLE student_remarks ENABLE ROW LEVEL SECURITY;
 
+-- Publish-gated (migration 136): a remark is visible to the family once any
+-- result for that (student, exam) is published — the report card's own switch.
 DROP POLICY IF EXISTS "Students read own remarks" ON student_remarks;
 CREATE POLICY "Students read own remarks"
   ON student_remarks FOR SELECT
   TO authenticated
   USING (
-    student_id IN (
-      SELECT student_id FROM profiles WHERE id = auth.uid() AND student_id IS NOT NULL
+    student_id = public.get_my_student_id()
+    AND EXISTS (
+      SELECT 1 FROM public.results r
+      WHERE r.student_id = student_remarks.student_id
+        AND r.exam_type_id = student_remarks.exam_type_id
+        AND r.is_published = true
     )
   );
 
@@ -2266,11 +2304,12 @@ CREATE POLICY "Parents read linked children remarks"
   ON student_remarks FOR SELECT
   TO authenticated
   USING (
-    student_id IN (
-      SELECT sp.student_id
-      FROM student_parents sp
-      JOIN profiles p ON p.parent_id = sp.parent_id
-      WHERE p.id = auth.uid()
+    student_id IN (SELECT public.get_my_children_ids())
+    AND EXISTS (
+      SELECT 1 FROM public.results r
+      WHERE r.student_id = student_remarks.student_id
+        AND r.exam_type_id = student_remarks.exam_type_id
+        AND r.is_published = true
     )
   );
 
@@ -3979,6 +4018,14 @@ CREATE POLICY "Parents read supplementary_attempts for own children"
   ON supplementary_attempts FOR SELECT
   USING (student_id IN (SELECT public.get_my_children_ids()));
 
+-- Students too (migration 136) — otherwise a final result computed on the
+-- student's own session ignores a passed re-test the parent's includes.
+DROP POLICY IF EXISTS "Students read own supplementary_attempts" ON supplementary_attempts;
+CREATE POLICY "Students read own supplementary_attempts"
+  ON supplementary_attempts FOR SELECT
+  TO authenticated
+  USING (student_id = public.get_my_student_id());
+
 -- ============================================
 -- TEACHER ABSENCES + SUBSTITUTIONS (migration 094)
 -- (mirrored from scripts/migrations/erp/migration-094-teacher-substitutions.sql)
@@ -4065,6 +4112,21 @@ CREATE POLICY "Admins manage teacher_absences"
   USING (public.get_user_role() = 'admin')
   WITH CHECK (public.get_user_role() = 'admin');
 
+-- The teachers named on an absence may read it (migration 136): the absent
+-- teacher, and whoever is covering one of its periods.
+DROP POLICY IF EXISTS "Teachers read own absences" ON teacher_absences;
+CREATE POLICY "Teachers read own absences"
+  ON teacher_absences FOR SELECT
+  TO authenticated
+  USING (
+    teacher_id = public.get_my_teacher_id()
+    OR EXISTS (
+      SELECT 1 FROM public.substitutions s
+      WHERE s.absence_id = teacher_absences.id
+        AND s.substitute_teacher_id = public.get_my_teacher_id()
+    )
+  );
+
 ALTER TABLE substitutions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Admins manage substitutions" ON substitutions;
@@ -4072,6 +4134,27 @@ CREATE POLICY "Admins manage substitutions"
   ON substitutions FOR ALL
   USING (public.get_user_role() = 'admin')
   WITH CHECK (public.get_user_role() = 'admin');
+
+-- Either side of the swap may read it (migration 136); writes stay admin.
+-- The absence → teacher lookup is a SECURITY DEFINER function: a plain
+-- sub-select would re-enter teacher_absences' RLS, whose policy reads
+-- substitutions, and Postgres would refuse the recursion.
+CREATE OR REPLACE FUNCTION public.absence_teacher_id(p_absence_id uuid)
+RETURNS uuid AS $$
+  SELECT teacher_id FROM public.teacher_absences WHERE id = p_absence_id;
+$$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public, pg_temp;
+
+REVOKE EXECUTE ON FUNCTION public.absence_teacher_id(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.absence_teacher_id(uuid) TO authenticated;
+
+DROP POLICY IF EXISTS "Teachers read own substitutions" ON substitutions;
+CREATE POLICY "Teachers read own substitutions"
+  ON substitutions FOR SELECT
+  TO authenticated
+  USING (
+    substitute_teacher_id = public.get_my_teacher_id()
+    OR public.absence_teacher_id(absence_id) = public.get_my_teacher_id()
+  );
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Migration 034 — exam_schedules timezone documentation

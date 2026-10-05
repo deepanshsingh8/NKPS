@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { UpcomingEvents } from "@nkps/shared/components/UpcomingEvents";
 import { Loader2 } from "lucide-react";
+import { getCurrentEnrollment } from "@/lib/current-enrollment";
 
 export default function StudentCalendarPage() {
   const [classId, setClassId] = useState<string | null>(null);
@@ -32,12 +33,7 @@ export default function StudentCalendarPage() {
         return;
       }
 
-      const { data: enrollment } = await supabase
-        .from("student_enrollments")
-        .select("class_id")
-        .eq("student_id", studentId)
-        .limit(1)
-        .single();
+      const enrollment = await getCurrentEnrollment(supabase, studentId);
 
       setClassId(enrollment?.class_id ?? null);
       setLoading(false);

@@ -132,3 +132,28 @@ laptop.
 4. A console error seen only in the Browser pane on production (React #418
    here) can come from the pane itself. Check Lighthouse's
    `errors-in-console` from a clean Chrome before chasing it.
+
+---
+
+## 2026-10-05 — Two RLS policies that read each other's tables recurse
+
+**What happened:** Migration 136 let a teacher read `substitutions` where the
+parent `teacher_absences` row is theirs, and read `teacher_absences` where a
+`substitutions` row names them as the cover. Written as two plain `EXISTS`
+sub-selects, each policy re-enters the other table's RLS and Postgres refuses
+with "infinite recursion detected in policy for relation". Caught on
+self-review before it reached a database; `pglast` parses it fine — this is a
+runtime failure, not a syntax one, so a parser cannot catch it.
+
+**How to apply next time:**
+1. When a policy on table A sub-selects table B, check whether any policy on B
+   sub-selects A (or anything that leads back to A). If so, one direction must
+   bypass RLS.
+2. The codebase's pattern for that is a small `SECURITY DEFINER STABLE`
+   function (`get_my_teacher_id()`, `get_my_class_ids()`, now
+   `absence_teacher_id()`): it reads as the owner, returns one value, and the
+   policy compares against it. `REVOKE EXECUTE … FROM PUBLIC, anon`, grant to
+   `authenticated` — the policy is evaluated as the signed-in user.
+3. Also remember a `SECURITY DEFINER` function blocks the planner from
+   inlining it (see [[project_db_dont_collapse_tables]]), so keep it to one
+   indexed lookup.
