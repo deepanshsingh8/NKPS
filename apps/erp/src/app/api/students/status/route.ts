@@ -99,6 +99,19 @@ export async function PATCH(request: NextRequest) {
 
     if (error) {
       console.error("[students.status.PATCH] change_enrollment_status:", error);
+      // 23505 is the class/roll-number unique index. Migration 137 releases a
+      // stale roll number on the way back to active, so this should no longer
+      // fire — but if it ever does again, say what collided rather than a bare
+      // "failed", which is what the office saw for a week before anyone looked.
+      if (error.code === "23505") {
+        return NextResponse.json(
+          {
+            error:
+              "This student's old roll number is now held by another active student in the class. Set their roll number blank (or renumber the class) and try again.",
+          },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
         { error: "Failed to update student status" },
         { status: 500 }

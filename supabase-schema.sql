@@ -8597,3 +8597,45 @@ CREATE POLICY "audit_log_select_admin"
 REVOKE ALL ON public.audit_log FROM anon;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.audit_log FROM authenticated;
 REVOKE ALL ON SEQUENCE public.audit_log_id_seq FROM anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 137 — a student who left can come back (stale roll number released)
+-- (mirrored from scripts/migrations/erp/migration-137-reactivation-roll-number.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION public.trg_enrollment_release_roll_on_activate()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.status = 'active'
+     AND NEW.roll_number IS NOT NULL
+     AND (OLD.status IS DISTINCT FROM 'active'
+          OR OLD.class_id IS DISTINCT FROM NEW.class_id) THEN
+    IF NOT NEW.roll_number_manual
+       OR EXISTS (
+         SELECT 1
+           FROM student_enrollments se
+          WHERE se.class_id = NEW.class_id
+            AND se.roll_number = NEW.roll_number
+            AND se.status = 'active'
+            AND se.id <> NEW.id
+       ) THEN
+      NEW.roll_number := NULL;
+      NEW.roll_number_manual := false;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.trg_enrollment_release_roll_on_activate()
+  FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS enrollment_before_update_release_roll ON public.student_enrollments;
+CREATE TRIGGER enrollment_before_update_release_roll
+  BEFORE UPDATE OF status, class_id ON public.student_enrollments
+  FOR EACH ROW
+  WHEN (OLD.status IS DISTINCT FROM NEW.status
+        OR OLD.class_id IS DISTINCT FROM NEW.class_id)
+  EXECUTE FUNCTION public.trg_enrollment_release_roll_on_activate();
