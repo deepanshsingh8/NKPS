@@ -10,6 +10,7 @@ import {
   resolveBillingCutoff,
   resolveEffectiveFeeLines,
   resolveStudentType,
+  type DuesBreakdown,
   type DuesPaymentRow,
   type StopFeeLookup,
 } from "./fees";
@@ -18,6 +19,19 @@ export interface StudentDues {
   /** Outstanding amount in rupees, clamped at 0 and rounded. */
   total: number;
   hasOutstanding: boolean;
+}
+
+/**
+ * One student's full position, for callers that need more than the gate's
+ * yes/no — the WhatsApp fee reminder states the amount, so it needs the same
+ * figure the Dues register shows (late fee included) plus the words around it.
+ */
+export interface StudentDuesPosition {
+  breakdown: DuesBreakdown;
+  /** "VI A" — or "" when the enrollment carries no class. */
+  classLabel: string;
+  academicYear: { id: string; name: string } | null;
+  enrollmentStatus: string;
 }
 
 // The dues download-lock applies only to the people who download for
@@ -57,10 +71,31 @@ export async function getStudentOutstandingDues(
   admin: SupabaseClient,
   studentId: string
 ): Promise<StudentDues> {
+  const position = await getStudentDuesPosition(admin, studentId);
+  if (!position) return { total: 0, hasOutstanding: false };
+
+  // The shared figure minus the one term the gate deliberately omits. Late
+  // fees are additive in computeDuesBreakdown and are zeroed there once the
+  // billed amount is covered, so this can't go negative.
+  const pending = position.breakdown.dues - position.breakdown.lateFee;
+  // Treat sub-rupee remainders as settled to avoid floating-point false blocks.
+  return { total: Math.round(pending), hasOutstanding: pending >= 1 };
+}
+
+/**
+ * The computation behind getStudentOutstandingDues, with nothing dropped:
+ * the full breakdown (late fee included, as the office's Dues register shows
+ * it) and the class and session it was priced against. Null when the student
+ * has no enrollment at all.
+ */
+export async function getStudentDuesPosition(
+  admin: SupabaseClient,
+  studentId: string
+): Promise<StudentDuesPosition | null> {
   const { data: enrollment, error: enrollmentError } = await admin
     .from("student_enrollments")
     .select(
-      "class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, exit_date, status_changed_at, classes(name)"
+      "class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, exit_date, status_changed_at, classes(name, section)"
     )
     .eq("student_id", studentId)
     .order("enrollment_date", { ascending: false })
@@ -74,10 +109,16 @@ export async function getStudentOutstandingDues(
   if (enrollmentError) {
     throw new Error(`Failed to load enrollment for dues: ${enrollmentError.message}`);
   }
-  if (!enrollment) return { total: 0, hasOutstanding: false };
+  if (!enrollment) return null;
 
-  const className =
-    (enrollment.classes as unknown as { name: string } | null)?.name ?? "";
+  const classRow = enrollment.classes as unknown as {
+    name: string;
+    section: string | null;
+  } | null;
+  const className = classRow?.name ?? "";
+  const classLabel = className
+    ? `${className}${classRow?.section ? ` ${classRow.section}` : ""}`
+    : "";
   const streamId = (enrollment.stream_id as string | null) ?? null;
   const hasTransport = Boolean(enrollment.has_transport);
   const busStopId = (enrollment.bus_stop_id as string | null) ?? null;
@@ -104,14 +145,17 @@ export async function getStudentOutstandingDues(
     academicYearId
       ? admin
           .from("academic_years")
-          .select("start_date, end_date")
+          .select("name, start_date, end_date")
           .eq("id", academicYearId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
   const year =
-    (yearRow as { start_date: string | null; end_date: string | null } | null) ??
-    null;
+    (yearRow as {
+      name: string;
+      start_date: string | null;
+      end_date: string | null;
+    } | null) ?? null;
   const studentType = resolveStudentType(
     (studentRow?.admission_date as string | null) ?? null,
     year
@@ -213,7 +257,7 @@ export async function getStudentOutstandingDues(
   // this the gate would keep raising instalments against a child who is no
   // longer on the roll — and their sibling's admit card, or their own pending
   // report card, would be held back over a fee nobody intends to collect.
-  const dues = computeDuesBreakdown({
+  const breakdown = computeDuesBreakdown({
     lines,
     payments,
     today,
@@ -221,10 +265,11 @@ export async function getStudentOutstandingDues(
     billingCutoff: resolveBillingCutoff(enrollment),
   });
 
-  // The shared figure minus the one term the gate deliberately omits. Late
-  // fees are additive in computeDuesBreakdown and are zeroed there once the
-  // billed amount is covered, so this can't go negative.
-  const pending = dues.dues - dues.lateFee;
-  // Treat sub-rupee remainders as settled to avoid floating-point false blocks.
-  return { total: Math.round(pending), hasOutstanding: pending >= 1 };
+  return {
+    breakdown,
+    classLabel,
+    academicYear:
+      academicYearId && year ? { id: academicYearId, name: year.name } : null,
+    enrollmentStatus: (enrollment.status as string | null) ?? "",
+  };
 }

@@ -23,7 +23,11 @@ export type AuditAction =
   | "registration.reject"
   | "admin_proxy.insert"
   | "admin_proxy.update"
-  | "admin_proxy.delete";
+  | "admin_proxy.delete"
+  // Office-initiated WhatsApp. Target is the bus or the student; details hold
+  // the broadcast id and counts, never the text or a number.
+  | "whatsapp.bus_notice"
+  | "whatsapp.fee_reminder";
 
 export interface AuditEntry {
   actorId: string | null;
