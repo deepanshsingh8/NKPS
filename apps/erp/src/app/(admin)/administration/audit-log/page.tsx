@@ -29,6 +29,7 @@ const CATEGORIES = [
   { value: "permissions", label: "Editor permissions" },
   { value: "registrations", label: "Registrations" },
   { value: "data", label: "Data changes" },
+  { value: "messaging", label: "WhatsApp messages" },
 ] as const;
 
 // Read as "<actor> <phrase> <target>"; the target is left off when it no
@@ -45,6 +46,8 @@ const ACTION_PHRASES: Record<string, string> = {
   "admin_proxy.insert": "added a record to",
   "admin_proxy.update": "edited a record in",
   "admin_proxy.delete": "deleted a record from",
+  "whatsapp.bus_notice": "sent a WhatsApp notice to the families on",
+  "whatsapp.fee_reminder": "sent a WhatsApp fee reminder for",
 };
 
 function describe(e: AuditEntry): { phrase: string; object: string | null } {
@@ -78,6 +81,13 @@ const DETAIL_LABELS: Record<string, string> = {
   reason_given: "Reason given",
   via: "Via",
   match_column: "Matched on",
+  recipients: "Families messaged",
+  sent: "Sent",
+  failed: "Failed",
+  skipped: "No number on file",
+  riders: "Students on the bus",
+  amount: "Amount quoted (Rs.)",
+  contact_type: "Sent to",
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

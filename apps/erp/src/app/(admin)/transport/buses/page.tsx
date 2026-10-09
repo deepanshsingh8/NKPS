@@ -36,10 +36,11 @@ import {
 } from "@nkps/shared/components/ui/data-table";
 import { TableExportButton } from "@nkps/shared/components/ui/table-export-button";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, Loader2, Bus as BusIcon, Route, Search } from "lucide-react";
+import { Plus, Trash2, Pencil, Loader2, Bus as BusIcon, Route, Search, MessageSquare } from "lucide-react";
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import { cn } from "@nkps/shared/lib/utils";
 import type { Bus, BusStop, BusRouteStop, StaffMember } from "@nkps/shared/types";
+import { BusNoticeDialog, type BusNoticeTarget } from "@/components/messaging/BusNoticeDialog";
 
 interface BusWithRelations extends Bus {
   driver_name?: string;
@@ -112,6 +113,8 @@ export default function AdminBusesPage() {
 
   // View-stops dialog (read-only list of a bus's served stops)
   const [stopsBus, setStopsBus] = useState<BusWithRelations | null>(null);
+  // The bus whose families are being messaged; null closes the dialog.
+  const [noticeBus, setNoticeBus] = useState<BusNoticeTarget | null>(null);
 
   // Manage-route dialog
   const [routeDialogOpen, setRouteDialogOpen] = useState(false);
@@ -549,6 +552,16 @@ export default function AdminBusesPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
+                        onClick={() => setNoticeBus({ id: bus.id, bus_number: bus.bus_number })}
+                        title="Message parents on this bus"
+                        aria-label="Message parents on this bus"
+                        className="text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => openRouteDialog(bus)}
                         title="Manage Route"
                         aria-label="Manage route"
@@ -583,6 +596,13 @@ export default function AdminBusesPage() {
           </>
         )}
       </div>
+
+      <BusNoticeDialog
+        bus={noticeBus}
+        onOpenChange={(open) => {
+          if (!open) setNoticeBus(null);
+        }}
+      />
 
       {/* Add / Edit Bus Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

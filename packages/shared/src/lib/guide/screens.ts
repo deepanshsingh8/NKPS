@@ -1341,6 +1341,18 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         ],
       },
       {
+        name: "Send the parent a WhatsApp fee reminder",
+        steps: [
+          "Open the student's record.",
+          'Click "WhatsApp Reminder" next to "Record Waiver".',
+          'Check the amount and recipient, then click "Send reminder".',
+        ],
+        needs:
+          "WhatsApp must be configured by an admin. The button is off when nothing is pending today.",
+        gotcha:
+          "It quotes today's dues including any late fee. One reminder per family per day.",
+      },
+      {
         name: "Refund a payment",
         steps: [
           'Click "Refund" on the row in Payment History.',
@@ -1391,6 +1403,18 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
       {
         name: "Go from a defaulter to taking their money",
         steps: ["Click the student's name — it links straight to their payment screen."],
+      },
+      {
+        name: "Send a parent a WhatsApp fee reminder",
+        steps: [
+          'On the "Dues (N)" tab, click the green message icon at the end of the row.',
+          "Check the amount and who it goes to, add a note if you like.",
+          'Click "Send reminder".',
+        ],
+        needs:
+          "WhatsApp must be configured by an admin; until then the dialog opens but Send is off. The student needs a father, mother or guardian mobile on their record.",
+        gotcha:
+          "The amount quoted is today's dues including any late fee — the same figure as the Dues column. One reminder per family per day; a second attempt is refused.",
       },
     ],
     related: ["/fees/payments", "/fees/academic"],
@@ -1489,6 +1513,18 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         needs: "Stops must exist.",
         gotcha:
           'A student whose stop is on no bus route shows "No route covers this stop" on the assignments page. The fix is here, not there.',
+      },
+      {
+        name: "Message the parents of everyone on a bus",
+        steps: [
+          "Click the green message icon on the bus row.",
+          'Read the count of families that will be reached, then type under "Your message *".',
+          'Check "What the parent receives", then click "Send to N families".',
+        ],
+        needs:
+          "WhatsApp must be configured (an admin adds the school's WhatsApp Business keys and gets the templates approved); until then the dialog opens but Send is off. Only students with an active enrolment on this bus in the current session are included, and each family gets one message even with two children aboard.",
+        gotcha:
+          "A student with no father, mother or guardian mobile on their record is listed in the dialog and silently left out of the send — fix the number under People → Students. At most five notices per bus per hour.",
       },
     ],
     related: ["/transport/stops", "/transport/drivers", "/transport/assignments"],

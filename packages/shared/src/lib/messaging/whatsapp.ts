@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { WHATSAPP_TEMPLATE_SPECS } from "./templates";
 
 // Server-only WhatsApp Business client (Meta Cloud API, direct — no reseller).
 //
@@ -267,4 +268,8 @@ export const WHATSAPP_TEMPLATES = {
   unknownNumber: "nkps_unknown_number",
   /** The one-time enrolment code. */
   verifyCode: "nkps_verify_code",
+  /** Office → every family on a bus. Body and parameters in ./templates.ts. */
+  busNotice: WHATSAPP_TEMPLATE_SPECS.busNotice.name,
+  /** Office → one family, with the amount outstanding. Body in ./templates.ts. */
+  feeReminder: WHATSAPP_TEMPLATE_SPECS.feeReminder.name,
 } as const;
