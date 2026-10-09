@@ -49,7 +49,8 @@ import {
 import { Card, CardContent } from "@nkps/shared/components/ui/card";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, ArrowLeft, ArrowRight, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, CreditCard, Banknote, Download, ArrowLeft, ArrowRight, ChevronDown, ChevronRight, MessageSquare } from "lucide-react";
+import { FeeReminderDialog, type FeeReminderTarget } from "@/components/messaging/FeeReminderDialog";
 import { adminApi, adminFetch } from "@nkps/shared/lib/admin-api";
 import { cn, formatClassName } from "@nkps/shared/lib/utils";
 import { classSortIndex, CLASS_ORDER } from "@nkps/shared/lib/constants";
@@ -313,8 +314,15 @@ function DuesTable({
   showLeftOn,
   exportName,
   exportTitle,
+  onRemind,
 }: {
   rows: DuesRow[];
+  /**
+   * Opens the WhatsApp fee reminder for a row. Passed on the Dues tab only —
+   * a "remind" action on a student who owes nothing would be a bug with a
+   * button on it.
+   */
+  onRemind?: (row: DuesRow) => void;
   emptyMessage: string;
   /** Off when a single class is selected — the column would repeat one value. */
   showClass: boolean;
@@ -326,6 +334,7 @@ function DuesTable({
   exportName: string;
   exportTitle: string;
 }) {
+  const extraCols = onRemind ? 1 : 0;
   const columns = useMemo<TableColumns<DuesRow>>(
     () => ({
       admission_no: {
@@ -456,13 +465,14 @@ function DuesTable({
             <SortFilterHead ctl={table} col="late_fee" align="right" />
             <SortFilterHead ctl={table} col="dues" align="right" />
             <SortFilterHead ctl={table} col="dues_bucket" />
+            {onRemind && <TableHead className="text-right">Remind</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
           {pagination.total === 0 && (
             <TableRow>
               <TableCell
-                colSpan={showClass ? 11 : 10}
+                colSpan={(showClass ? 11 : 10) + extraCols}
                 className="py-10 text-center text-gray-500 dark:text-gray-400"
               >
                 No students match the column filters.
@@ -541,6 +551,22 @@ function DuesTable({
                   {r.dues > 0 ? "Has dues" : "Cleared"}
                 </span>
               </TableCell>
+              {onRemind && (
+                <TableCell className="text-right">
+                  {r.dues > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => onRemind(r)}
+                      title="Send a WhatsApp fee reminder to the parent"
+                      aria-label={`Send a WhatsApp fee reminder for ${r.full_name}`}
+                      className="text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                    </Button>
+                  )}
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
@@ -826,6 +852,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   const [refundSubmitting, setRefundSubmitting] = useState(false);
 
   const [waiverOpen, setWaiverOpen] = useState(false);
+
+  // The student a WhatsApp fee reminder is being composed for; null closes it.
+
+  const [reminderStudent, setReminderStudent] = useState<FeeReminderTarget | null>(null);
   const [waiverForm, setWaiverForm] = useState({
     fee_structure_id: "",
     waiver_amount: "",
@@ -2548,7 +2578,25 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                           : ""}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          setReminderStudent({
+                            id: selectedStudent.id,
+                            full_name: selectedStudent.full_name,
+                          })
+                        }
+                        disabled={!selectedStudentDues || selectedStudentDues.dues < 1}
+                        title={
+                          selectedStudentDues && selectedStudentDues.dues >= 1
+                            ? "Send the parent a WhatsApp reminder quoting today's dues"
+                            : "Nothing is pending today, so there is nothing to remind about"
+                        }
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        WhatsApp Reminder
+                      </Button>
                       <Button
                         variant="outline"
                         onClick={() => setWaiverOpen(true)}
@@ -3005,6 +3053,15 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                           }
                           showClass={!duesClassId}
                           showLeftOn={includeLeavers}
+                          onRemind={
+                            key === "dues-list"
+                              ? (row) =>
+                                  setReminderStudent({
+                                    id: row.student_id,
+                                    full_name: row.full_name,
+                                  })
+                              : undefined
+                          }
                           emptyMessage={
                             duesSearch.trim()
                               ? "No students match your search."
@@ -3653,6 +3710,13 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       </Dialog>
 
       {/* Waiver Dialog (M9) */}
+      <FeeReminderDialog
+        student={reminderStudent}
+        onOpenChange={(open) => {
+          if (!open) setReminderStudent(null);
+        }}
+      />
+
       <Dialog open={waiverOpen} onOpenChange={setWaiverOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
