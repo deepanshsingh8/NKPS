@@ -190,6 +190,10 @@ Per-app required vars. Missing one will either fail the build or break a runtime
 | `NEXT_PUBLIC_WEBAUTHN_RP_ORIGINS` | – | ✅ | ✅ | Comma-separated app origins, e.g. `https://erp.nkpublicschool.com,https://cms.nkpublicschool.com`. Must match the project's Relying Party Origins. |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | ⚪ | ⚪ | ⚪ | Cloudflare Turnstile site key (bot check on contact, admissions enquiry, TC lookup, register, forgot-password, every password sign-in). Optional: unset = no widget. Inlined at build, so redeploy after setting. Set it together with `TURNSTILE_SECRET_KEY`, and enable Turnstile in Supabase Auth with the same widget's secret, or logins fail. |
 | `TURNSTILE_SECRET_KEY` | ⚪ | – | ⚪ | Turnstile secret for server-side Siteverify. Enforced only when the site key is also set. CMS has no route that verifies (its only Turnstile use is Supabase sign-in, which Supabase verifies). |
+| `WHATSAPP_ACCESS_TOKEN` | – | – | ⚪ | Meta Cloud API system-user token. With the three below, enables WhatsApp bus notices (Transport → Buses), fee reminders (Fees) and the inbound parent assistant. Unset = buttons show a "not configured" notice |
+| `WHATSAPP_PHONE_NUMBER_ID` | – | – | ⚪ | The sending number's id from Meta Business Manager → WhatsApp → API Setup |
+| `WHATSAPP_APP_SECRET` | – | – | ⚪ | The Meta app secret; verifies the `X-Hub-Signature-256` on `/api/webhooks/whatsapp` |
+| `WHATSAPP_VERIFY_TOKEN` | – | – | ⚪ | Any long random string, pasted into Meta's webhook registration too. Templates `nkps_bus_notice` and `nkps_fee_reminder` must be approved on the same account — bodies in `packages/shared/src/lib/messaging/templates.ts` |
 | `TRUSTED_IP_HEADER` | ⚪ | ⚪ | ⚪ | Optional override for the header rate limits key on. Unset on Vercel = `x-vercel-forwarded-for`. Set to `cf-connecting-ip` only if Cloudflare is switched from DNS-only to proxied. |
 
 Why each app sends mail:
