@@ -1,6 +1,6 @@
 # WhatsApp messages to parents — bus notices and fee reminders
 
-**Status:** in development, 2026-10-09.
+**Status:** code complete 2026-10-09; migration 138 applied to the NKPS Supabase project the same day. Live sends await Meta credentials and template approval (see "What the school still has to do").
 
 ## What the office asked for
 
@@ -146,10 +146,41 @@ Each POST: gate → configured → rate limits → resolve recipients → insert
   log records; a second provider is a separate decision.
 - Parents replying — the inbound assistant already handles that channel.
 
-## Verification
+## What the school still has to do
 
-`pnpm run typecheck`, `pnpm run lint`, `check:guide`, `check:mobile`,
-`check:colors`, `check:api-auth`, an ERP build, pure-function checks on
-recipient resolution / parameter flattening / template rendering, and the
-migration applied and inspected. Live sends need Meta credentials the school
-does not yet hold — see "Still NOT verified — needs Meta" in `ai-features.md`.
+1. In Meta Business Manager, create the two templates above (category
+   Utility, language English) word for word, and wait for approval.
+2. Set `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`,
+   `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` on the ERP Vercel project
+   and redeploy. Until then every dialog opens with a "not configured" notice
+   and Send disabled.
+3. Register `https://erp.nkpublicschool.com/api/webhooks/whatsapp` as the
+   webhook (already built, migration 113) so delivered / read receipts flow
+   back into `whatsapp_messages`.
+4. Send one bus notice to a small bus and one fee reminder to a staff
+   member's own child first, and read the result on
+   Administration → Audit log → "WhatsApp messages".
+
+## Verification (2026-10-09)
+
+- ERP `tsc --noEmit` clean; ESLint clean on every touched file (only
+  pre-existing `set-state-in-effect` warnings elsewhere in the two pages).
+- `check:guide`, `check:mobile`, `check:colors`, `check:api-auth`,
+  `check:pwa` all pass.
+- 20/20 pure-function checks: parameter flattening (newlines, tabs, space
+  runs, visible truncation), template rendering (every placeholder maps to a
+  declared parameter; a missing one stays visible), Indian rupee grouping,
+  recipient resolution (`sms_mobile_source` wins; father → mother → guardian;
+  the student's own phone only when pointed at; invalid numbers fall through;
+  siblings collapse to one message; unreachable students listed).
+- Migration 138 applied to the NKPS project through the Supabase tooling,
+  then re-run verbatim to prove idempotence; `whatsapp_broadcasts` has RLS on
+  with no policies (intentional, the only new advisor line is that INFO).
+  Live data at that moment: 17 buses, 743 riders, 940 of 958 students with at
+  least one parent mobile.
+- An ERP `next build` here fails only on the `xlsx` tarball host being
+  unreachable from the build container (20 pre-existing importers); nothing
+  in this change is in those errors.
+- NOT verified: a real send. No Meta credentials exist, so `sendTemplate`
+  has never been exercised against the Cloud API. The first live send is step
+  4 above.
