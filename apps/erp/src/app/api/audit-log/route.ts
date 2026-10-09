@@ -18,6 +18,7 @@ const CATEGORY_PREFIX: Record<string, string> = {
   permissions: "editor_permissions.",
   registrations: "registration.",
   data: "admin_proxy.",
+  messaging: "whatsapp.",
 };
 
 interface AuditRow {
@@ -55,6 +56,8 @@ export async function GET(request: NextRequest) {
 
   const profileIds = new Set<string>();
   const registrationIds = new Set<string>();
+  const busIds = new Set<string>();
+  const studentIds = new Set<string>();
   for (const r of page) {
     if (r.actor_id) profileIds.add(r.actor_id);
     if (!r.target_id) continue;
@@ -62,10 +65,14 @@ export async function GET(request: NextRequest) {
       profileIds.add(r.target_id);
     } else if (r.target_table === "registration_requests") {
       registrationIds.add(r.target_id);
+    } else if (r.target_table === "buses") {
+      busIds.add(r.target_id);
+    } else if (r.target_table === "students") {
+      studentIds.add(r.target_id);
     }
   }
 
-  const [profilesRes, registrationsRes] = await Promise.all([
+  const [profilesRes, registrationsRes, busesRes, studentsRes] = await Promise.all([
     profileIds.size
       ? admin.from("profiles").select("id, full_name, email").in("id", [...profileIds])
       : Promise.resolve({ data: [], error: null }),
@@ -75,11 +82,21 @@ export async function GET(request: NextRequest) {
           .select("id, full_name")
           .in("id", [...registrationIds])
       : Promise.resolve({ data: [], error: null }),
+    // WhatsApp sends target a bus or a student (migration 138). Named here for
+    // the same reason people are: the screen never shows an id.
+    busIds.size
+      ? admin.from("buses").select("id, bus_number").in("id", [...busIds])
+      : Promise.resolve({ data: [], error: null }),
+    studentIds.size
+      ? admin.from("students").select("id, full_name").in("id", [...studentIds])
+      : Promise.resolve({ data: [], error: null }),
   ]);
   if (profilesRes.error) return dbErrorResponse(profilesRes.error, "audit-log profiles");
   if (registrationsRes.error) {
     return dbErrorResponse(registrationsRes.error, "audit-log registrations");
   }
+  if (busesRes.error) return dbErrorResponse(busesRes.error, "audit-log buses");
+  if (studentsRes.error) return dbErrorResponse(studentsRes.error, "audit-log students");
 
   const names = new Map<string, string>();
   for (const p of (profilesRes.data ?? []) as Array<{
@@ -91,6 +108,12 @@ export async function GET(request: NextRequest) {
   }
   for (const r of (registrationsRes.data ?? []) as Array<{ id: string; full_name: string | null }>) {
     names.set(r.id, r.full_name || "Unnamed registrant");
+  }
+  for (const b of (busesRes.data ?? []) as Array<{ id: string; bus_number: string | null }>) {
+    names.set(b.id, b.bus_number ? `bus ${b.bus_number}` : "a bus");
+  }
+  for (const st of (studentsRes.data ?? []) as Array<{ id: string; full_name: string | null }>) {
+    names.set(st.id, st.full_name || "Unnamed student");
   }
 
   return NextResponse.json({
