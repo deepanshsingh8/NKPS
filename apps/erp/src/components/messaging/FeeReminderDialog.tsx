@@ -40,6 +40,7 @@ interface Preview {
   contact: { type: string; label: string; last4: string } | null;
   dues: { total: number; lateFee: number; billedToDate: number; paid: number } | null;
   session: string | null;
+  enrollmentStatus: string | null;
   lastReminderAt: string | null;
   schoolName: string;
   officePhone: string;
@@ -132,11 +133,13 @@ function FeeReminderForm({
   ]);
 
   const alreadyToday = Boolean(preview?.lastReminderAt);
+  const hasLeft = Boolean(preview && preview.enrollmentStatus && preview.enrollmentStatus !== "active");
   const canSend =
     Boolean(preview?.configured) &&
     Boolean(preview?.contact) &&
     amount >= 1 &&
     !alreadyToday &&
+    !hasLeft &&
     !sending;
 
   async function send() {
@@ -229,6 +232,12 @@ function FeeReminderForm({
                 <p className="text-amber-700 dark:text-amber-400">
                   No father, mother or guardian mobile is on file. Add one under People →
                   Students first.
+                </p>
+              )}
+              {hasLeft && (
+                <p className="text-amber-700 dark:text-amber-400">
+                  This student has left the school. A leaver&apos;s arrears are not chased by
+                  reminder — contact the family directly.
                 </p>
               )}
               {alreadyToday && preview.lastReminderAt && (

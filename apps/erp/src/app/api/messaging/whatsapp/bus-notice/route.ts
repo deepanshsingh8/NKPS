@@ -13,11 +13,8 @@ import {
   groupBusRecipients,
   type ContactableStudent,
 } from "@/lib/messaging/recipients";
-import {
-  officePhoneParam,
-  resolveActiveYear,
-  runBroadcast,
-} from "@/lib/messaging/outbound";
+import { officePhoneParam, runBroadcast } from "@/lib/messaging/outbound";
+import { resolveActiveYear } from "@/lib/active-year";
 
 export const runtime = "nodejs";
 // A full bus is ~60 families at four sends in flight; well inside this.
@@ -46,6 +43,9 @@ const PER_BUS_WINDOW_MS = 60 * 60 * 1000;
 const PER_BUS_MAX_NOTICES = 5;
 const PER_ACTOR_WINDOW_SECONDS = 3600;
 const PER_ACTOR_MAX_ACTIONS = 30;
+// A broadcast still 'sending' after this long is a crashed run, not one in
+// flight, and must not count against the bus's hourly cap.
+const IN_FLIGHT_GRACE_MS = 5 * 60 * 1000;
 const RECENT_LIMIT = 3;
 
 type AdminClient = NonNullable<
@@ -196,33 +196,18 @@ export async function POST(request: NextRequest) {
     const bus = await loadBus(admin, busId);
     if (!bus) return NextResponse.json({ error: "Bus not found." }, { status: 404 });
 
-    // Cost controls, cheapest first. Each notice is tens of billable messages.
-    const actorLimit = await checkDbRateLimit(
-      admin,
-      `wa:out:actor:${user.id}`,
-      PER_ACTOR_WINDOW_SECONDS,
-      PER_ACTOR_MAX_ACTIONS
-    );
-    if (!actorLimit.ok) {
-      return NextResponse.json(
-        {
-          error: actorLimit.checked
-            ? "You have sent a lot of messages this hour. Please wait a while."
-            : "Messaging is unavailable right now. Please try again shortly.",
-          code: "RATE_LIMITED",
-        },
-        { status: 429 }
-      );
-    }
-
+    // Per-bus cap, read from the log so a notice that failed outright does not
+    // use up the hour. 'completed' rows count; a 'sending' row counts only
+    // while it could genuinely still be in flight.
     const since = new Date(Date.now() - PER_BUS_WINDOW_MS).toISOString();
+    const graceStart = new Date(Date.now() - IN_FLIGHT_GRACE_MS).toISOString();
     const { count: recentForBus } = await admin
       .from("whatsapp_broadcasts")
       .select("id", { count: "exact", head: true })
       .eq("kind", "bus_notice")
       .eq("bus_id", busId)
-      .neq("status", "failed")
-      .gte("created_at", since);
+      .gte("created_at", since)
+      .or(`status.eq.completed,and(status.eq.sending,created_at.gte.${graceStart})`);
     if ((recentForBus ?? 0) >= PER_BUS_MAX_NOTICES) {
       return NextResponse.json(
         {
@@ -253,6 +238,42 @@ export async function POST(request: NextRequest) {
           code: "NO_RECIPIENTS",
         },
         { status: 400 }
+      );
+    }
+
+    // Cost controls last, so a request refused above for a reason of its own
+    // (no riders, bus capped) never spends the sender's hourly budget. Both are
+    // atomic counters (bump_rate_limit), which is what makes them safe against
+    // two people pressing Send at once; the log reads above are not.
+    //  - one notice per bus per minute closes the double-send race;
+    //  - thirty send actions per actor per hour bounds one person's bill.
+    const busGuard = await checkDbRateLimit(admin, `wa:out:bus:${busId}`, 60, 1);
+    if (!busGuard.ok) {
+      return NextResponse.json(
+        {
+          error: busGuard.checked
+            ? `A notice for bus ${bus.bus_number} went out moments ago. Please wait a minute.`
+            : "Messaging is unavailable right now. Please try again shortly.",
+          code: "RATE_LIMITED",
+        },
+        { status: 429 }
+      );
+    }
+    const actorLimit = await checkDbRateLimit(
+      admin,
+      `wa:out:actor:${user.id}`,
+      PER_ACTOR_WINDOW_SECONDS,
+      PER_ACTOR_MAX_ACTIONS
+    );
+    if (!actorLimit.ok) {
+      return NextResponse.json(
+        {
+          error: actorLimit.checked
+            ? "You have sent a lot of messages this hour. Please wait a while."
+            : "Messaging is unavailable right now. Please try again shortly.",
+          code: "RATE_LIMITED",
+        },
+        { status: 429 }
       );
     }
 

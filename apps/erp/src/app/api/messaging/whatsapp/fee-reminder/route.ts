@@ -37,6 +37,9 @@ export const runtime = "nodejs";
 const PER_STUDENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const PER_ACTOR_WINDOW_SECONDS = 3600;
 const PER_ACTOR_MAX_ACTIONS = 30;
+// A message still 'queued' after this long never left (the process died
+// between the log insert and the send); it must not block the family for a day.
+const IN_FLIGHT_GRACE_MS = 5 * 60 * 1000;
 
 type AdminClient = NonNullable<
   Awaited<ReturnType<typeof verifyAdminOrEditorWithUser>>
@@ -56,19 +59,24 @@ async function loadStudent(admin: AdminClient, studentId: string): Promise<Stude
   return (data as StudentRow | null) ?? null;
 }
 
-/** The last reminder that actually left for this student, if any in the window. */
+/**
+ * The last reminder that actually left for this student, if any in the window.
+ * Delivered statuses count; a 'queued' row counts only while it could still be
+ * in flight. 'failed' never counts, so a bad send can be retried.
+ */
 async function lastReminder(
   admin: AdminClient,
   studentId: string
 ): Promise<{ created_at: string; status: string } | null> {
   const since = new Date(Date.now() - PER_STUDENT_WINDOW_MS).toISOString();
+  const graceStart = new Date(Date.now() - IN_FLIGHT_GRACE_MS).toISOString();
   const { data } = await admin
     .from("whatsapp_messages")
     .select("created_at, status")
     .eq("student_id", studentId)
     .eq("template_name", WHATSAPP_TEMPLATES.feeReminder)
-    .neq("status", "failed")
     .gte("created_at", since)
+    .or(`status.in.(sent,delivered,read),and(status.eq.queued,created_at.gte.${graceStart})`)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -116,6 +124,9 @@ export async function GET(request: NextRequest) {
           }
         : null,
       session: position?.academicYear?.name ?? null,
+      // A leaver's arrears are history, not something to chase (the Dues
+      // register says the same); the dialog explains instead of offering Send.
+      enrollmentStatus: position?.enrollmentStatus ?? null,
       lastReminderAt: recent?.created_at ?? null,
       maxNoteChars: FEE_REMINDER_NOTE_MAX_CHARS,
       defaultNote: FEE_REMINDER_DEFAULT_NOTE,
@@ -178,6 +189,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const position = await getStudentDuesPosition(admin, studentId);
+    const amount = position ? Math.round(position.breakdown.dues) : 0;
+    if (!position || amount < 1) {
+      return NextResponse.json(
+        { error: "This student has no fees pending today.", code: "NO_DUES" },
+        { status: 400 }
+      );
+    }
+    if (position.enrollmentStatus !== "active") {
+      return NextResponse.json(
+        {
+          error:
+            "This student has left the school. Arrears of a leaver are not chased by reminder — contact the family directly.",
+          code: "NOT_ACTIVE",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Cost controls last, so a request refused above never spends the
+    // sender's budget. Both are atomic (bump_rate_limit): the per-student
+    // minute guard is what closes the race the log read above cannot — two
+    // office users pressing Send in the same second — and the actor cap
+    // bounds one person's bill.
+    const studentGuard = await checkDbRateLimit(admin, `wa:out:fee:${studentId}`, 60, 1);
+    if (!studentGuard.ok) {
+      return NextResponse.json(
+        {
+          error: studentGuard.checked
+            ? "A reminder for this student was sent moments ago."
+            : "Messaging is unavailable right now. Please try again shortly.",
+          code: "RATE_LIMITED",
+        },
+        { status: 429 }
+      );
+    }
     const actorLimit = await checkDbRateLimit(
       admin,
       `wa:out:actor:${user.id}`,
@@ -193,15 +240,6 @@ export async function POST(request: NextRequest) {
           code: "RATE_LIMITED",
         },
         { status: 429 }
-      );
-    }
-
-    const position = await getStudentDuesPosition(admin, studentId);
-    const amount = position ? Math.round(position.breakdown.dues) : 0;
-    if (!position || amount < 1) {
-      return NextResponse.json(
-        { error: "This student has no fees pending today.", code: "NO_DUES" },
-        { status: 400 }
       );
     }
 

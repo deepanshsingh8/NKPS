@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyAdminOrEditor } from "@nkps/shared/lib/verify-admin";
 import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
+import { resolveActiveYear } from "@/lib/active-year";
 
 /**
  * How many students each bus carries, for /transport/buses.
@@ -30,27 +31,19 @@ export async function GET(request: Request) {
       "academic_year_id"
     );
 
-    // Same active-year rule as the assignments route: prefer is_current, else
-    // newest by name, so the two screens resolve to the same year.
-    const { data: yearsData, error: yearsError } = await admin
-      .from("academic_years")
-      .select("id, name, is_current")
-      .order("name", { ascending: false });
-
-    if (yearsError) {
-      console.error("Bus load: fetch years error:", yearsError);
+    // Same active-year rule as the assignments route and the WhatsApp bus
+    // notice: prefer is_current, else newest by name, so every screen that
+    // says "who rides this bus" resolves to the same year.
+    let year;
+    try {
+      year = await resolveActiveYear(admin, requestedYearId);
+    } catch (err) {
+      console.error("Bus load: fetch years error:", err);
       return NextResponse.json(
         { error: "Failed to load academic years" },
         { status: 500 }
       );
     }
-
-    const years = yearsData ?? [];
-    const year =
-      (requestedYearId ? years.find((y) => y.id === requestedYearId) : null) ??
-      years.find((y) => y.is_current) ??
-      years[0] ??
-      null;
 
     if (!year) return NextResponse.json({ year: null, loads: {} });
 

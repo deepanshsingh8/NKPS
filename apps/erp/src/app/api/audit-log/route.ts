@@ -65,9 +65,11 @@ export async function GET(request: NextRequest) {
       profileIds.add(r.target_id);
     } else if (r.target_table === "registration_requests") {
       registrationIds.add(r.target_id);
-    } else if (r.target_table === "buses") {
+    } else if (r.action.startsWith("whatsapp.") && r.target_table === "buses") {
+      // Only the WhatsApp actions show a bus or student by name; proxy rows
+      // print the table name, so resolving theirs would be a query for nothing.
       busIds.add(r.target_id);
-    } else if (r.target_table === "students") {
+    } else if (r.action.startsWith("whatsapp.") && r.target_table === "students") {
       studentIds.add(r.target_id);
     }
   }

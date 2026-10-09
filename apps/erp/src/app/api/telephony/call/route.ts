@@ -6,16 +6,10 @@ import {
   mapExotelStatus,
   normalizeIndianMobile,
 } from "@nkps/shared/lib/telephony/exotel";
-
-// Which student column holds each contact's number. The client only sends the
-// contact *type* — never a raw number — so a caller can't dial an arbitrary
-// number through our Exotel account.
-const CONTACT_COLUMN: Record<string, string> = {
-  student: "phone",
-  father: "father_mobile",
-  mother: "mother_mobile",
-  guardian: "guardian_mobile",
-};
+import {
+  STUDENT_CONTACT_COLUMN,
+  isStudentContactType,
+} from "@/lib/student-contacts";
 
 // Cheap abuse guard: every click is billable, so cap bursts per staff member.
 const RATE_WINDOW_MS = 60_000;
@@ -40,7 +34,9 @@ export async function POST(request: NextRequest) {
     const studentId = typeof body.studentId === "string" ? body.studentId : "";
     const contact = typeof body.contact === "string" ? body.contact : "";
 
-    if (!studentId || !Object.prototype.hasOwnProperty.call(CONTACT_COLUMN, contact)) {
+    // The client only sends the contact *type* — never a raw number — so a
+    // caller can't dial an arbitrary number through our Exotel account.
+    if (!studentId || !isStudentContactType(contact)) {
       return NextResponse.json(
         { error: "studentId and a valid contact are required." },
         { status: 400 }
@@ -64,7 +60,7 @@ export async function POST(request: NextRequest) {
     // Resolve the target (parent/student) number server-side. Select the
     // contact columns statically (a dynamic select string defeats Supabase's
     // typed parser) and index into the one we need.
-    const column = CONTACT_COLUMN[contact];
+    const column = STUDENT_CONTACT_COLUMN[contact];
     const { data: student, error: studentErr } = await admin
       .from("students")
       .select("id, phone, father_mobile, mother_mobile, guardian_mobile")

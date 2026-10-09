@@ -1,4 +1,12 @@
 import { normalizeIndianMobile } from "@nkps/shared/lib/telephony/exotel";
+import {
+  STUDENT_CONTACT_COLUMN,
+  isStudentContactType,
+  type StudentContactType,
+} from "@/lib/student-contacts";
+
+/** Last four digits for the UI and the log — the same helper the inbound channel uses. */
+export { phoneLast4 } from "@/lib/ai/whatsapp/session";
 
 /**
  * Which number a message to "the parent" actually goes to.
@@ -17,7 +25,7 @@ import { normalizeIndianMobile } from "@nkps/shared/lib/telephony/exotel";
  * about a child's fees should not land on the child by default.
  */
 
-export type ParentContactType = "father" | "mother" | "guardian" | "student";
+export type ParentContactType = StudentContactType;
 
 export interface ContactableStudent {
   id: string;
@@ -43,13 +51,6 @@ export interface ParentContact {
 export const CONTACT_COLUMNS =
   "id, full_name, phone, father_name, father_mobile, mother_name, mother_mobile, guardian_name, guardian_mobile, sms_mobile_source";
 
-const COLUMN_FOR: Record<ParentContactType, keyof ContactableStudent> = {
-  father: "father_mobile",
-  mother: "mother_mobile",
-  guardian: "guardian_mobile",
-  student: "phone",
-};
-
 const LABEL_FOR: Record<ParentContactType, string> = {
   father: "Father",
   mother: "Mother",
@@ -58,7 +59,7 @@ const LABEL_FOR: Record<ParentContactType, string> = {
 };
 
 function contactOf(student: ContactableStudent, type: ParentContactType): ParentContact | null {
-  const raw = student[COLUMN_FOR[type]];
+  const raw = student[STUDENT_CONTACT_COLUMN[type] as keyof ContactableStudent];
   const phoneE164 = normalizeIndianMobile(typeof raw === "string" ? raw : null);
   if (!phoneE164) return null;
   return { type, label: LABEL_FOR[type], phoneE164 };
@@ -66,12 +67,7 @@ function contactOf(student: ContactableStudent, type: ParentContactType): Parent
 
 export function resolveParentContact(student: ContactableStudent): ParentContact | null {
   const preferred = student.sms_mobile_source;
-  if (
-    preferred === "father" ||
-    preferred === "mother" ||
-    preferred === "guardian" ||
-    preferred === "student"
-  ) {
+  if (isStudentContactType(preferred)) {
     const chosen = contactOf(student, preferred);
     if (chosen) return chosen;
   }
@@ -82,16 +78,10 @@ export function resolveParentContact(student: ContactableStudent): ParentContact
   );
 }
 
-/** Last four digits, for the UI and the message log. Never the full number. */
-export function phoneLast4(phoneE164: string): string {
-  return phoneE164.slice(-4);
-}
-
 export interface BusRecipient {
   phoneE164: string;
   /** Every student this number stands for — siblings share one message. */
   studentIds: string[];
-  contactType: ParentContactType;
 }
 
 export interface UnreachableStudent {
@@ -125,7 +115,6 @@ export function groupBusRecipients(students: ContactableStudent[]): {
       byPhone.set(contact.phoneE164, {
         phoneE164: contact.phoneE164,
         studentIds: [s.id],
-        contactType: contact.type,
       });
     }
   }

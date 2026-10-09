@@ -80,17 +80,14 @@ async function sendOne(
     return { ok: false, error: insertError?.message ?? "log insert failed" };
   }
 
+  let waMessageId: string | null;
   try {
     const sent = await sendTemplate(
       recipient.phoneE164,
       input.templateName,
       recipient.variables
     );
-    await admin
-      .from("whatsapp_messages")
-      .update({ wa_message_id: sent.waMessageId, status: "sent" })
-      .eq("id", row.id as string);
-    return { ok: true };
+    waMessageId = sent.waMessageId;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await admin
@@ -99,6 +96,18 @@ async function sendOne(
       .eq("id", row.id as string);
     return { ok: false, error: message };
   }
+
+  // Meta has the message by now, and the parent will get it whatever happens
+  // next — so a failed status write is a bookkeeping problem to log, never a
+  // reason to tell the office "not delivered" and have them send it twice.
+  const { error: updateError } = await admin
+    .from("whatsapp_messages")
+    .update({ wa_message_id: waMessageId, status: "sent" })
+    .eq("id", row.id as string);
+  if (updateError) {
+    console.error("[whatsapp] sent but status not recorded:", updateError.message);
+  }
+  return { ok: true };
 }
 
 /**
@@ -192,23 +201,6 @@ export async function runBroadcast(
   });
 
   return { broadcastId, sent, failed, skipped: input.skippedCount, firstError };
-}
-
-/**
- * Picks the active academic year the way /api/transport/bus-load does —
- * is_current first, else the newest by name — so "who rides bus 9" means the
- * same thing here as on the buses screen.
- */
-export async function resolveActiveYear(
-  admin: SupabaseClient
-): Promise<{ id: string; name: string } | null> {
-  const { data } = await admin
-    .from("academic_years")
-    .select("id, name, is_current")
-    .order("name", { ascending: false });
-  const years = (data ?? []) as { id: string; name: string; is_current: boolean }[];
-  const year = years.find((y) => y.is_current) ?? years[0] ?? null;
-  return year ? { id: year.id, name: year.name } : null;
 }
 
 /** The office phone a template names. Never empty — Meta rejects an empty parameter. */

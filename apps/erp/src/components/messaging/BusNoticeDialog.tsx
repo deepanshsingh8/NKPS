@@ -104,7 +104,7 @@ function BusNoticeForm({ bus, onClose }: { bus: BusNoticeTarget; onClose: () => 
   const rendered = renderWhatsAppTemplate(WHATSAPP_TEMPLATE_SPECS.busNotice, [
     preview?.schoolName ?? "the school",
     bus.bus_number,
-    flat || "{{3}}",
+    flat,
     preview?.officePhone ?? "the school office",
   ]);
 
@@ -253,6 +253,14 @@ function BusNoticeForm({ bus, onClose }: { bus: BusNoticeTarget; onClose: () => 
 }
 
 function RecipientSummary({ preview }: { preview: Preview }) {
+  if (!preview.year) {
+    return (
+      <p className="text-sm text-amber-700 dark:text-amber-400">
+        No academic year is set up yet, so nobody is assigned to any bus. Create the
+        session under Academics first.
+      </p>
+    );
+  }
   if (preview.riders === 0) {
     return (
       <p className="text-sm text-amber-700 dark:text-amber-400">
