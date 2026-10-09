@@ -1490,6 +1490,18 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         gotcha:
           'A student whose stop is on no bus route shows "No route covers this stop" on the assignments page. The fix is here, not there.',
       },
+      {
+        name: "Message the parents of everyone on a bus",
+        steps: [
+          "Click the green message icon on the bus row.",
+          'Read the count of families that will be reached, then type under "Your message *".',
+          'Check "What the parent receives", then click "Send to N families".',
+        ],
+        needs:
+          "WhatsApp must be configured (an admin adds the school's WhatsApp Business keys and gets the templates approved); until then the dialog opens but Send is off. Only students with an active enrolment on this bus in the current session are included, and each family gets one message even with two children aboard.",
+        gotcha:
+          "A student with no father, mother or guardian mobile on their record is listed in the dialog and silently left out of the send — fix the number under People → Students. At most five notices per bus per hour.",
+      },
     ],
     related: ["/transport/stops", "/transport/drivers", "/transport/assignments"],
   },
