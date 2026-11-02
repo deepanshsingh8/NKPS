@@ -29,6 +29,7 @@ export async function POST(request: Request) {
       amount_paid,
       payment_method,
       month,
+      payment_date,
       status: requestedStatus,
       cheque_number,
       cheque_date,
@@ -37,6 +38,13 @@ export async function POST(request: Request) {
       transaction_ref,
       payment_provider,
     } = result.data;
+
+    if (payment_date > todayISO()) {
+      return NextResponse.json(
+        { error: "Payment date cannot be in the future" },
+        { status: 400 }
+      );
+    }
 
     // Status resolution. Look up the target row (fee structure or bus stop
     // fee) once and use it to:
@@ -178,7 +186,7 @@ export async function POST(request: Request) {
           payment_method,
           month: month || null,
           receipt_number: generateReceiptNumber(),
-          payment_date: todayISO(),
+          payment_date,
           status,
           recorded_by: user.id,
           cheque_number: cheque_number ?? null,

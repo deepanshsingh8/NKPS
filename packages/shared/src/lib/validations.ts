@@ -427,6 +427,12 @@ export const feePaymentSchema = z
       { message: "Please select a payment method" }
     ),
     month: z.string().min(1, "Month is required").optional().or(z.literal("")),
+    // The day the money was actually received — a cheque collected on Friday
+    // and keyed in on Monday is Friday's collection, not Monday's. The route
+    // rejects a date in the future.
+    payment_date: z
+      .string({ message: "Payment date is required" })
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Payment date is required"),
     // M9 — when status='partial' the amount is below structure.amount, when
     // 'paid' it should equal it. The route validates the relationship; the
     // schema just permits both values.

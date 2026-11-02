@@ -1325,6 +1325,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Click the row, or its "View Fees" button.',
           'Click "Record Payment".',
           'Choose the instalment in the "Fee" dropdown, enter the "Amount" and pick a "Payment Method".',
+          'Set "Payment Date" to the day the parent paid — it starts at today and cannot be a future date. For a transport line, also pick "For Month".',
           "Fill the cheque, bank-transfer or online block that appears.",
           'Click "Record Payment" — the toast carries the receipt number.',
         ],
