@@ -809,6 +809,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     amount_paid: "",
     payment_method: "cash" as (typeof PAYMENT_METHODS)[number],
     month: "",
+    payment_date: todayISO(),
     cheque_number: "",
     cheque_date: "",
     bank_name: "",
@@ -2098,6 +2099,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       toast.error("Please select a fee");
       return;
     }
+    if (!newPayment.payment_date) {
+      toast.error("Please enter the payment date");
+      return;
+    }
+    if (newPayment.payment_date > todayISO()) {
+      toast.error("Payment date cannot be in the future");
+      return;
+    }
     // Decode the dropdown value: "fs:<uuid>" → fee_structure_id,
     // "stop:<uuid>" → bus_stop_id. Server enforces the XOR.
     const [kind, id] = newPayment.fee_target.split(":");
@@ -2117,6 +2126,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         amount_paid: amount,
         payment_method: m,
         month: newPayment.month || "",
+        payment_date: newPayment.payment_date,
         // Only send the fields that apply to the chosen method. Sending
         // the rest as empty strings is fine — the schema treats empty as
         // undefined — but we keep the body lean.
@@ -2149,6 +2159,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         amount_paid: "",
         payment_method: "cash",
         month: "",
+        payment_date: todayISO(),
         cheque_number: "",
         cheque_date: "",
         bank_name: "",
@@ -3336,8 +3347,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 value={newPayment.fee_target}
                 onChange={(e) => {
                   // A scheduled instalment already says which period it
-                  // covers ("April, 2026"), so prefill Month from it rather
-                  // than making the clerk retype what the schedule states.
+                  // covers ("April, 2026"), so Month comes from the schedule
+                  // rather than the clerk. Switching fees resets it, so one
+                  // fee's month never rides along onto another.
                   const [kind, id] = e.target.value.split(":");
                   const picked =
                     kind === "fs"
@@ -3346,7 +3358,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                   setNewPayment({
                     ...newPayment,
                     fee_target: e.target.value,
-                    month: picked?.month_label ?? newPayment.month,
+                    month: picked?.month_label ?? "",
                   });
                 }}
                 className="w-full"
@@ -3411,16 +3423,42 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </NativeSelect>
               </div>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Month (optional)</Label>
-              <Input
-                className="h-9"
-                type="month"
-                value={newPayment.month}
-                onChange={(e) =>
-                  setNewPayment({ ...newPayment, month: e.target.value })
-                }
-              />
+            {/* The day the parent paid, not the day it was keyed in. Month is
+                only asked for transport: a stop's fee is charged per month and
+                carries no schedule to say which one, whereas an instalment's
+                month already comes from the schedule. */}
+            <div
+              className={cn(
+                "grid grid-cols-1 gap-3",
+                newPayment.fee_target.startsWith("stop:") && "sm:grid-cols-2"
+              )}
+            >
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Payment Date</Label>
+                <Input
+                  className="h-9"
+                  type="date"
+                  required
+                  max={todayISO()}
+                  value={newPayment.payment_date}
+                  onChange={(e) =>
+                    setNewPayment({ ...newPayment, payment_date: e.target.value })
+                  }
+                />
+              </div>
+              {newPayment.fee_target.startsWith("stop:") && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">For Month (optional)</Label>
+                  <Input
+                    className="h-9"
+                    type="month"
+                    value={newPayment.month}
+                    onChange={(e) =>
+                      setNewPayment({ ...newPayment, month: e.target.value })
+                    }
+                  />
+                </div>
+              )}
             </div>
 
             {/* Method-specific fields. Only what's relevant to the chosen
