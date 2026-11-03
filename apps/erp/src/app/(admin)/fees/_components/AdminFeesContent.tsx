@@ -852,6 +852,15 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   const [refundForm, setRefundForm] = useState({ amount: "", reason: "" });
   const [refundSubmitting, setRefundSubmitting] = useState(false);
 
+  // Correcting the date on a recorded payment. Admins change it directly;
+  // editors file a change request, same as any other edit to fee_payments.
+  const [dateEditPayment, setDateEditPayment] = useState<{
+    id: string;
+    receipt_number: string | null;
+  } | null>(null);
+  const [dateEditForm, setDateEditForm] = useState({ payment_date: "", reason: "" });
+  const [dateEditSubmitting, setDateEditSubmitting] = useState(false);
+
   const [waiverOpen, setWaiverOpen] = useState(false);
 
   // The student a WhatsApp fee reminder is being composed for; null closes it.
@@ -2062,6 +2071,57 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     }
   };
 
+  const handleChangePaymentDate = async () => {
+    if (!dateEditPayment || !selectedStudent) return;
+    const { payment_date, reason } = dateEditForm;
+    if (!payment_date) {
+      toast.error("Please enter the payment date");
+      return;
+    }
+    if (payment_date > todayISO()) {
+      toast.error("Payment date cannot be in the future");
+      return;
+    }
+    if (reason.trim().length < 5) {
+      toast.error("Reason is required (min 5 chars)");
+      return;
+    }
+    setDateEditSubmitting(true);
+    try {
+      const res = isEditor
+        ? await adminFetch("/api/fees/change-requests", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              target_table: "fee_payments",
+              target_id: dateEditPayment.id,
+              action: "update",
+              proposed_changes: { payment_date },
+              reason: reason.trim(),
+            }),
+          })
+        : await adminFetch(`/api/fees/payments/${dateEditPayment.id}/date`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ payment_date, reason: reason.trim() }),
+          });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to change payment date");
+        return;
+      }
+      toast.success(
+        isEditor
+          ? "Change request filed — an admin will review it."
+          : "Payment date updated"
+      );
+      setDateEditPayment(null);
+      if (!isEditor) selectStudent(selectedStudent);
+    } finally {
+      setDateEditSubmitting(false);
+    }
+  };
+
   // Record a fee waiver — counts toward "no dues" without a cash receipt.
   const handleRecordWaiver = async () => {
     if (!selectedStudent) return;
@@ -2789,6 +2849,27 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                     <Download className="h-4 w-4" />
                                   )}
                                 </Button>
+                                {p.payment_method !== "waiver" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    onClick={() => {
+                                      setDateEditPayment({
+                                        id: p.id,
+                                        receipt_number: p.receipt_number,
+                                      });
+                                      setDateEditForm({
+                                        payment_date: p.payment_date ?? todayISO(),
+                                        reason: "",
+                                      });
+                                    }}
+                                    disabled={userRole === null}
+                                    title="Change payment date"
+                                    aria-label="Change payment date"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                )}
                                 {/* Refund applies only to genuine cash receipts that haven't been refunded yet. */}
                                 {pendingRefundIds.has(p.id) ? (
                                   <Badge
@@ -3673,6 +3754,78 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </>
               ) : (
                 "Record Payment"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Payment Date — also serves the editor "request a change" flow */}
+      <Dialog
+        open={dateEditPayment !== null}
+        onOpenChange={(open) => {
+          if (!open) setDateEditPayment(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {isEditor ? "Request Date Change" : "Change Payment Date"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {isEditor
+                ? "Your request goes to an admin, who sees the current date and yours side by side. The payment keeps its date until it is approved."
+                : `The day the parent paid${
+                    dateEditPayment?.receipt_number
+                      ? ` for receipt ${dateEditPayment.receipt_number}`
+                      : ""
+                  }. The change and your reason are kept in the fee audit log.`}
+            </p>
+            <div>
+              <Label className="text-sm font-medium">Payment Date</Label>
+              <Input
+                type="date"
+                required
+                max={todayISO()}
+                value={dateEditForm.payment_date}
+                onChange={(e) =>
+                  setDateEditForm((p) => ({ ...p, payment_date: e.target.value }))
+                }
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Reason</Label>
+              <textarea
+                value={dateEditForm.reason}
+                onChange={(e) =>
+                  setDateEditForm((p) => ({ ...p, reason: e.target.value }))
+                }
+                rows={3}
+                placeholder="e.g. Cheque received on Friday, entered on Monday…"
+                className="mt-1 w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+              />
+              <p className="text-[10px] text-gray-500 mt-1">Min 5 chars.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button
+              onClick={handleChangePaymentDate}
+              disabled={dateEditSubmitting || userRole === null}
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
+            >
+              {dateEditSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : isEditor ? (
+                "Submit Request"
+              ) : (
+                "Save Date"
               )}
             </Button>
           </div>

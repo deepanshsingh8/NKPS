@@ -1335,6 +1335,17 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded.",
       },
       {
+        name: "Change a payment's date",
+        steps: [
+          'Scroll to "Payment History".',
+          "Click the pencil icon on the row.",
+          'Pick the "Payment Date" the parent actually paid and give a reason.',
+          'Click "Save Date" — or, as an editor, "Submit Request" for an admin to approve.',
+        ],
+        gotcha:
+          "The date cannot be in the future. Waiver rows have no payment date and no pencil.",
+      },
+      {
         name: "Download a receipt",
         steps: [
           'Scroll to "Payment History".',
