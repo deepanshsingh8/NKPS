@@ -402,6 +402,10 @@ const optionalTrimmedString = z
   .or(z.literal(""))
   .transform((v) => (v && v.length > 0 ? v : undefined));
 
+const paymentDateField = z
+  .string({ message: "Payment date is required" })
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Payment date is required");
+
 export const feePaymentSchema = z
   .object({
     student_id: z.string().uuid("Invalid student"),
@@ -430,9 +434,7 @@ export const feePaymentSchema = z
     // The day the money was actually received — a cheque collected on Friday
     // and keyed in on Monday is Friday's collection, not Monday's. The route
     // rejects a date in the future.
-    payment_date: z
-      .string({ message: "Payment date is required" })
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "Payment date is required"),
+    payment_date: paymentDateField,
     // M9 — when status='partial' the amount is below structure.amount, when
     // 'paid' it should equal it. The route validates the relationship; the
     // schema just permits both values.
@@ -507,6 +509,19 @@ export const feePaymentSchema = z
   });
 
 export type FeePaymentData = z.infer<typeof feePaymentSchema>;
+
+// Correcting the date on a recorded payment. The reason is kept on the audit
+// row so a moved date can always be explained later.
+export const feePaymentDateSchema = z.object({
+  payment_date: paymentDateField,
+  reason: z
+    .string()
+    .trim()
+    .min(5, "Reason is required (min 5 chars)")
+    .max(1000, "Reason too long"),
+});
+
+export type FeePaymentDateData = z.infer<typeof feePaymentDateSchema>;
 
 // Migration 074 — stop-based transport. Fee attaches to a bus stop; students
 // boarding there pay that stop's flat fee.

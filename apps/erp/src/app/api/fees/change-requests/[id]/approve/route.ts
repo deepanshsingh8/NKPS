@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminWithUser } from "@nkps/shared/lib/verify-admin";
 import { feeChangeRequestReviewSchema } from "@nkps/shared/lib/validations";
+import { todayISO } from "@nkps/shared/lib/date";
 import { validateWaiver } from "@/lib/fee-waiver";
 import {
   isRefundRequest,
@@ -19,6 +20,7 @@ const FEE_PAYMENT_EDITABLE_COLUMNS = new Set<string>([
   "amount_paid",
   "status",
   "payment_method",
+  "payment_date",
   "cheque_number",
   "cheque_date",
   "bank_name",
@@ -269,6 +271,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
         await revert("invalid amount_paid");
         return NextResponse.json(
           { error: "Proposed amount_paid is not a valid number." },
+          { status: 400 }
+        );
+      }
+    }
+    if ("payment_date" in patch) {
+      const d = String(patch.payment_date);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d > todayISO()) {
+        await revert("invalid payment_date");
+        return NextResponse.json(
+          { error: "Proposed payment date must be a valid date, not in the future." },
           { status: 400 }
         );
       }
