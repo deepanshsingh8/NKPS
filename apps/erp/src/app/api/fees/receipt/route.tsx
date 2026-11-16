@@ -6,7 +6,7 @@ import { createClient } from "@nkps/shared/lib/supabase/server";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { FeeReceiptPDF } from "@/components/pdf/FeeReceiptPDF";
 import { SCHOOL } from "@nkps/shared/lib/constants";
-import { feeLineLabel } from "@/lib/fees";
+import { feeLineLabel, formatFeeMonth } from "@/lib/fees";
 
 export const runtime = "nodejs";
 
@@ -177,7 +177,7 @@ export async function GET(request: Request) {
           fee_type: feeTypeLabel,
           amount: Number(payment.amount_paid),
           payment_method: payment.payment_method,
-          month: payment.month,
+          month: formatFeeMonth(payment.month),
           academic_year: academicYearName,
           status: payment.status,
           refund_amount: payment.refund_amount != null ? Number(payment.refund_amount) : null,

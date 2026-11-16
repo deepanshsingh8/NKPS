@@ -1325,7 +1325,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Click the row, or its "View Fees" button.',
           'Click "Record Payment".',
           'Choose the instalment in the "Fee" dropdown, enter the "Amount" and pick a "Payment Method".',
-          'Set "Payment Date" to the day the parent paid — it starts at today and cannot be a future date. For a transport line, also pick "For Month".',
+          'Set "Payment Date" to the day the parent paid — it starts at today and cannot be a future date. For a transport line, also pick "For Month" — it is shown in the "Month" column of Payment History and printed on the receipt.',
           "Fill the cheque, bank-transfer or online block that appears.",
           'Click "Record Payment" — the toast carries the receipt number.',
         ],
@@ -1344,6 +1344,16 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         ],
         gotcha:
           "The date cannot be in the future. Waiver rows have no payment date and no pencil.",
+      },
+      {
+        name: "Check which month a payment covers",
+        steps: [
+          'Scroll to "Payment History".',
+          'Read the "Month" column — it is the month the fee was for, which can differ from the payment date.',
+          'To see every payment for one month, click the "Month" header and tick that month.',
+        ],
+        gotcha:
+          'A transport payment recorded without "For Month" shows "--". Instalments take their month from the fee schedule.',
       },
       {
         name: "Download a receipt",

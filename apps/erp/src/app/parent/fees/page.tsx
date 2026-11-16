@@ -27,6 +27,7 @@ import {
   resolveBillingCutoff,
   resolveEffectiveFeeLines,
   resolveStudentType,
+  formatFeeMonth,
 } from "@/lib/fees";
 import type { StopFeeLookup } from "@/lib/fees";
 import { ReceiptDownloadButton } from "@/components/ReceiptDownloadButton";
@@ -611,6 +612,7 @@ export default function ParentFeesPage() {
                     <TableRow>
                       <TableHead>Date</TableHead>
                       <TableHead>Type</TableHead>
+                      <TableHead>Month</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Receipt</TableHead>
                       <TableHead className="text-right">Download</TableHead>
@@ -624,6 +626,9 @@ export default function ParentFeesPage() {
                           {p.bus_stop?.name
                             ? `Transport — ${p.bus_stop.name}`
                             : p.fee_structure?.fee_type ?? "--"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {formatFeeMonth(p.month) ?? "--"}
                         </TableCell>
                         <TableCell>{formatCurrency(p.amount_paid)}</TableCell>
                         <TableCell className="font-mono text-xs">
