@@ -68,6 +68,8 @@ import {
   annualizedAmount,
   settledAmount,
   feeLineLabel,
+  formatFeeMonth,
+  feeMonthSortKey,
   type BillableEnrollment,
   type DuesBreakdown,
   type StopFeeLookup,
@@ -1371,6 +1373,15 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             : p.fee_structure
               ? feeLineLabel(p.fee_structure)
               : null,
+      },
+      // The month a payment covers, separate from the day it was paid — a
+      // bus fee for April paid on 3 May is filed under April. Filterable so
+      // the office can pull up "every April transport payment" and check it.
+      month: {
+        label: "Month",
+        value: (p) => formatFeeMonth(p.month),
+        sortValue: (p) => feeMonthSortKey(p.month),
+        exportValue: (p) => formatFeeMonth(p.month),
       },
       amount: { label: "Amount", value: (p) => p.amount_paid, filter: "none" },
       method: {
@@ -2793,6 +2804,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                         <TableRow>
                           <SortFilterHead ctl={paymentTable} col="payment_date" />
                           <SortFilterHead ctl={paymentTable} col="type" />
+                          <SortFilterHead ctl={paymentTable} col="month" />
                           <SortFilterHead ctl={paymentTable} col="amount" />
                           <SortFilterHead ctl={paymentTable} col="method" />
                           <SortFilterHead ctl={paymentTable} col="receipt" />
@@ -2803,7 +2815,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                       <TableBody>
                         {paymentTable.rows.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={7} className="py-10 text-center text-gray-500 dark:text-gray-400">
+                            <TableCell colSpan={8} className="py-10 text-center text-gray-500 dark:text-gray-400">
                               No payments match the column filters.
                             </TableCell>
                           </TableRow>
@@ -2817,6 +2829,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                 : p.fee_structure
                                   ? feeLineLabel(p.fee_structure)
                                   : "--"}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {formatFeeMonth(p.month) ?? "--"}
                             </TableCell>
                             <TableCell>
                               {new Intl.NumberFormat("en-IN", {

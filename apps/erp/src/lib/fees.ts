@@ -205,6 +205,48 @@ export function feeLineLabel(line: {
   return name ? `${line.fee_type} — ${name}` : line.fee_type;
 }
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+// `fee_payments.month` holds three shapes, depending on where the row came
+// from: "2026-04" from the record-payment form's month picker (transport,
+// waivers), "April, 2026" copied from a schedule row's month_label, and "APR"
+// from a day-book import, which carries no year. The first is the one a
+// person can't read at a glance, so it becomes "April 2026"; the others are
+// already words and pass through as written.
+export function formatFeeMonth(month: string | null | undefined): string | null {
+  const raw = month?.trim();
+  if (!raw) return null;
+  const iso = /^(\d{4})-(\d{2})$/.exec(raw);
+  if (iso) {
+    const name = MONTH_NAMES[Number(iso[2]) - 1];
+    if (name) return `${name} ${iso[1]}`;
+  }
+  return raw;
+}
+
+// Chronological sort key ("YYYY-MM") for the same column, so a sort puts
+// March 2027 after April 2026 rather than alphabetically before it. A value
+// with no year to place it ("APR") sorts after the dated ones, by its text.
+export function feeMonthSortKey(month: string | null | undefined): string | null {
+  const raw = month?.trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}$/.test(raw)) return raw;
+  const named = /^([A-Za-z]+)[\s,]+(\d{4})$/.exec(raw);
+  if (named) {
+    const word = named[1].toLowerCase();
+    const idx = MONTH_NAMES.findIndex((m) =>
+      m.toLowerCase().startsWith(word.slice(0, 3))
+    );
+    if (idx >= 0 && word.length >= 3) {
+      return `${named[2]}-${String(idx + 1).padStart(2, "0")}`;
+    }
+  }
+  return `~${raw.toLowerCase()}`;
+}
+
 // The date a late fee starts accruing from. Schedules set an explicit grace
 // date (due 01/04 → late fee from 12/04); rows without one fall back to the
 // due date, which is how every pre-085 structure behaved.
