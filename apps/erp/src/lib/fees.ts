@@ -250,6 +250,24 @@ export function feeMonthSortKey(month: string | null | undefined): string | null
 // The date a late fee starts accruing from. Schedules set an explicit grace
 // date (due 01/04 → late fee from 12/04); rows without one fall back to the
 // due date, which is how every pre-085 structure behaved.
+// A discount is stored as a waiver row: amount_paid 0 by schema, the value in
+// waiver_amount. A history that prints amount_paid shows every discount as
+// ₹0 — which is how applied discounts came to be filed a second time.
+export function isDiscountPayment(p: { payment_method?: string | null }): boolean {
+  return p.payment_method === "waiver";
+}
+
+/** The figure a payment-history row shows: a discount's value, or the cash received. */
+export function paymentDisplayAmount(p: {
+  payment_method?: string | null;
+  amount_paid: number | string | null;
+  waiver_amount?: number | string | null;
+}): number {
+  return isDiscountPayment(p)
+    ? Number(p.waiver_amount ?? 0)
+    : Number(p.amount_paid ?? 0);
+}
+
 export function lateFeeAnchorDate(fs: {
   due_date: string | null;
   late_fee_start_date?: string | null;

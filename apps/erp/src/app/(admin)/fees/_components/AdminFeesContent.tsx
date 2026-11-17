@@ -69,6 +69,8 @@ import {
   settledAmount,
   feeLineLabel,
   formatFeeMonth,
+  isDiscountPayment,
+  paymentDisplayAmount,
   feeMonthSortKey,
   type BillableEnrollment,
   type DuesBreakdown,
@@ -1383,10 +1385,18 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         sortValue: (p) => feeMonthSortKey(p.month),
         exportValue: (p) => formatFeeMonth(p.month),
       },
-      amount: { label: "Amount", value: (p) => p.amount_paid, filter: "none" },
+      // A discount shows its value, not the ₹0 its row stores as cash.
+      amount: {
+        label: "Amount",
+        value: (p) => paymentDisplayAmount(p),
+        filter: "none",
+      },
       method: {
         label: "Method",
-        value: (p) => p.payment_method?.replace("_", " ") ?? null,
+        value: (p) =>
+          isDiscountPayment(p)
+            ? "discount"
+            : p.payment_method?.replace("_", " ") ?? null,
       },
       receipt: {
         label: "Receipt",
@@ -2838,10 +2848,17 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                 style: "currency",
                                 currency: "INR",
                                 maximumFractionDigits: 0,
-                              }).format(p.amount_paid)}
+                              }).format(paymentDisplayAmount(p))}
+                              {isDiscountPayment(p) && (
+                                <span className="block text-[11px] text-gray-500 dark:text-gray-400">
+                                  discount, no cash
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell className="capitalize">
-                              {p.payment_method?.replace("_", " ") ?? "--"}
+                              {isDiscountPayment(p)
+                                ? "Discount"
+                                : p.payment_method?.replace("_", " ") ?? "--"}
                             </TableCell>
                             <TableCell className="font-mono text-xs">
                               {p.receipt_number ?? "--"}

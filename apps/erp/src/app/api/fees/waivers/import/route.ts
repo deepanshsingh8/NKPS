@@ -256,13 +256,19 @@ export async function POST(request: Request) {
     // The real guard: cap against what is still owed, and one waiver per
     // (student, structure, month). Runs on the LIVE ledger, in preview and
     // again at commit, so a concession can't slip past after a payment lands.
-    const check = await validateWaiver(admin, {
-      student_id: student.id,
-      fee_structure_id: structureId,
-      waiver_amount: amount,
-      waiver_reason: reason,
-      month: month || null,
-    });
+    // includePending: a concession the clerk has already filed for approval
+    // would otherwise land twice — and their request could never be approved.
+    const check = await validateWaiver(
+      admin,
+      {
+        student_id: student.id,
+        fee_structure_id: structureId,
+        waiver_amount: amount,
+        waiver_reason: reason,
+        month: month || null,
+      },
+      { includePending: true }
+    );
     if (!check.ok) { fail(check.error ?? "Rejected"); continue; }
 
     verdicts.push({
@@ -304,13 +310,17 @@ export async function POST(request: Request) {
   const failures: { source_row: number; admission_no: string; message: string }[] = [];
 
   for (const r of okRows) {
-    const recheck = await validateWaiver(admin, {
-      student_id: r.resolved_student_id!,
-      fee_structure_id: r.resolved_structure_id!,
-      waiver_amount: r.amount!,
-      waiver_reason: r.reason,
-      month: r.month,
-    });
+    const recheck = await validateWaiver(
+      admin,
+      {
+        student_id: r.resolved_student_id!,
+        fee_structure_id: r.resolved_structure_id!,
+        waiver_amount: r.amount!,
+        waiver_reason: r.reason,
+        month: r.month,
+      },
+      { includePending: true }
+    );
     if (!recheck.ok) {
       failures.push({
         source_row: r.source_row,

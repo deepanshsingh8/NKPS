@@ -6,7 +6,12 @@ import { createClient } from "@nkps/shared/lib/supabase/server";
 import { createAdminClient } from "@nkps/shared/lib/supabase/admin";
 import { FeeReceiptPDF } from "@/components/pdf/FeeReceiptPDF";
 import { SCHOOL } from "@nkps/shared/lib/constants";
-import { feeLineLabel, formatFeeMonth } from "@/lib/fees";
+import {
+  feeLineLabel,
+  formatFeeMonth,
+  isDiscountPayment,
+  paymentDisplayAmount,
+} from "@/lib/fees";
 
 export const runtime = "nodejs";
 
@@ -49,7 +54,7 @@ export async function GET(request: Request) {
     const { data: payment, error: payErr } = await admin
       .from("fee_payments")
       .select(
-        "id, student_id, amount_paid, payment_date, payment_method, receipt_number, month, status, remarks, refund_amount, refund_reason, refunded_at, cheque_number, cheque_date, bank_name, payer_name, transaction_ref, payment_provider, fee_structure:fee_structures(fee_type, instalment_name, month_label, academic_year_id, academic_years(name)), bus_stop:bus_stops(name), academic_year:academic_years(name)"
+        "id, student_id, amount_paid, waiver_amount, waiver_reason, payment_date, payment_method, receipt_number, month, status, remarks, refund_amount, refund_reason, refunded_at, cheque_number, cheque_date, bank_name, payer_name, transaction_ref, payment_provider, fee_structure:fee_structures(fee_type, instalment_name, month_label, academic_year_id, academic_years(name)), bus_stop:bus_stops(name), academic_year:academic_years(name)"
       )
       .eq("id", paymentId)
       .single();
@@ -175,7 +180,8 @@ export async function GET(request: Request) {
           receipt_number: payment.receipt_number ?? payment.id.slice(0, 8).toUpperCase(),
           payment_date: payment.payment_date,
           fee_type: feeTypeLabel,
-          amount: Number(payment.amount_paid),
+          // A discount's value lives in waiver_amount; its amount_paid is 0.
+          amount: paymentDisplayAmount(payment),
           payment_method: payment.payment_method,
           month: formatFeeMonth(payment.month),
           academic_year: academicYearName,
@@ -183,7 +189,9 @@ export async function GET(request: Request) {
           refund_amount: payment.refund_amount != null ? Number(payment.refund_amount) : null,
           refund_reason: payment.refund_reason ?? null,
           refunded_at: payment.refunded_at ?? null,
-          remarks: payment.remarks,
+          remarks:
+            payment.remarks ??
+            (isDiscountPayment(payment) ? payment.waiver_reason ?? null : null),
           cheque_number: payment.cheque_number ?? null,
           cheque_date: payment.cheque_date ?? null,
           bank_name: payment.bank_name ?? null,

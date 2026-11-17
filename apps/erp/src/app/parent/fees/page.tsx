@@ -28,6 +28,8 @@ import {
   resolveEffectiveFeeLines,
   resolveStudentType,
   formatFeeMonth,
+  isDiscountPayment,
+  paymentDisplayAmount,
 } from "@/lib/fees";
 import type { StopFeeLookup } from "@/lib/fees";
 import { ReceiptDownloadButton } from "@/components/ReceiptDownloadButton";
@@ -630,7 +632,14 @@ export default function ParentFeesPage() {
                         <TableCell className="whitespace-nowrap">
                           {formatFeeMonth(p.month) ?? "--"}
                         </TableCell>
-                        <TableCell>{formatCurrency(p.amount_paid)}</TableCell>
+                        <TableCell>
+                          {formatCurrency(paymentDisplayAmount(p))}
+                          {isDiscountPayment(p) && (
+                            <span className="block text-[11px] text-gray-500 dark:text-gray-400">
+                              discount
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell className="font-mono text-xs">
                           {p.receipt_number ?? "--"}
                         </TableCell>

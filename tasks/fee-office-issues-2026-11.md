@@ -17,6 +17,43 @@ They don't remove them.
 
 ---
 
+## Shipped — 17 Nov (after the Vice Principal couldn't approve a request)
+
+Code only. Database access stays off unless the owner says otherwise, so the
+blocked request itself (filed under the name Shagun) was not looked up. Every
+failure route now names its own cause on screen.
+
+- [x] **One discount rule for every path.** `checkWaiverAgainstLedger()` in
+      `lib/fee-waiver.ts` is the pure rule (cap + one discount per instalment and
+      month). It's used by the direct waiver, the clerk's request (on filing and on
+      approval), the bulk concession import, and the inbox.
+- [x] **Inbox verdicts (1b).** Every pending discount card carries "Already
+      applied — duplicate", "Duplicate of an earlier request", "More than is still
+      owed" or "Can't be applied". The dialog explains the problem and disables
+      Approve where it can only fail. A duplicate gets a one-click **Reject as
+      duplicate** with the note filled in.
+- [x] **Approve says why it failed.** A refused discount returns
+      `DUPLICATE_WAIVER` / `EXCEEDS_OUTSTANDING` / `WAIVER_INVALID` and the verdict,
+      and the inbox pins that explanation to the request.
+- [x] **Stuck receipt number.** A discount request drew its receipt number when it
+      was filed and reused it on every approval. If another receipt took the number
+      in between, the request could never be approved. Approve now draws a fresh
+      number on a collision.
+- [x] **Duplicates refused at filing (1d, app side).** Filing a discount, and the
+      bulk import, now count discounts still waiting for approval. The DB index part
+      of 1d is still to do, in migration 139.
+- [x] **Discounts shown as discounts (3e, history part).** Admin Payment History,
+      the parent and student portals, and the receipt PDF show the discount's value
+      ("Discount" / "Discount Allowed"), not ₹0.
+- [x] **Registration approval.** "Failed to create user account" is replaced by the
+      actual cause: the email already has an account (reject, sign in or use Forgot
+      password, Link record), an invalid email, or the sign-in service being busy.
+- [ ] Not done yet from Issue 1: bulk approve (1c), the clerk-side request markers
+      (1e), registration per-row busy state and the password list (1f), the
+      transport atomic claim (1g).
+
+---
+
 ## Issue 1 — Approving multiple requests
 
 ### Verified

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import { feeChangeRequestSchema } from "@nkps/shared/lib/validations";
 import { resolveEntityLabels } from "@/lib/change-request-display";
+import { assessPendingWaiverRequests } from "@/lib/fee-waiver";
 
 // GET /api/fees/change-requests
 //   List change requests. Query params:
@@ -77,7 +78,21 @@ export async function GET(request: NextRequest) {
     ])
   );
 
-  return NextResponse.json({ requests: enriched, entity_labels });
+  // Whether each pending discount request can actually be approved — a copy
+  // of an applied discount, or the second of two identical requests, cannot.
+  // Computed with the approve route's own rule so the two never disagree.
+  const verdicts = await assessPendingWaiverRequests(
+    admin,
+    (requests ?? []).map((r) => ({
+      id: r.id as string,
+      status: r.status as string,
+      action: r.action as string,
+      requested_at: r.requested_at as string,
+      proposed_changes: r.proposed_changes as Record<string, unknown> | null,
+    }))
+  );
+
+  return NextResponse.json({ requests: enriched, entity_labels, verdicts });
 }
 
 // POST /api/fees/change-requests

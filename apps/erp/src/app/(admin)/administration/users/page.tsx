@@ -475,7 +475,11 @@ export default function AdminUsersPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error || "Failed to approve registration");
+        // The coded failures explain what to do next and run to a few
+        // sentences — give the approver time to read them.
+        toast.error(data.error || "Failed to approve registration", {
+          duration: data.code ? 15000 : undefined,
+        });
         return;
       }
 

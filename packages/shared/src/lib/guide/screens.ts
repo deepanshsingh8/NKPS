@@ -1392,7 +1392,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Click "Record Waiver".',
         ],
         gotcha:
-          "A waiver counts toward no-dues without a cash receipt, and can never be refunded.",
+          'A waiver counts toward no-dues without a cash receipt, and can never be refunded. Only one discount per instalment is allowed, and a second is refused while one is still waiting for approval. In Payment History a discount shows its own amount with "Discount" as the method, and its receipt reads "Discount Allowed".',
       },
       {
         name: "Undo a day-book import",
@@ -1462,8 +1462,22 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'An amber "Row drifted since this request was filed" banner means the payment changed after the request — approving overwrites the live values. Approving a delete request deletes the payment row. A field shown as "Unknown record" means the student or fee head it pointed at has since been deleted; do not approve it blind.',
       },
       {
+        name: "Clear a discount request that can't be approved",
+        steps: [
+          'On the "Pending" tab, look for a red or amber badge on the card: "Already applied — duplicate", "Duplicate of an earlier request", "More than is still owed" or "Can\'t be applied".',
+          "Open the request — the note under the header says what is wrong and what to do.",
+          'For a duplicate, click "Reject as duplicate". The reason is filled in for the requester.',
+          'For "Duplicate of an earlier request", approve one of the two and reject the other.',
+        ],
+        adminOnly: true,
+        gotcha:
+          '"Approve & apply" is disabled on a discount that is already applied, is more than the family still owes, or points at an instalment that no longer exists — approving it could only fail. Approving one of two identical requests turns the other into "Already applied — duplicate".',
+      },
+      {
         name: "Cancel your own request",
         steps: ['Open the request and click "Cancel request".'],
+        gotcha:
+          "If your request shows a duplicate badge, the same discount is already applied or already waiting — cancel the extra copy.",
       },
       {
         name: "See who approved or rejected a request",
