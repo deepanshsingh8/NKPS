@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminWithUser } from "@nkps/shared/lib/verify-admin";
 import { feeChangeRequestReviewSchema } from "@nkps/shared/lib/validations";
 import { todayISO } from "@nkps/shared/lib/date";
+import { generateReceiptNumber } from "@nkps/shared/lib/password";
 import { validateWaiver } from "@/lib/fee-waiver";
 import {
+  describeVerdict,
   isRefundRequest,
   SUPER_ADMIN_REQUIRED_MESSAGE,
 } from "@/lib/fee-change-requests";
@@ -175,22 +177,57 @@ export async function POST(request: NextRequest, context: RouteContext) {
         month: (proposed.month as string | null) ?? null,
       });
       if (!recheck.ok) {
-        await revert(`waiver re-validation failed: ${recheck.error}`);
+        await revert(`waiver re-validation failed: ${recheck.code} ${recheck.error}`);
+        // Say what is actually wrong and what to do about it. The verdict
+        // goes back too, so the inbox can show the explanation on the request
+        // itself instead of only in a toast that disappears.
+        const message = recheck.verdict
+          ? describeVerdict(recheck.verdict)
+          : `Cannot approve this discount: ${recheck.error}`;
         return NextResponse.json(
-          { error: `Cannot approve waiver: ${recheck.error}` },
-          { status: 409 }
+          {
+            error: message,
+            code:
+              recheck.code === "duplicate_applied"
+                ? "DUPLICATE_WAIVER"
+                : recheck.code === "exceeds_outstanding"
+                  ? "EXCEEDS_OUTSTANDING"
+                  : "WAIVER_INVALID",
+            verdict: recheck.verdict ?? null,
+          },
+          { status: recheck.code === "lookup_failed" ? 500 : 409 }
         );
       }
     }
-    const { data: created, error: insErr } = await admin
-      .from(claimed.target_table)
-      .insert(proposed)
-      .select("*")
-      .single();
+    // The receipt number in proposed_changes was drawn when the request was
+    // FILED. Receipt numbers are random, not a sequence, so a receipt issued
+    // in between can take it — and re-inserting the same number would then
+    // fail on every retry, leaving the request unapprovable for good. Draw a
+    // fresh one on a collision; it is the sole UNIQUE column besides the PK.
+    let created: Record<string, unknown> | null = null;
+    let insErr: { code?: string; message?: string } | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const res = await admin
+        .from(claimed.target_table)
+        .insert(proposed)
+        .select("*")
+        .single();
+      if (!res.error && res.data) {
+        created = res.data as Record<string, unknown>;
+        insErr = null;
+        break;
+      }
+      insErr = res.error;
+      if (res.error?.code !== "23505") break;
+      proposed.receipt_number = generateReceiptNumber();
+    }
     if (insErr || !created) {
-      await revert(`insert failed: ${insErr?.message}`);
+      await revert(`insert failed: ${insErr?.code} ${insErr?.message}`);
       return NextResponse.json(
-        { error: "Failed to apply insert. Request reverted to pending." },
+        {
+          error:
+            "The discount could not be saved, so the request is still pending. Try again; if it keeps failing, reject it and have it filed again.",
+        },
         { status: 500 }
       );
     }

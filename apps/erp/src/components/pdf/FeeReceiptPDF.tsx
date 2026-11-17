@@ -292,6 +292,9 @@ function Copy({
     }).format(n)}`;
   const amountText = formatINR(data.amount);
   const isRefunded = data.status === "refunded";
+  // A discount (waiver) row takes no money: its receipt records the
+  // concession, and must not read "Amount Received".
+  const isDiscount = data.payment_method === "waiver";
   const refundedDate = data.refunded_at
     ? new Date(data.refunded_at).toLocaleDateString("en-IN")
     : null;
@@ -362,9 +365,11 @@ function Copy({
       <View style={styles.gridRow}>
         <Text style={styles.gridLabel}>Payment Method</Text>
         <Text style={styles.gridValue}>
-          {data.payment_method
-            .replace("_", " ")
-            .replace(/\b\w/g, (c) => c.toUpperCase())}
+          {isDiscount
+            ? "Discount (no cash received)"
+            : data.payment_method
+                .replace("_", " ")
+                .replace(/\b\w/g, (c) => c.toUpperCase())}
           {data.payment_provider ? `   ·   ${data.payment_provider}` : ""}
         </Text>
       </View>
@@ -423,7 +428,11 @@ function Copy({
 
       <View style={styles.amountBox}>
         <Text style={styles.amountLabel}>
-          {isRefunded ? "Amount Received (since refunded)" : "Amount Received"}
+          {isDiscount
+            ? "Discount Allowed"
+            : isRefunded
+              ? "Amount Received (since refunded)"
+              : "Amount Received"}
         </Text>
         <Text style={styles.amountValue}>{amountText}</Text>
       </View>

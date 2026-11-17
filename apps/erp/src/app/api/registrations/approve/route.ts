@@ -15,6 +15,44 @@ import {
 import { pickFreeAdmissionNo } from "@/lib/admission-no";
 import { findStudentByAdmissionNo } from "@/lib/identity/student-lookup";
 
+// auth-js error codes (matched on `code`, as create-portal-user.ts does).
+// Only the known, actionable ones get their own message; anything else keeps
+// a generic one — never the raw auth error.
+function describeCreateUserFailure(
+  err: { code?: string; status?: number; message?: string },
+  email: string,
+  fullName: string
+): { message: string; code: string; status: number } {
+  if (err.code === "email_exists" || err.code === "user_already_exists") {
+    return {
+      code: "EMAIL_EXISTS",
+      status: 409,
+      message: `${email} already has a portal account, so a new one can't be created from this request — approving it again will fail the same way. Reject this request and ask ${fullName} to sign in with that email (Forgot password works if they don't know it). To connect that account to a student record, use "Link record" on its row in the Users list.`,
+    };
+  }
+  if (err.code === "email_address_invalid" || err.code === "validation_failed") {
+    return {
+      code: "EMAIL_INVALID",
+      status: 400,
+      message: `The email on this request (${email}) isn't a valid address, so no account can be made for it. Reject the request and ask ${fullName} to register again with a working email.`,
+    };
+  }
+  if (err.code === "over_request_rate_limit" || err.status === 429) {
+    return {
+      code: "AUTH_RATE_LIMITED",
+      status: 429,
+      message:
+        "The sign-in service is busy. Wait a minute and approve this request again — it is still pending.",
+    };
+  }
+  return {
+    code: "CREATE_USER_FAILED",
+    status: 500,
+    message:
+      "The account could not be created, so the request is still pending. Try again in a few minutes; if it keeps failing, reject it and ask the person to register again.",
+  };
+}
+
 export async function POST(request: Request) {
   try {
     // Verify the caller is an admin
@@ -135,9 +173,14 @@ export async function POST(request: Request) {
         .from("registration_requests")
         .update({ status: "pending", reviewed_by: null, reviewed_at: null })
         .eq("id", id);
+      // Say which failure it was. A bare "Failed to create user account"
+      // left the approver retrying a request that can never succeed: the
+      // usual cause is an email that already has a portal account, which no
+      // number of retries will change.
+      const failure = describeCreateUserFailure(createError, email, full_name);
       return NextResponse.json(
-        { error: "Failed to create user account" },
-        { status: 500 }
+        { error: failure.message, code: failure.code },
+        { status: failure.status }
       );
     }
 

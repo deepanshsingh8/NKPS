@@ -29,7 +29,15 @@ import {
   formatFieldValue,
   visibleFields,
 } from "@/lib/change-request-display";
-import { isRefundRequest } from "@/lib/fee-change-requests";
+import {
+  type WaiverRequestVerdict,
+  describeVerdict,
+  duplicateRejectNote,
+  isRefundRequest,
+  verdictBadge,
+  verdictBlocksApproval,
+  verdictIsDuplicate,
+} from "@/lib/fee-change-requests";
 
 type RequestStatus = "pending" | "approved" | "rejected" | "cancelled";
 
@@ -89,6 +97,19 @@ const STATUS_COLORS: Record<RequestStatus, string> = {
   cancelled: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
 };
 
+// Red where Approve cannot succeed and the request should go; amber where it
+// needs a decision (one of two twins, or a discount the ledger has outgrown).
+const VERDICT_BADGE_COLORS: Record<WaiverRequestVerdict["kind"], string> = {
+  ok: "",
+  duplicate_applied:
+    "border-red-300 text-red-700 dark:border-red-700 dark:text-red-300",
+  invalid: "border-red-300 text-red-700 dark:border-red-700 dark:text-red-300",
+  duplicate_pending:
+    "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300",
+  exceeds_outstanding:
+    "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300",
+};
+
 function formatTimestamp(ts: string | null): string {
   if (!ts) return "—";
   try {
@@ -140,6 +161,10 @@ export default function FeeChangeRequestsPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [requests, setRequests] = useState<ChangeRequest[]>([]);
   const [listLabels, setListLabels] = useState<EntityLabels>({});
+  // Request id → whether a pending discount can actually be approved. Filled
+  // by the list call, and updated in place when an approve comes back
+  // refused, so the reason stays on the request rather than in a toast.
+  const [verdicts, setVerdicts] = useState<Record<string, WaiverRequestVerdict>>({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<RequestStatus>("pending");
   const [detail, setDetail] = useState<RequestDetail | null>(null);
@@ -183,10 +208,12 @@ export default function FeeChangeRequestsPage() {
           toast.error(data.error ?? "Failed to load change requests");
           setRequests([]);
           setListLabels({});
+          setVerdicts({});
           return;
         }
         setRequests(data.requests ?? []);
         setListLabels(data.entity_labels ?? {});
+        setVerdicts(data.verdicts ?? {});
       } finally {
         setLoading(false);
       }
@@ -216,7 +243,11 @@ export default function FeeChangeRequestsPage() {
   }, []);
 
   const doAction = useCallback(
-    async (id: string, action: "approve" | "reject" | "cancel") => {
+    async (
+      id: string,
+      action: "approve" | "reject" | "cancel",
+      notesOverride?: string
+    ) => {
       setSubmitting(true);
       try {
         const res = await adminFetch(
@@ -224,12 +255,19 @@ export default function FeeChangeRequestsPage() {
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ review_notes: reviewNotes }),
+            body: JSON.stringify({ review_notes: notesOverride ?? reviewNotes }),
           }
         );
         const data = await res.json();
         if (!res.ok) {
-          toast.error(data.error ?? `Failed to ${action} request`);
+          // A refused discount comes back with its verdict: pin it to the
+          // request so the dialog explains it and offers the right action.
+          if (data.verdict) {
+            setVerdicts((prev) => ({ ...prev, [id]: data.verdict }));
+          }
+          toast.error(data.error ?? `Failed to ${action} request`, {
+            duration: data.verdict ? 10000 : undefined,
+          });
           return;
         }
         toast.success(
@@ -295,6 +333,14 @@ export default function FeeChangeRequestsPage() {
                         Needs super admin
                       </Badge>
                     )}
+                  {r.status === "pending" && verdictBadge(verdicts[r.id]) && (
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${VERDICT_BADGE_COLORS[verdicts[r.id].kind]}`}
+                    >
+                      {verdictBadge(verdicts[r.id])}
+                    </Badge>
+                  )}
                   <span className="text-xs text-gray-500">
                     {r.target_table === "fee_payments" ? "Payment" : r.target_table}
                   </span>
@@ -335,6 +381,11 @@ export default function FeeChangeRequestsPage() {
   // Approve/Reject: any admin for edits, deletes and waivers; a super admin
   // for refunds. The routes enforce the same rule.
   const canReview = isAdmin && (isSuperAdmin || !detailIsRefund);
+  // Will Approve work on this discount? Only pending requests carry one.
+  const detailVerdict =
+    detailReq && detailReq.status === "pending" ? verdicts[detailReq.id] : undefined;
+  const detailVerdictText = describeVerdict(detailVerdict);
+  const approveBlocked = verdictBlocksApproval(detailVerdict);
   const detailLabels = detail?.entity_labels ?? {};
   const detailSubject = detailReq
     ? subjectLine(
@@ -455,6 +506,25 @@ export default function FeeChangeRequestsPage() {
                 </div>
               )}
 
+              {detailVerdict && detailVerdictText && (
+                <div
+                  className={
+                    approveBlocked
+                      ? "rounded-md border border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-900/20 px-3 py-2 text-xs text-red-900 dark:text-red-200 flex gap-2"
+                      : "rounded-md border border-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-xs text-amber-900 dark:text-amber-200 flex gap-2"
+                  }
+                >
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium">{verdictBadge(detailVerdict)}</p>
+                    <p className="mt-1">{detailVerdictText}</p>
+                    {!isAdmin && verdictIsDuplicate(detailVerdict) && (
+                      <p className="mt-1">You can cancel this request yourself.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <h3 className="text-xs uppercase tracking-wide text-gray-500 mb-1">Reason</h3>
                 <p className="text-sm whitespace-pre-wrap">{detailReq.reason}</p>
@@ -561,18 +631,43 @@ export default function FeeChangeRequestsPage() {
                     )}
                     {canReview && (
                       <>
-                        <Button
-                          variant="outline"
-                          onClick={() => doAction(detailReq.id, "reject")}
-                          disabled={submitting}
-                          className="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20"
-                        >
-                          <X className="h-4 w-4 mr-1" />
-                          Reject
-                        </Button>
+                        {verdictIsDuplicate(detailVerdict) ? (
+                          // One click, with the reason written for the
+                          // requester — a duplicate needs no deliberation.
+                          <Button
+                            variant="outline"
+                            onClick={() =>
+                              doAction(
+                                detailReq.id,
+                                "reject",
+                                reviewNotes.trim() || duplicateRejectNote(detailVerdict)
+                              )
+                            }
+                            disabled={submitting}
+                            className="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20"
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Reject as duplicate
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            onClick={() => doAction(detailReq.id, "reject")}
+                            disabled={submitting}
+                            className="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20"
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Reject
+                          </Button>
+                        )}
                         <Button
                           onClick={() => doAction(detailReq.id, "approve")}
-                          disabled={submitting}
+                          disabled={submitting || approveBlocked}
+                          title={
+                            approveBlocked
+                              ? "This discount cannot be applied — see the note above"
+                              : undefined
+                          }
                           className="bg-green-600 hover:bg-green-700 text-white"
                         >
                           {submitting ? (

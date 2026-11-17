@@ -32,15 +32,28 @@ export async function POST(request: Request) {
   const { student_id, fee_structure_id, waiver_amount, waiver_reason, month } =
     parsed.data;
 
-  const check = await validateWaiver(admin, {
-    student_id,
-    fee_structure_id,
-    waiver_amount,
-    waiver_reason,
-    month,
-  });
+  // includePending: a discount already waiting for approval counts as taken.
+  // Without it the same discount could be filed twice, and the second copy
+  // could then never be approved.
+  const check = await validateWaiver(
+    admin,
+    {
+      student_id,
+      fee_structure_id,
+      waiver_amount,
+      waiver_reason,
+      month,
+    },
+    { includePending: true }
+  );
   if (!check.ok) {
-    return NextResponse.json({ error: check.error }, { status: 400 });
+    const status =
+      check.code === "lookup_failed"
+        ? 500
+        : check.code === "duplicate_applied" || check.code === "duplicate_pending"
+          ? 409
+          : 400;
+    return NextResponse.json({ error: check.error, code: check.code }, { status });
   }
 
   const waiverRow = buildWaiverRow(
