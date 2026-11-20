@@ -27,6 +27,8 @@ const FEE_PAYMENT_EDITABLE_COLUMNS = new Set<string>([
   "remarks",
   "refund_amount",
   "refund_reason",
+  // A discount's amount — on a waiver row only, checked below.
+  "waiver_amount",
 ]);
 
 export type ApplyOutcome =
@@ -316,6 +318,30 @@ export async function applyFeeChangeRequest(
     // refunded since, and a mode change must still carry the details that
     // mode needs. Approving a cash → cheque change with no cheque number used
     // to go straight through.
+    // A changed discount amount: only on a discount, and within what is still
+    // owed on its instalment, leaving this discount itself out.
+    if ("waiver_amount" in patch) {
+      if (liveRow.payment_method !== "waiver") {
+        await revert("waiver_amount on a non-waiver row");
+        return fail({ error: "Only a discount has a discount amount." }, 400);
+      }
+      const recheck = await validateWaiver(
+        admin,
+        {
+          student_id: String(liveRow.student_id),
+          fee_structure_id: String(liveRow.fee_structure_id),
+          waiver_amount: Number(patch.waiver_amount),
+          waiver_reason: String(liveRow.waiver_reason ?? ""),
+          month: (liveRow.month as string | null) ?? null,
+        },
+        { excludePaymentId: String(liveRow.id) }
+      );
+      if (!recheck.ok) {
+        await revert(`discount change rejected: ${recheck.error}`);
+        return fail({ error: `This discount change can't be applied: ${recheck.error}` }, 409);
+      }
+    }
+
     const correction = correctionColumnsIn(patch);
     if (correction.length > 0) {
       const subset = Object.fromEntries(correction.map((k) => [k, patch[k]]));

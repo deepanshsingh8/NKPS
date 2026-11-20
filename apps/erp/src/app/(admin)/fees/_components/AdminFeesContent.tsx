@@ -1327,6 +1327,16 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     month: "",
   });
   const [waiverSubmitting, setWaiverSubmitting] = useState(false);
+  // "single": one instalment, as before. "spread": one total split across
+  // the unpaid instalments — a concession decided once Q1 and Q2 are paid
+  // used to be divided by hand into one request per instalment.
+  const [waiverMode, setWaiverMode] = useState<"single" | "spread">("single");
+  // Changing or removing a recorded discount.
+  const [discountEdit, setDiscountEdit] = useState<
+    (typeof studentPayments)[number] | null
+  >(null);
+  const [discountEditForm, setDiscountEditForm] = useState({ amount: "", reason: "" });
+  const [discountEditSubmitting, setDiscountEditSubmitting] = useState(false);
 
   // Academic year. The date range is needed as well as the id: a student
   // counts as "new" (and so owes the admission fee) when their admission date
@@ -2785,6 +2795,154 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   };
 
   // Record a fee waiver — counts toward "no dues" without a cash receipt.
+  // Instalments a spread discount can land on: unpaid, and not already
+  // carrying a discount (applied or awaiting approval) — one per instalment.
+  const spreadTargets = useMemo(() => {
+    if (!selectedStudent) return { targets: [] as InstalmentPosition[], skipped: [] as InstalmentPosition[] };
+    const open = (selectedLedger?.rows ?? []).filter(
+      (r) => r.kind === "fee_structure" && r.outstanding > 0.005
+    );
+    const hasDiscount = (r: InstalmentPosition) =>
+      r.discount > 0 ||
+      pendingDiscounts.some(
+        (d) => d.student_id === selectedStudent.id && d.fee_structure_id === r.line.id
+      );
+    return {
+      targets: open.filter((r) => !hasDiscount(r)),
+      skipped: open.filter(hasDiscount),
+    };
+  }, [selectedLedger, pendingDiscounts, selectedStudent]);
+
+  // The spread: proportional to what each instalment still owes, so a 10%
+  // concession is 10% of every remaining instalment. Paise go to the last.
+  const spreadPreview = useMemo(() => {
+    if (waiverMode !== "spread") return null;
+    const total = parseFloat(waiverForm.waiver_amount);
+    const { targets } = spreadTargets;
+    if (targets.length === 0) {
+      return { ok: false as const, error: "No unpaid instalment without a discount is left to spread over." };
+    }
+    if (!Number.isFinite(total) || total <= 0) return null;
+    const owed = targets.reduce((sum, r) => sum + r.outstanding, 0);
+    if (total > owed + 0.005) {
+      return {
+        ok: false as const,
+        error: `₹${total} is more than the unpaid instalments still owe (${inr(owed)}).`,
+      };
+    }
+    const slices = targets.map((r) => ({
+      row: r,
+      amount: Math.round(((total * r.outstanding) / owed) * 100) / 100,
+    }));
+    const drift = Math.round((total - slices.reduce((sum, x) => sum + x.amount, 0)) * 100) / 100;
+    slices[slices.length - 1].amount = Math.round((slices[slices.length - 1].amount + drift) * 100) / 100;
+    return { ok: true as const, slices: slices.filter((x) => x.amount > 0) };
+  }, [waiverMode, waiverForm.waiver_amount, spreadTargets]);
+
+  const handleSpreadWaiver = async () => {
+    if (!selectedStudent || !spreadPreview) return;
+    if (!spreadPreview.ok) {
+      toast.error(spreadPreview.error);
+      return;
+    }
+    if (waiverForm.waiver_reason.trim().length < 5) {
+      toast.error("Waiver reason is required (min 5 chars)");
+      return;
+    }
+    setWaiverSubmitting(true);
+    let done = 0;
+    let pending = false;
+    const failures: string[] = [];
+    try {
+      // One discount per instalment, one after another — each passes the
+      // same cap and duplicate checks a single discount does.
+      for (const slice of spreadPreview.slices) {
+        const res = await adminFetch("/api/fees/waivers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            student_id: selectedStudent.id,
+            fee_structure_id: slice.row.line.id,
+            waiver_amount: slice.amount,
+            waiver_reason: waiverForm.waiver_reason.trim(),
+            month: "",
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          done += 1;
+          if (data.pending) pending = true;
+        } else {
+          failures.push(`${feeLineLabel(slice.row.line)}: ${data.error ?? "failed"}`);
+        }
+      }
+    } finally {
+      setWaiverSubmitting(false);
+    }
+    if (done > 0) {
+      toast.success(
+        pending
+          ? `${done} discount request${done === 1 ? "" : "s"} filed — an admin will review them together.`
+          : `Discount recorded on ${done} instalment${done === 1 ? "" : "s"}.`
+      );
+    }
+    if (failures.length > 0) toast.error(failures.join(" · "), { duration: 12000 });
+    if (failures.length === 0) {
+      setWaiverOpen(false);
+      setWaiverMode("single");
+      setWaiverForm({ fee_structure_id: "", waiver_amount: "", waiver_reason: "", month: "" });
+    }
+    selectStudent(selectedStudent);
+    void loadPendingRequests();
+  };
+
+  const submitDiscountEdit = async (remove: boolean) => {
+    if (!discountEdit || !selectedStudent) return;
+    const reason = discountEditForm.reason.trim();
+    if (reason.length < 5) {
+      toast.error("Reason is required (min 5 chars)");
+      return;
+    }
+    const amount = parseFloat(discountEditForm.amount);
+    if (!remove && (!Number.isFinite(amount) || amount <= 0)) {
+      toast.error("Enter the new discount amount");
+      return;
+    }
+    if (
+      remove &&
+      !window.confirm(
+        "Remove this discount? The amount it covered becomes payable again on its instalment."
+      )
+    ) {
+      return;
+    }
+    setDiscountEditSubmitting(true);
+    try {
+      const res = await adminFetch(`/api/fees/waivers/${discountEdit.id}`, {
+        method: remove ? "DELETE" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(remove ? { reason } : { waiver_amount: amount, reason }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to update the discount", { duration: 8000 });
+        return;
+      }
+      toast.success(
+        data.pending
+          ? "Request filed — an admin will review it. The discount stays as it is until then."
+          : remove
+            ? "Discount removed. The change and your reason are in the fee audit log."
+            : "Discount changed. The change and your reason are in the fee audit log."
+      );
+      setDiscountEdit(null);
+      selectStudent(selectedStudent);
+      if (data.pending) void loadPendingRequests();
+    } finally {
+      setDiscountEditSubmitting(false);
+    }
+  };
+
   const handleRecordWaiver = async () => {
     if (!selectedStudent) return;
     const amt = parseFloat(waiverForm.waiver_amount);
@@ -3659,6 +3817,26 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                 {/* While a correction is waiting for review the
                                     pencil gives way to its marker below: a
                                     second request on the row would be refused. */}
+                                {isDiscountPayment(p) &&
+                                  p.status !== "refunded" &&
+                                  !pendingByPayment.has(p.id) && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      onClick={() => {
+                                        setDiscountEdit(p);
+                                        setDiscountEditForm({
+                                          amount: String(p.waiver_amount ?? ""),
+                                          reason: "",
+                                        });
+                                      }}
+                                      disabled={userRole === null}
+                                      title="Change or remove this discount"
+                                      aria-label="Change or remove discount"
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                  )}
                                 {!correctionLockReason(p) && !pendingByPayment.has(p.id) && (
                                   <Button
                                     variant="ghost"
@@ -4757,36 +4935,98 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         }}
       />
 
-      <Dialog open={waiverOpen} onOpenChange={setWaiverOpen}>
+      <Dialog
+        open={waiverOpen}
+        onOpenChange={(open) => {
+          setWaiverOpen(open);
+          if (!open) setWaiverMode("single");
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Record Fee Waiver</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div>
-              <Label className="text-sm font-medium">Fee structure</Label>
-              <NativeSelect
-                value={waiverForm.fee_structure_id}
-                onChange={(e) =>
-                  setWaiverForm((p) => ({
-                    ...p,
-                    fee_structure_id: e.target.value,
-                  }))
-                }
-                className="mt-1 block w-full"
-              >
-                <option value="">Select…</option>
-                {applicableFeeStructures.map((fs) => (
-                  <option key={fs.id} value={fs.id}>
-                    {feeLineLabel(fs)} — ₹{fs.amount}
-                    {fs.frequency !== "one_time" ? ` / ${fs.frequency}` : ""}
-                    {fs.due_date ? ` · due ${fs.due_date}` : ""}
-                  </option>
-                ))}
-              </NativeSelect>
+            <div className="inline-flex rounded-lg border p-0.5" role="group" aria-label="Apply to">
+              {(
+                [
+                  ["single", "One instalment"],
+                  ["spread", "Spread across unpaid"],
+                ] as const
+              ).map(([value, label]) => (
+                <Button
+                  key={value}
+                  size="sm"
+                  variant={waiverMode === value ? "default" : "ghost"}
+                  onClick={() => setWaiverMode(value)}
+                  aria-pressed={waiverMode === value}
+                >
+                  {label}
+                </Button>
+              ))}
             </div>
+            {waiverMode === "single" ? (
+              <div>
+                <Label className="text-sm font-medium">Fee structure</Label>
+                <NativeSelect
+                  value={waiverForm.fee_structure_id}
+                  onChange={(e) =>
+                    setWaiverForm((p) => ({
+                      ...p,
+                      fee_structure_id: e.target.value,
+                    }))
+                  }
+                  className="mt-1 block w-full"
+                >
+                  <option value="">Select…</option>
+                  {applicableFeeStructures.map((fs) => {
+                    // What the instalment still owes: a discount can't exceed
+                    // it, and a fully paid one can't take a discount at all.
+                    const row = ledgerRowByLine.get(fs.id)?.[0];
+                    const owed = row?.outstanding ?? null;
+                    const full = owed != null && owed <= 0.005;
+                    return (
+                      <option key={fs.id} value={fs.id} disabled={full}>
+                        {feeLineLabel(fs)} — ₹{fs.amount}
+                        {fs.frequency !== "one_time" ? ` / ${fs.frequency}` : ""}
+                        {fs.due_date ? ` · due ${fs.due_date}` : ""}
+                        {owed != null ? (full ? " · fully paid" : ` · ${inr(owed)} outstanding`) : ""}
+                      </option>
+                    );
+                  })}
+                </NativeSelect>
+              </div>
+            ) : (
+              <div className="rounded-md border bg-gray-50 dark:bg-muted/40 px-3 py-2 text-xs text-gray-600 dark:text-gray-300 space-y-1">
+                <p>
+                  The total is split across the instalments still unpaid, in
+                  proportion to what each owes.
+                </p>
+                {spreadPreview?.ok &&
+                  spreadPreview.slices.map((sl) => (
+                    <p key={sl.row.key} className="tabular-nums">
+                      {feeLineLabel(sl.row.line)}
+                      {sl.row.quarter ? ` (Q${sl.row.quarter})` : ""}:{" "}
+                      <span className="font-medium">{inr(sl.amount)}</span> of{" "}
+                      {inr(sl.row.outstanding)} outstanding
+                    </p>
+                  ))}
+                {spreadPreview && !spreadPreview.ok && (
+                  <p className="text-amber-700 dark:text-amber-400">{spreadPreview.error}</p>
+                )}
+                {spreadTargets.skipped.length > 0 && (
+                  <p>
+                    Not included — already discounted:{" "}
+                    {spreadTargets.skipped.map((r) => feeLineLabel(r.line)).join(", ")}. Change
+                    that discount from Payment History instead.
+                  </p>
+                )}
+              </div>
+            )}
             <div>
-              <Label className="text-sm font-medium">Waiver amount</Label>
+              <Label className="text-sm font-medium">
+                {waiverMode === "spread" ? "Total discount" : "Waiver amount"}
+              </Label>
               <Input
                 type="number"
                 step="0.01"
@@ -4813,32 +5053,34 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 }
                 rows={3}
                 placeholder="e.g. Scholarship, principal-approved hardship…"
-                className="mt-1 w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                className="mt-1 w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
               />
               <p className="text-[10px] text-gray-500 mt-1">
                 Min 5 chars. Counts toward dues but is tagged as a waiver.
               </p>
             </div>
-            <div>
-              <Label className="text-sm font-medium">Month (optional)</Label>
-              <Input
-                type="month"
-                value={waiverForm.month}
-                onChange={(e) =>
-                  setWaiverForm((p) => ({ ...p, month: e.target.value }))
-                }
-                className="mt-1"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Stored as YYYY-MM to match payment-month reporting.
-              </p>
-            </div>
+            {waiverMode === "single" && (
+              <div>
+                <Label className="text-sm font-medium">Month (optional)</Label>
+                <Input
+                  type="month"
+                  value={waiverForm.month}
+                  onChange={(e) =>
+                    setWaiverForm((p) => ({ ...p, month: e.target.value }))
+                  }
+                  className="mt-1"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Stored as YYYY-MM to match payment-month reporting.
+                </p>
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-2">
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
             <Button
-              onClick={handleRecordWaiver}
-              disabled={waiverSubmitting}
+              onClick={waiverMode === "spread" ? handleSpreadWaiver : handleRecordWaiver}
+              disabled={waiverSubmitting || (waiverMode === "spread" && !spreadPreview?.ok)}
               className="bg-amber-500 hover:bg-amber-600 text-white"
             >
               {waiverSubmitting ? (
@@ -4846,8 +5088,86 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Recording...
                 </>
+              ) : waiverMode === "spread" ? (
+                "Record Discounts"
               ) : (
                 "Record Waiver"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change or remove a recorded discount */}
+      <Dialog
+        open={discountEdit !== null}
+        onOpenChange={(open) => {
+          if (!open) setDiscountEdit(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{isEditor ? "Request a Discount Change" : "Change Discount"}</DialogTitle>
+          </DialogHeader>
+          {discountEdit && (
+            <div className="space-y-4 py-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {discountEdit.fee_structure ? feeLineLabel(discountEdit.fee_structure) : "Discount"}
+                {" · currently "}
+                <span className="font-medium">{inr(Number(discountEdit.waiver_amount ?? 0))}</span>
+                {discountEdit.waiver_reason ? ` — ${discountEdit.waiver_reason}` : ""}
+                {isEditor
+                  ? ". Your request goes to an admin; the discount stays as it is until it is approved."
+                  : ". The change and your reason are kept in the fee audit log."}
+              </p>
+              <div>
+                <Label className="text-sm font-medium">New amount</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={discountEditForm.amount}
+                  onChange={(e) => setDiscountEditForm((f) => ({ ...f, amount: e.target.value }))}
+                  className="mt-1"
+                />
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                  Up to what the instalment still owes, counting everything but this discount.
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Reason</Label>
+                <textarea
+                  value={discountEditForm.reason}
+                  onChange={(e) => setDiscountEditForm((f) => ({ ...f, reason: e.target.value }))}
+                  rows={3}
+                  placeholder="e.g. Sibling concession revised by the Principal…"
+                  className="mt-1 w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">Min 5 chars.</p>
+              </div>
+            </div>
+          )}
+          <div className="flex flex-wrap justify-end gap-2">
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button
+              variant="outline"
+              onClick={() => submitDiscountEdit(true)}
+              disabled={discountEditSubmitting || userRole === null}
+              className="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20"
+            >
+              {isEditor ? "Request removal" : "Remove discount"}
+            </Button>
+            <Button
+              onClick={() => submitDiscountEdit(false)}
+              disabled={discountEditSubmitting || userRole === null}
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
+            >
+              {discountEditSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isEditor ? (
+                "Request change"
+              ) : (
+                "Save"
               )}
             </Button>
           </div>

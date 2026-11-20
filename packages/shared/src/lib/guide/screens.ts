@@ -1400,11 +1400,20 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         name: "Record a waiver or concession",
         steps: [
           'Click "Record Waiver".',
-          "Pick the fee structure, enter the amount and a reason.",
-          'Click "Record Waiver".',
+          'For one instalment: keep "One instalment", pick it (each shows what it still owes; a fully paid one can\'t be picked), enter the amount and a reason, and click "Record Waiver".',
+          'For a concession across the rest of the year: choose "Spread across unpaid", enter the total and a reason, check the split, and click "Record Discounts".',
         ],
         gotcha:
-          'A waiver counts toward no-dues without a cash receipt, and can never be refunded. Only one discount per instalment is allowed, and a second is refused while one is still waiting for approval. In Payment History a discount shows its own amount with "Discount" as the method, and its receipt reads "Discount Allowed". A discount still waiting for approval shows under its instalment as "… discount awaiting approval".',
+          'A waiver counts toward no-dues without a cash receipt, and can never be refunded. Only one discount per instalment is allowed, and a second is refused while one is still waiting for approval — change the existing one instead. "Spread across unpaid" splits the total in proportion to what each unpaid instalment still owes and skips instalments that already have a discount; for an editor it files one request per instalment, which an admin can approve together. In Payment History a discount shows its own amount with "Discount" as the method, and its receipt reads "Discount Allowed". A discount still waiting for approval shows under its instalment as "… discount awaiting approval".',
+      },
+      {
+        name: "Change or remove a discount",
+        steps: [
+          'In "Payment History", click the pencil on the discount row.',
+          'Enter the new amount and a reason, then "Save" — or click "Remove discount".',
+        ],
+        gotcha:
+          "An editor's change or removal goes to an admin for approval. A new amount can't exceed what the instalment still owes (not counting this discount). Removing a discount makes the amount it covered payable again. Both are kept in the fee audit log.",
       },
       {
         name: "Undo a day-book import",
