@@ -9,6 +9,7 @@ import { SCHOOL } from "@nkps/shared/lib/constants";
 import {
   feeLineLabel,
   formatFeeMonth,
+  formatMonthSpan,
   isDiscountPayment,
   paymentDisplayAmount,
 } from "@/lib/fees";
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
     const { data: payment, error: payErr } = await admin
       .from("fee_payments")
       .select(
-        "id, student_id, amount_paid, waiver_amount, waiver_reason, payment_date, payment_method, receipt_number, month, status, remarks, refund_amount, refund_reason, refunded_at, cheque_number, cheque_date, bank_name, payer_name, transaction_ref, payment_provider, fee_structure:fee_structures(fee_type, instalment_name, month_label, academic_year_id, academic_years(name)), bus_stop:bus_stops(name), academic_year:academic_years(name)"
+        "id, student_id, amount_paid, waiver_amount, waiver_reason, payment_group_id, payment_date, payment_method, receipt_number, month, status, remarks, refund_amount, refund_reason, refunded_at, cheque_number, cheque_date, bank_name, payer_name, transaction_ref, payment_provider, fee_structure:fee_structures(fee_type, instalment_name, month_label, academic_year_id, academic_years(name)), bus_stop:bus_stops(name), academic_year:academic_years(name)"
       )
       .eq("id", paymentId)
       .single();
@@ -166,6 +167,46 @@ export async function GET(request: Request) {
 
     const logoData = await loadLogo();
 
+    // Several bus months taken as one payment (migration 139) are one row per
+    // month but one collection: print them as one receipt, under the shared
+    // receipt number, with the months and the total. Not once any month in
+    // it has been refunded — then each row's receipt has to tell its own story.
+    let collection: {
+      receipt_number: string;
+      amount: number;
+      month: string;
+      breakdown: string;
+    } | null = null;
+    if (payment.payment_group_id) {
+      const { data: groupRows } = await admin
+        .from("fee_payments")
+        .select("id, month, amount_paid, status, receipt_number")
+        .eq("payment_group_id", payment.payment_group_id)
+        .eq("student_id", payment.student_id);
+      const rows = (groupRows ?? []).sort((a, b) =>
+        String(a.month ?? "").localeCompare(String(b.month ?? ""))
+      );
+      if (rows.length > 1 && rows.every((r) => r.status !== "refunded")) {
+        const months = rows.map((r) => String(r.month ?? "")).filter(Boolean);
+        const inr = (n: number) =>
+          `Rs. ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(n)}`;
+        collection = {
+          receipt_number: String(payment.receipt_number ?? "").replace(/\/\d+$/, ""),
+          amount:
+            Math.round(rows.reduce((sum, r) => sum + Number(r.amount_paid), 0) * 100) / 100,
+          month: formatMonthSpan(months),
+          breakdown: rows
+            .map(
+              (r) =>
+                `${formatFeeMonth(r.month as string | null) ?? "—"} ${inr(Number(r.amount_paid))}${
+                  r.status === "partial" ? " (part)" : ""
+                }`
+            )
+            .join(" · "),
+        };
+      }
+    }
+
     // The latest correction of this payment's date, mode, details or month,
     // if any — printed so a re-downloaded receipt says it differs from the
     // one first handed over.
@@ -197,13 +238,16 @@ export async function GET(request: Request) {
         }}
         logoData={logoData ?? undefined}
         data={{
-          receipt_number: payment.receipt_number ?? payment.id.slice(0, 8).toUpperCase(),
+          receipt_number:
+            collection?.receipt_number ??
+            payment.receipt_number ??
+            payment.id.slice(0, 8).toUpperCase(),
           payment_date: payment.payment_date,
           fee_type: feeTypeLabel,
           // A discount's value lives in waiver_amount; its amount_paid is 0.
-          amount: paymentDisplayAmount(payment),
+          amount: collection?.amount ?? paymentDisplayAmount(payment),
           payment_method: payment.payment_method,
-          month: formatFeeMonth(payment.month),
+          month: collection?.month ?? formatFeeMonth(payment.month),
           academic_year: academicYearName,
           status: payment.status,
           refund_amount: payment.refund_amount != null ? Number(payment.refund_amount) : null,
@@ -211,6 +255,7 @@ export async function GET(request: Request) {
           refunded_at: payment.refunded_at ?? null,
           remarks:
             payment.remarks ??
+            collection?.breakdown ??
             (isDiscountPayment(payment) ? payment.waiver_reason ?? null : null),
           cheque_number: payment.cheque_number ?? null,
           cheque_date: payment.cheque_date ?? null,

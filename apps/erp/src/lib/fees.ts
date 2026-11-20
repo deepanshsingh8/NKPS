@@ -247,6 +247,171 @@ export function feeMonthSortKey(month: string | null | undefined): string | null
   return `~${raw.toLowerCase()}`;
 }
 
+// ---------------------------------------------------------------------------
+// Transport months — several bus months in one payment (migration 139)
+// ---------------------------------------------------------------------------
+
+/** Every month of the session as YYYY-MM, from its start date to its end date. */
+export function sessionMonths(startDate: string, endDate: string): string[] {
+  const [sy, sm] = startDate.slice(0, 7).split("-").map(Number);
+  const [ey, em] = endDate.slice(0, 7).split("-").map(Number);
+  if (!sy || !sm || !ey || !em) return [];
+  const out: string[] = [];
+  let y = sy;
+  let m = sm;
+  while (y < ey || (y === ey && m <= em)) {
+    out.push(`${y}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+    if (out.length > 24) break; // a runaway range is a bad session, not a long one
+  }
+  return out;
+}
+
+export type TransportMonthState = "paid" | "part" | "due" | "upcoming";
+
+export interface TransportMonthStatus {
+  /** YYYY-MM */
+  month: string;
+  fee: number;
+  settled: number;
+  remaining: number;
+  state: TransportMonthState;
+}
+
+/**
+ * Each session month of a bus fee, with what has been settled against it.
+ * `payments` are the student's rows (any line); only this stop's are read.
+ * A payment stored with an unreadable month ("APR", no year) or none at all
+ * is not placed on any month — it still counts in the dues total.
+ */
+export function transportMonthLedger(opts: {
+  months: string[];
+  fee: number;
+  busStopId: string;
+  payments: Array<{
+    bus_stop_id?: string | null;
+    month?: string | null;
+    status: string;
+    amount_paid: number | string;
+    refund_amount?: number | string | null;
+    waiver_amount?: number | string | null;
+  }>;
+  /** YYYY-MM-DD */
+  today: string;
+}): TransportMonthStatus[] {
+  const settledByMonth = new Map<string, number>();
+  for (const p of opts.payments) {
+    if (p.bus_stop_id !== opts.busStopId) continue;
+    if (!["paid", "partial", "refunded"].includes(p.status)) continue;
+    const key = feeMonthSortKey(p.month);
+    if (!key || key.startsWith("~")) continue;
+    settledByMonth.set(key, (settledByMonth.get(key) ?? 0) + settledAmount({
+      fee_structure_id: null,
+      amount_paid: p.amount_paid,
+      refund_amount: p.refund_amount,
+      waiver_amount: p.waiver_amount,
+    }));
+  }
+  const thisMonth = opts.today.slice(0, 7);
+  return opts.months.map((month) => {
+    const settled = Math.round((settledByMonth.get(month) ?? 0) * 100) / 100;
+    const remaining = Math.max(0, Math.round((opts.fee - settled) * 100) / 100);
+    const state: TransportMonthState =
+      remaining <= 0.005
+        ? "paid"
+        : settled > 0
+          ? "part"
+          : month <= thisMonth
+            ? "due"
+            : "upcoming";
+    return { month, fee: opts.fee, settled, remaining, state };
+  });
+}
+
+export type MonthAllocation =
+  | { ok: true; slices: Array<{ month: string; amount: number; full: boolean }> }
+  | { ok: false; error: string };
+
+/**
+ * Split one payment across the ticked bus months, oldest first — what a fee
+ * counter does. Every month but the last must be paid in full; the last may
+ * be part-paid. The form previews with this and the payments route enforces
+ * it, so the two can never disagree.
+ */
+export function allocateAcrossMonths(
+  amount: number,
+  months: Array<{ month: string; remaining: number }>
+): MonthAllocation {
+  if (months.length === 0) {
+    return { ok: false, error: "Pick the month(s) this bus fee is for." };
+  }
+  const sorted = [...months].sort((a, b) => a.month.localeCompare(b.month));
+  const paid = sorted.find((m) => m.remaining <= 0.005);
+  if (paid) {
+    return {
+      ok: false,
+      error: `${formatFeeMonth(paid.month)} is already paid. Untick it.`,
+    };
+  }
+  const total = Math.round(sorted.reduce((s, m) => s + m.remaining, 0) * 100) / 100;
+  if (amount > total + 0.005) {
+    return {
+      ok: false,
+      error: `₹${amount} is more than the ${sorted.length} month${
+        sorted.length === 1 ? "" : "s"
+      } ticked still owe (₹${total}). Tick another month, or reduce the amount.`,
+    };
+  }
+  const slices: Array<{ month: string; amount: number; full: boolean }> = [];
+  let left = Math.round(amount * 100) / 100;
+  for (const m of sorted) {
+    const take = Math.round(Math.min(m.remaining, left) * 100) / 100;
+    if (take <= 0) {
+      const needed =
+        Math.round(
+          sorted
+            .slice(0, sorted.indexOf(m))
+            .reduce((s, x) => s + x.remaining, 0) * 100
+        ) / 100;
+      return {
+        ok: false,
+        error: `₹${amount} doesn't reach ${formatFeeMonth(m.month)}. Untick it, or take more than ₹${needed}.`,
+      };
+    }
+    slices.push({ month: m.month, amount: take, full: take >= m.remaining - 0.005 });
+    left = Math.round((left - take) * 100) / 100;
+  }
+  return { ok: true, slices };
+}
+
+/** "April – June 2026", "April, May and July 2026", "December 2026 – January 2027". */
+export function formatMonthSpan(months: string[]): string {
+  const sorted = [...new Set(months)].sort();
+  if (sorted.length === 0) return "";
+  if (sorted.length === 1) return formatFeeMonth(sorted[0]) ?? sorted[0];
+  const idx = (m: string) => {
+    const [y, mo] = m.split("-").map(Number);
+    return y * 12 + mo;
+  };
+  const consecutive = sorted.every((m, i) => i === 0 || idx(m) === idx(sorted[i - 1]) + 1);
+  const name = (m: string) => MONTH_NAMES[Number(m.slice(5, 7)) - 1] ?? m;
+  const sameYear = sorted[0].slice(0, 4) === sorted[sorted.length - 1].slice(0, 4);
+  if (consecutive) {
+    return sameYear
+      ? `${name(sorted[0])} – ${name(sorted[sorted.length - 1])} ${sorted[0].slice(0, 4)}`
+      : `${formatFeeMonth(sorted[0])} – ${formatFeeMonth(sorted[sorted.length - 1])}`;
+  }
+  if (sameYear) {
+    const names = sorted.map(name);
+    return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]} ${sorted[0].slice(0, 4)}`;
+  }
+  return sorted.map((m) => formatFeeMonth(m)).join(", ");
+}
+
 // The date a late fee starts accruing from. Schedules set an explicit grace
 // date (due 01/04 → late fee from 12/04); rows without one fall back to the
 // due date, which is how every pre-085 structure behaved.

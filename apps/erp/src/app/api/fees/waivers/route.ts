@@ -74,6 +74,18 @@ export async function POST(request: Request) {
       requested_by: user.id,
     });
     if (reqErr) {
+      // 23505: migration 139's one-pending-discount index — a twin request
+      // landed between the check above and this insert.
+      if (reqErr.code === "23505") {
+        return NextResponse.json(
+          {
+            error:
+              "A discount for this instalment is already waiting for approval. Wait for it to be reviewed, or have an admin reject it first.",
+            code: "duplicate_pending",
+          },
+          { status: 409 }
+        );
+      }
       console.error("[fees.waivers.POST] change-request insert:", reqErr);
       return NextResponse.json(
         { error: "Failed to file waiver change request" },

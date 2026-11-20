@@ -1325,14 +1325,15 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Click the row, or its "View Fees" button.',
           'Click "Record Payment".',
           'Choose the instalment in the "Fee" dropdown, enter the "Amount" and pick a "Payment Method".',
-          'Set "Payment Date" to the day the parent paid — it starts at today and cannot be a future date. For a transport line, also pick "For Month" — it is shown in the "Month" column of Payment History and printed on the receipt.',
+          'Set "Payment Date" to the day the parent paid — it starts at today and cannot be a future date.',
+          'For a transport line, tick every month the parent is paying for under "Months" — the earliest month still owing is ticked for you, and the amount fills in. Lower the amount to part-pay the last month.',
           "Fill the cheque, bank-transfer or online block that appears.",
           'Click "Record Payment" — the toast carries the receipt number.',
         ],
         needs:
           "A fee structure must already exist for that class and stream, or the Fee dropdown is empty and the save fails. A transport line only appears if the student has a stop assigned AND that stop has a fee.",
         gotcha:
-          "The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded.",
+          'The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded. Several bus months taken together print as one receipt ("For April – June 2026") and appear in Payment History as one row per month, sharing the receipt number with a /1, /2… suffix. A paid month cannot be ticked; every month but the last must be paid in full. The transport card shows each month: green paid, amber part-paid, red due, grey not yet due.',
       },
       {
         name: "Move on to the next student",
@@ -1364,7 +1365,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'To see every payment for one month, click the "Month" header and tick that month.',
         ],
         gotcha:
-          'A transport payment recorded without "For Month" shows "--". Instalments take their month from the fee schedule.',
+          'A transport payment recorded before months were required may show "--"; set it with the pencil (Correct Payment → For Month). Instalments take their month from the fee schedule.',
       },
       {
         name: "Download a receipt",

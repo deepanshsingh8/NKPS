@@ -79,6 +79,11 @@ import {
   isDiscountPayment,
   paymentDisplayAmount,
   feeMonthSortKey,
+  sessionMonths,
+  transportMonthLedger,
+  allocateAcrossMonths,
+  formatMonthSpan,
+  type TransportMonthStatus,
   type BillableEnrollment,
   type DuesBreakdown,
   type StopFeeLookup,
@@ -217,6 +222,35 @@ interface DuesRow {
 }
 
 export type FeesSection = "academic" | "payments" | "dues";
+
+/** A bus month's chip colour in Record Payment and on the transport card. */
+const TRANSPORT_MONTH_CLASS: Record<TransportMonthStatus["state"], string> = {
+  paid: "border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-400",
+  part: "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300",
+  due: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400",
+  upcoming: "border-gray-200 bg-white text-gray-600 dark:border-border dark:bg-muted dark:text-gray-300",
+};
+
+function TRANSPORT_MONTH_TITLE(tm: TransportMonthStatus): string {
+  const label = formatFeeMonth(tm.month) ?? tm.month;
+  switch (tm.state) {
+    case "paid":
+      return `${label}: paid`;
+    case "part":
+      return `${label}: ₹${tm.settled} paid, ₹${tm.remaining} still owed`;
+    case "due":
+      return `${label}: ₹${tm.remaining} due`;
+    default:
+      return `${label}: not yet due (₹${tm.remaining}) — can be paid in advance`;
+  }
+}
+
+/** "Apr 26" */
+function shortMonth(month: string): string {
+  const d = new Date(`${month}-01T00:00:00`);
+  if (Number.isNaN(d.getTime())) return month;
+  return d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" });
+}
 
 /** What is waiting for review against one recorded payment. */
 type PendingPaymentRequest = "refund" | "correction" | "delete";
@@ -928,6 +962,8 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     amount_paid: "",
     payment_method: "cash" as (typeof PAYMENT_METHODS)[number],
     month: "",
+    // Transport: the bus months this payment covers (YYYY-MM).
+    months: [] as string[],
     payment_date: todayISO(),
     cheque_number: "",
     cheque_date: "",
@@ -1954,6 +1990,65 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     [studentPayments, academicYearId]
   );
 
+  // The student's bus fee, month by month: what each session month owes and
+  // has been paid. Drives the month strip on the transport card and the
+  // month picker in Record Payment — the same figures the payments route
+  // checks a multi-month payment against.
+  const transportLine = useMemo(
+    () => applicableFeeLines.find((l) => l.kind === "transport_stop") ?? null,
+    [applicableFeeLines]
+  );
+  const transportMonths = useMemo<TransportMonthStatus[]>(() => {
+    if (!transportLine || !academicYearRange?.start_date || !academicYearRange?.end_date) {
+      return [];
+    }
+    return transportMonthLedger({
+      months: sessionMonths(academicYearRange.start_date, academicYearRange.end_date),
+      fee: transportLine.amount,
+      busStopId: transportLine.id,
+      payments: yearPayments,
+      today: todayISO(),
+    });
+  }, [transportLine, academicYearRange, yearPayments]);
+  const transportMonthByKey = useMemo(
+    () => new Map(transportMonths.map((tm) => [tm.month, tm])),
+    [transportMonths]
+  );
+
+  // The ticked months, priced: the amount they owe and how the typed amount
+  // would split across them. The route runs the same allocateAcrossMonths().
+  const monthPreview = useMemo(() => {
+    if (!newPayment.fee_target.startsWith("stop:")) return null;
+    const picked = newPayment.months
+      .map((m) => transportMonthByKey.get(m))
+      .filter((tm): tm is TransportMonthStatus => Boolean(tm));
+    const amount = parseFloat(newPayment.amount_paid);
+    if (picked.length === 0) return { ok: false as const, error: "Tick the month(s) this payment is for." };
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    const result = allocateAcrossMonths(
+      amount,
+      picked.map((tm) => ({ month: tm.month, remaining: tm.remaining }))
+    );
+    return result;
+  }, [newPayment.fee_target, newPayment.months, newPayment.amount_paid, transportMonthByKey]);
+
+  // Ticking or unticking a month re-prices the payment at what the ticked
+  // months still owe; the amount can then be lowered for a part-payment.
+  const toggleTransportMonth = (month: string) => {
+    const nextMonths = newPayment.months.includes(month)
+      ? newPayment.months.filter((m) => m !== month)
+      : [...newPayment.months, month].sort();
+    const owed = nextMonths.reduce(
+      (sum, m) => sum + (transportMonthByKey.get(m)?.remaining ?? 0),
+      0
+    );
+    setNewPayment({
+      ...newPayment,
+      months: nextMonths,
+      amount_paid: owed > 0 ? String(Math.round(owed * 100) / 100) : "",
+    });
+  };
+
   const selectedStudentDues = useMemo<DuesBreakdown | null>(() => {
     if (!selectedStudent || !academicYearId) return null;
     return computeDuesBreakdown({
@@ -2397,6 +2492,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     // Decode the dropdown value: "fs:<uuid>" → fee_structure_id,
     // "stop:<uuid>" → bus_stop_id. Server enforces the XOR.
     const [kind, id] = newPayment.fee_target.split(":");
+    if (kind === "stop" && monthPreview && !monthPreview.ok) {
+      toast.error(monthPreview.error);
+      return;
+    }
     const fkPayload =
       kind === "stop"
         ? { bus_stop_id: id }
@@ -2412,7 +2511,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         ...fkPayload,
         amount_paid: amount,
         payment_method: m,
-        month: newPayment.month || "",
+        // A bus fee names its months; an instalment's month comes from the
+        // schedule.
+        ...(kind === "stop"
+          ? { months: newPayment.months }
+          : { month: newPayment.month || "" }),
         payment_date: newPayment.payment_date,
         // Only send the fields that apply to the chosen method. Sending
         // the rest as empty strings is fine — the schema treats empty as
@@ -2440,16 +2543,25 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       toast.error(data.error || "Failed to record payment");
     } else {
       // The office takes fees in a queue: offer the next student right here.
-      toast.success(`Payment recorded. Receipt: ${data.payment.receipt_number}`, {
+      const coveredMonths = ((data.payments ?? []) as Array<{ month: string | null }>)
+        .map((r) => r.month)
+        .filter((m): m is string => Boolean(m && /^\d{4}-\d{2}$/.test(m)));
+      toast.success(
+        `Payment recorded${
+          coveredMonths.length > 0 ? ` for ${formatMonthSpan(coveredMonths)}` : ""
+        }. Receipt: ${data.payment.receipt_number}`,
+        {
         duration: 8000,
         action: { label: "Next student", onClick: startNextStudent },
-      });
+        }
+      );
       setRecordPaymentOpen(false);
       setNewPayment({
         fee_target: "",
         amount_paid: "",
         payment_method: "cash",
         month: "",
+        months: [],
         payment_date: todayISO(),
         cheque_number: "",
         cheque_date: "",
@@ -2996,6 +3108,24 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                               <p className="text-xs text-gray-400 dark:text-gray-500">
                                 {subtitle}
                               </p>
+                              {/* The bus fee month by month: which months are
+                                  paid, part-paid, due, or still to come. */}
+                              {isTransport && transportMonths.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1" aria-label="Bus fee by month">
+                                  {transportMonths.map((tm) => (
+                                    <span
+                                      key={tm.month}
+                                      title={TRANSPORT_MONTH_TITLE(tm)}
+                                      className={cn(
+                                        "rounded border px-1.5 py-0.5 text-[10px] font-medium",
+                                        TRANSPORT_MONTH_CLASS[tm.state]
+                                      )}
+                                    >
+                                      {shortMonth(tm.month)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                               {/* The surcharge terms belong next to the fee
                                   they apply to — an office answering "why is
                                   this ₹600 more" shouldn't have to open the
@@ -3782,10 +3912,23 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     kind === "fs"
                       ? applicableFeeStructures.find((fs) => fs.id === id)
                       : undefined;
+                  // A bus fee starts on the earliest month still owing
+                  // (part-paid or due), else the next one to come.
+                  const firstOpen =
+                    kind === "stop"
+                      ? transportMonths.find((tm) => tm.state === "part" || tm.state === "due") ??
+                        transportMonths.find((tm) => tm.state === "upcoming")
+                      : undefined;
                   setNewPayment({
                     ...newPayment,
                     fee_target: e.target.value,
                     month: picked?.month_label ?? "",
+                    months: firstOpen ? [firstOpen.month] : [],
+                    amount_paid: firstOpen
+                      ? String(firstOpen.remaining)
+                      : picked
+                        ? newPayment.amount_paid
+                        : "",
                   });
                 }}
                 className="w-full"
@@ -3850,16 +3993,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </NativeSelect>
               </div>
             </div>
-            {/* The day the parent paid, not the day it was keyed in. Month is
-                only asked for transport: a stop's fee is charged per month and
-                carries no schedule to say which one, whereas an instalment's
-                month already comes from the schedule. */}
-            <div
-              className={cn(
-                "grid grid-cols-1 gap-3",
-                newPayment.fee_target.startsWith("stop:") && "sm:grid-cols-2"
-              )}
-            >
+            {/* The day the parent paid, not the day it was keyed in. Months
+                are asked for transport only (below): a stop's fee is charged
+                per month and carries no schedule to say which one, whereas an
+                instalment's month already comes from the schedule. */}
+            <div className="grid grid-cols-1 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">Payment Date</Label>
                 <Input
@@ -3873,20 +4011,65 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                   }
                 />
               </div>
-              {newPayment.fee_target.startsWith("stop:") && (
-                <div className="space-y-1">
-                  <Label className="text-xs font-medium">For Month (optional)</Label>
-                  <Input
-                    className="h-9"
-                    type="month"
-                    value={newPayment.month}
-                    onChange={(e) =>
-                      setNewPayment({ ...newPayment, month: e.target.value })
-                    }
-                  />
-                </div>
-              )}
             </div>
+            {/* Bus fee: tick every month this payment covers. One payment,
+                one receipt; stored as one row per month, oldest first, so
+                every month but the last is paid in full. */}
+            {newPayment.fee_target.startsWith("stop:") && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Months</Label>
+                {transportMonths.length === 0 ? (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    The session&apos;s dates aren&apos;t set, so its months can&apos;t be listed.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {transportMonths.map((tm) => {
+                      const on = newPayment.months.includes(tm.month);
+                      return (
+                        <button
+                          key={tm.month}
+                          type="button"
+                          disabled={tm.state === "paid"}
+                          onClick={() => toggleTransportMonth(tm.month)}
+                          title={TRANSPORT_MONTH_TITLE(tm)}
+                          aria-pressed={on}
+                          className={cn(
+                            "min-h-9 rounded-md border px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed",
+                            on
+                              ? "border-navy-900 bg-navy-900 text-white dark:border-gold-500 dark:bg-gold-500 dark:text-navy-900"
+                              : TRANSPORT_MONTH_CLASS[tm.state]
+                          )}
+                        >
+                          {shortMonth(tm.month)}
+                          {tm.state === "paid" ? " ✓" : tm.state === "part" ? " · part" : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {monthPreview && (
+                  <p
+                    className={cn(
+                      "text-[11px]",
+                      monthPreview.ok
+                        ? "text-gray-500 dark:text-gray-400"
+                        : "text-amber-700 dark:text-amber-400"
+                    )}
+                  >
+                    {monthPreview.ok
+                      ? `Covers ${formatMonthSpan(monthPreview.slices.map((sl) => sl.month))}${
+                          monthPreview.slices.some((sl) => !sl.full)
+                            ? ` — ${formatFeeMonth(
+                                monthPreview.slices[monthPreview.slices.length - 1].month
+                              )} part-paid`
+                            : ""
+                        }.`
+                      : monthPreview.error}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Method-specific fields. Only what's relevant to the chosen
                 payment method is rendered, and the corresponding required

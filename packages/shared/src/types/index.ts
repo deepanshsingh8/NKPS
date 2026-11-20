@@ -858,6 +858,9 @@ export interface FeePayment {
   source: 'erp_native' | 'historical_import';
   import_batch_id: string | null;
   source_receipt_no: string | null;
+  // Migration 139 — rows recorded together as one collection (several bus
+  // months in one payment); null for a payment recorded on its own.
+  payment_group_id?: string | null;
   created_at: string;
   updated_at: string;
 }

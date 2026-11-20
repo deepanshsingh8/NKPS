@@ -492,6 +492,13 @@ export const feePaymentSchema = z
       { message: "Please select a payment method" }
     ),
     month: z.string().min(1, "Month is required").optional().or(z.literal("")),
+    // Transport only (migration 139): every month this one payment covers, as
+    // YYYY-MM. The route writes one row per month, oldest first; every month
+    // but the last must be paid in full. A lone `month` is read as [month].
+    months: z
+      .array(z.string().regex(/^\d{4}-\d{2}$/, "Month must be a month"))
+      .max(12, "At most 12 months in one payment")
+      .optional(),
     // The day the money was actually received — a cheque collected on Friday
     // and keyed in on Monday is Friday's collection, not Monday's. The route
     // rejects a date in the future.
@@ -516,6 +523,20 @@ export const feePaymentSchema = z
         message:
           "Either fee_structure_id or bus_stop_id is required (not both)",
         path: ["fee_structure_id"],
+      });
+    }
+    if (hasFs && val.months && val.months.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "An instalment takes its month from the fee schedule",
+        path: ["months"],
+      });
+    }
+    if (hasStop && !(val.months && val.months.length > 0) && !val.month) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Pick the month(s) this bus fee is for",
+        path: ["months"],
       });
     }
     for (const issue of paymentMethodDetailIssues(val)) {
