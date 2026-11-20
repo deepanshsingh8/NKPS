@@ -1473,6 +1473,17 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'An amber "Row drifted since this request was filed" banner means the payment changed after the request — approving overwrites the live values. Approving a delete request deletes the payment row. A field shown as "Unknown record" means the student or fee head it pointed at has since been deleted; do not approve it blind.',
       },
       {
+        name: "Approve or reject several requests at once",
+        steps: [
+          'On the "Pending" tab, tick the requests — or click "Select all approvable" to tick every one that can be approved as it stands, or "Select duplicates" to tick every flagged duplicate.',
+          'Click "Approve selected" or "Reject selected" and confirm.',
+          "Read the summary: how many went through, and why any did not.",
+        ],
+        adminOnly: true,
+        gotcha:
+          'Each request is checked again and applied one after another, exactly as a single approval would be — of two identical discounts the first is applied and the second is refused as a duplicate. Duplicates rejected in bulk get the "Duplicate: …" note automatically. Refunds can be ticked only by a super admin. At most 50 at a time.',
+      },
+      {
         name: "Clear a discount request that can't be approved",
         steps: [
           'On the "Pending" tab, look for a red or amber badge on the card: "Already applied — duplicate", "Duplicate of an earlier request", "More than is still owed" or "Can\'t be applied".',
