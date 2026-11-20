@@ -218,6 +218,24 @@ interface DuesRow {
 
 export type FeesSection = "academic" | "payments" | "dues";
 
+/** What is waiting for review against one recorded payment. */
+type PendingPaymentRequest = "refund" | "correction" | "delete";
+
+const PENDING_REQUEST_LABEL: Record<PendingPaymentRequest, { label: string; title: string }> = {
+  refund: {
+    label: "Refund requested",
+    title: "A refund request for this payment is awaiting a super admin",
+  },
+  correction: {
+    label: "Correction requested",
+    title: "A correction to this payment is awaiting an admin at Fees → Change Requests",
+  },
+  delete: {
+    label: "Deletion requested",
+    title: "A request to delete this payment is awaiting an admin",
+  },
+};
+
 /** One correction to a recorded payment, as /api/fees/payments/corrections reports it. */
 interface PaymentCorrection {
   at: string;
@@ -759,34 +777,65 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   // Everyone but a super admin requests a refund rather than performing it.
   const mustRequestRefund = userRole !== null && isSuperAdmin !== true;
 
-  // Payments with a refund request awaiting a super admin. Shown as a chip on
-  // the row (and the Refund button hidden) so a second request isn't filed —
-  // the API would 409 on the one-pending-per-row index anyway, but the chip
-  // is how the desk sees that the refund is in flight rather than forgotten.
-  const [pendingRefundIds, setPendingRefundIds] = useState<Set<string>>(new Set());
-  const loadPendingRefunds = useCallback(async () => {
+  // Requests still awaiting review, so the desk sees a change is in flight
+  // rather than filing it again — or wondering whether the last one went
+  // anywhere. The API would refuse a second request on the same payment (the
+  // one-pending-per-row index) or the same discount (validateWaiver) anyway;
+  // these markers are how that shows on screen before anyone tries.
+  //   pendingByPayment — payment id → a refund, correction or deletion asked for
+  //   pendingDiscounts — discounts filed against an instalment, not yet applied
+  const [pendingByPayment, setPendingByPayment] = useState<
+    Map<string, PendingPaymentRequest>
+  >(new Map());
+  const [pendingDiscounts, setPendingDiscounts] = useState<
+    Array<{ student_id: string; fee_structure_id: string; amount: number }>
+  >([]);
+  const loadPendingRequests = useCallback(async () => {
     try {
       const res = await adminFetch("/api/fees/change-requests?status=pending");
       if (!res.ok) return;
       const data = await res.json();
-      const ids = new Set<string>();
+      const byPayment = new Map<string, PendingPaymentRequest>();
+      const discounts: Array<{ student_id: string; fee_structure_id: string; amount: number }> = [];
       for (const r of (data.requests ?? []) as Array<{
         target_id: string | null;
         action: string;
         proposed_changes: Record<string, unknown> | null;
       }>) {
-        if (r.target_id && isRefundRequest(r.action, r.proposed_changes)) {
-          ids.add(r.target_id);
+        const pc = r.proposed_changes ?? {};
+        if (r.action === "insert") {
+          if (
+            pc.payment_method === "waiver" &&
+            typeof pc.student_id === "string" &&
+            typeof pc.fee_structure_id === "string"
+          ) {
+            discounts.push({
+              student_id: pc.student_id,
+              fee_structure_id: pc.fee_structure_id,
+              amount: Number(pc.waiver_amount ?? 0),
+            });
+          }
+          continue;
         }
+        if (!r.target_id) continue;
+        byPayment.set(
+          r.target_id,
+          r.action === "delete"
+            ? "delete"
+            : isRefundRequest(r.action, r.proposed_changes)
+              ? "refund"
+              : "correction"
+        );
       }
-      setPendingRefundIds(ids);
+      setPendingByPayment(byPayment);
+      setPendingDiscounts(discounts);
     } catch {
-      // The chip is a courtesy; the API still refuses a duplicate request.
+      // The markers are a courtesy; the API still refuses a duplicate request.
     }
   }, []);
   useEffect(() => {
-    void loadPendingRefunds();
-  }, [loadPendingRefunds]);
+    void loadPendingRequests();
+  }, [loadPendingRequests]);
 
   // Fee structures state
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
@@ -2171,7 +2220,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         setRefundOpen(false);
         setRefundForm({ amount: "", reason: "" });
         setRefundPaymentId(null);
-        void loadPendingRefunds();
+        void loadPendingRequests();
         return;
       }
 
@@ -2263,6 +2312,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       );
       setCorrectPayment(null);
       selectStudent(selectedStudent);
+      if (data.pending) void loadPendingRequests();
     } finally {
       setCorrectSubmitting(false);
     }
@@ -2317,6 +2367,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         month: "",
       });
       selectStudent(selectedStudent);
+      if (data.pending) void loadPendingRequests();
     } finally {
       setWaiverSubmitting(false);
     }
@@ -2953,6 +3004,22 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                 line={line}
                                 settled={settledByLine.get(line.id) ?? 0}
                               />
+                              {(() => {
+                                // A discount filed for this instalment and
+                                // not yet approved — so it isn't filed twice.
+                                const waiting = pendingDiscounts
+                                  .filter(
+                                    (d) =>
+                                      d.student_id === selectedStudent.id &&
+                                      d.fee_structure_id === line.id
+                                  )
+                                  .reduce((sum, d) => sum + d.amount, 0);
+                                return waiting > 0 ? (
+                                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                                    {inr(waiting)} discount awaiting approval
+                                  </p>
+                                ) : null;
+                              })()}
                             </div>
                           );
                         })}
@@ -3077,7 +3144,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                 </Button>
                                 {/* Discounts, gateway payments and refunded
                                     rows can't be corrected (correctionLockReason). */}
-                                {!correctionLockReason(p) && (
+                                {/* While a correction is waiting for review the
+                                    pencil gives way to its marker below: a
+                                    second request on the row would be refused. */}
+                                {!correctionLockReason(p) && !pendingByPayment.has(p.id) && (
                                   <Button
                                     variant="ghost"
                                     size="icon-sm"
@@ -3090,13 +3160,13 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                   </Button>
                                 )}
                                 {/* Refund applies only to genuine cash receipts that haven't been refunded yet. */}
-                                {pendingRefundIds.has(p.id) ? (
+                                {pendingByPayment.has(p.id) ? (
                                   <Badge
                                     variant="secondary"
                                     className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 text-[10px]"
-                                    title="A refund request for this payment is awaiting a super admin"
+                                    title={PENDING_REQUEST_LABEL[pendingByPayment.get(p.id)!].title}
                                   >
-                                    Refund requested
+                                    {PENDING_REQUEST_LABEL[pendingByPayment.get(p.id)!].label}
                                   </Badge>
                                 ) : p.status !== "refunded" &&
                                 p.payment_method !== "waiver" ? (

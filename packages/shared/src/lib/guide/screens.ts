@@ -1354,7 +1354,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Click "Save Correction" — or, as an editor, "Submit Request" for an admin to approve at Fees → Change Requests.',
         ],
         gotcha:
-          'A change to cheque, bank transfer or online needs that method\'s details, and switching method clears the details that no longer apply. The date cannot be in the future. Discounts, payments made through the online gateway and refunded payments have no pencil. A corrected row shows "Corrected" next to its method — hover for who changed what, when and why — and its receipt notes the correction.',
+          'A change to cheque, bank transfer or online needs that method\'s details, and switching method clears the details that no longer apply. The date cannot be in the future. Discounts, payments made through the online gateway and refunded payments have no pencil. A corrected row shows "Corrected" next to its method — hover for who changed what, when and why — and its receipt notes the correction. While a correction waits for approval the row shows "Correction requested" instead of the pencil.',
       },
       {
         name: "Check which month a payment covers",
@@ -1403,7 +1403,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Click "Record Waiver".',
         ],
         gotcha:
-          'A waiver counts toward no-dues without a cash receipt, and can never be refunded. Only one discount per instalment is allowed, and a second is refused while one is still waiting for approval. In Payment History a discount shows its own amount with "Discount" as the method, and its receipt reads "Discount Allowed".',
+          'A waiver counts toward no-dues without a cash receipt, and can never be refunded. Only one discount per instalment is allowed, and a second is refused while one is still waiting for approval. In Payment History a discount shows its own amount with "Discount" as the method, and its receipt reads "Discount Allowed". A discount still waiting for approval shows under its instalment as "… discount awaiting approval".',
       },
       {
         name: "Undo a day-book import",
