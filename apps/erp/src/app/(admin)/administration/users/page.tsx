@@ -106,7 +106,17 @@ export default function AdminUsersPage() {
   const [regLoading, setRegLoading] = useState(true);
   const [regSearch, setRegSearch] = useState("");
   const [regSubTab, setRegSubTab] = useState("pending");
-  const [processingId, setProcessingId] = useState<string | null>(null);
+  // Every request with an approve/reject in flight. A single id here let a
+  // second click clear the first row's spinner and re-enable its buttons
+  // mid-request, inviting a double approval.
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+  const markProcessing = (id: string, on: boolean) =>
+    setProcessingIds((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
   // Admin password reset: the row currently being reset, and the credential to
   // hand over once it is. Held in state rather than a toast because it must
   // stay on screen until the admin has copied it — it is never shown again.
@@ -125,10 +135,13 @@ export default function AdminUsersPage() {
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  // Approve success dialog
-  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
-  const [approvePassword, setApprovePassword] = useState<string | null>(null);
-  const [approvedName, setApprovedName] = useState("");
+  // Approvals whose set-password email failed, with the one-time password to
+  // hand over instead. A list, not one slot: approving several in a row used
+  // to overwrite the first password with the second, and it is never shown
+  // again once the dialog closes.
+  const [fallbackPasswords, setFallbackPasswords] = useState<
+    Array<{ id: string; name: string; email: string; password: string }>
+  >([]);
 
   // Editor permissions dialog
   const [permsDialogOpen, setPermsDialogOpen] = useState(false);
@@ -464,7 +477,8 @@ export default function AdminUsersPage() {
 
   // Registration handlers
   const handleApprove = async (id: string, name: string) => {
-    setProcessingId(id);
+    if (processingIds.has(id)) return;
+    markProcessing(id, true);
     try {
       const res = await adminFetch("/api/registrations/approve", {
         method: "POST",
@@ -483,12 +497,13 @@ export default function AdminUsersPage() {
         return;
       }
 
-      setApprovedName(name);
       if (data.email_delivered === false && data.generated_password) {
         // Fallback path — email failed, surface password so admin can share manually.
         toast.warning("Registration approved, but the set-password email couldn't be sent. Share the password below with the user.", { duration: 10000 });
-        setApprovePassword(data.generated_password);
-        setApproveDialogOpen(true);
+        setFallbackPasswords((prev) => [
+          ...prev.filter((p) => p.id !== id),
+          { id, name, email: data.email ?? "", password: data.generated_password },
+        ]);
       } else {
         toast.success("Registration approved — a set-password link was emailed");
       }
@@ -500,7 +515,7 @@ export default function AdminUsersPage() {
     } catch {
       toast.error("Failed to approve registration");
     } finally {
-      setProcessingId(null);
+      markProcessing(id, false);
     }
   };
 
@@ -512,14 +527,16 @@ export default function AdminUsersPage() {
 
   const handleReject = async () => {
     if (!rejectTargetId) return;
-    setProcessingId(rejectTargetId);
+    const targetId = rejectTargetId;
+    if (processingIds.has(targetId)) return;
+    markProcessing(targetId, true);
     setRejectDialogOpen(false);
 
     try {
       const res = await adminFetch("/api/registrations/reject", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: rejectTargetId, reason: rejectReason || undefined }),
+        body: JSON.stringify({ id: targetId, reason: rejectReason || undefined }),
       });
 
       const data = await res.json();
@@ -534,7 +551,7 @@ export default function AdminUsersPage() {
     } catch {
       toast.error("Failed to reject registration");
     } finally {
-      setProcessingId(null);
+      markProcessing(targetId, false);
       setRejectTargetId(null);
     }
   };
@@ -973,10 +990,10 @@ export default function AdminUsersPage() {
                                   <Button
                                     size="sm"
                                     onClick={() => handleApprove(req.id, req.full_name)}
-                                    disabled={processingId === req.id}
+                                    disabled={processingIds.has(req.id)}
                                     className="bg-green-600 hover:bg-green-700 text-white"
                                   >
-                                    {processingId === req.id ? (
+                                    {processingIds.has(req.id) ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />
                                     ) : (
                                       <>
@@ -989,7 +1006,7 @@ export default function AdminUsersPage() {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => openRejectDialog(req.id)}
-                                    disabled={processingId === req.id}
+                                    disabled={processingIds.has(req.id)}
                                     className="text-red-600 dark:text-red-400 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/20"
                                   >
                                     <XCircle className="h-4 w-4 mr-1" />
@@ -1416,8 +1433,13 @@ export default function AdminUsersPage() {
         editorName={permsTargetName}
       />
 
-      {/* Approve Success Dialog */}
-      <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
+      {/* Approved, but the set-password email failed: the passwords to hand over */}
+      <Dialog
+        open={fallbackPasswords.length > 0}
+        onOpenChange={(open) => {
+          if (!open) setFallbackPasswords([]);
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <div className="flex items-center gap-3">
@@ -1425,9 +1447,15 @@ export default function AdminUsersPage() {
                 <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <DialogTitle>Registration Approved</DialogTitle>
+                <DialogTitle>
+                  {fallbackPasswords.length === 1
+                    ? "Registration Approved"
+                    : `${fallbackPasswords.length} Registrations Approved`}
+                </DialogTitle>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                  Account created for {approvedName}
+                  {fallbackPasswords.length === 1
+                    ? `Account created for ${fallbackPasswords[0].name}`
+                    : "Accounts created"}
                 </p>
               </div>
             </div>
@@ -1435,36 +1463,42 @@ export default function AdminUsersPage() {
 
           <div className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-300">
-              The set-password email couldn&apos;t be sent. Share this temporary password with them directly:
+              The set-password email couldn&apos;t be sent. Share each temporary password with its owner directly — they are not shown again once this closes.
             </p>
-            <div className="flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 p-4">
-              <code className="flex-1 text-sm font-mono font-semibold text-navy-900 dark:text-white">
-                {approvePassword}
-              </code>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => {
-                  if (approvePassword) {
-                    navigator.clipboard.writeText(approvePassword);
-                    toast.success("Password copied");
-                  }
-                }}
-                aria-label="Copy password"
-                className="text-amber-700 dark:text-amber-400 hover:bg-amber-100"
+            {fallbackPasswords.map((f) => (
+              <div
+                key={f.id}
+                className="rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 p-3"
               >
-                <Copy className="h-4 w-4" />
-              </Button>
-            </div>
+                <p className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                  <span className="font-medium">{f.name}</span>
+                  {f.email ? ` · ${f.email}` : ""}
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-sm font-mono font-semibold text-navy-900 dark:text-white break-all">
+                    {f.password}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(f.password);
+                      toast.success(`Password for ${f.name} copied`);
+                    }}
+                    aria-label={`Copy password for ${f.name}`}
+                    className="text-amber-700 dark:text-amber-400 hover:bg-amber-100"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              The user will be asked to set their own password on first login.
+              Each user will be asked to set their own password on first login.
             </p>
             <DialogFooter>
               <Button
-                onClick={() => {
-                  setApproveDialogOpen(false);
-                  setApprovePassword(null);
-                }}
+                onClick={() => setFallbackPasswords([])}
                 className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
               >
                 Done

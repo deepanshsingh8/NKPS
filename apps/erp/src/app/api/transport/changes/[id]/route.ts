@@ -37,6 +37,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     );
   }
 
+  // Every status flip below is conditional on the row still being pending.
+  // The route used to read "pending", do its work, then write the new status
+  // unconditionally — so a double click, or two people reviewing the same
+  // request, applied one change twice.
+  const alreadyReviewed = async () => {
+    const { data: now } = await admin
+      .from("transport_change_requests")
+      .select("status")
+      .eq("id", id)
+      .maybeSingle();
+    return NextResponse.json(
+      { error: `Change is already ${now?.status ?? "reviewed"}` },
+      { status: 409 }
+    );
+  };
+
   if (action === "reject" || action === "cancel") {
     const { data: updated } = await admin
       .from("transport_change_requests")
@@ -47,8 +63,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         review_note: reviewNote,
       })
       .eq("id", id)
+      .eq("status", "pending")
       .select()
-      .single();
+      .maybeSingle();
+    if (!updated) return alreadyReviewed();
     return NextResponse.json({ success: true, change: updated });
   }
 
@@ -74,8 +92,31 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
   }
 
+  // Claim before applying: only the reviewer whose update matches a pending
+  // row goes on to touch the enrollment.
+  const reviewedAt = new Date().toISOString();
+  const { data: claimed } = await admin
+    .from("transport_change_requests")
+    .update({
+      status: "approved",
+      reviewed_by: user.id,
+      reviewed_at: reviewedAt,
+      review_note: reviewNote,
+    })
+    .eq("id", id)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (!claimed) return alreadyReviewed();
+
   const applyResult = await applyTransportChange(admin, change);
   if (applyResult.error) {
+    // Nothing was applied: put the request back so it can be retried.
+    await admin
+      .from("transport_change_requests")
+      .update({ status: "pending", reviewed_by: null, reviewed_at: null, review_note: null })
+      .eq("id", id)
+      .eq("status", "approved");
     return NextResponse.json({ error: applyResult.error }, { status: 400 });
   }
 
@@ -88,12 +129,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
   const { data: updated } = await admin
     .from("transport_change_requests")
-    .update({
-      status: newStatus,
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
-      review_note: reviewNote,
-    })
+    .update({ status: newStatus })
     .eq("id", id)
     .select()
     .single();
