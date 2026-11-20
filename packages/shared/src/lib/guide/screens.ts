@@ -1324,26 +1324,38 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Pick a class and find the student with the search box.",
           'Click the row, or its "View Fees" button.',
           'Click "Record Payment".',
-          'Choose the instalment in the "Fee" dropdown, enter the "Amount" and pick a "Payment Method".',
-          'Set "Payment Date" to the day the parent paid — it starts at today and cannot be a future date. For a transport line, also pick "For Month" — it is shown in the "Month" column of Payment History and printed on the receipt.',
+          'Under "Fees being paid", tick everything the parent is paying for: any instalments (each shows what it still owes) and, for a student on the bus, the months under "Bus fee". One payment can mix both.',
+          'The "Amount" fills in with what the ticked fees still owe; lower it to part-pay. Pick a "Payment Method".',
+          'Set "Payment Date" to the day the parent paid — it starts at today and cannot be a future date.',
           "Fill the cheque, bank-transfer or online block that appears.",
           'Click "Record Payment" — the toast carries the receipt number.',
         ],
         needs:
           "A fee structure must already exist for that class and stream, or the Fee dropdown is empty and the save fails. A transport line only appears if the student has a stop assigned AND that stop has a fee.",
         gotcha:
-          "The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded.",
+          'The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded. Paid there is cash; Discount is shown on its own, and "Unpaid by quarter" names the quarters still owed. Each fee card shows its quarter, whether it is paid, part paid, due or not yet due, and what was paid, discounted and is still outstanding on it. Several fees taken together print as one receipt — bus months alone read "For April – June 2026", a mix lists each fee — and appear in Payment History as one row per fee, sharing the receipt number with a /1, /2… suffix. The money clears the earliest-due fee first: every fee but the last-due one must be paid in full, and only that one can be part-paid. A paid instalment or month cannot be ticked. The transport card shows each month: green paid, amber part-paid, red due, grey not yet due.',
       },
       {
-        name: "Change a payment's date",
+        name: "Move on to the next student",
+        steps: [
+          'After recording a payment, click "Next student" on the confirmation — or the "Next student" button above the student\'s name.',
+          'Type the next name, admission number or father\'s name in "Search Another Student". Typing closes the current student and lists the matches.',
+          "Click the student, or press Enter when only one matches.",
+        ],
+        gotcha:
+          '"Back to student list" returns to the list with your last search still applied. There is no need to leave Payment Management or refresh the page.',
+      },
+      {
+        name: "Correct a payment's date, mode or details",
         steps: [
           'Scroll to "Payment History".',
           "Click the pencil icon on the row.",
-          'Pick the "Payment Date" the parent actually paid and give a reason.',
-          'Click "Save Date" — or, as an editor, "Submit Request" for an admin to approve.',
+          'Change the "Payment Date", the "Payment Method" and the cheque, bank-transfer or online details that appear — for a transport payment, also "For Month".',
+          "Give a reason of at least five characters.",
+          'Click "Save Correction" — or, as an editor, "Submit Request" for an admin to approve at Fees → Change Requests.',
         ],
         gotcha:
-          "The date cannot be in the future. Waiver rows have no payment date and no pencil.",
+          'A change to cheque, bank transfer or online needs that method\'s details, and switching method clears the details that no longer apply. The date cannot be in the future. Discounts, payments made through the online gateway and refunded payments have no pencil. A corrected row shows "Corrected" next to its method — hover for who changed what, when and why — and its receipt notes the correction. While a correction waits for approval the row shows "Correction requested" instead of the pencil.',
       },
       {
         name: "Check which month a payment covers",
@@ -1353,7 +1365,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'To see every payment for one month, click the "Month" header and tick that month.',
         ],
         gotcha:
-          'A transport payment recorded without "For Month" shows "--". Instalments take their month from the fee schedule.',
+          'A transport payment recorded before months were required may show "--"; set it with the pencil (Correct Payment → For Month). Instalments take their month from the fee schedule.',
       },
       {
         name: "Download a receipt",
@@ -1388,11 +1400,20 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         name: "Record a waiver or concession",
         steps: [
           'Click "Record Waiver".',
-          "Pick the fee structure, enter the amount and a reason.",
-          'Click "Record Waiver".',
+          'For one instalment: keep "One instalment", pick it (each shows what it still owes; a fully paid one can\'t be picked), enter the amount and a reason, and click "Record Waiver".',
+          'For a concession across the rest of the year: choose "Spread across unpaid", enter the total and a reason, check the split, and click "Record Discounts".',
         ],
         gotcha:
-          'A waiver counts toward no-dues without a cash receipt, and can never be refunded. Only one discount per instalment is allowed, and a second is refused while one is still waiting for approval. In Payment History a discount shows its own amount with "Discount" as the method, and its receipt reads "Discount Allowed".',
+          'A waiver counts toward no-dues without a cash receipt, and can never be refunded. Only one discount per instalment is allowed, and a second is refused while one is still waiting for approval — change the existing one instead. "Spread across unpaid" splits the total in proportion to what each unpaid instalment still owes and skips instalments that already have a discount; for an editor it files one request per instalment, which an admin can approve together. In Payment History a discount shows its own amount with "Discount" as the method, and its receipt reads "Discount Allowed". A discount still waiting for approval shows under its instalment as "… discount awaiting approval".',
+      },
+      {
+        name: "Change or remove a discount",
+        steps: [
+          'In "Payment History", click the pencil on the discount row.',
+          'Enter the new amount and a reason, then "Save" — or click "Remove discount".',
+        ],
+        gotcha:
+          "An editor's change or removal goes to an admin for approval. A new amount can't exceed what the instalment still owes (not counting this discount). Removing a discount makes the amount it covered payable again. Both are kept in the fee audit log.",
       },
       {
         name: "Undo a day-book import",
@@ -1420,7 +1441,17 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Switch between the "Dues (N)" and "No Dues (N)" tabs.',
         ],
         gotcha:
-          "Dues are counted as of TODAY. \"Due Till Date\" and \"Annual Fee\" are deliberately different numbers — later instalments show in the annual figure but are not arrears. A student who left is counted as of their leaving date instead: the grey badge next to their name carries that date, and a \"Left On\" column appears in the export.",
+          "Dues are counted as of TODAY. \"Discount\" is the part of \"Paid\" that was a discount rather than money. \"Due Till Date\" and \"Annual Fee\" are deliberately different numbers — later instalments show in the annual figure but are not arrears. A student who left is counted as of their leaving date instead: the grey badge next to their name carries that date, and a \"Left On\" column appears in the export.",
+      },
+      {
+        name: "See what is owed quarter by quarter",
+        steps: [
+          'Open the "Quarter-wise" tab.',
+          'Pick "Due till today" (what has fallen due and is unpaid) or "Whole session" (everything still unpaid, due yet or not).',
+          'Leave "Only students who owe" ticked to hide students who are clear, and export the sheet with the export button.',
+        ],
+        gotcha:
+          'A quarter is the session quarter its instalment falls due in (April–June is Q1), so a class with three instalments shows nothing under one quarter. Transport is the bus fee, kept apart. "Paid Ahead" is money paid beyond its own instalment — on a later quarter, or against no current instalment — and it counts against the total; that is why a total can be lower than its quarters. On "Due till today" the Total equals the Dues tab\'s figure.',
       },
       {
         name: "Go from a defaulter to taking their money",
@@ -1460,6 +1491,17 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         adminOnly: true,
         gotcha:
           'An amber "Row drifted since this request was filed" banner means the payment changed after the request — approving overwrites the live values. Approving a delete request deletes the payment row. A field shown as "Unknown record" means the student or fee head it pointed at has since been deleted; do not approve it blind.',
+      },
+      {
+        name: "Approve or reject several requests at once",
+        steps: [
+          'On the "Pending" tab, tick the requests — or click "Select all approvable" to tick every one that can be approved as it stands, or "Select duplicates" to tick every flagged duplicate.',
+          'Click "Approve selected" or "Reject selected" and confirm.',
+          "Read the summary: how many went through, and why any did not.",
+        ],
+        adminOnly: true,
+        gotcha:
+          'Each request is checked again and applied one after another, exactly as a single approval would be — of two identical discounts the first is applied and the second is refused as a duplicate. Duplicates rejected in bulk get the "Duplicate: …" note automatically. Refunds can be ticked only by a super admin. At most 50 at a time.',
       },
       {
         name: "Clear a discount request that can't be approved",

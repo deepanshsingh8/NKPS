@@ -1,8 +1,32 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import { feePaymentSchema } from "@nkps/shared/lib/validations";
 import { generateReceiptNumber } from "@nkps/shared/lib/password";
 import { todayISO } from "@nkps/shared/lib/date";
+import { resolveExpectedAmount, settledForPeriod } from "@/lib/fee-payment-guards";
+import { allocateOldestFirst, feeLineLabel, formatFeeMonth } from "@/lib/fees";
+
+// POST /api/fees/payments — record one collection: a single instalment, one
+// or more months of the student's bus fee, or any mix of instalments and bus
+// months on one receipt.
+//
+// Each fee in the collection is still ONE fee_payments ROW — the
+// per-instalment and per-month over-collection guards, the dues maths,
+// refunds and reports keep working unchanged. The money is split oldest due
+// first: every item but the last-due one must be paid in full, and that one
+// may be part-paid. The rows go in a single insert (all of them land or none
+// does), share one receipt number (suffixed /1, /2… when there are several),
+// and are tied by payment_group_id so they print as one receipt.
+//
+// History: a bus fee could be recorded one month per entry, an instalment one
+// per entry; a parent paying Q2 and the July–September bus fee together got
+// four receipts. A bus fee recorded without a month fell into a shared "no
+// month" bucket where the second was refused as over-collection.
+
+type Item =
+  | { kind: "fs"; fee_structure_id: string }
+  | { kind: "bus"; bus_stop_id: string; month: string };
 
 export async function POST(request: Request) {
   try {
@@ -16,8 +40,9 @@ export async function POST(request: Request) {
     const result = feePaymentSchema.safeParse(body);
 
     if (!result.success) {
+      const first = result.error.issues[0]?.message;
       return NextResponse.json(
-        { error: "Invalid data", details: result.error.flatten() },
+        { error: first ?? "Invalid data", details: result.error.flatten() },
         { status: 400 }
       );
     }
@@ -29,8 +54,9 @@ export async function POST(request: Request) {
       amount_paid,
       payment_method,
       month,
+      months: requestedMonths,
+      items: requestedItems,
       payment_date,
-      status: requestedStatus,
       cheque_number,
       cheque_date,
       bank_name,
@@ -46,170 +72,218 @@ export async function POST(request: Request) {
       );
     }
 
-    // Status resolution. Look up the target row (fee structure or bus stop
-    // fee) once and use it to:
-    //   1. Reject over-payment outright (M7).
-    //   2. Downgrade an over-eager 'paid' request to 'partial' when the
-    //      caller paid less than the target amount.
-    let status: "paid" | "partial" = requestedStatus ?? "paid";
-    let expected: number;
-    let academicYearId: string;
-    const targetLabel = bus_stop_id ? "bus stop fee" : "fee structure";
-
-    if (bus_stop_id) {
-      // Resolve the student's current transport config so the expected amount
-      // matches what they actually owe: the stop's flat fee, or their one-side
-      // custom override. The enrollment also supplies the academic year (stops
-      // are not year-scoped; their fee is).
-      const { data: enrollment } = await admin
-        .from("student_enrollments")
-        .select(
-          "academic_year_id, transport_direction, transport_fee_override, bus_stop_id"
-        )
-        .eq("student_id", student_id)
-        .eq("has_transport", true)
-        .order("enrollment_date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!enrollment || !enrollment.academic_year_id) {
-        return NextResponse.json(
-          { error: "Student has no active transport enrollment" },
-          { status: 400 }
-        );
-      }
-      academicYearId = enrollment.academic_year_id as string;
-      const isOneSide =
-        (enrollment.transport_direction as string) !== "both" &&
-        enrollment.transport_fee_override != null;
-      if (isOneSide) {
-        expected = Number(enrollment.transport_fee_override);
-      } else {
-        const { data: stopFee } = await admin
-          .from("bus_stop_fees")
-          .select("amount")
-          .eq("bus_stop_id", bus_stop_id)
-          .eq("academic_year_id", academicYearId)
-          .eq("is_active", true)
-          .maybeSingle();
-        if (!stopFee) {
-          return NextResponse.json(
-            { error: "No active fee is defined for this bus stop" },
-            { status: 400 }
-          );
-        }
-        expected = Number(stopFee.amount);
-      }
+    // Everything the collection covers, in one shape. The single-fee fields
+    // are the older form of the same request.
+    let items: Item[];
+    if (requestedItems && requestedItems.length > 0) {
+      items = requestedItems.map((it) =>
+        it.fee_structure_id
+          ? { kind: "fs" as const, fee_structure_id: it.fee_structure_id }
+          : { kind: "bus" as const, bus_stop_id: it.bus_stop_id!, month: it.month! }
+      );
+    } else if (fee_structure_id) {
+      items = [{ kind: "fs", fee_structure_id }];
     } else {
-      const { data: structure } = await admin
-        .from("fee_structures")
-        .select("amount, academic_year_id")
-        .eq("id", fee_structure_id!)
-        .maybeSingle();
-      if (!structure) {
-        return NextResponse.json(
-          { error: "Fee structure not found" },
-          { status: 400 }
-        );
-      }
-      expected = Number(structure.amount);
-      academicYearId = structure.academic_year_id as string;
+      const ms = requestedMonths && requestedMonths.length > 0 ? requestedMonths : month ? [month] : [];
+      items = ms.map((m) => ({ kind: "bus" as const, bus_stop_id: bus_stop_id!, month: m }));
+    }
+    // One entry per instalment / bus month.
+    const seen = new Set<string>();
+    items = items.filter((it) => {
+      const k = it.kind === "fs" ? `fs:${it.fee_structure_id}` : `bus:${it.bus_stop_id}:${it.month}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    if (items.length === 0) {
+      return NextResponse.json({ error: "Tick what this payment is for." }, { status: 400 });
     }
 
-    if (Number.isFinite(expected) && amount_paid > expected) {
+    // ── Instalments ───────────────────────────────────────────────────────
+    const fsIds = items.flatMap((it) => (it.kind === "fs" ? [it.fee_structure_id] : []));
+    type Structure = {
+      id: string;
+      amount: number;
+      frequency: string;
+      due_date: string | null;
+      month_label: string | null;
+      academic_year_id: string;
+      fee_type: string;
+      instalment_name: string | null;
+    };
+    const structures = new Map<string, Structure>();
+    if (fsIds.length > 0) {
+      const { data, error } = await admin
+        .from("fee_structures")
+        .select("id, amount, frequency, due_date, month_label, academic_year_id, fee_type, instalment_name")
+        .in("id", fsIds);
+      if (error) {
+        console.error("Fee structure lookup error:", error);
+        return NextResponse.json({ error: "Failed to load the fees" }, { status: 500 });
+      }
+      for (const row of (data ?? []) as Structure[]) structures.set(row.id, row);
+      if (fsIds.some((id) => !structures.has(id))) {
+        return NextResponse.json({ error: "Fee structure not found" }, { status: 400 });
+      }
+    }
+
+    // ── Bus fee ───────────────────────────────────────────────────────────
+    const stopIds = Array.from(
+      new Set(items.flatMap((it) => (it.kind === "bus" ? [it.bus_stop_id] : [])))
+    );
+    if (stopIds.length > 1) {
       return NextResponse.json(
-        {
-          error: `Amount paid (${amount_paid}) exceeds the ${targetLabel} amount (${expected}). Reduce the amount, or split the surplus into a separate fee.`,
-        },
+        { error: "A payment can cover one bus stop's fee." },
         { status: 400 }
       );
     }
+    let busFee: { expected: number; academicYearId: string } | null = null;
+    if (stopIds.length === 1) {
+      const resolved = await resolveExpectedAmount(admin, student_id, { bus_stop_id: stopIds[0] });
+      if (!resolved.ok) {
+        return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+      }
+      busFee = { expected: resolved.expected, academicYearId: resolved.academicYearId };
+    }
 
-    // Cumulative over-payment guard (#27). The per-transaction check above only
-    // bounds a single receipt; without this, recording the same amount twice
-    // (e.g. a duplicate entry) lets the running total exceed what is owed for
-    // this period. Sum what is already settled against the SAME target and
-    // period (month scopes monthly fees; one-time/annual fees carry a null
-    // month), net of refunds, and reject if this payment would push the total
-    // past `expected`.
-    if (Number.isFinite(expected)) {
-      let settledQuery = admin
-        .from("fee_payments")
-        .select("amount_paid, refund_amount, waiver_amount")
-        .eq("student_id", student_id)
-        .in("status", ["paid", "partial", "refunded"]);
-      settledQuery = bus_stop_id
-        ? settledQuery.eq("bus_stop_id", bus_stop_id)
-        : settledQuery.eq("fee_structure_id", fee_structure_id!);
-      settledQuery = month
-        ? settledQuery.eq("month", month)
-        : settledQuery.is("month", null);
-      const { data: priorRows } = await settledQuery;
-      const alreadySettled = (priorRows ?? []).reduce(
-        (sum, p) =>
-          sum +
-          Math.max(0, Number(p.amount_paid) - Number(p.refund_amount ?? 0)) +
-          Number(p.waiver_amount ?? 0),
-        0
+    // Every fee in one collection belongs to one session.
+    const years = new Set<string>([
+      ...Array.from(structures.values()).map((s) => s.academic_year_id),
+      ...(busFee ? [busFee.academicYearId] : []),
+    ]);
+    if (years.size !== 1) {
+      return NextResponse.json(
+        { error: "A payment can only cover fees of one session." },
+        { status: 400 }
       );
-      // Round to paise to avoid float noise on numeric(10,2) values.
-      const cumulative = Math.round((alreadySettled + amount_paid) * 100) / 100;
-      if (cumulative > expected + 0.005) {
-        const remaining = Math.max(0, expected - alreadySettled);
+    }
+    const academicYearId = Array.from(years)[0];
+
+    const { data: year } = await admin
+      .from("academic_years")
+      .select("start_date, end_date")
+      .eq("id", academicYearId)
+      .maybeSingle();
+    const yearStart = year?.start_date ? String(year.start_date).slice(0, 10) : null;
+    if (busFee && year?.start_date && year?.end_date) {
+      const first = String(year.start_date).slice(0, 7);
+      const last = String(year.end_date).slice(0, 7);
+      const outside = items.find(
+        (it) => it.kind === "bus" && (it.month < first || it.month > last)
+      );
+      if (outside && outside.kind === "bus") {
         return NextResponse.json(
           {
-            error: `This ${targetLabel} already has ${alreadySettled} settled against ${expected}. Recording ${amount_paid} more would over-collect; at most ${remaining} remains due.`,
+            error: `${formatFeeMonth(outside.month)} is outside this session (${formatFeeMonth(first)} – ${formatFeeMonth(last)}).`,
           },
           { status: 400 }
         );
       }
     }
 
-    if (status === "paid" && expected > amount_paid) {
-      status = "partial";
+    // What each item still owes — the over-collection guard, per item.
+    const priced = await Promise.all(
+      items.map(async (it) => {
+        if (it.kind === "fs") {
+          const st = structures.get(it.fee_structure_id)!;
+          // An instalment is charged once: its month is a label, so count
+          // every receipt against it. A legacy recurring row is charged per
+          // period and keeps its period scope.
+          const recurring = st.frequency === "monthly" || st.frequency === "quarterly";
+          const settled = await settledForPeriod(admin, {
+            student_id,
+            target: { fee_structure_id: st.id },
+            month: st.month_label ?? null,
+            anyMonth: !recurring,
+          });
+          return {
+            key: `fs:${st.id}`,
+            label: feeLineLabel(st),
+            due: st.due_date ?? yearStart ?? "",
+            remaining: Math.max(0, Math.round((Number(st.amount) - settled) * 100) / 100),
+            row: { fee_structure_id: st.id, bus_stop_id: null, month: st.month_label ?? null },
+          };
+        }
+        const settled = await settledForPeriod(admin, {
+          student_id,
+          target: { bus_stop_id: it.bus_stop_id },
+          month: it.month,
+        });
+        return {
+          key: `bus:${it.month}`,
+          label: `Transport — ${formatFeeMonth(it.month)}`,
+          due: `${it.month}-01`,
+          remaining: Math.max(0, Math.round((busFee!.expected - settled) * 100) / 100),
+          row: { fee_structure_id: null, bus_stop_id: it.bus_stop_id, month: it.month },
+        };
+      })
+    );
+    const allocation = allocateOldestFirst(
+      amount_paid,
+      priced.map(({ key, label, due, remaining }) => ({ key, label, due, remaining })),
+      { one: "fee", many: "fees" }
+    );
+    if (!allocation.ok) {
+      return NextResponse.json({ error: allocation.error }, { status: 400 });
     }
+    const byKey = new Map(priced.map((p) => [p.key, p]));
+    const slices = allocation.slices.map((sl) => ({
+      ...byKey.get(sl.key)!.row,
+      amount: sl.amount,
+      status: (sl.full ? "paid" : "partial") as "paid" | "partial",
+    }));
 
-    // Insert with a cryptographically-random receipt number. The number is not
-    // a sequence, so two receipts issued the same year can theoretically
-    // collide on the UNIQUE constraint; regenerate and retry on 23505 so a
-    // legitimate payment is never hard-failed by an unlucky draw. (#19)
-    let payment: unknown = null;
+    // One receipt number for the collection; with several rows each carries
+    // it with a /1, /2… suffix, as the day-book import's split rows do.
+    const groupId = slices.length > 1 ? randomUUID() : null;
+    const buildRows = (receiptBase: string) =>
+      slices.map((sl, i) => ({
+        student_id,
+        fee_structure_id: sl.fee_structure_id,
+        bus_stop_id: sl.bus_stop_id,
+        academic_year_id: academicYearId,
+        amount_paid: sl.amount,
+        payment_method,
+        month: sl.month,
+        receipt_number: slices.length > 1 ? `${receiptBase}/${i + 1}` : receiptBase,
+        // Named only when there is a group. A single payment then never
+        // depends on migration 139's column, so recording keeps working on a
+        // database the migration hasn't reached yet.
+        ...(groupId ? { payment_group_id: groupId } : {}),
+        payment_date,
+        status: sl.status,
+        recorded_by: user.id,
+        cheque_number: cheque_number ?? null,
+        cheque_date: cheque_date ?? null,
+        bank_name: bank_name ?? null,
+        payer_name: payer_name ?? null,
+        transaction_ref: transaction_ref ?? null,
+        payment_provider: payment_provider ?? null,
+      }));
+
+    // The receipt number is random, not a sequence, so two receipts can in
+    // theory collide on the UNIQUE constraint; regenerate and retry on 23505
+    // so a legitimate payment is never hard-failed by an unlucky draw. (#19)
+    // A multi-row insert is one statement: every row lands, or none does.
+    let payments: Record<string, unknown>[] | null = null;
     let error: { code?: string; message?: string } | null = null;
     for (let attempt = 0; attempt < 5; attempt++) {
       const res = await admin
         .from("fee_payments")
-        .insert({
-          student_id,
-          fee_structure_id: fee_structure_id ?? null,
-          bus_stop_id: bus_stop_id ?? null,
-          academic_year_id: academicYearId,
-          amount_paid,
-          payment_method,
-          month: month || null,
-          receipt_number: generateReceiptNumber(),
-          payment_date,
-          status,
-          recorded_by: user.id,
-          cheque_number: cheque_number ?? null,
-          cheque_date: cheque_date ?? null,
-          bank_name: bank_name ?? null,
-          payer_name: payer_name ?? null,
-          transaction_ref: transaction_ref ?? null,
-          payment_provider: payment_provider ?? null,
-        })
-        .select()
-        .single();
-      if (!res.error) {
-        payment = res.data;
+        .insert(buildRows(generateReceiptNumber()))
+        .select();
+      if (!res.error && res.data && res.data.length === slices.length) {
+        payments = res.data as Record<string, unknown>[];
         error = null;
         break;
       }
-      error = res.error;
+      error = res.error ?? { message: "insert returned no rows" };
       // Only a receipt-number collision is retryable (it's the sole UNIQUE
       // constraint besides the PK); any other error is terminal.
-      if (res.error.code !== "23505") break;
+      if (res.error?.code !== "23505") break;
     }
 
-    if (error || !payment) {
+    if (error || !payments) {
       console.error("Fee payment insert error:", error);
       return NextResponse.json(
         { error: "Failed to record payment" },
@@ -217,7 +291,25 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ success: true, payment });
+    // Back in allocation (oldest-due-first) order — the order the receipt
+    // lists them in.
+    const ordered = [...payments].sort(
+      (a, b) =>
+        Number(String(a.receipt_number).split("/")[1] ?? 0) -
+        Number(String(b.receipt_number).split("/")[1] ?? 0)
+    );
+    return NextResponse.json({
+      success: true,
+      // The first row stands for the collection: its receipt prints them all.
+      payment: {
+        ...ordered[0],
+        receipt_number: groupId
+          ? String(ordered[0].receipt_number).replace(/\/\d+$/, "")
+          : ordered[0].receipt_number,
+      },
+      payments: ordered,
+      payment_group_id: groupId,
+    });
   } catch (err) {
     console.error("API error:", err);
     return NextResponse.json(

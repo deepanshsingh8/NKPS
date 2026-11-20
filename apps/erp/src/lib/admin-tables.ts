@@ -53,7 +53,7 @@ export const ALLOWED_COLUMNS: Record<string, string[]> = {
   class_subjects: ["id", "class_id", "subject_id", "teacher_id"],
   student_enrollments: ["id", "student_id", "class_id", "stream_id", "roll_number", "roll_number_manual", "enrollment_date", "status", "exit_date", "house_id", "has_transport", "pickup_address", "bus_stop_id", "bus_id", "transport_direction", "transport_fee_override", "updated_at"],
   fee_structures: ["id", "academic_year_id", "class_name", "class_level", "stream_id", "fee_type", "amount", "due_date", "frequency", "is_active", "description", "late_fee_percent", "late_fee_fixed_amount", "late_fee_per_day", "late_fee_max", "instalment_no", "instalment_name", "month_label", "student_type", "late_fee_start_date", "created_at", "updated_at"],
-  fee_payments: ["id", "student_id", "fee_structure_id", "amount_paid", "payment_date", "payment_method", "receipt_number", "month", "status", "recorded_by", "remarks", "cheque_number", "cheque_date", "bank_name", "payer_name", "transaction_ref", "payment_provider", "created_at"],
+  fee_payments: ["id", "student_id", "fee_structure_id", "amount_paid", "payment_date", "payment_method", "receipt_number", "month", "status", "recorded_by", "remarks", "cheque_number", "cheque_date", "bank_name", "payer_name", "transaction_ref", "payment_provider", "payment_group_id", "created_at"],
   exam_types: ["id", "name", "academic_year_id", "max_marks", "weightage", "sort_order", "kind", "upper_header", "class_level", "created_at"],
   calendar_events: ["id", "title", "description", "event_type", "start_date", "end_date", "class_id", "is_public", "is_school_wide", "created_by", "created_at"],
   // `is_break` was missing here until migration 119 went in, which meant the
@@ -84,6 +84,15 @@ export const ALLOWED_COLUMNS: Record<string, string[]> = {
 // from silently fixing a wrong-amount payment they recorded themselves.
 export const EDITOR_RESTRICTED_ACTIONS = {
   fee_payments: ["update", "delete"],
+} as const;
+
+// Actions nobody — admins included — may take through the generic proxy,
+// because a dedicated route does the same write with its checks and an audit
+// row: /api/fees/payments (record), /payments/[id]/correct, /refund, and the
+// change-request approve route (delete). No screen writes fee_payments
+// through the proxy; this closes the one path that could do so unrecorded.
+export const AUDITED_ROUTE_ACTIONS = {
+  fee_payments: ["insert", "update", "delete"],
 } as const;
 
 // student_enrollments is owned by the students module, but /transport/assignments

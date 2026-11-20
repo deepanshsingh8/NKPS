@@ -48,9 +48,64 @@ failure route now names its own cause on screen.
 - [x] **Registration approval.** "Failed to create user account" is replaced by the
       actual cause: the email already has an account (reject, sign in or use Forgot
       password, Link record), an invalid email, or the sign-in service being busy.
-- [ ] Not done yet from Issue 1: bulk approve (1c), the clerk-side request markers
-      (1e), registration per-row busy state and the password list (1f), the
-      transport atomic claim (1g).
+- [x] The rest of Issue 1 (1c, 1e, 1f, 1g) shipped on 20 Nov. See below.
+
+---
+
+## Shipped — 20 Nov (everything else)
+
+Code only, with no database access. Each item is a commit on
+`claude/dreamy-noether-wwkb6n`.
+
+| Item | What shipped |
+|---|---|
+| **New: next-student search** | Payment Management's search now works while a student is open ("Search Another Student"). Typing closes the student and lists matches, and Enter opens the only match. "Back to student list" is always shown, and there is a "Next student" button on the page and on the payment-recorded toast. Closing a student drops `?student_id`, so a refresh no longer reopens them. |
+| **Issue 4** (4a–4f) | "Correct Payment": date, mode, mode details, transport month, and a required reason. `POST /api/fees/payments/[id]/correct` replaces `/date`. Admins apply directly (audited); editors file one change request. `paymentMethodDetailIssues()` is the shared rule for record, correct and approve. Locked for discounts, gateway payments and refunded rows. Corrected rows are marked "Corrected", and their receipts say "corrected on <date>". The admin proxy now refuses `fee_payments` writes for everyone. |
+| **1a / 1c** | `applyFeeChangeRequest()` / `rejectFeeChangeRequest()` in `lib/fee-change-apply.ts`. `POST /api/fees/change-requests/bulk` handles up to 50, in order. The inbox gets checkboxes, "Select all approvable", "Select duplicates" and Approve/Reject selected. |
+| **1e** | Payment History shows "Refund / Correction / Deletion requested"; a fee card shows "₹X discount awaiting approval". |
+| **1f / 1g** | Registrations: per-row busy state, and the fallback dialog lists every password. Transport changes: claim → apply → revert on failure, with per-row busy state. |
+| **Issue 2** (2a–2e) | Month chips in Record Payment. `months[]` is split oldest month first (`allocateAcrossMonths`), one row per month in one insert, tied by `payment_group_id`, with suffixed receipt numbers and one combined receipt. A month is now required. The transport card shows each month. |
+| **Issue 3** (3a–3f) | `computeInstalmentLedger()` matches `computeDuesBreakdown()` to the paisa (randomised check over 3,000 students). A **Quarter-wise** tab on Dues & No-Dues (due till today / whole session, CSV). A Discount column. Per-instalment position on each fee card, and "Unpaid by quarter". "Spread across unpaid" discounts. Change or remove a discount via `PATCH/DELETE /api/fees/discounts/[id]`. |
+
+**Decisions — confirmed by the school on 20 Nov:**
+- D1: the request the Vice Principal couldn't approve (Shagun) was on Fee
+  Change Requests.
+- D2: a discount on a paid instalment is spread over the unpaid ones, in
+  proportion to what each owes, with no credit balance.
+- D3: admins correct a payment's mode directly (audited); the clerk asks
+  for approval.
+- D4: quarters by due date, Apr–Jun = Q1.
+- D5: an admin rejects the duplicates ("Select duplicates"); migration 139
+  skips its index while any remain.
+- D6: **yes**: one receipt can cover several instalments and bus months
+  together, money clearing the oldest due first and only the last-due fee
+  part-paid. Built: Record Payment's "Fees being paid" checklist,
+  `items[]` on `POST /api/fees/payments`, `allocateOldestFirst()`, and the
+  receipt listing each fee.
+- A bus payment must name its month(s).
+
+**To deploy:**
+1. Run `scripts/migrations/erp/migration-139-payment-groups.sql` in the
+   Supabase SQL editor **first** (both campuses). It adds
+   `fee_payments.payment_group_id`, which a multi-month bus payment writes.
+   While duplicate discount requests are still pending, it reports that and
+   skips only its unique index, so it is safe to run now.
+2. Merge and deploy. (Single payments and receipts don't depend on the new
+   column, so a deploy that lands first breaks only multi-month bus
+   payments, until step 1.)
+3. Clear the duplicate discount requests: Fees → Change Requests → Select
+   duplicates → Reject selected.
+4. Run migration 139 again; this time it creates the index.
+
+**Known limits, left alone:**
+- A student who changes stop mid-year is priced at the new stop for the
+  whole year.
+- A bus payment stored with a yearless month ("APR", from the day-book
+  import) can't be placed on a month. It still counts in the totals, as
+  Paid Ahead.
+- Nothing was tried in a browser against real data. Checks run:
+  typecheck, lint, all repo checks, the production build, and scratch tests
+  of the new rules.
 
 ---
 

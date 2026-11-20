@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, Suspense, Fragment } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, Suspense, Fragment } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { todayISO } from "@nkps/shared/lib/date";
@@ -58,6 +58,13 @@ import { FeeScheduleImportDialog } from "@/components/FeeScheduleImportDialog";
 import { StudentConcessionImportDialog } from "@/components/StudentConcessionImportDialog";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import { isRefundRequest } from "@/lib/fee-change-requests";
+import { correctionLockReason } from "@/lib/payment-correction";
+import { fieldLabel, formatFieldValue } from "@/lib/change-request-display";
+import {
+  EMPTY_PAYMENT_DETAILS,
+  PaymentMethodFields,
+  type PaymentMethodDetails,
+} from "./PaymentMethodFields";
 import {
   resolveEffectiveFeeStructures,
   resolveEffectiveFeeLines,
@@ -72,6 +79,16 @@ import {
   isDiscountPayment,
   paymentDisplayAmount,
   feeMonthSortKey,
+  sessionMonths,
+  transportMonthLedger,
+  allocateOldestFirst,
+  formatMonthSpan,
+  type CollectionAllocation,
+  computeInstalmentLedger,
+  type InstalmentLedger,
+  type InstalmentPosition,
+  type Quarter,
+  type TransportMonthStatus,
   type BillableEnrollment,
   type DuesBreakdown,
   type StopFeeLookup,
@@ -199,6 +216,18 @@ interface DuesRow {
   // then summed.
   late_fee: number;
   dues: number;
+  // Discounts recorded for the session — part of `paid`, shown on their own
+  // so the register can say how much of a student's "paid" was no money.
+  discount: number;
+  // Instalment-wise (computeInstalmentLedger): what is owed on each quarter's
+  // instalments today, and over the whole session; the bus fee apart. Their
+  // sum, less `credit`, is `dues` (plus late fee) to the paisa.
+  quarters_due: Record<Quarter, number>;
+  quarters_session: Record<Quarter, number>;
+  transport_due: number;
+  transport_session: number;
+  // Paid ahead on later instalments, or against no current instalment.
+  credit: number;
   // The enrollment's status. Always 'active' unless "Include students who
   // left" is on — in which case the register must say which rows are leavers,
   // or the office cannot tell an arrear it should chase from one it should not.
@@ -210,6 +239,86 @@ interface DuesRow {
 }
 
 export type FeesSection = "academic" | "payments" | "dues";
+
+/** A bus month's chip colour in Record Payment and on the transport card. */
+const TRANSPORT_MONTH_CLASS: Record<TransportMonthStatus["state"], string> = {
+  paid: "border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-400",
+  part: "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300",
+  due: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400",
+  upcoming: "border-gray-200 bg-white text-gray-600 dark:border-border dark:bg-muted dark:text-gray-300",
+};
+
+function TRANSPORT_MONTH_TITLE(tm: TransportMonthStatus): string {
+  const label = formatFeeMonth(tm.month) ?? tm.month;
+  switch (tm.state) {
+    case "paid":
+      return `${label}: paid`;
+    case "part":
+      return `${label}: ₹${tm.settled} paid, ₹${tm.remaining} still owed`;
+    case "due":
+      return `${label}: ₹${tm.remaining} due`;
+    default:
+      return `${label}: not yet due (₹${tm.remaining}) — can be paid in advance`;
+  }
+}
+
+/** "Apr 26" */
+function shortMonth(month: string): string {
+  const d = new Date(`${month}-01T00:00:00`);
+  if (Number.isNaN(d.getTime())) return month;
+  return d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" });
+}
+
+/** What is waiting for review against one recorded payment. */
+type PendingPaymentRequest = "refund" | "correction" | "delete";
+
+const PENDING_REQUEST_LABEL: Record<PendingPaymentRequest, { label: string; title: string }> = {
+  refund: {
+    label: "Refund requested",
+    title: "A refund request for this payment is awaiting a super admin",
+  },
+  correction: {
+    label: "Correction requested",
+    title: "A correction to this payment is awaiting an admin at Fees → Change Requests",
+  },
+  delete: {
+    label: "Deletion requested",
+    title: "A request to delete this payment is awaiting an admin",
+  },
+};
+
+/** One correction to a recorded payment, as /api/fees/payments/corrections reports it. */
+interface PaymentCorrection {
+  at: string;
+  by: string | null;
+  reason: string | null;
+  changes: Array<{ field: string; before: unknown; after: unknown }>;
+}
+
+/** "18 Nov 2026 · Asha Verma: Payment method Cash → Cheque. Reason: …" */
+function describeCorrection(c: PaymentCorrection): string {
+  const when = new Date(c.at).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const what = c.changes
+    .map(
+      (ch) =>
+        `${fieldLabel(ch.field)} ${formatFieldValue(ch.field, ch.before, {})} → ${formatFieldValue(ch.field, ch.after, {})}`
+    )
+    .join("; ");
+  return `${when}${c.by ? ` · ${c.by}` : ""}: ${what}.${c.reason ? ` Reason: ${c.reason}` : ""}`;
+}
+
+const DETAIL_KEYS = [
+  "cheque_number",
+  "cheque_date",
+  "bank_name",
+  "payer_name",
+  "transaction_ref",
+  "payment_provider",
+] as const satisfies ReadonlyArray<keyof PaymentMethodDetails>;
 
 const inr = (n: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -229,13 +338,27 @@ const inr = (n: number) =>
  */
 function StudentDuesSummary({
   dues,
+  ledger,
   loading,
   classId,
 }: {
   dues: DuesBreakdown;
+  /** The same money split by instalment; supplies Discount and the quarters. */
+  ledger: InstalmentLedger | null;
   loading: boolean;
   classId: string | null;
 }) {
+  const discount = ledger?.discount ?? 0;
+  // Unpaid instalments by quarter, academic and bus fee together. Shown only
+  // when something has fallen due, so a clear student reads "No dues" alone.
+  const dueQuarters = ledger
+    ? ([1, 2, 3, 4] as const)
+        .map((q) => ({
+          q,
+          amount: ledger.dueByQuarter.academic[q] + ledger.dueByQuarter.transport[q],
+        }))
+        .filter((x) => x.amount > 0.005)
+    : [];
   const owes = dues.dues > 0;
   return (
     <div
@@ -279,7 +402,10 @@ function StudentDuesSummary({
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
           <DuesFigure label="Annual Fee" value={inr(dues.expected)} muted />
           <DuesFigure label="Due Till Date" value={inr(dues.billedToDate)} />
-          <DuesFigure label="Paid" value={inr(dues.paid)} />
+          {/* Paid is cash; a discount settles a due without money arriving,
+              so it is shown on its own. */}
+          <DuesFigure label="Paid" value={inr(dues.paid - discount)} />
+          {discount > 0 && <DuesFigure label="Discount" value={inr(discount)} />}
           {dues.lateFee > 0 && (
             <DuesFigure
               label="Late Fee"
@@ -290,6 +416,19 @@ function StudentDuesSummary({
         </div>
       </div>
 
+      {dueQuarters.length > 0 && ledger && (
+        <p className="mt-3 text-xs text-gray-700 dark:text-gray-300">
+          <span className="font-medium">Unpaid by quarter:</span>{" "}
+          {dueQuarters.map((x) => `Q${x.q} ${inr(x.amount)}`).join(" · ")}
+          {ledger.credit > 0.005 && (
+            <>
+              {" "}
+              — less {inr(ledger.credit)} paid ahead on later instalments, which
+              counts against it.
+            </>
+          )}
+        </p>
+      )}
       {classId && (
         <Link
           href={`/fees/dues?dues_class_id=${classId}`}
@@ -395,6 +534,14 @@ function DuesTable({
         sortValue: (r) => r.paid,
         exportFormat: "currency",
       },
+      // Part of Paid: the money that was a discount, not a receipt.
+      discount: {
+        label: "Discount",
+        value: (r) => (r.discount > 0 ? inr(r.discount) : null),
+        sortValue: (r) => r.discount,
+        emptyLabel: "None",
+        exportFormat: "currency",
+      },
       late_fee: {
         label: "Late Fee",
         value: (r) => (r.late_fee > 0 ? inr(r.late_fee) : null),
@@ -466,6 +613,7 @@ function DuesTable({
             <SortFilterHead ctl={table} col="expected" align="right" />
             <SortFilterHead ctl={table} col="billed_to_date" align="right" />
             <SortFilterHead ctl={table} col="paid" align="right" />
+            <SortFilterHead ctl={table} col="discount" align="right" />
             <SortFilterHead ctl={table} col="late_fee" align="right" />
             <SortFilterHead ctl={table} col="dues" align="right" />
             <SortFilterHead ctl={table} col="dues_bucket" />
@@ -476,7 +624,7 @@ function DuesTable({
           {pagination.total === 0 && (
             <TableRow>
               <TableCell
-                colSpan={(showClass ? 11 : 10) + extraCols}
+                colSpan={(showClass ? 12 : 11) + extraCols}
                 className="py-10 text-center text-gray-500 dark:text-gray-400"
               >
                 No students match the column filters.
@@ -534,6 +682,9 @@ function DuesTable({
                 {inr(r.billed_to_date)}
               </TableCell>
               <TableCell className="text-right">{inr(r.paid)}</TableCell>
+              <TableCell className="text-right text-gray-600 dark:text-gray-300">
+                {r.discount > 0 ? inr(r.discount) : "—"}
+              </TableCell>
               <TableCell className="text-right text-amber-700 dark:text-amber-400">
                 {r.late_fee > 0 ? inr(r.late_fee) : "—"}
               </TableCell>
@@ -590,6 +741,252 @@ function DuesTable({
  * so this renders nothing at all in the common case rather than a row of
  * "Late fee: none" noise.
  */
+type QuarterBasis = "due" | "session";
+
+/**
+ * The quarter-wise outstanding register: for every student, what is owed on
+ * each quarter's instalments, the bus fee, late fee and discounts, and the
+ * total. The fee office asked for exactly this — after a term of updates and
+ * discounts it could no longer tell "the exact outstanding amount and the
+ * quarter against which the amount is due".
+ *
+ * A quarter is the session quarter its instalment falls due in (April–June is
+ * Q1 for an April session), so 3- and 4-instalment classes share columns; a
+ * class with no instalment in a quarter shows nothing there.
+ *
+ * "Due till today" counts what has fallen due, and its Total is the Dues
+ * register's figure exactly. "Whole session" counts everything still unpaid,
+ * whether due yet or not. Either way Paid Ahead is money settled beyond its
+ * own instalment, or against none: it is why a total can be lower than the
+ * quarters it is made of.
+ */
+function QuarterTable({
+  rows,
+  basis,
+  showClass,
+  emptyMessage,
+}: {
+  rows: DuesRow[];
+  basis: QuarterBasis;
+  showClass: boolean;
+  emptyMessage: string;
+}) {
+  type QRow = DuesRow & {
+    q: Record<Quarter, number>;
+    bus: number;
+    paidAhead: number;
+    total: number;
+  };
+  const qrows = useMemo<QRow[]>(
+    () =>
+      rows.map((r) => {
+        const q = basis === "due" ? r.quarters_due : r.quarters_session;
+        const bus = basis === "due" ? r.transport_due : r.transport_session;
+        const gross = q[1] + q[2] + q[3] + q[4] + bus;
+        const owed =
+          basis === "due" ? r.dues - r.late_fee : Math.max(0, r.expected - r.paid);
+        return {
+          ...r,
+          q,
+          bus,
+          paidAhead: Math.max(0, Math.round((gross - owed) * 100) / 100),
+          total: Math.round((owed + r.late_fee) * 100) / 100,
+        };
+      }),
+    [rows, basis]
+  );
+  const money = (n: number) => (n > 0 ? inr(n) : null);
+  const columns = useMemo<TableColumns<QRow>>(
+    () => ({
+      admission_no: { label: "Adm No", value: (r) => r.admission_no || null, filter: "text" },
+      full_name: { label: "Name", value: (r) => r.full_name, filter: "text" },
+      class_label: {
+        label: "Class",
+        value: (r) => r.class_label || null,
+        emptyLabel: "Unassigned",
+      },
+      q1: { label: "Q1 (Apr–Jun)", value: (r) => money(r.q[1]), sortValue: (r) => r.q[1], emptyLabel: "Nil", exportFormat: "currency" },
+      q2: { label: "Q2 (Jul–Sep)", value: (r) => money(r.q[2]), sortValue: (r) => r.q[2], emptyLabel: "Nil", exportFormat: "currency" },
+      q3: { label: "Q3 (Oct–Dec)", value: (r) => money(r.q[3]), sortValue: (r) => r.q[3], emptyLabel: "Nil", exportFormat: "currency" },
+      q4: { label: "Q4 (Jan–Mar)", value: (r) => money(r.q[4]), sortValue: (r) => r.q[4], emptyLabel: "Nil", exportFormat: "currency" },
+      bus: { label: "Transport", value: (r) => money(r.bus), sortValue: (r) => r.bus, emptyLabel: "Nil", exportFormat: "currency" },
+      late_fee: { label: "Late Fee", value: (r) => money(r.late_fee), sortValue: (r) => r.late_fee, emptyLabel: "None", exportFormat: "currency" },
+      discount: { label: "Discount", value: (r) => money(r.discount), sortValue: (r) => r.discount, emptyLabel: "None", exportFormat: "currency" },
+      paid_ahead: { label: "Paid Ahead", value: (r) => money(r.paidAhead), sortValue: (r) => r.paidAhead, emptyLabel: "None", exportFormat: "currency" },
+      total: { label: "Total Outstanding", value: (r) => (r.total > 0 ? inr(r.total) : "Nil"), sortValue: (r) => r.total, exportFormat: "currency" },
+    }),
+    []
+  );
+  const table = useTableControls({ rows: qrows, columns });
+  const pagination = useTablePagination(table.rows, {
+    defaultPageSize: 50,
+    resetKey: `quarters:${basis}:${table.filterSummary.map((f) => `${f.label}=${f.value}`).join("|")}`,
+  });
+  // Column totals over the filtered rows, so a filtered view adds up too.
+  const totals = useMemo(() => {
+    const t = { q1: 0, q2: 0, q3: 0, q4: 0, bus: 0, late: 0, discount: 0, ahead: 0, total: 0 };
+    for (const r of table.rows) {
+      t.q1 += r.q[1];
+      t.q2 += r.q[2];
+      t.q3 += r.q[3];
+      t.q4 += r.q[4];
+      t.bus += r.bus;
+      t.late += r.late_fee;
+      t.discount += r.discount;
+      t.ahead += r.paidAhead;
+      t.total += r.total;
+    }
+    return t;
+  }, [table.rows]);
+
+  if (rows.length === 0) {
+    return <p className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">{emptyMessage}</p>;
+  }
+  const cell = (n: number) => (n > 0 ? inr(n) : "—");
+  return (
+    <>
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+        <TableFilterSummary ctl={table} total={qrows.length} shown={table.rows.length} className="mb-0 mr-auto" />
+        <TableExportButton
+          ctl={table}
+          filename={basis === "due" ? "fee-dues-by-quarter" : "fee-session-outstanding-by-quarter"}
+          title={basis === "due" ? "Quarter-wise Dues (till today)" : "Quarter-wise Outstanding (whole session)"}
+          featureKey="fees"
+        />
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <SortFilterHead ctl={table} col="admission_no" />
+            <SortFilterHead ctl={table} col="full_name" />
+            {showClass && <SortFilterHead ctl={table} col="class_label" />}
+            <SortFilterHead ctl={table} col="q1" align="right" />
+            <SortFilterHead ctl={table} col="q2" align="right" />
+            <SortFilterHead ctl={table} col="q3" align="right" />
+            <SortFilterHead ctl={table} col="q4" align="right" />
+            <SortFilterHead ctl={table} col="bus" align="right" />
+            <SortFilterHead ctl={table} col="late_fee" align="right" />
+            <SortFilterHead ctl={table} col="discount" align="right" />
+            <SortFilterHead ctl={table} col="paid_ahead" align="right" />
+            <SortFilterHead ctl={table} col="total" align="right" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {pagination.total === 0 && (
+            <TableRow>
+              <TableCell colSpan={showClass ? 12 : 11} className="py-10 text-center text-gray-500 dark:text-gray-400">
+                No students match the column filters.
+              </TableCell>
+            </TableRow>
+          )}
+          {pagination.pageRows.map((r) => (
+            <TableRow key={r.student_id}>
+              <TableCell className="font-medium">{r.admission_no}</TableCell>
+              <TableCell>
+                <Link
+                  href={`/fees/payments?student_id=${r.student_id}`}
+                  className="text-blue-600 hover:underline dark:text-blue-400"
+                  title="Open this student's payments & history"
+                >
+                  {r.full_name}
+                </Link>
+              </TableCell>
+              {showClass && (
+                <TableCell className="text-gray-600 dark:text-gray-300">{r.class_label || "Unassigned"}</TableCell>
+              )}
+              {([1, 2, 3, 4] as const).map((q) => (
+                <TableCell
+                  key={q}
+                  className={cn("text-right tabular-nums", r.q[q] > 0 && "font-medium text-red-700 dark:text-red-400")}
+                >
+                  {cell(r.q[q])}
+                </TableCell>
+              ))}
+              <TableCell className={cn("text-right tabular-nums", r.bus > 0 && "font-medium text-red-700 dark:text-red-400")}>
+                {cell(r.bus)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-amber-700 dark:text-amber-400">{cell(r.late_fee)}</TableCell>
+              <TableCell className="text-right tabular-nums text-gray-600 dark:text-gray-300">{cell(r.discount)}</TableCell>
+              <TableCell
+                className="text-right tabular-nums text-gray-600 dark:text-gray-300"
+                title="Paid beyond its own instalment, or against no current instalment — it counts against the total"
+              >
+                {r.paidAhead > 0 ? `−${inr(r.paidAhead)}` : "—"}
+              </TableCell>
+              <TableCell className="text-right tabular-nums font-semibold">{r.total > 0 ? inr(r.total) : "Nil"}</TableCell>
+            </TableRow>
+          ))}
+          {table.rows.length > 1 && (
+            <TableRow className="bg-gray-50 dark:bg-muted/40 font-semibold">
+              <TableCell colSpan={showClass ? 3 : 2}>Total ({table.rows.length} students)</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.q1)}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.q2)}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.q3)}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.q4)}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.bus)}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.late)}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.discount)}</TableCell>
+              <TableCell className="text-right tabular-nums">{totals.ahead > 0 ? `−${inr(totals.ahead)}` : "—"}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.total)}</TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+      <TablePaginationBar ctl={pagination} noun="students" />
+    </>
+  );
+}
+
+const INSTALMENT_STATE: Record<
+  InstalmentPosition["state"],
+  { label: string; className: string }
+> = {
+  paid: { label: "Paid", className: "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400" },
+  part: { label: "Part paid", className: "bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300" },
+  overdue: { label: "Overdue", className: "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400" },
+  due: { label: "Due", className: "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400" },
+  upcoming: { label: "Not yet due", className: "bg-gray-100 text-gray-600 dark:bg-muted dark:text-gray-300" },
+};
+
+/** One line of the instalment ledger, under its fee card. */
+function InstalmentPositionLine({
+  row,
+  showQuarterLabel,
+}: {
+  row: InstalmentPosition;
+  showQuarterLabel: boolean;
+}) {
+  const state = INSTALMENT_STATE[row.state];
+  return (
+    <div className="mt-2 border-t border-gray-100 dark:border-border pt-2 text-xs">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {row.quarter && (
+          <span className="rounded bg-gray-100 dark:bg-muted px-1.5 py-0.5 font-medium text-gray-700 dark:text-gray-300">
+            Q{row.quarter}
+          </span>
+        )}
+        {showQuarterLabel && row.months && (
+          <span className="text-gray-500 dark:text-gray-400">{formatMonthSpan(row.months)}</span>
+        )}
+        <span className={cn("rounded px-1.5 py-0.5 font-medium", state.className)}>{state.label}</span>
+      </div>
+      <p className="mt-1 text-gray-600 dark:text-gray-300 tabular-nums">
+        Paid {inr(row.paid)}
+        {row.discount > 0 ? ` · Discount ${inr(row.discount)}` : ""}
+        {row.outstanding > 0 ? (
+          <>
+            {" · "}
+            <span className="font-medium text-gray-900 dark:text-white">
+              Outstanding {inr(row.outstanding)}
+            </span>
+            {row.dueNow > 0 && row.dueNow < row.outstanding ? ` (${inr(row.dueNow)} due now)` : ""}
+          </>
+        ) : null}
+      </p>
+    </div>
+  );
+}
+
 function LateFeeNote({
   line,
   settled,
@@ -719,34 +1116,65 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   // Everyone but a super admin requests a refund rather than performing it.
   const mustRequestRefund = userRole !== null && isSuperAdmin !== true;
 
-  // Payments with a refund request awaiting a super admin. Shown as a chip on
-  // the row (and the Refund button hidden) so a second request isn't filed —
-  // the API would 409 on the one-pending-per-row index anyway, but the chip
-  // is how the desk sees that the refund is in flight rather than forgotten.
-  const [pendingRefundIds, setPendingRefundIds] = useState<Set<string>>(new Set());
-  const loadPendingRefunds = useCallback(async () => {
+  // Requests still awaiting review, so the desk sees a change is in flight
+  // rather than filing it again — or wondering whether the last one went
+  // anywhere. The API would refuse a second request on the same payment (the
+  // one-pending-per-row index) or the same discount (validateWaiver) anyway;
+  // these markers are how that shows on screen before anyone tries.
+  //   pendingByPayment — payment id → a refund, correction or deletion asked for
+  //   pendingDiscounts — discounts filed against an instalment, not yet applied
+  const [pendingByPayment, setPendingByPayment] = useState<
+    Map<string, PendingPaymentRequest>
+  >(new Map());
+  const [pendingDiscounts, setPendingDiscounts] = useState<
+    Array<{ student_id: string; fee_structure_id: string; amount: number }>
+  >([]);
+  const loadPendingRequests = useCallback(async () => {
     try {
       const res = await adminFetch("/api/fees/change-requests?status=pending");
       if (!res.ok) return;
       const data = await res.json();
-      const ids = new Set<string>();
+      const byPayment = new Map<string, PendingPaymentRequest>();
+      const discounts: Array<{ student_id: string; fee_structure_id: string; amount: number }> = [];
       for (const r of (data.requests ?? []) as Array<{
         target_id: string | null;
         action: string;
         proposed_changes: Record<string, unknown> | null;
       }>) {
-        if (r.target_id && isRefundRequest(r.action, r.proposed_changes)) {
-          ids.add(r.target_id);
+        const pc = r.proposed_changes ?? {};
+        if (r.action === "insert") {
+          if (
+            pc.payment_method === "waiver" &&
+            typeof pc.student_id === "string" &&
+            typeof pc.fee_structure_id === "string"
+          ) {
+            discounts.push({
+              student_id: pc.student_id,
+              fee_structure_id: pc.fee_structure_id,
+              amount: Number(pc.waiver_amount ?? 0),
+            });
+          }
+          continue;
         }
+        if (!r.target_id) continue;
+        byPayment.set(
+          r.target_id,
+          r.action === "delete"
+            ? "delete"
+            : isRefundRequest(r.action, r.proposed_changes)
+              ? "refund"
+              : "correction"
+        );
       }
-      setPendingRefundIds(ids);
+      setPendingByPayment(byPayment);
+      setPendingDiscounts(discounts);
     } catch {
-      // The chip is a courtesy; the API still refuses a duplicate request.
+      // The markers are a courtesy; the API still refuses a duplicate request.
     }
   }, []);
   useEffect(() => {
-    void loadPendingRefunds();
-  }, [loadPendingRefunds]);
+    void loadPendingRequests();
+  }, [loadPendingRequests]);
 
   // Fee structures state
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
@@ -825,6 +1253,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   // Which side of the register is open, in the URL so the dashboard's
   // "Paid" / "Remaining" tiles can land on the matching list.
   const [duesTab, setDuesTab] = useUrlState("dues_tab", "dues-list");
+  // Quarter-wise tab: count what has fallen due, or the whole session.
+  const [quarterBasis, setQuarterBasis] = useUrlState("quarter_basis", "due");
+  const [quarterOwingOnly, setQuarterOwingOnly] = useState(true);
   const [duesSearch, setDuesSearch] = useState("");
   const [duesRows, setDuesRows] = useState<DuesRow[]>([]);
   const [duesLoading, setDuesLoading] = useState(false);
@@ -835,10 +1266,12 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     // or "stop:<uuid>" (bus_stop_id); we decode at submit time. Keeps the state
     // model simple and the UI single-select even though the underlying FK lives
     // on two columns.
-    fee_target: "",
+    // What this payment is for: any mix of instalments (fee structure ids)
+    // and months of the student's bus fee (YYYY-MM). One receipt for all.
+    fs_ids: [] as string[],
     amount_paid: "",
     payment_method: "cash" as (typeof PAYMENT_METHODS)[number],
-    month: "",
+    months: [] as string[],
     payment_date: todayISO(),
     cheque_number: "",
     cheque_date: "",
@@ -856,14 +1289,32 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   const [refundForm, setRefundForm] = useState({ amount: "", reason: "" });
   const [refundSubmitting, setRefundSubmitting] = useState(false);
 
-  // Correcting the date on a recorded payment. Admins change it directly;
-  // editors file a change request, same as any other edit to fee_payments.
-  const [dateEditPayment, setDateEditPayment] = useState<{
-    id: string;
-    receipt_number: string | null;
-  } | null>(null);
-  const [dateEditForm, setDateEditForm] = useState({ payment_date: "", reason: "" });
-  const [dateEditSubmitting, setDateEditSubmitting] = useState(false);
+  // Correcting a recorded payment: the day it was paid, how it was paid and
+  // the details that go with that, and a transport payment's month. Admins
+  // apply it directly; editors file a change request. The payment row type
+  // is the history table's own.
+  const [correctPayment, setCorrectPayment] = useState<
+    (typeof studentPayments)[number] | null
+  >(null);
+  const [correctForm, setCorrectForm] = useState<
+    PaymentMethodDetails & {
+      payment_date: string;
+      payment_method: string;
+      month: string;
+      reason: string;
+    }
+  >({
+    payment_date: "",
+    payment_method: "cash",
+    month: "",
+    reason: "",
+    ...EMPTY_PAYMENT_DETAILS,
+  });
+  const [correctSubmitting, setCorrectSubmitting] = useState(false);
+  // payment id → its corrections, for the "Corrected" marker in history.
+  const [paymentCorrections, setPaymentCorrections] = useState<
+    Record<string, PaymentCorrection[]>
+  >({});
 
   const [waiverOpen, setWaiverOpen] = useState(false);
 
@@ -877,6 +1328,16 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     month: "",
   });
   const [waiverSubmitting, setWaiverSubmitting] = useState(false);
+  // "single": one instalment, as before. "spread": one total split across
+  // the unpaid instalments — a concession decided once Q1 and Q2 are paid
+  // used to be divided by hand into one request per instalment.
+  const [waiverMode, setWaiverMode] = useState<"single" | "spread">("single");
+  // Changing or removing a recorded discount.
+  const [discountEdit, setDiscountEdit] = useState<
+    (typeof studentPayments)[number] | null
+  >(null);
+  const [discountEditForm, setDiscountEditForm] = useState({ amount: "", reason: "" });
+  const [discountEditSubmitting, setDiscountEditSubmitting] = useState(false);
 
   // Academic year. The date range is needed as well as the id: a student
   // counts as "new" (and so owes the admission fee) when their admission date
@@ -1082,6 +1543,22 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       })[]) ?? []
     );
     setPaymentsLoading(false);
+
+    // Which of these payments have been corrected — read through the API,
+    // since the audit log is admin-only under RLS and the clerk needs it too.
+    // Keyed by payment id, so a late answer for a student since closed
+    // matches no row on screen.
+    try {
+      const res = await adminFetch(
+        `/api/fees/payments/corrections?student_id=${student.id}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setPaymentCorrections(data.corrections ?? {});
+      }
+    } catch {
+      // The marker is a courtesy; the history still loads without it.
+    }
   }, [supabase, academicYearId]);
 
   // Re-fetch the full Student row by id (the roster select only carries a few
@@ -1114,7 +1591,43 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     setStudentFeeStructures([]);
     setStudentPayments([]);
     setStudentResults([]);
+    setPaymentCorrections({});
   }, []);
+
+  // Closing a student also drops ?student_id. The dues register links here
+  // with it, and left in the URL it made a refresh reopen the student the
+  // office had just finished with.
+  const dropStudentFromUrl = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("student_id")) return;
+    url.searchParams.delete("student_id");
+    window.history.replaceState(null, "", url.toString());
+  }, []);
+
+  const studentSearchRef = useRef<HTMLInputElement>(null);
+
+  // Back to the student list, keeping whatever was typed in the search.
+  const closeStudent = useCallback(() => {
+    clearSelectedStudent();
+    dropStudentFromUrl();
+  }, [clearSelectedStudent, dropStudentFromUrl]);
+
+  // Done with this student: an empty search with the cursor in it, ready for
+  // the next name. Moving on used to mean leaving Payment Management,
+  // coming back and refreshing — the search box stayed on screen, but its
+  // matches only rendered while no student was open, and the only way back
+  // to the list was a button that appeared when a class had been picked.
+  const startNextStudent = useCallback(() => {
+    closeStudent();
+    setClassStudentSearch("");
+    requestAnimationFrame(() => {
+      const el = studentSearchRef.current;
+      if (!el) return;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.focus({ preventScroll: true });
+    });
+  }, [closeStudent]);
 
   // Deep-link: if ?student_id=... is in URL, auto-select that student once.
   useEffect(() => {
@@ -1538,6 +2051,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       type PayRow = {
         student_id: string;
         fee_structure_id: string | null;
+        bus_stop_id: string | null;
+        month: string | null;
+        payment_method: string | null;
         amount_paid: number;
         waiver_amount: number;
         refund_amount: number | null;
@@ -1563,7 +2079,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           let q = supabase
             .from("fee_payments")
             .select(
-              "student_id, fee_structure_id, amount_paid, waiver_amount, refund_amount, status"
+              "student_id, fee_structure_id, bus_stop_id, month, payment_method, amount_paid, waiver_amount, refund_amount, status"
             )
             .in("status", ["paid", "partial", "refunded"])
             .eq("academic_year_id", academicYearId);
@@ -1606,6 +2122,18 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       // (legacy monthly/quarterly rows, transport stop fees): they run with the
       // academic year, so periods elapse from its start.
       const yearStartDate = academicYearRange?.start_date ?? null;
+      const monthList =
+        academicYearRange?.start_date && academicYearRange?.end_date
+          ? sessionMonths(academicYearRange.start_date, academicYearRange.end_date)
+          : [];
+      // Group receipts by student once; filtering the whole list per student
+      // is quadratic across a school.
+      const paymentsByStudent = new Map<string, PayRow[]>();
+      for (const pay of payments) {
+        const list = paymentsByStudent.get(pay.student_id);
+        if (list) list.push(pay);
+        else paymentsByStudent.set(pay.student_id, [pay]);
+      }
       const rows: DuesRow[] = (enrollments ?? []).map((e) => {
         const stu = e.students as unknown as {
           full_name: string;
@@ -1651,13 +2179,23 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         // longer on the roll. Their schedule stops on the day they left — the
         // whole reason the arrears column stayed honest after migration 123.
         const billingCutoff = resolveBillingCutoff(e as BillableEnrollment);
+        const studentPays = paymentsByStudent.get(e.student_id as string) ?? [];
         const breakdown = computeDuesBreakdown({
           lines,
-          payments: payments.filter((pay) => pay.student_id === e.student_id),
+          payments: studentPays,
           today,
           yearStartDate,
           billingCutoff,
         });
+        const ledger = computeInstalmentLedger({
+          lines,
+          payments: studentPays,
+          today,
+          yearStartDate,
+          sessionMonthList: monthList,
+          billingCutoff,
+        });
+        const sum = (q: Record<Quarter, number>) => q[1] + q[2] + q[3] + q[4];
         return {
           student_id: e.student_id as string,
           admission_no: stu?.admission_no ?? "",
@@ -1672,6 +2210,12 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           paid: breakdown.paid,
           late_fee: breakdown.lateFee,
           dues: breakdown.dues,
+          discount: ledger.discount,
+          quarters_due: ledger.dueByQuarter.academic,
+          quarters_session: ledger.outstandingByQuarter.academic,
+          transport_due: sum(ledger.dueByQuarter.transport),
+          transport_session: sum(ledger.outstandingByQuarter.transport),
+          credit: ledger.credit,
         };
       });
       rows.sort((a, b) => b.dues - a.dues || a.full_name.localeCompare(b.full_name));
@@ -1794,6 +2338,145 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       ),
     [studentPayments, academicYearId]
   );
+
+  // The student's bus fee, month by month: what each session month owes and
+  // has been paid. Drives the month strip on the transport card and the
+  // month picker in Record Payment — the same figures the payments route
+  // checks a multi-month payment against.
+  const transportLine = useMemo(
+    () => applicableFeeLines.find((l) => l.kind === "transport_stop") ?? null,
+    [applicableFeeLines]
+  );
+  const transportMonths = useMemo<TransportMonthStatus[]>(() => {
+    if (!transportLine || !academicYearRange?.start_date || !academicYearRange?.end_date) {
+      return [];
+    }
+    return transportMonthLedger({
+      months: sessionMonths(academicYearRange.start_date, academicYearRange.end_date),
+      fee: transportLine.amount,
+      busStopId: transportLine.id,
+      payments: yearPayments,
+      today: todayISO(),
+    });
+  }, [transportLine, academicYearRange, yearPayments]);
+  const transportMonthByKey = useMemo(
+    () => new Map(transportMonths.map((tm) => [tm.month, tm])),
+    [transportMonths]
+  );
+
+  // The open student's position instalment by instalment — the same ledger
+  // the Quarter-wise register is built from, so the two always agree.
+  const selectedLedger = useMemo<InstalmentLedger | null>(() => {
+    if (!selectedStudent || !academicYearId) return null;
+    return computeInstalmentLedger({
+      lines: applicableFeeLines,
+      payments: yearPayments,
+      today: todayISO(),
+      yearStartDate: academicYearRange?.start_date ?? null,
+      sessionMonthList:
+        academicYearRange?.start_date && academicYearRange?.end_date
+          ? sessionMonths(academicYearRange.start_date, academicYearRange.end_date)
+          : [],
+      billingCutoff: selectedBillingCutoff,
+    });
+  }, [
+    selectedStudent,
+    academicYearId,
+    applicableFeeLines,
+    yearPayments,
+    academicYearRange,
+    selectedBillingCutoff,
+  ]);
+  const ledgerRowByLine = useMemo(() => {
+    const m = new Map<string, InstalmentPosition[]>();
+    for (const row of selectedLedger?.rows ?? []) {
+      const list = m.get(row.line.id);
+      if (list) list.push(row);
+      else m.set(row.line.id, [row]);
+    }
+    return m;
+  }, [selectedLedger]);
+
+  // Every instalment the payment form offers, with what it still owes. A
+  // legacy recurring row is charged per period, so it offers one period.
+  const payableInstalments = useMemo(
+    () =>
+      applicableFeeLines
+        .filter((l) => l.kind === "fee_structure")
+        .map((line) => {
+          const row = ledgerRowByLine.get(line.id)?.[0];
+          const remaining = Math.max(
+            0,
+            Math.min(Number(line.amount), row ? row.outstanding : Number(line.amount))
+          );
+          return { line, row, remaining: Math.round(remaining * 100) / 100 };
+        }),
+    [applicableFeeLines, ledgerRowByLine]
+  );
+
+  // Everything ticked, priced, and how the typed amount would split across
+  // it — oldest due first, only the last-due part-paid. The payments route
+  // runs the same allocateOldestFirst() on the same figures.
+  const collectionItems = useMemo(() => {
+    const items: Array<{ key: string; label: string; due: string; remaining: number }> = [];
+    for (const id of newPayment.fs_ids) {
+      const it = payableInstalments.find((p) => p.line.id === id);
+      if (!it) continue;
+      items.push({
+        key: `fs:${id}`,
+        label: feeLineLabel(it.line),
+        due: it.line.due_date ?? academicYearRange?.start_date ?? "",
+        remaining: it.remaining,
+      });
+    }
+    for (const m of newPayment.months) {
+      const tm = transportMonthByKey.get(m);
+      if (!tm) continue;
+      items.push({
+        key: `bus:${m}`,
+        label: `Transport — ${formatFeeMonth(m)}`,
+        due: `${m}-01`,
+        remaining: tm.remaining,
+      });
+    }
+    return items;
+  }, [newPayment.fs_ids, newPayment.months, payableInstalments, transportMonthByKey, academicYearRange]);
+
+  const collectionPreview = useMemo<CollectionAllocation | null>(() => {
+    if (collectionItems.length === 0) {
+      return { ok: false, error: "Tick what this payment is for." };
+    }
+    const amount = parseFloat(newPayment.amount_paid);
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    return allocateOldestFirst(amount, collectionItems, { one: "fee", many: "fees" });
+  }, [collectionItems, newPayment.amount_paid]);
+
+  // Ticking or unticking re-prices the payment at what everything ticked
+  // still owes; the amount can then be lowered for a part-payment.
+  const repriced = (fsIds: string[], months: string[]) => {
+    const owed =
+      fsIds.reduce(
+        (sum, id) => sum + (payableInstalments.find((p) => p.line.id === id)?.remaining ?? 0),
+        0
+      ) + months.reduce((sum, m) => sum + (transportMonthByKey.get(m)?.remaining ?? 0), 0);
+    return owed > 0 ? String(Math.round(owed * 100) / 100) : "";
+  };
+  const toggleInstalment = (id: string, on: boolean) => {
+    const fsIds = on
+      ? [...new Set([...newPayment.fs_ids, id])]
+      : newPayment.fs_ids.filter((x) => x !== id);
+    setNewPayment({ ...newPayment, fs_ids: fsIds, amount_paid: repriced(fsIds, newPayment.months) });
+  };
+  const toggleTransportMonth = (month: string) => {
+    const nextMonths = newPayment.months.includes(month)
+      ? newPayment.months.filter((m) => m !== month)
+      : [...newPayment.months, month].sort();
+    setNewPayment({
+      ...newPayment,
+      months: nextMonths,
+      amount_paid: repriced(newPayment.fs_ids, nextMonths),
+    });
+  };
 
   const selectedStudentDues = useMemo<DuesBreakdown | null>(() => {
     if (!selectedStudent || !academicYearId) return null;
@@ -2061,7 +2744,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         setRefundOpen(false);
         setRefundForm({ amount: "", reason: "" });
         setRefundPaymentId(null);
-        void loadPendingRefunds();
+        void loadPendingRequests();
         return;
       }
 
@@ -2092,58 +2775,222 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     }
   };
 
-  const handleChangePaymentDate = async () => {
-    if (!dateEditPayment || !selectedStudent) return;
-    const { payment_date, reason } = dateEditForm;
-    if (!payment_date) {
+  const openCorrectPayment = (p: (typeof studentPayments)[number]) => {
+    setCorrectPayment(p);
+    setCorrectForm({
+      payment_date: p.payment_date ?? todayISO(),
+      payment_method: p.payment_method,
+      // The month picker takes YYYY-MM. A day-book import stored "APR"-style
+      // months; those start blank and are shown as the current value.
+      month: /^\d{4}-\d{2}$/.test(p.month ?? "") ? (p.month as string) : "",
+      reason: "",
+      cheque_number: p.cheque_number ?? "",
+      cheque_date: p.cheque_date ?? "",
+      bank_name: p.bank_name ?? "",
+      payer_name: p.payer_name ?? "",
+      transaction_ref: p.transaction_ref ?? "",
+      payment_provider: p.payment_provider ?? "",
+    });
+  };
+
+  const handleCorrectPayment = async () => {
+    if (!correctPayment || !selectedStudent) return;
+    const f = correctForm;
+    const p = correctPayment;
+    if (!f.payment_date) {
       toast.error("Please enter the payment date");
       return;
     }
-    if (payment_date > todayISO()) {
+    if (f.payment_date > todayISO()) {
       toast.error("Payment date cannot be in the future");
       return;
     }
-    if (reason.trim().length < 5) {
+    if (f.reason.trim().length < 5) {
       toast.error("Reason is required (min 5 chars)");
       return;
     }
-    setDateEditSubmitting(true);
+    // Send what changed; the server keeps only the details the resulting
+    // method uses and checks them against it.
+    const body: Record<string, unknown> = { reason: f.reason.trim() };
+    if (f.payment_date !== p.payment_date) body.payment_date = f.payment_date;
+    if (f.payment_method !== p.payment_method) body.payment_method = f.payment_method;
+    for (const key of DETAIL_KEYS) body[key] = f[key];
+    if (p.bus_stop_id && f.month && f.month !== (p.month ?? "")) body.month = f.month;
+
+    setCorrectSubmitting(true);
     try {
-      const res = isEditor
-        ? await adminFetch("/api/fees/change-requests", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              target_table: "fee_payments",
-              target_id: dateEditPayment.id,
-              action: "update",
-              proposed_changes: { payment_date },
-              reason: reason.trim(),
-            }),
-          })
-        : await adminFetch(`/api/fees/payments/${dateEditPayment.id}/date`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ payment_date, reason: reason.trim() }),
-          });
+      const res = await adminFetch(`/api/fees/payments/${p.id}/correct`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error ?? "Failed to change payment date");
+        toast.error(data.error ?? "Failed to correct the payment", { duration: 8000 });
         return;
       }
       toast.success(
-        isEditor
-          ? "Change request filed — an admin will review it."
-          : "Payment date updated"
+        data.pending
+          ? "Correction request filed — an admin will review it. The payment stays as it is until then."
+          : "Payment corrected. The change and your reason are in the fee audit log."
       );
-      setDateEditPayment(null);
-      if (!isEditor) selectStudent(selectedStudent);
+      setCorrectPayment(null);
+      selectStudent(selectedStudent);
+      if (data.pending) void loadPendingRequests();
     } finally {
-      setDateEditSubmitting(false);
+      setCorrectSubmitting(false);
     }
   };
 
   // Record a fee waiver — counts toward "no dues" without a cash receipt.
+  // Instalments a spread discount can land on: unpaid, and not already
+  // carrying a discount (applied or awaiting approval) — one per instalment.
+  const spreadTargets = useMemo(() => {
+    if (!selectedStudent) return { targets: [] as InstalmentPosition[], skipped: [] as InstalmentPosition[] };
+    const open = (selectedLedger?.rows ?? []).filter(
+      (r) => r.kind === "fee_structure" && r.outstanding > 0.005
+    );
+    const hasDiscount = (r: InstalmentPosition) =>
+      r.discount > 0 ||
+      pendingDiscounts.some(
+        (d) => d.student_id === selectedStudent.id && d.fee_structure_id === r.line.id
+      );
+    return {
+      targets: open.filter((r) => !hasDiscount(r)),
+      skipped: open.filter(hasDiscount),
+    };
+  }, [selectedLedger, pendingDiscounts, selectedStudent]);
+
+  // The spread: proportional to what each instalment still owes, so a 10%
+  // concession is 10% of every remaining instalment. Paise go to the last.
+  const spreadPreview = useMemo(() => {
+    if (waiverMode !== "spread") return null;
+    const total = parseFloat(waiverForm.waiver_amount);
+    const { targets } = spreadTargets;
+    if (targets.length === 0) {
+      return { ok: false as const, error: "No unpaid instalment without a discount is left to spread over." };
+    }
+    if (!Number.isFinite(total) || total <= 0) return null;
+    const owed = targets.reduce((sum, r) => sum + r.outstanding, 0);
+    if (total > owed + 0.005) {
+      return {
+        ok: false as const,
+        error: `₹${total} is more than the unpaid instalments still owe (${inr(owed)}).`,
+      };
+    }
+    const slices = targets.map((r) => ({
+      row: r,
+      amount: Math.round(((total * r.outstanding) / owed) * 100) / 100,
+    }));
+    const drift = Math.round((total - slices.reduce((sum, x) => sum + x.amount, 0)) * 100) / 100;
+    slices[slices.length - 1].amount = Math.round((slices[slices.length - 1].amount + drift) * 100) / 100;
+    return { ok: true as const, slices: slices.filter((x) => x.amount > 0) };
+  }, [waiverMode, waiverForm.waiver_amount, spreadTargets]);
+
+  const handleSpreadWaiver = async () => {
+    if (!selectedStudent || !spreadPreview) return;
+    if (!spreadPreview.ok) {
+      toast.error(spreadPreview.error);
+      return;
+    }
+    if (waiverForm.waiver_reason.trim().length < 5) {
+      toast.error("Waiver reason is required (min 5 chars)");
+      return;
+    }
+    setWaiverSubmitting(true);
+    let done = 0;
+    let pending = false;
+    const failures: string[] = [];
+    try {
+      // One discount per instalment, one after another — each passes the
+      // same cap and duplicate checks a single discount does.
+      for (const slice of spreadPreview.slices) {
+        const res = await adminFetch("/api/fees/waivers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            student_id: selectedStudent.id,
+            fee_structure_id: slice.row.line.id,
+            waiver_amount: slice.amount,
+            waiver_reason: waiverForm.waiver_reason.trim(),
+            month: "",
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          done += 1;
+          if (data.pending) pending = true;
+        } else {
+          failures.push(`${feeLineLabel(slice.row.line)}: ${data.error ?? "failed"}`);
+        }
+      }
+    } finally {
+      setWaiverSubmitting(false);
+    }
+    if (done > 0) {
+      toast.success(
+        pending
+          ? `${done} discount request${done === 1 ? "" : "s"} filed — an admin will review them together.`
+          : `Discount recorded on ${done} instalment${done === 1 ? "" : "s"}.`
+      );
+    }
+    if (failures.length > 0) toast.error(failures.join(" · "), { duration: 12000 });
+    if (failures.length === 0) {
+      setWaiverOpen(false);
+      setWaiverMode("single");
+      setWaiverForm({ fee_structure_id: "", waiver_amount: "", waiver_reason: "", month: "" });
+    }
+    selectStudent(selectedStudent);
+    void loadPendingRequests();
+  };
+
+  const submitDiscountEdit = async (remove: boolean) => {
+    if (!discountEdit || !selectedStudent) return;
+    const reason = discountEditForm.reason.trim();
+    if (reason.length < 5) {
+      toast.error("Reason is required (min 5 chars)");
+      return;
+    }
+    const amount = parseFloat(discountEditForm.amount);
+    if (!remove && (!Number.isFinite(amount) || amount <= 0)) {
+      toast.error("Enter the new discount amount");
+      return;
+    }
+    if (
+      remove &&
+      !window.confirm(
+        "Remove this discount? The amount it covered becomes payable again on its instalment."
+      )
+    ) {
+      return;
+    }
+    setDiscountEditSubmitting(true);
+    try {
+      const res = await adminFetch(`/api/fees/discounts/${discountEdit.id}`, {
+        method: remove ? "DELETE" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(remove ? { reason } : { waiver_amount: amount, reason }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to update the discount", { duration: 8000 });
+        return;
+      }
+      toast.success(
+        data.pending
+          ? "Request filed — an admin will review it. The discount stays as it is until then."
+          : remove
+            ? "Discount removed. The change and your reason are in the fee audit log."
+            : "Discount changed. The change and your reason are in the fee audit log."
+      );
+      setDiscountEdit(null);
+      selectStudent(selectedStudent);
+      if (data.pending) void loadPendingRequests();
+    } finally {
+      setDiscountEditSubmitting(false);
+    }
+  };
+
   const handleRecordWaiver = async () => {
     if (!selectedStudent) return;
     const amt = parseFloat(waiverForm.waiver_amount);
@@ -2192,6 +3039,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         month: "",
       });
       selectStudent(selectedStudent);
+      if (data.pending) void loadPendingRequests();
     } finally {
       setWaiverSubmitting(false);
     }
@@ -2206,8 +3054,12 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       toast.error("Please enter a valid amount");
       return;
     }
-    if (!newPayment.fee_target) {
-      toast.error("Please select a fee");
+    if (newPayment.fs_ids.length === 0 && newPayment.months.length === 0) {
+      toast.error("Tick what this payment is for");
+      return;
+    }
+    if (collectionPreview && !collectionPreview.ok) {
+      toast.error(collectionPreview.error);
       return;
     }
     if (!newPayment.payment_date) {
@@ -2218,13 +3070,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       toast.error("Payment date cannot be in the future");
       return;
     }
-    // Decode the dropdown value: "fs:<uuid>" → fee_structure_id,
-    // "stop:<uuid>" → bus_stop_id. Server enforces the XOR.
-    const [kind, id] = newPayment.fee_target.split(":");
-    const fkPayload =
-      kind === "stop"
-        ? { bus_stop_id: id }
-        : { fee_structure_id: id };
+    // Instalments by id (their month comes from the schedule); bus months
+    // against the student's stop.
+    const items = [
+      ...newPayment.fs_ids.map((id) => ({ fee_structure_id: id })),
+      ...(transportLine
+        ? newPayment.months.map((m) => ({ bus_stop_id: transportLine.id, month: m }))
+        : []),
+    ];
 
     setPaymentSubmitting(true);
     const m = newPayment.payment_method;
@@ -2233,10 +3086,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         student_id: selectedStudent.id,
-        ...fkPayload,
         amount_paid: amount,
         payment_method: m,
-        month: newPayment.month || "",
+        items,
         payment_date: newPayment.payment_date,
         // Only send the fields that apply to the chosen method. Sending
         // the rest as empty strings is fine — the schema treats empty as
@@ -2263,13 +3115,23 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     if (!res.ok) {
       toast.error(data.error || "Failed to record payment");
     } else {
-      toast.success(`Payment recorded. Receipt: ${data.payment.receipt_number}`);
+      // The office takes fees in a queue: offer the next student right here.
+      const rowsRecorded = ((data.payments ?? []) as unknown[]).length;
+      toast.success(
+        `Payment recorded${
+          rowsRecorded > 1 ? ` for ${rowsRecorded} fees on one receipt` : ""
+        }. Receipt: ${data.payment.receipt_number}`,
+        {
+        duration: 8000,
+        action: { label: "Next student", onClick: startNextStudent },
+        }
+      );
       setRecordPaymentOpen(false);
       setNewPayment({
-        fee_target: "",
+        fs_ids: [],
         amount_paid: "",
         payment_method: "cash",
-        month: "",
+        months: [],
         payment_date: todayISO(),
         cheque_number: "",
         cheque_date: "",
@@ -2615,7 +3477,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     value={paymentsClassId}
                     onChange={(e) => {
                       setPaymentsClassId(e.target.value);
-                      clearSelectedStudent();
+                      closeStudent();
                       setClassStudentSearch("");
                     }}
                     className="block min-w-[220px]"
@@ -2629,15 +3491,53 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                   </NativeSelect>
                 </div>
                 <div className="flex-1">
-                  <Label className="mb-2 block text-xs font-medium">
-                    Search Students
+                  <Label
+                    htmlFor="payments-student-search"
+                    className="mb-2 block text-xs font-medium"
+                  >
+                    {selectedStudent ? "Search Another Student" : "Search Students"}
                   </Label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
                     <Input
-                      placeholder="Search by name, admission no or father…"
+                      id="payments-student-search"
+                      ref={studentSearchRef}
+                      placeholder={
+                        selectedStudent
+                          ? "Type the next student's name, admission no or father…"
+                          : "Search by name, admission no or father…"
+                      }
                       value={classStudentSearch}
-                      onChange={(e) => setClassStudentSearch(e.target.value)}
+                      // With a student open, the box searches for the next
+                      // one: focusing selects the old text so typing replaces
+                      // it, and the first keystroke closes this student and
+                      // brings back the matching list.
+                      onFocus={(e) => {
+                        if (selectedStudent) e.currentTarget.select();
+                      }}
+                      onChange={(e) => {
+                        setClassStudentSearch(e.target.value);
+                        if (selectedStudent) closeStudent();
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          setClassStudentSearch("");
+                          return;
+                        }
+                        if (e.key !== "Enter" || selectedStudent) return;
+                        // Enter opens the only match — type, Enter, record.
+                        if (!classStudentSearch.trim()) return;
+                        if (filteredClassStudents.length === 1) {
+                          e.preventDefault();
+                          void selectStudentById(filteredClassStudents[0].id);
+                        } else if (
+                          filteredClassStudents.length === 0 &&
+                          studentResults.length === 1
+                        ) {
+                          e.preventDefault();
+                          void selectStudent(studentResults[0]);
+                        }
+                      }}
                       className="pl-10"
                     />
                   </div>
@@ -2646,17 +3546,29 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
 
               {selectedStudent && (
                 <>
-                  {paymentsClassId && (
+                  {/* Always offered: it used to appear only once a class had
+                      been picked, so a student found under "All classes" had
+                      no way back to the list short of leaving the page. */}
+                  <div className="mb-4 -ml-2 flex flex-wrap items-center gap-1">
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={clearSelectedStudent}
-                      className="mb-4 -ml-2 text-gray-600 dark:text-gray-300"
+                      onClick={closeStudent}
+                      className="text-gray-600 dark:text-gray-300"
                     >
                       <ArrowLeft className="h-4 w-4 mr-1" />
-                      Back to class list
+                      {paymentsClassId ? "Back to class list" : "Back to student list"}
                     </Button>
-                  )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={startNextStudent}
+                      className="text-gray-600 dark:text-gray-300"
+                    >
+                      <Search className="h-4 w-4 mr-1" />
+                      Next student
+                    </Button>
+                  </div>
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h3 className="font-heading text-lg font-semibold text-navy-900 dark:text-white">
@@ -2712,6 +3624,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                   {selectedStudentDues && (
                     <StudentDuesSummary
                       dues={selectedStudentDues}
+                      ledger={selectedLedger}
                       loading={paymentsLoading}
                       classId={paymentsClassId || selectedStudentClassId}
                     />
@@ -2766,6 +3679,24 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                               <p className="text-xs text-gray-400 dark:text-gray-500">
                                 {subtitle}
                               </p>
+                              {/* The bus fee month by month: which months are
+                                  paid, part-paid, due, or still to come. */}
+                              {isTransport && transportMonths.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1" aria-label="Bus fee by month">
+                                  {transportMonths.map((tm) => (
+                                    <span
+                                      key={tm.month}
+                                      title={TRANSPORT_MONTH_TITLE(tm)}
+                                      className={cn(
+                                        "rounded border px-1.5 py-0.5 text-[10px] font-medium",
+                                        TRANSPORT_MONTH_CLASS[tm.state]
+                                      )}
+                                    >
+                                      {shortMonth(tm.month)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                               {/* The surcharge terms belong next to the fee
                                   they apply to — an office answering "why is
                                   this ₹600 more" shouldn't have to open the
@@ -2774,6 +3705,32 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                 line={line}
                                 settled={settledByLine.get(line.id) ?? 0}
                               />
+                              {/* Where this line stands: paid, discounted,
+                                  and what is still owed on it — per quarter
+                                  for a bus fee. */}
+                              {(ledgerRowByLine.get(line.id) ?? []).map((row) => (
+                                <InstalmentPositionLine
+                                  key={row.key}
+                                  row={row}
+                                  showQuarterLabel={isTransport}
+                                />
+                              ))}
+                              {(() => {
+                                // A discount filed for this instalment and
+                                // not yet approved — so it isn't filed twice.
+                                const waiting = pendingDiscounts
+                                  .filter(
+                                    (d) =>
+                                      d.student_id === selectedStudent.id &&
+                                      d.fee_structure_id === line.id
+                                  )
+                                  .reduce((sum, d) => sum + d.amount, 0);
+                                return waiting > 0 ? (
+                                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                                    {inr(waiting)} discount awaiting approval
+                                  </p>
+                                ) : null;
+                              })()}
                             </div>
                           );
                         })}
@@ -2855,10 +3812,25 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                 </span>
                               )}
                             </TableCell>
-                            <TableCell className="capitalize">
-                              {isDiscountPayment(p)
-                                ? "Discount"
-                                : p.payment_method?.replace("_", " ") ?? "--"}
+                            <TableCell>
+                              <span className="capitalize">
+                                {isDiscountPayment(p)
+                                  ? "Discount"
+                                  : p.payment_method === "historical_unknown"
+                                    ? "Unknown (imported)"
+                                    : p.payment_method?.replace("_", " ") ?? "--"}
+                              </span>
+                              {paymentCorrections[p.id]?.length ? (
+                                <Badge
+                                  variant="outline"
+                                  className="ml-1.5 text-[10px] font-normal"
+                                  title={paymentCorrections[p.id]
+                                    .map(describeCorrection)
+                                    .join("\n")}
+                                >
+                                  Corrected
+                                </Badge>
+                              ) : null}
                             </TableCell>
                             <TableCell className="font-mono text-xs">
                               {p.receipt_number ?? "--"}
@@ -2881,35 +3853,51 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                     <Download className="h-4 w-4" />
                                   )}
                                 </Button>
-                                {p.payment_method !== "waiver" && (
+                                {/* Discounts, gateway payments and refunded
+                                    rows can't be corrected (correctionLockReason). */}
+                                {/* While a correction is waiting for review the
+                                    pencil gives way to its marker below: a
+                                    second request on the row would be refused. */}
+                                {isDiscountPayment(p) &&
+                                  p.status !== "refunded" &&
+                                  !pendingByPayment.has(p.id) && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      onClick={() => {
+                                        setDiscountEdit(p);
+                                        setDiscountEditForm({
+                                          amount: String(p.waiver_amount ?? ""),
+                                          reason: "",
+                                        });
+                                      }}
+                                      disabled={userRole === null}
+                                      title="Change or remove this discount"
+                                      aria-label="Change or remove discount"
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                {!correctionLockReason(p) && !pendingByPayment.has(p.id) && (
                                   <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    onClick={() => {
-                                      setDateEditPayment({
-                                        id: p.id,
-                                        receipt_number: p.receipt_number,
-                                      });
-                                      setDateEditForm({
-                                        payment_date: p.payment_date ?? todayISO(),
-                                        reason: "",
-                                      });
-                                    }}
+                                    onClick={() => openCorrectPayment(p)}
                                     disabled={userRole === null}
-                                    title="Change payment date"
-                                    aria-label="Change payment date"
+                                    title="Correct this payment — date, payment mode and its details"
+                                    aria-label="Correct payment"
                                   >
                                     <Pencil className="h-4 w-4" />
                                   </Button>
                                 )}
                                 {/* Refund applies only to genuine cash receipts that haven't been refunded yet. */}
-                                {pendingRefundIds.has(p.id) ? (
+                                {pendingByPayment.has(p.id) ? (
                                   <Badge
                                     variant="secondary"
                                     className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 text-[10px]"
-                                    title="A refund request for this payment is awaiting a super admin"
+                                    title={PENDING_REQUEST_LABEL[pendingByPayment.get(p.id)!].title}
                                   >
-                                    Refund requested
+                                    {PENDING_REQUEST_LABEL[pendingByPayment.get(p.id)!].label}
                                   </Badge>
                                 ) : p.status !== "refunded" &&
                                 p.payment_method !== "waiver" ? (
@@ -3146,7 +4134,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </p>
               ) : (
                 <Tabs
-                  value={duesTab === "clear-list" ? "clear-list" : "dues-list"}
+                  value={
+                    duesTab === "clear-list" || duesTab === "quarters"
+                      ? duesTab
+                      : "dues-list"
+                  }
                   onValueChange={(v) => v && setDuesTab(String(v))}
                 >
                   <TabsList>
@@ -3156,7 +4148,64 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     <TabsTrigger value="clear-list">
                       No Dues ({duesSummary.clear.length})
                     </TabsTrigger>
+                    <TabsTrigger value="quarters">Quarter-wise</TabsTrigger>
                   </TabsList>
+                  <TabsContent value="quarters">
+                    <div className="mt-3 space-y-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="inline-flex rounded-lg border p-0.5" role="group" aria-label="Count">
+                          {(
+                            [
+                              ["due", "Due till today"],
+                              ["session", "Whole session"],
+                            ] as const
+                          ).map(([value, label]) => (
+                            <Button
+                              key={value}
+                              size="sm"
+                              variant={quarterBasis === value ? "default" : "ghost"}
+                              onClick={() => setQuarterBasis(value)}
+                              aria-pressed={quarterBasis === value}
+                            >
+                              {label}
+                            </Button>
+                          ))}
+                        </div>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={quarterOwingOnly}
+                            onCheckedChange={(v) => setQuarterOwingOnly(Boolean(v))}
+                          />
+                          Only students who owe
+                        </label>
+                        <p className="basis-full text-xs text-gray-500 dark:text-gray-400">
+                          {quarterBasis === "session"
+                            ? "Everything still unpaid for the session, by the quarter its instalment falls due in — including instalments not due yet."
+                            : "What has fallen due and is unpaid, by the quarter its instalment fell due in. The total is the Dues tab's figure."}{" "}
+                          Paid Ahead is money paid beyond its own instalment; it counts
+                          against the total.
+                        </p>
+                      </div>
+                      <QuarterTable
+                        rows={
+                          quarterOwingOnly
+                            ? filteredDuesRows.filter((r) =>
+                                quarterBasis === "session"
+                                  ? r.expected - r.paid > 0.005 || r.late_fee > 0
+                                  : r.dues > 0
+                              )
+                            : filteredDuesRows
+                        }
+                        basis={quarterBasis === "session" ? "session" : "due"}
+                        showClass={!duesClassId}
+                        emptyMessage={
+                          duesSearch.trim()
+                            ? "No students match your search."
+                            : "Nobody owes anything on this basis."
+                        }
+                      />
+                    </div>
+                  </TabsContent>
 
                   {(["dues-list", "clear-list"] as const).map((key) => (
                     <TabsContent value={key} key={key}>
@@ -3511,54 +4560,114 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             </div>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Fee</Label>
-              <NativeSelect
-                value={newPayment.fee_target}
-                onChange={(e) => {
-                  // A scheduled instalment already says which period it
-                  // covers ("April, 2026"), so Month comes from the schedule
-                  // rather than the clerk. Switching fees resets it, so one
-                  // fee's month never rides along onto another.
-                  const [kind, id] = e.target.value.split(":");
-                  const picked =
-                    kind === "fs"
-                      ? applicableFeeStructures.find((fs) => fs.id === id)
-                      : undefined;
-                  setNewPayment({
-                    ...newPayment,
-                    fee_target: e.target.value,
-                    month: picked?.month_label ?? "",
-                  });
-                }}
-                className="w-full"
-              >
-                <option value="">Select fee</option>
-                {applicableFeeLines.map((line) => {
-                  const isTransport = line.kind === "transport_stop";
-                  const value = `${isTransport ? "stop" : "fs"}:${line.id}`;
-                  const amountText = new Intl.NumberFormat("en-IN", {
-                    style: "currency",
-                    currency: "INR",
-                    maximumFractionDigits: 0,
-                  }).format(line.amount);
-                  // Instalments of the same head are otherwise
-                  // indistinguishable in this list — name and due date are
-                  // what tells the 2nd instalment from the 3rd.
-                  const label = isTransport
-                    ? `Transport — ${line.stop_name} (${amountText})`
-                    : `${feeLineLabel(line)}${
-                        line.stream_id && streamById[line.stream_id]
-                          ? ` (${streamById[line.stream_id]})`
-                          : ""
-                      }${line.due_date ? ` · due ${line.due_date}` : ""} - ${amountText}`;
+            {/* What this payment is for: any mix of instalments and bus
+                months, on one receipt. The money clears the oldest due first;
+                only the last-due one can be part-paid. */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Fees being paid</Label>
+              {payableInstalments.length === 0 && !transportLine && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  No fee is set up for this student&apos;s class yet.
+                </p>
+              )}
+              <div className="space-y-1">
+                {payableInstalments.map(({ line, row, remaining }) => {
+                  const on = newPayment.fs_ids.includes(line.id);
+                  const full = remaining <= 0.005;
                   return (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
+                    <label
+                      key={line.id}
+                      className={cn(
+                        "flex min-h-11 items-start gap-2.5 rounded-md border px-2.5 py-2 text-sm",
+                        full ? "opacity-60" : "cursor-pointer",
+                        on && "border-navy-900 dark:border-gold-500"
+                      )}
+                    >
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={on}
+                        disabled={full}
+                        onCheckedChange={(v) => toggleInstalment(line.id, Boolean(v))}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium">
+                          {feeLineLabel(line)}
+                          {line.stream_id && streamById[line.stream_id]
+                            ? ` (${streamById[line.stream_id]})`
+                            : ""}
+                        </span>
+                        <span className="block text-xs text-gray-500 dark:text-gray-400">
+                          {[
+                            line.due_date ? `Due ${line.due_date}` : null,
+                            row?.quarter ? `Q${row.quarter}` : null,
+                            full ? "Paid" : `${inr(remaining)} to pay`,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      </span>
+                    </label>
                   );
                 })}
-              </NativeSelect>
+              </div>
+              {/* The student's bus fee, month by month. */}
+              {transportLine && (
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-xs text-gray-600 dark:text-gray-300">
+                    Bus fee — {transportLine.stop_name} ({inr(transportLine.amount)} a month)
+                  </p>
+                  {transportMonths.length === 0 ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      The session&apos;s dates aren&apos;t set, so its months can&apos;t be listed.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {transportMonths.map((tm) => {
+                        const on = newPayment.months.includes(tm.month);
+                        return (
+                          <button
+                            key={tm.month}
+                            type="button"
+                            disabled={tm.state === "paid"}
+                            onClick={() => toggleTransportMonth(tm.month)}
+                            title={TRANSPORT_MONTH_TITLE(tm)}
+                            aria-pressed={on}
+                            className={cn(
+                              "min-h-9 rounded-md border px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed",
+                              on
+                                ? "border-navy-900 bg-navy-900 text-white dark:border-gold-500 dark:bg-gold-500 dark:text-navy-900"
+                                : TRANSPORT_MONTH_CLASS[tm.state]
+                            )}
+                          >
+                            {shortMonth(tm.month)}
+                            {tm.state === "paid" ? " ✓" : tm.state === "part" ? " · part" : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+              {collectionPreview && (
+                <p
+                  className={cn(
+                    "text-[11px]",
+                    collectionPreview.ok
+                      ? "text-gray-500 dark:text-gray-400"
+                      : "text-amber-700 dark:text-amber-400"
+                  )}
+                >
+                  {collectionPreview.ok
+                    ? (() => {
+                        const labels = new Map(collectionItems.map((it) => [it.key, it.label]));
+                        const part = collectionPreview.slices.find((sl) => !sl.full);
+                        return `One receipt covering ${collectionPreview.slices.length} fee${
+                          collectionPreview.slices.length === 1 ? "" : "s"
+                        }${part ? ` — ${labels.get(part.key)} part-paid` : ""}.`;
+                      })()
+                    : collectionPreview.error}
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
@@ -3566,7 +4675,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 <Input
                   className="h-9"
                   type="number"
-                  placeholder="Enter amount"
+                  placeholder="Fills in from what is ticked"
                   value={newPayment.amount_paid}
                   onChange={(e) =>
                     setNewPayment({ ...newPayment, amount_paid: e.target.value })
@@ -3593,186 +4702,30 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </NativeSelect>
               </div>
             </div>
-            {/* The day the parent paid, not the day it was keyed in. Month is
-                only asked for transport: a stop's fee is charged per month and
-                carries no schedule to say which one, whereas an instalment's
-                month already comes from the schedule. */}
-            <div
-              className={cn(
-                "grid grid-cols-1 gap-3",
-                newPayment.fee_target.startsWith("stop:") && "sm:grid-cols-2"
-              )}
-            >
-              <div className="space-y-1">
-                <Label className="text-xs font-medium">Payment Date</Label>
-                <Input
-                  className="h-9"
-                  type="date"
-                  required
-                  max={todayISO()}
-                  value={newPayment.payment_date}
-                  onChange={(e) =>
-                    setNewPayment({ ...newPayment, payment_date: e.target.value })
-                  }
-                />
-              </div>
-              {newPayment.fee_target.startsWith("stop:") && (
-                <div className="space-y-1">
-                  <Label className="text-xs font-medium">For Month (optional)</Label>
-                  <Input
-                    className="h-9"
-                    type="month"
-                    value={newPayment.month}
-                    onChange={(e) =>
-                      setNewPayment({ ...newPayment, month: e.target.value })
-                    }
-                  />
-                </div>
-              )}
+            {/* The day the parent paid, not the day it was keyed in. */}
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Payment Date</Label>
+              <Input
+                className="h-9"
+                type="date"
+                required
+                max={todayISO()}
+                value={newPayment.payment_date}
+                onChange={(e) =>
+                  setNewPayment({ ...newPayment, payment_date: e.target.value })
+                }
+              />
             </div>
 
             {/* Method-specific fields. Only what's relevant to the chosen
                 payment method is rendered, and the corresponding required
                 fields are validated server-side via feePaymentSchema. */}
-            {newPayment.payment_method === "cheque" && (
-              <div className="rounded-xl border border-gray-200 dark:border-border p-3 space-y-3">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Cheque details
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Cheque No.</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="e.g. 412309"
-                      value={newPayment.cheque_number}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, cheque_number: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Cheque Date</Label>
-                    <Input
-                      className="h-9"
-                      type="date"
-                      value={newPayment.cheque_date}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, cheque_date: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Drawee Bank</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="e.g. SBI"
-                      value={newPayment.bank_name}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, bank_name: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Payee Name (optional)</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="As on cheque"
-                      value={newPayment.payer_name}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, payer_name: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {newPayment.payment_method === "bank_transfer" && (
-              <div className="rounded-xl border border-gray-200 dark:border-border p-3 space-y-3">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Bank transfer details
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Originating Bank</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="e.g. HDFC"
-                      value={newPayment.bank_name}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, bank_name: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Payer Name (optional)</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="As on transfer"
-                      value={newPayment.payer_name}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, payer_name: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Transaction Reference (UTR / NEFT)</Label>
-                  <Input
-                    className="h-9"
-                    placeholder="e.g. SBIN0123456789"
-                    value={newPayment.transaction_ref}
-                    onChange={(e) =>
-                      setNewPayment({ ...newPayment, transaction_ref: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-            )}
-
-            {newPayment.payment_method === "online" && (
-              <div className="rounded-xl border border-gray-200 dark:border-border p-3 space-y-3">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Online payment details
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Provider</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="PhonePe / GPay / Paytm / Razorpay"
-                      list="payment-providers"
-                      value={newPayment.payment_provider}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, payment_provider: e.target.value })
-                      }
-                    />
-                    <datalist id="payment-providers">
-                      <option value="PhonePe" />
-                      <option value="Google Pay" />
-                      <option value="Paytm" />
-                      <option value="BHIM" />
-                      <option value="Razorpay" />
-                      <option value="Other" />
-                    </datalist>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Transaction ID</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="UPI / order id"
-                      value={newPayment.transaction_ref}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, transaction_ref: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+            <PaymentMethodFields
+              method={newPayment.payment_method}
+              value={newPayment}
+              onChange={(patch) => setNewPayment({ ...newPayment, ...patch })}
+              idPrefix="record"
+            />
 
             <Button
               onClick={handleRecordPayment}
@@ -3792,64 +4745,131 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Change Payment Date — also serves the editor "request a change" flow */}
+      {/* Correct Payment — also serves the editor "request a correction" flow */}
       <Dialog
-        open={dateEditPayment !== null}
+        open={correctPayment !== null}
         onOpenChange={(open) => {
-          if (!open) setDateEditPayment(null);
+          if (!open) setCorrectPayment(null);
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {isEditor ? "Request Date Change" : "Change Payment Date"}
+              {isEditor ? "Request a Correction" : "Correct Payment"}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {isEditor
-                ? "Your request goes to an admin, who sees the current date and yours side by side. The payment keeps its date until it is approved."
-                : `The day the parent paid${
-                    dateEditPayment?.receipt_number
-                      ? ` for receipt ${dateEditPayment.receipt_number}`
-                      : ""
-                  }. The change and your reason are kept in the fee audit log.`}
-            </p>
-            <div>
-              <Label className="text-sm font-medium">Payment Date</Label>
-              <Input
-                type="date"
-                required
-                max={todayISO()}
-                value={dateEditForm.payment_date}
-                onChange={(e) =>
-                  setDateEditForm((p) => ({ ...p, payment_date: e.target.value }))
-                }
-                className="mt-1"
+          {correctPayment && (
+            <div className="space-y-4 py-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {isEditor
+                  ? "Your correction goes to an admin, who sees the current entry and yours side by side. The payment stays as it is until it is approved."
+                  : `Fix how ${
+                      correctPayment.receipt_number
+                        ? `receipt ${correctPayment.receipt_number}`
+                        : "this payment"
+                    } was recorded. The change and your reason are kept in the fee audit log, and the receipt notes the correction.`}
+              </p>
+              <div className="rounded-md border bg-gray-50 dark:bg-muted/40 px-3 py-2 text-xs text-gray-600 dark:text-gray-300">
+                Currently:{" "}
+                <span className="font-medium capitalize">
+                  {correctPayment.payment_method === "historical_unknown"
+                    ? "Unknown (imported)"
+                    : correctPayment.payment_method.replace("_", " ")}
+                </span>
+                {" · "}
+                {correctPayment.payment_date ?? "no date"}
+                {correctPayment.bus_stop_id && (
+                  <> · For {formatFeeMonth(correctPayment.month) ?? "no month"}</>
+                )}
+                {" · "}
+                {new Intl.NumberFormat("en-IN", {
+                  style: "currency",
+                  currency: "INR",
+                  maximumFractionDigits: 0,
+                }).format(correctPayment.amount_paid)}
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Payment Date</Label>
+                  <Input
+                    className="h-9"
+                    type="date"
+                    required
+                    max={todayISO()}
+                    value={correctForm.payment_date}
+                    onChange={(e) =>
+                      setCorrectForm((f) => ({ ...f, payment_date: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Payment Method</Label>
+                  <NativeSelect
+                    value={correctForm.payment_method}
+                    onChange={(e) =>
+                      setCorrectForm((f) => ({ ...f, payment_method: e.target.value }))
+                    }
+                    className="w-full"
+                  >
+                    {/* An imported entry keeps "unknown" until someone
+                        knows better; it is not one of the choices otherwise. */}
+                    {correctPayment.payment_method === "historical_unknown" && (
+                      <option value="historical_unknown">Unknown (imported)</option>
+                    )}
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m} value={m}>
+                        {m.charAt(0).toUpperCase() + m.slice(1).replace("_", " ")}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+              </div>
+              {correctPayment.bus_stop_id && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">For Month</Label>
+                  <Input
+                    className="h-9"
+                    type="month"
+                    value={correctForm.month}
+                    onChange={(e) =>
+                      setCorrectForm((f) => ({ ...f, month: e.target.value }))
+                    }
+                  />
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    The month this bus fee was for. Moving it to a month that is
+                    already paid is refused.
+                  </p>
+                </div>
+              )}
+              <PaymentMethodFields
+                method={correctForm.payment_method}
+                value={correctForm}
+                onChange={(patch) => setCorrectForm((f) => ({ ...f, ...patch }))}
+                idPrefix="correct"
               />
+              <div>
+                <Label className="text-sm font-medium">Reason</Label>
+                <textarea
+                  value={correctForm.reason}
+                  onChange={(e) =>
+                    setCorrectForm((f) => ({ ...f, reason: e.target.value }))
+                  }
+                  rows={3}
+                  placeholder="e.g. Recorded as cash, but the parent paid by cheque no. 412309…"
+                  className="mt-1 w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">Min 5 chars.</p>
+              </div>
             </div>
-            <div>
-              <Label className="text-sm font-medium">Reason</Label>
-              <textarea
-                value={dateEditForm.reason}
-                onChange={(e) =>
-                  setDateEditForm((p) => ({ ...p, reason: e.target.value }))
-                }
-                rows={3}
-                placeholder="e.g. Cheque received on Friday, entered on Monday…"
-                className="mt-1 w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
-              />
-              <p className="text-[10px] text-gray-500 mt-1">Min 5 chars.</p>
-            </div>
-          </div>
+          )}
           <div className="flex justify-end gap-2">
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
             <Button
-              onClick={handleChangePaymentDate}
-              disabled={dateEditSubmitting || userRole === null}
+              onClick={handleCorrectPayment}
+              disabled={correctSubmitting || userRole === null}
               className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
-              {dateEditSubmitting ? (
+              {correctSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Saving...
@@ -3857,7 +4877,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
               ) : isEditor ? (
                 "Submit Request"
               ) : (
-                "Save Date"
+                "Save Correction"
               )}
             </Button>
           </div>
@@ -3940,36 +4960,98 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         }}
       />
 
-      <Dialog open={waiverOpen} onOpenChange={setWaiverOpen}>
+      <Dialog
+        open={waiverOpen}
+        onOpenChange={(open) => {
+          setWaiverOpen(open);
+          if (!open) setWaiverMode("single");
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Record Fee Waiver</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div>
-              <Label className="text-sm font-medium">Fee structure</Label>
-              <NativeSelect
-                value={waiverForm.fee_structure_id}
-                onChange={(e) =>
-                  setWaiverForm((p) => ({
-                    ...p,
-                    fee_structure_id: e.target.value,
-                  }))
-                }
-                className="mt-1 block w-full"
-              >
-                <option value="">Select…</option>
-                {applicableFeeStructures.map((fs) => (
-                  <option key={fs.id} value={fs.id}>
-                    {feeLineLabel(fs)} — ₹{fs.amount}
-                    {fs.frequency !== "one_time" ? ` / ${fs.frequency}` : ""}
-                    {fs.due_date ? ` · due ${fs.due_date}` : ""}
-                  </option>
-                ))}
-              </NativeSelect>
+            <div className="inline-flex rounded-lg border p-0.5" role="group" aria-label="Apply to">
+              {(
+                [
+                  ["single", "One instalment"],
+                  ["spread", "Spread across unpaid"],
+                ] as const
+              ).map(([value, label]) => (
+                <Button
+                  key={value}
+                  size="sm"
+                  variant={waiverMode === value ? "default" : "ghost"}
+                  onClick={() => setWaiverMode(value)}
+                  aria-pressed={waiverMode === value}
+                >
+                  {label}
+                </Button>
+              ))}
             </div>
+            {waiverMode === "single" ? (
+              <div>
+                <Label className="text-sm font-medium">Fee structure</Label>
+                <NativeSelect
+                  value={waiverForm.fee_structure_id}
+                  onChange={(e) =>
+                    setWaiverForm((p) => ({
+                      ...p,
+                      fee_structure_id: e.target.value,
+                    }))
+                  }
+                  className="mt-1 block w-full"
+                >
+                  <option value="">Select…</option>
+                  {applicableFeeStructures.map((fs) => {
+                    // What the instalment still owes: a discount can't exceed
+                    // it, and a fully paid one can't take a discount at all.
+                    const row = ledgerRowByLine.get(fs.id)?.[0];
+                    const owed = row?.outstanding ?? null;
+                    const full = owed != null && owed <= 0.005;
+                    return (
+                      <option key={fs.id} value={fs.id} disabled={full}>
+                        {feeLineLabel(fs)} — ₹{fs.amount}
+                        {fs.frequency !== "one_time" ? ` / ${fs.frequency}` : ""}
+                        {fs.due_date ? ` · due ${fs.due_date}` : ""}
+                        {owed != null ? (full ? " · fully paid" : ` · ${inr(owed)} outstanding`) : ""}
+                      </option>
+                    );
+                  })}
+                </NativeSelect>
+              </div>
+            ) : (
+              <div className="rounded-md border bg-gray-50 dark:bg-muted/40 px-3 py-2 text-xs text-gray-600 dark:text-gray-300 space-y-1">
+                <p>
+                  The total is split across the instalments still unpaid, in
+                  proportion to what each owes.
+                </p>
+                {spreadPreview?.ok &&
+                  spreadPreview.slices.map((sl) => (
+                    <p key={sl.row.key} className="tabular-nums">
+                      {feeLineLabel(sl.row.line)}
+                      {sl.row.quarter ? ` (Q${sl.row.quarter})` : ""}:{" "}
+                      <span className="font-medium">{inr(sl.amount)}</span> of{" "}
+                      {inr(sl.row.outstanding)} outstanding
+                    </p>
+                  ))}
+                {spreadPreview && !spreadPreview.ok && (
+                  <p className="text-amber-700 dark:text-amber-400">{spreadPreview.error}</p>
+                )}
+                {spreadTargets.skipped.length > 0 && (
+                  <p>
+                    Not included — already discounted:{" "}
+                    {spreadTargets.skipped.map((r) => feeLineLabel(r.line)).join(", ")}. Change
+                    that discount from Payment History instead.
+                  </p>
+                )}
+              </div>
+            )}
             <div>
-              <Label className="text-sm font-medium">Waiver amount</Label>
+              <Label className="text-sm font-medium">
+                {waiverMode === "spread" ? "Total discount" : "Waiver amount"}
+              </Label>
               <Input
                 type="number"
                 step="0.01"
@@ -3996,32 +5078,34 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 }
                 rows={3}
                 placeholder="e.g. Scholarship, principal-approved hardship…"
-                className="mt-1 w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                className="mt-1 w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
               />
               <p className="text-[10px] text-gray-500 mt-1">
                 Min 5 chars. Counts toward dues but is tagged as a waiver.
               </p>
             </div>
-            <div>
-              <Label className="text-sm font-medium">Month (optional)</Label>
-              <Input
-                type="month"
-                value={waiverForm.month}
-                onChange={(e) =>
-                  setWaiverForm((p) => ({ ...p, month: e.target.value }))
-                }
-                className="mt-1"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Stored as YYYY-MM to match payment-month reporting.
-              </p>
-            </div>
+            {waiverMode === "single" && (
+              <div>
+                <Label className="text-sm font-medium">Month (optional)</Label>
+                <Input
+                  type="month"
+                  value={waiverForm.month}
+                  onChange={(e) =>
+                    setWaiverForm((p) => ({ ...p, month: e.target.value }))
+                  }
+                  className="mt-1"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Stored as YYYY-MM to match payment-month reporting.
+                </p>
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-2">
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
             <Button
-              onClick={handleRecordWaiver}
-              disabled={waiverSubmitting}
+              onClick={waiverMode === "spread" ? handleSpreadWaiver : handleRecordWaiver}
+              disabled={waiverSubmitting || (waiverMode === "spread" && !spreadPreview?.ok)}
               className="bg-amber-500 hover:bg-amber-600 text-white"
             >
               {waiverSubmitting ? (
@@ -4029,8 +5113,86 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Recording...
                 </>
+              ) : waiverMode === "spread" ? (
+                "Record Discounts"
               ) : (
                 "Record Waiver"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change or remove a recorded discount */}
+      <Dialog
+        open={discountEdit !== null}
+        onOpenChange={(open) => {
+          if (!open) setDiscountEdit(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{isEditor ? "Request a Discount Change" : "Change Discount"}</DialogTitle>
+          </DialogHeader>
+          {discountEdit && (
+            <div className="space-y-4 py-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {discountEdit.fee_structure ? feeLineLabel(discountEdit.fee_structure) : "Discount"}
+                {" · currently "}
+                <span className="font-medium">{inr(Number(discountEdit.waiver_amount ?? 0))}</span>
+                {discountEdit.waiver_reason ? ` — ${discountEdit.waiver_reason}` : ""}
+                {isEditor
+                  ? ". Your request goes to an admin; the discount stays as it is until it is approved."
+                  : ". The change and your reason are kept in the fee audit log."}
+              </p>
+              <div>
+                <Label className="text-sm font-medium">New amount</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={discountEditForm.amount}
+                  onChange={(e) => setDiscountEditForm((f) => ({ ...f, amount: e.target.value }))}
+                  className="mt-1"
+                />
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                  Up to what the instalment still owes, counting everything but this discount.
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Reason</Label>
+                <textarea
+                  value={discountEditForm.reason}
+                  onChange={(e) => setDiscountEditForm((f) => ({ ...f, reason: e.target.value }))}
+                  rows={3}
+                  placeholder="e.g. Sibling concession revised by the Principal…"
+                  className="mt-1 w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">Min 5 chars.</p>
+              </div>
+            </div>
+          )}
+          <div className="flex flex-wrap justify-end gap-2">
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button
+              variant="outline"
+              onClick={() => submitDiscountEdit(true)}
+              disabled={discountEditSubmitting || userRole === null}
+              className="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20"
+            >
+              {isEditor ? "Request removal" : "Remove discount"}
+            </Button>
+            <Button
+              onClick={() => submitDiscountEdit(false)}
+              disabled={discountEditSubmitting || userRole === null}
+              className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
+            >
+              {discountEditSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isEditor ? (
+                "Request change"
+              ) : (
+                "Save"
               )}
             </Button>
           </div>

@@ -8710,3 +8710,30 @@ COMMENT ON TABLE whatsapp_broadcasts IS
   'RLS enabled with NO policies, intentionally: service-role only. One row per '
   'office-initiated WhatsApp action (bus notice, fee reminder); the messages '
   'it produced are whatsapp_messages rows with this broadcast_id.';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 139 — several bus months in one collection; one pending request
+-- per discount (scripts/migrations/erp/migration-139-payment-groups.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+-- One fee_payments row per month, tied together so they print as one
+-- receipt. On a fresh install there are no requests yet, so the discount
+-- index is created unconditionally here.
+ALTER TABLE fee_payments
+  ADD COLUMN IF NOT EXISTS payment_group_id uuid;
+
+COMMENT ON COLUMN fee_payments.payment_group_id IS
+  'Rows recorded together as one collection (several bus months in one '
+  'payment, migration 139). NULL for a payment recorded on its own.';
+
+CREATE INDEX IF NOT EXISTS idx_fee_payments_payment_group
+  ON fee_payments (payment_group_id) WHERE payment_group_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fee_change_requests_one_pending_discount
+  ON fee_change_requests (
+    (proposed_changes->>'student_id'),
+    (proposed_changes->>'fee_structure_id'),
+    (coalesce(proposed_changes->>'month', ''))
+  )
+  WHERE status = 'pending'
+    AND action = 'insert'
+    AND proposed_changes->>'payment_method' = 'waiver';

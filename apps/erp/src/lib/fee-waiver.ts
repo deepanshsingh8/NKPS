@@ -213,7 +213,11 @@ function pendingAsLedgerRow(r: PendingInsertRow): WaiverLedgerRow {
 export async function validateWaiver(
   admin: SupabaseClient,
   input: WaiverInput,
-  opts: { includePending?: boolean } = {}
+  opts: {
+    includePending?: boolean;
+    /** Leave this discount out — it is the one being changed. */
+    excludePaymentId?: string;
+  } = {}
 ): Promise<WaiverValidation> {
   const { student_id, fee_structure_id, waiver_amount } = input;
   const month = input.month || null;
@@ -250,13 +254,14 @@ export async function validateWaiver(
 
   const { data: payments, error: payErr } = await admin
     .from("fee_payments")
-    .select(LEDGER_SELECT)
+    .select(`id, ${LEDGER_SELECT}`)
     .eq("student_id", student_id)
     .eq("fee_structure_id", fee_structure_id);
   if (payErr) {
     return { ok: false, code: "lookup_failed", error: "Failed to load existing payments." };
   }
-  const rows: WaiverLedgerRow[] = (payments ?? []) as WaiverLedgerRow[];
+  const rows: WaiverLedgerRow[] = ((payments ?? []) as Array<WaiverLedgerRow & { id: string }>)
+    .filter((p) => p.id !== opts.excludePaymentId);
 
   if (opts.includePending) {
     const { data: pending, error: pendErr } = await admin

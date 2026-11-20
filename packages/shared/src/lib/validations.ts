@@ -406,6 +406,67 @@ const paymentDateField = z
   .string({ message: "Payment date is required" })
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Payment date is required");
 
+/** The reconciliation details a payment method needs, and which fields hold them. */
+export const PAYMENT_METHOD_DETAIL_FIELDS = {
+  cash: [],
+  cheque: ["cheque_number", "cheque_date", "bank_name", "payer_name"],
+  bank_transfer: ["bank_name", "payer_name", "transaction_ref"],
+  online: ["payment_provider", "transaction_ref"],
+  upi: ["payment_provider", "transaction_ref"],
+  gateway: ["payment_provider", "transaction_ref"],
+  historical_unknown: [],
+  waiver: [],
+} as const satisfies Record<string, readonly string[]>;
+
+export const PAYMENT_DETAIL_COLUMNS = [
+  "cheque_number",
+  "cheque_date",
+  "bank_name",
+  "payer_name",
+  "transaction_ref",
+  "payment_provider",
+] as const;
+
+type PaymentDetailShape = {
+  payment_method: string;
+  cheque_number?: string | null;
+  bank_name?: string | null;
+  transaction_ref?: string | null;
+  payment_provider?: string | null;
+};
+
+/**
+ * What a payment is missing for its method: a cheque needs its number and
+ * bank, a bank transfer its UTR and bank, an online/UPI payment its provider
+ * and reference. Cash needs nothing.
+ *
+ * One function for every path that writes a method — recording a payment,
+ * correcting one, and approving a requested correction — so a cash entry
+ * corrected to "cheque" cannot be saved without the cheque it claims.
+ */
+export function paymentMethodDetailIssues(
+  v: PaymentDetailShape
+): Array<{ path: string; message: string }> {
+  const has = (x: string | null | undefined) => Boolean(x && x.trim().length > 0);
+  const issues: Array<{ path: string; message: string }> = [];
+  const m = v.payment_method;
+  if (m === "cheque") {
+    if (!has(v.cheque_number)) issues.push({ path: "cheque_number", message: "Cheque number is required" });
+    if (!has(v.bank_name)) issues.push({ path: "bank_name", message: "Drawee bank is required" });
+  }
+  if (m === "bank_transfer") {
+    if (!has(v.transaction_ref))
+      issues.push({ path: "transaction_ref", message: "Transaction reference (UTR / NEFT id) is required" });
+    if (!has(v.bank_name)) issues.push({ path: "bank_name", message: "Originating bank is required" });
+  }
+  if (m === "online" || m === "upi" || m === "gateway") {
+    if (!has(v.payment_provider))
+      issues.push({ path: "payment_provider", message: "Payment provider is required (e.g. PhonePe, GPay, Paytm)" });
+    if (!has(v.transaction_ref)) issues.push({ path: "transaction_ref", message: "Transaction reference is required" });
+  }
+  return issues;
+}
+
 export const feePaymentSchema = z
   .object({
     student_id: z.string().uuid("Invalid student"),
@@ -431,6 +492,27 @@ export const feePaymentSchema = z
       { message: "Please select a payment method" }
     ),
     month: z.string().min(1, "Month is required").optional().or(z.literal("")),
+    // Transport only (migration 139): every month this one payment covers, as
+    // YYYY-MM. The route writes one row per month, oldest first; every month
+    // but the last must be paid in full. A lone `month` is read as [month].
+    months: z
+      .array(z.string().regex(/^\d{4}-\d{2}$/, "Month must be a month"))
+      .max(12, "At most 12 months in one payment")
+      .optional(),
+    // One collection covering several fees — tuition instalments and bus
+    // months in any mix, one receipt. Each item names an instalment, or a
+    // bus stop and the month (YYYY-MM). When given, it replaces
+    // fee_structure_id / bus_stop_id / months.
+    items: z
+      .array(
+        z.object({
+          fee_structure_id: z.string().uuid("Invalid fee structure").optional(),
+          bus_stop_id: z.string().uuid("Invalid bus stop").optional(),
+          month: z.string().regex(/^\d{4}-\d{2}$/, "Month must be a month").optional(),
+        })
+      )
+      .max(24, "At most 24 items in one payment")
+      .optional(),
     // The day the money was actually received — a cheque collected on Friday
     // and keyed in on Monday is Friday's collection, not Monday's. The route
     // rejects a date in the future.
@@ -447,6 +529,42 @@ export const feePaymentSchema = z
     payment_provider: optionalTrimmedString,
   })
   .superRefine((val, ctx) => {
+    if (val.items && val.items.length > 0) {
+      if (val.fee_structure_id || val.bus_stop_id || (val.months && val.months.length > 0)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Send either items or a single fee, not both",
+          path: ["items"],
+        });
+      }
+      val.items.forEach((item, i) => {
+        if (Boolean(item.fee_structure_id) === Boolean(item.bus_stop_id)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Each item is an instalment or a bus month",
+            path: ["items", i],
+          });
+        }
+        if (item.bus_stop_id && !item.month) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "A bus fee item names its month",
+            path: ["items", i, "month"],
+          });
+        }
+        if (item.fee_structure_id && item.month) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "An instalment takes its month from the fee schedule",
+            path: ["items", i, "month"],
+          });
+        }
+      });
+      for (const issue of paymentMethodDetailIssues(val)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue.message, path: [issue.path] });
+      }
+      return;
+    }
     const hasFs = Boolean(val.fee_structure_id);
     const hasStop = Boolean(val.bus_stop_id);
     if (hasFs === hasStop) {
@@ -457,63 +575,73 @@ export const feePaymentSchema = z
         path: ["fee_structure_id"],
       });
     }
-    const m = val.payment_method;
-    if (m === "cheque") {
-      if (!val.cheque_number) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Cheque number is required",
-          path: ["cheque_number"],
-        });
-      }
-      if (!val.bank_name) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Drawee bank is required",
-          path: ["bank_name"],
-        });
-      }
+    if (hasFs && val.months && val.months.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "An instalment takes its month from the fee schedule",
+        path: ["months"],
+      });
     }
-    if (m === "bank_transfer") {
-      if (!val.transaction_ref) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Transaction reference (UTR / NEFT id) is required",
-          path: ["transaction_ref"],
-        });
-      }
-      if (!val.bank_name) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Originating bank is required",
-          path: ["bank_name"],
-        });
-      }
+    if (hasStop && !(val.months && val.months.length > 0) && !val.month) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Pick the month(s) this bus fee is for",
+        path: ["months"],
+      });
     }
-    if (m === "online" || m === "upi" || m === "gateway") {
-      if (!val.payment_provider) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Payment provider is required (e.g. PhonePe, GPay, Paytm)",
-          path: ["payment_provider"],
-        });
-      }
-      if (!val.transaction_ref) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Transaction reference is required",
-          path: ["transaction_ref"],
-        });
-      }
+    for (const issue of paymentMethodDetailIssues(val)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: issue.message,
+        path: [issue.path],
+      });
     }
   });
 
 export type FeePaymentData = z.infer<typeof feePaymentSchema>;
 
-// Correcting the date on a recorded payment. The reason is kept on the audit
-// row so a moved date can always be explained later.
-export const feePaymentDateSchema = z.object({
-  payment_date: paymentDateField,
+// Correcting a recorded payment — the day it was paid, how it was paid, the
+// details that go with that, and (transport only) the month it covers. Every
+// field is optional: only what changes is sent. The reason is kept on the
+// audit row so a correction can always be explained later. The route checks
+// the RESULTING row with paymentMethodDetailIssues(), since a switch to
+// "cheque" is only valid together with the cheque it names.
+const correctionText = z
+  .string()
+  .trim()
+  .max(200, "Too long")
+  .nullable()
+  .optional();
+
+export const CORRECTABLE_PAYMENT_METHODS = [
+  "cash",
+  "online",
+  "cheque",
+  "bank_transfer",
+  "upi",
+] as const;
+
+export const feePaymentCorrectionSchema = z.object({
+  payment_date: paymentDateField.optional(),
+  payment_method: z
+    .enum(CORRECTABLE_PAYMENT_METHODS, { message: "Pick how the parent paid" })
+    .optional(),
+  cheque_number: correctionText,
+  cheque_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Cheque date must be a date")
+    .nullable()
+    .optional()
+    .or(z.literal("")),
+  bank_name: correctionText,
+  payer_name: correctionText,
+  transaction_ref: correctionText,
+  payment_provider: correctionText,
+  // Transport rows only: the month the bus fee was for, as YYYY-MM.
+  month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, "Month must be a month")
+    .optional(),
   reason: z
     .string()
     .trim()
@@ -521,7 +649,7 @@ export const feePaymentDateSchema = z.object({
     .max(1000, "Reason too long"),
 });
 
-export type FeePaymentDateData = z.infer<typeof feePaymentDateSchema>;
+export type FeePaymentCorrectionData = z.infer<typeof feePaymentCorrectionSchema>;
 
 // Migration 074 — stop-based transport. Fee attaches to a bus stop; students
 // boarding there pay that stop's flat fee.

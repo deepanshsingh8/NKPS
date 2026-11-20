@@ -198,7 +198,9 @@ export default function TransportChangesPage() {
   const [changes, setChanges] = useState<ChangeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  // Every request with a review in flight — one per row, so reviewing a
+  // second request never re-enables the first one's buttons mid-request.
+  const [reviewingIds, setReviewingIds] = useState<Set<string>>(new Set());
 
   // Dropdown data
   const [busStops, setBusStops] = useState<BusStop[]>([]);
@@ -347,7 +349,8 @@ export default function TransportChangesPage() {
   const selectedEnrollment = enrollments.find((e) => e.id === enrollmentId) ?? null;
 
   const handleReview = async (id: string, action: "approve" | "reject") => {
-    setReviewingId(id);
+    if (reviewingIds.has(id)) return;
+    setReviewingIds((prev) => new Set(prev).add(id));
     try {
       const res = await adminPatch(`/api/transport/changes/${id}`, { action });
       const data = await res.json();
@@ -360,7 +363,11 @@ export default function TransportChangesPage() {
     } catch {
       toast.error(`Failed to ${action} request`);
     } finally {
-      setReviewingId(null);
+      setReviewingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -624,11 +631,11 @@ export default function TransportChangesPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={reviewingId === row.id}
+                            disabled={reviewingIds.has(row.id)}
                             onClick={() => handleReview(row.id, "approve")}
                             className="text-green-600 dark:text-green-400 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/30"
                           >
-                            {reviewingId === row.id ? (
+                            {reviewingIds.has(row.id) ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               <Check className="h-4 w-4" />
@@ -638,7 +645,7 @@ export default function TransportChangesPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={reviewingId === row.id}
+                            disabled={reviewingIds.has(row.id)}
                             onClick={() => handleReview(row.id, "reject")}
                             className="text-red-600 dark:text-red-400 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30"
                           >

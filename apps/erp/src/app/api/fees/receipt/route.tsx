@@ -9,9 +9,11 @@ import { SCHOOL } from "@nkps/shared/lib/constants";
 import {
   feeLineLabel,
   formatFeeMonth,
+  formatMonthSpan,
   isDiscountPayment,
   paymentDisplayAmount,
 } from "@/lib/fees";
+import { CORRECTION_COLUMNS } from "@/lib/payment-correction";
 
 export const runtime = "nodejs";
 
@@ -54,7 +56,11 @@ export async function GET(request: Request) {
     const { data: payment, error: payErr } = await admin
       .from("fee_payments")
       .select(
-        "id, student_id, amount_paid, waiver_amount, waiver_reason, payment_date, payment_method, receipt_number, month, status, remarks, refund_amount, refund_reason, refunded_at, cheque_number, cheque_date, bank_name, payer_name, transaction_ref, payment_provider, fee_structure:fee_structures(fee_type, instalment_name, month_label, academic_year_id, academic_years(name)), bus_stop:bus_stops(name), academic_year:academic_years(name)"
+        // `*` rather than a column list: payment_group_id (migration 139) is
+        // read when it exists, and a database the migration hasn't reached
+        // yet still prints every receipt instead of failing on a missing
+        // column.
+        "*, fee_structure:fee_structures(fee_type, instalment_name, month_label, academic_year_id, academic_years(name)), bus_stop:bus_stops(name), academic_year:academic_years(name)"
       )
       .eq("id", paymentId)
       .single();
@@ -165,6 +171,79 @@ export async function GET(request: Request) {
 
     const logoData = await loadLogo();
 
+    // A collection (migration 139) — several bus months, several instalments,
+    // or a mix — is one row per fee but one payment: print it as one receipt
+    // under the shared receipt number, listing each fee and the total. Not
+    // once any row in it has been refunded — then each row's receipt has to
+    // tell its own story.
+    let collection: {
+      receipt_number: string;
+      amount: number;
+      fee_type: string | null;
+      month: string | null;
+      lines: Array<{ label: string; amount: number; part: boolean }>;
+    } | null = null;
+    if (payment.payment_group_id) {
+      const { data: groupRows } = await admin
+        .from("fee_payments")
+        .select(
+          "id, month, amount_paid, status, receipt_number, fee_structure_id, bus_stop_id, fee_structure:fee_structures(fee_type, instalment_name), bus_stop:bus_stops(name)"
+        )
+        .eq("payment_group_id", payment.payment_group_id)
+        .eq("student_id", payment.student_id);
+      const suffix = (r: { receipt_number: string | null }) =>
+        Number(String(r.receipt_number ?? "").split("/")[1] ?? 0);
+      const rows = (groupRows ?? []).sort((a, b) => suffix(a) - suffix(b));
+      if (rows.length > 1 && rows.every((r) => r.status !== "refunded")) {
+        const allBus = rows.every((r) => r.bus_stop_id);
+        const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? v[0] ?? null : v);
+        collection = {
+          receipt_number: String(payment.receipt_number ?? "").replace(/\/\d+$/, ""),
+          amount:
+            Math.round(rows.reduce((sum, r) => sum + Number(r.amount_paid), 0) * 100) / 100,
+          // Bus months alone keep the familiar "Transport — Stop · For April –
+          // June 2026"; a mix is listed line by line instead.
+          fee_type: allBus ? null : "Several fees (listed below)",
+          month: allBus
+            ? formatMonthSpan(rows.map((r) => String(r.month ?? "")).filter(Boolean))
+            : null,
+          lines: rows.map((r) => {
+            type FsEmbed = { fee_type: string; instalment_name: string | null };
+            const fs = one(r.fee_structure as unknown as FsEmbed | FsEmbed[] | null);
+            const stop = one(r.bus_stop as unknown as { name: string } | { name: string }[] | null);
+            return {
+              label: r.bus_stop_id
+                ? `${allBus ? "" : `Transport${stop?.name ? ` (${stop.name})` : ""} — `}${formatFeeMonth(r.month as string | null) ?? "—"}`
+                : fs
+                  ? feeLineLabel(fs)
+                  : "Fee",
+              amount: Number(r.amount_paid),
+              part: r.status === "partial",
+            };
+          }),
+        };
+      }
+    }
+
+    // The latest correction of this payment's date, mode, details or month,
+    // if any — printed so a re-downloaded receipt says it differs from the
+    // one first handed over.
+    const { data: auditRows } = await admin
+      .from("fee_change_audit_log")
+      .select("before_snapshot, after_snapshot, performed_at")
+      .eq("target_table", "fee_payments")
+      .eq("target_id", payment.id)
+      .eq("action", "update")
+      .order("performed_at", { ascending: false });
+    const correctedAt =
+      (auditRows ?? []).find((r) => {
+        const before = (r.before_snapshot ?? {}) as Record<string, unknown>;
+        const after = (r.after_snapshot ?? {}) as Record<string, unknown>;
+        return CORRECTION_COLUMNS.some(
+          (c) => JSON.stringify(before[c] ?? null) !== JSON.stringify(after[c] ?? null)
+        );
+      })?.performed_at ?? null;
+
     const buffer = await renderToBuffer(
       <FeeReceiptPDF
         school={{
@@ -177,13 +256,16 @@ export async function GET(request: Request) {
         }}
         logoData={logoData ?? undefined}
         data={{
-          receipt_number: payment.receipt_number ?? payment.id.slice(0, 8).toUpperCase(),
+          receipt_number:
+            collection?.receipt_number ??
+            payment.receipt_number ??
+            payment.id.slice(0, 8).toUpperCase(),
           payment_date: payment.payment_date,
-          fee_type: feeTypeLabel,
+          fee_type: collection?.fee_type ?? feeTypeLabel,
           // A discount's value lives in waiver_amount; its amount_paid is 0.
-          amount: paymentDisplayAmount(payment),
+          amount: collection?.amount ?? paymentDisplayAmount(payment),
           payment_method: payment.payment_method,
-          month: formatFeeMonth(payment.month),
+          month: collection?.month ?? formatFeeMonth(payment.month),
           academic_year: academicYearName,
           status: payment.status,
           refund_amount: payment.refund_amount != null ? Number(payment.refund_amount) : null,
@@ -192,12 +274,14 @@ export async function GET(request: Request) {
           remarks:
             payment.remarks ??
             (isDiscountPayment(payment) ? payment.waiver_reason ?? null : null),
+          lines: collection?.lines ?? null,
           cheque_number: payment.cheque_number ?? null,
           cheque_date: payment.cheque_date ?? null,
           bank_name: payment.bank_name ?? null,
           payer_name: payment.payer_name ?? null,
           transaction_ref: payment.transaction_ref ?? null,
           payment_provider: payment.payment_provider ?? null,
+          corrected_at: (correctedAt as string | null) ?? null,
           student: {
             full_name: student.full_name,
             admission_no: student.admission_no,

@@ -31,6 +31,13 @@ export interface AdminProxyConfig {
   // can always create. Used by the fees module to force edits/deletes of
   // recorded fee_payments through the approval workflow.
   editorRestrictedActions?: Partial<Record<string, ReadonlyArray<Exclude<ProxyAction, "insert">>>>;
+  // Per-table actions NOBODY may perform through this proxy — admins
+  // included — because a dedicated route does the same write with the
+  // checks and the audit row this generic handler cannot. Returns 403 with
+  // `{ code: 'USE_AUDITED_ROUTE' }`. Used for fee_payments: recording,
+  // correcting, refunding and deleting a payment all have their own routes,
+  // and a proxy write would change money records with no trail.
+  auditedRouteActions?: Partial<Record<string, ReadonlyArray<ProxyAction>>>;
   // Escape hatch for tables owned by one module but partially written by
   // another. `student_enrollments` belongs to the students module, yet the
   // transport screen updates only its transport columns — without this, an
@@ -51,6 +58,7 @@ export function createAdminProxyHandler(config: AdminProxyConfig) {
     tableFeatureKey,
     allowedColumns,
     editorRestrictedActions,
+    auditedRouteActions,
     columnScopedFeatureKeys,
   } = config;
   const allowedTables = Object.keys(allowedColumns);
@@ -80,6 +88,19 @@ export function createAdminProxyHandler(config: AdminProxyConfig) {
 
       if (!allowedTables.includes(table)) {
         return NextResponse.json({ error: "Table not allowed" }, { status: 403 });
+      }
+
+      if (auditedRouteActions?.[table]?.includes(action)) {
+        return NextResponse.json(
+          {
+            error:
+              "This record can only be changed from its own screen, which keeps an audit trail.",
+            code: "USE_AUDITED_ROUTE",
+            table,
+            action,
+          },
+          { status: 403 }
+        );
       }
 
       const featureKey = tableFeatureKey[table];

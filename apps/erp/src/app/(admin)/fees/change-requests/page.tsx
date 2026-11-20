@@ -5,6 +5,7 @@ import { createClient } from "@nkps/shared/lib/supabase/client";
 import { adminFetch } from "@nkps/shared/lib/admin-api";
 import { Button } from "@nkps/shared/components/ui/button";
 import { Badge } from "@nkps/shared/components/ui/badge";
+import { Checkbox } from "@nkps/shared/components/ui/checkbox";
 import { Card, CardContent } from "@nkps/shared/components/ui/card";
 import {
   Tabs,
@@ -171,6 +172,9 @@ export default function FeeChangeRequestsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [reviewNotes, setReviewNotes] = useState("");
+  // Pending requests ticked for a bulk approve / reject.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // Load caller identity once. Drives admin vs editor branching for the
   // approve/reject/cancel action set.
@@ -214,6 +218,7 @@ export default function FeeChangeRequestsPage() {
         setRequests(data.requests ?? []);
         setListLabels(data.entity_labels ?? {});
         setVerdicts(data.verdicts ?? {});
+        setSelected(new Set());
       } finally {
         setLoading(false);
       }
@@ -287,6 +292,94 @@ export default function FeeChangeRequestsPage() {
     [reviewNotes, activeTab, fetchList]
   );
 
+  const isAdminCaller = userRole === "admin";
+  // Can this caller approve or reject this request? Admins, and for a refund
+  // a super admin — the same rule the routes apply.
+  const reviewable = (r: ChangeRequest) =>
+    isAdminCaller &&
+    r.status === "pending" &&
+    (isSuperAdmin || !isRefundRequest(r.action, r.proposed_changes));
+  // Approvable in bulk: nothing on record says approving would fail, and it
+  // is not the younger of two identical requests.
+  const approvableIds = requests
+    .filter(
+      (r) =>
+        reviewable(r) &&
+        !verdictBlocksApproval(verdicts[r.id]) &&
+        verdicts[r.id]?.kind !== "duplicate_pending"
+    )
+    .map((r) => r.id);
+  const duplicateIds = requests
+    .filter((r) => reviewable(r) && verdictIsDuplicate(verdicts[r.id]))
+    .map((r) => r.id);
+
+  const toggleSelected = (id: string, on: boolean) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
+  const runBulk = async (action: "approve" | "reject") => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    const verb = action === "approve" ? "Approve and apply" : "Reject";
+    if (
+      !window.confirm(
+        `${verb} ${ids.length} request${ids.length === 1 ? "" : "s"}? ${
+          action === "approve"
+            ? "Each one is checked again before it is applied."
+            : "The requester sees each rejection and its note."
+        }`
+      )
+    ) {
+      return;
+    }
+    // A duplicate is rejected with the note the single "Reject as duplicate"
+    // would have written.
+    const notes: Record<string, string> = {};
+    if (action === "reject") {
+      for (const id of ids) {
+        if (verdictIsDuplicate(verdicts[id])) notes[id] = duplicateRejectNote(verdicts[id]);
+      }
+    }
+    setBulkBusy(true);
+    try {
+      const res = await adminFetch("/api/fees/change-requests/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ids, notes }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? `Failed to ${action} requests`);
+        return;
+      }
+      const failed = (data.results ?? []).filter(
+        (r: { ok: boolean }) => !r.ok
+      ) as Array<{ id: string; error?: string; verdict?: WaiverRequestVerdict }>;
+      const done = data.summary?.done ?? 0;
+      if (done > 0) {
+        toast.success(
+          `${done} request${done === 1 ? "" : "s"} ${action === "approve" ? "approved and applied" : "rejected"}.`
+        );
+      }
+      if (failed.length > 0) {
+        toast.error(
+          `${failed.length} could not be ${action === "approve" ? "approved" : "rejected"}: ${failed
+            .slice(0, 3)
+            .map((f) => f.error)
+            .join(" · ")}${failed.length > 3 ? " …" : ""}`,
+          { duration: 12000 }
+        );
+      }
+      fetchList(activeTab);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const renderTable = () => {
     if (loading) {
       return (
@@ -304,8 +397,69 @@ export default function FeeChangeRequestsPage() {
         </div>
       );
     }
+    const showBulk = activeTab === "pending" && isAdminCaller;
     return (
       <div className="space-y-2">
+        {showBulk && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-gray-50 dark:bg-muted/40 px-3 py-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={bulkBusy || approvableIds.length === 0}
+              onClick={() => setSelected(new Set(approvableIds))}
+              title="Tick every request that can be approved as it stands"
+            >
+              Select all approvable ({approvableIds.length})
+            </Button>
+            {duplicateIds.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={bulkBusy}
+                onClick={() => setSelected(new Set(duplicateIds))}
+                title="Tick every request flagged as a duplicate"
+              >
+                Select duplicates ({duplicateIds.length})
+              </Button>
+            )}
+            {selected.size > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={bulkBusy}
+                onClick={() => setSelected(new Set())}
+              >
+                Clear
+              </Button>
+            )}
+            <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
+              {selected.size} selected
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={bulkBusy || selected.size === 0}
+              onClick={() => runBulk("reject")}
+              className="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20"
+            >
+              <X className="h-4 w-4 mr-1" />
+              Reject selected
+            </Button>
+            <Button
+              size="sm"
+              disabled={bulkBusy || selected.size === 0}
+              onClick={() => runBulk("approve")}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {bulkBusy ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4 mr-1" />
+              )}
+              Approve selected
+            </Button>
+          </div>
+        )}
         {requests.map((r) => (
           <Card
             key={r.id}
@@ -313,6 +467,20 @@ export default function FeeChangeRequestsPage() {
             onClick={() => openDetail(r.id)}
           >
             <CardContent className="py-3 px-4 flex items-start justify-between gap-4">
+              {activeTab === "pending" && reviewable(r) && (
+                // Ticking must not open the request.
+                <div
+                  className="pt-0.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    checked={selected.has(r.id)}
+                    onCheckedChange={(v) => toggleSelected(r.id, Boolean(v))}
+                    aria-label="Select this request"
+                    disabled={bulkBusy}
+                  />
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <Badge
