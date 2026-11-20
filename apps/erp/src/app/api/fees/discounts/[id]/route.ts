@@ -7,8 +7,12 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
-// PATCH  /api/fees/waivers/[id]  { waiver_amount, reason }  — change a discount
-// DELETE /api/fees/waivers/[id]  { reason }                 — remove it
+// PATCH  /api/fees/discounts/[id]  { waiver_amount, reason }  — change a discount
+// DELETE /api/fees/discounts/[id]  { reason }                 — remove it
+//
+// (Under /discounts, not /waivers/[id]: a dynamic segment beside
+// /waivers/import made Next's link lint treat the template download link
+// in StudentConcessionImportDialog as a page navigation.)
 //
 // A discount could be recorded but never changed or removed: the "one
 // discount per instalment" refusal told the office to "edit or remove it

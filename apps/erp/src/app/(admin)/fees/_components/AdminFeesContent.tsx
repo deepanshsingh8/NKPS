@@ -2918,7 +2918,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     }
     setDiscountEditSubmitting(true);
     try {
-      const res = await adminFetch(`/api/fees/waivers/${discountEdit.id}`, {
+      const res = await adminFetch(`/api/fees/discounts/${discountEdit.id}`, {
         method: remove ? "DELETE" : "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(remove ? { reason } : { waiver_amount: amount, reason }),
