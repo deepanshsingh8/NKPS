@@ -1333,7 +1333,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         needs:
           "A fee structure must already exist for that class and stream, or the Fee dropdown is empty and the save fails. A transport line only appears if the student has a stop assigned AND that stop has a fee.",
         gotcha:
-          'The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded. Several bus months taken together print as one receipt ("For April – June 2026") and appear in Payment History as one row per month, sharing the receipt number with a /1, /2… suffix. A paid month cannot be ticked; every month but the last must be paid in full. The transport card shows each month: green paid, amber part-paid, red due, grey not yet due.',
+          'The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded. Paid there is cash; Discount is shown on its own, and "Unpaid by quarter" names the quarters still owed. Each fee card shows its quarter, whether it is paid, part paid, due or not yet due, and what was paid, discounted and is still outstanding on it. Several bus months taken together print as one receipt ("For April – June 2026") and appear in Payment History as one row per month, sharing the receipt number with a /1, /2… suffix. A paid month cannot be ticked; every month but the last must be paid in full. The transport card shows each month: green paid, amber part-paid, red due, grey not yet due.',
       },
       {
         name: "Move on to the next student",
@@ -1432,7 +1432,17 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Switch between the "Dues (N)" and "No Dues (N)" tabs.',
         ],
         gotcha:
-          "Dues are counted as of TODAY. \"Due Till Date\" and \"Annual Fee\" are deliberately different numbers — later instalments show in the annual figure but are not arrears. A student who left is counted as of their leaving date instead: the grey badge next to their name carries that date, and a \"Left On\" column appears in the export.",
+          "Dues are counted as of TODAY. \"Discount\" is the part of \"Paid\" that was a discount rather than money. \"Due Till Date\" and \"Annual Fee\" are deliberately different numbers — later instalments show in the annual figure but are not arrears. A student who left is counted as of their leaving date instead: the grey badge next to their name carries that date, and a \"Left On\" column appears in the export.",
+      },
+      {
+        name: "See what is owed quarter by quarter",
+        steps: [
+          'Open the "Quarter-wise" tab.',
+          'Pick "Due till today" (what has fallen due and is unpaid) or "Whole session" (everything still unpaid, due yet or not).',
+          'Leave "Only students who owe" ticked to hide students who are clear, and export the sheet with the export button.',
+        ],
+        gotcha:
+          'A quarter is the session quarter its instalment falls due in (April–June is Q1), so a class with three instalments shows nothing under one quarter. Transport is the bus fee, kept apart. "Paid Ahead" is money paid beyond its own instalment — on a later quarter, or against no current instalment — and it counts against the total; that is why a total can be lower than its quarters. On "Due till today" the Total equals the Dues tab\'s figure.',
       },
       {
         name: "Go from a defaulter to taking their money",

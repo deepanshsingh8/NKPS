@@ -83,6 +83,10 @@ import {
   transportMonthLedger,
   allocateAcrossMonths,
   formatMonthSpan,
+  computeInstalmentLedger,
+  type InstalmentLedger,
+  type InstalmentPosition,
+  type Quarter,
   type TransportMonthStatus,
   type BillableEnrollment,
   type DuesBreakdown,
@@ -211,6 +215,18 @@ interface DuesRow {
   // then summed.
   late_fee: number;
   dues: number;
+  // Discounts recorded for the session — part of `paid`, shown on their own
+  // so the register can say how much of a student's "paid" was no money.
+  discount: number;
+  // Instalment-wise (computeInstalmentLedger): what is owed on each quarter's
+  // instalments today, and over the whole session; the bus fee apart. Their
+  // sum, less `credit`, is `dues` (plus late fee) to the paisa.
+  quarters_due: Record<Quarter, number>;
+  quarters_session: Record<Quarter, number>;
+  transport_due: number;
+  transport_session: number;
+  // Paid ahead on later instalments, or against no current instalment.
+  credit: number;
   // The enrollment's status. Always 'active' unless "Include students who
   // left" is on — in which case the register must say which rows are leavers,
   // or the office cannot tell an arrear it should chase from one it should not.
@@ -321,13 +337,27 @@ const inr = (n: number) =>
  */
 function StudentDuesSummary({
   dues,
+  ledger,
   loading,
   classId,
 }: {
   dues: DuesBreakdown;
+  /** The same money split by instalment; supplies Discount and the quarters. */
+  ledger: InstalmentLedger | null;
   loading: boolean;
   classId: string | null;
 }) {
+  const discount = ledger?.discount ?? 0;
+  // Unpaid instalments by quarter, academic and bus fee together. Shown only
+  // when something has fallen due, so a clear student reads "No dues" alone.
+  const dueQuarters = ledger
+    ? ([1, 2, 3, 4] as const)
+        .map((q) => ({
+          q,
+          amount: ledger.dueByQuarter.academic[q] + ledger.dueByQuarter.transport[q],
+        }))
+        .filter((x) => x.amount > 0.005)
+    : [];
   const owes = dues.dues > 0;
   return (
     <div
@@ -371,7 +401,10 @@ function StudentDuesSummary({
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
           <DuesFigure label="Annual Fee" value={inr(dues.expected)} muted />
           <DuesFigure label="Due Till Date" value={inr(dues.billedToDate)} />
-          <DuesFigure label="Paid" value={inr(dues.paid)} />
+          {/* Paid is cash; a discount settles a due without money arriving,
+              so it is shown on its own. */}
+          <DuesFigure label="Paid" value={inr(dues.paid - discount)} />
+          {discount > 0 && <DuesFigure label="Discount" value={inr(discount)} />}
           {dues.lateFee > 0 && (
             <DuesFigure
               label="Late Fee"
@@ -382,6 +415,19 @@ function StudentDuesSummary({
         </div>
       </div>
 
+      {dueQuarters.length > 0 && ledger && (
+        <p className="mt-3 text-xs text-gray-700 dark:text-gray-300">
+          <span className="font-medium">Unpaid by quarter:</span>{" "}
+          {dueQuarters.map((x) => `Q${x.q} ${inr(x.amount)}`).join(" · ")}
+          {ledger.credit > 0.005 && (
+            <>
+              {" "}
+              — less {inr(ledger.credit)} paid ahead on later instalments, which
+              counts against it.
+            </>
+          )}
+        </p>
+      )}
       {classId && (
         <Link
           href={`/fees/dues?dues_class_id=${classId}`}
@@ -487,6 +533,14 @@ function DuesTable({
         sortValue: (r) => r.paid,
         exportFormat: "currency",
       },
+      // Part of Paid: the money that was a discount, not a receipt.
+      discount: {
+        label: "Discount",
+        value: (r) => (r.discount > 0 ? inr(r.discount) : null),
+        sortValue: (r) => r.discount,
+        emptyLabel: "None",
+        exportFormat: "currency",
+      },
       late_fee: {
         label: "Late Fee",
         value: (r) => (r.late_fee > 0 ? inr(r.late_fee) : null),
@@ -558,6 +612,7 @@ function DuesTable({
             <SortFilterHead ctl={table} col="expected" align="right" />
             <SortFilterHead ctl={table} col="billed_to_date" align="right" />
             <SortFilterHead ctl={table} col="paid" align="right" />
+            <SortFilterHead ctl={table} col="discount" align="right" />
             <SortFilterHead ctl={table} col="late_fee" align="right" />
             <SortFilterHead ctl={table} col="dues" align="right" />
             <SortFilterHead ctl={table} col="dues_bucket" />
@@ -568,7 +623,7 @@ function DuesTable({
           {pagination.total === 0 && (
             <TableRow>
               <TableCell
-                colSpan={(showClass ? 11 : 10) + extraCols}
+                colSpan={(showClass ? 12 : 11) + extraCols}
                 className="py-10 text-center text-gray-500 dark:text-gray-400"
               >
                 No students match the column filters.
@@ -626,6 +681,9 @@ function DuesTable({
                 {inr(r.billed_to_date)}
               </TableCell>
               <TableCell className="text-right">{inr(r.paid)}</TableCell>
+              <TableCell className="text-right text-gray-600 dark:text-gray-300">
+                {r.discount > 0 ? inr(r.discount) : "—"}
+              </TableCell>
               <TableCell className="text-right text-amber-700 dark:text-amber-400">
                 {r.late_fee > 0 ? inr(r.late_fee) : "—"}
               </TableCell>
@@ -682,6 +740,252 @@ function DuesTable({
  * so this renders nothing at all in the common case rather than a row of
  * "Late fee: none" noise.
  */
+type QuarterBasis = "due" | "session";
+
+/**
+ * The quarter-wise outstanding register: for every student, what is owed on
+ * each quarter's instalments, the bus fee, late fee and discounts, and the
+ * total. The fee office asked for exactly this — after a term of updates and
+ * discounts it could no longer tell "the exact outstanding amount and the
+ * quarter against which the amount is due".
+ *
+ * A quarter is the session quarter its instalment falls due in (April–June is
+ * Q1 for an April session), so 3- and 4-instalment classes share columns; a
+ * class with no instalment in a quarter shows nothing there.
+ *
+ * "Due till today" counts what has fallen due, and its Total is the Dues
+ * register's figure exactly. "Whole session" counts everything still unpaid,
+ * whether due yet or not. Either way Paid Ahead is money settled beyond its
+ * own instalment, or against none: it is why a total can be lower than the
+ * quarters it is made of.
+ */
+function QuarterTable({
+  rows,
+  basis,
+  showClass,
+  emptyMessage,
+}: {
+  rows: DuesRow[];
+  basis: QuarterBasis;
+  showClass: boolean;
+  emptyMessage: string;
+}) {
+  type QRow = DuesRow & {
+    q: Record<Quarter, number>;
+    bus: number;
+    paidAhead: number;
+    total: number;
+  };
+  const qrows = useMemo<QRow[]>(
+    () =>
+      rows.map((r) => {
+        const q = basis === "due" ? r.quarters_due : r.quarters_session;
+        const bus = basis === "due" ? r.transport_due : r.transport_session;
+        const gross = q[1] + q[2] + q[3] + q[4] + bus;
+        const owed =
+          basis === "due" ? r.dues - r.late_fee : Math.max(0, r.expected - r.paid);
+        return {
+          ...r,
+          q,
+          bus,
+          paidAhead: Math.max(0, Math.round((gross - owed) * 100) / 100),
+          total: Math.round((owed + r.late_fee) * 100) / 100,
+        };
+      }),
+    [rows, basis]
+  );
+  const money = (n: number) => (n > 0 ? inr(n) : null);
+  const columns = useMemo<TableColumns<QRow>>(
+    () => ({
+      admission_no: { label: "Adm No", value: (r) => r.admission_no || null, filter: "text" },
+      full_name: { label: "Name", value: (r) => r.full_name, filter: "text" },
+      class_label: {
+        label: "Class",
+        value: (r) => r.class_label || null,
+        emptyLabel: "Unassigned",
+      },
+      q1: { label: "Q1 (Apr–Jun)", value: (r) => money(r.q[1]), sortValue: (r) => r.q[1], emptyLabel: "Nil", exportFormat: "currency" },
+      q2: { label: "Q2 (Jul–Sep)", value: (r) => money(r.q[2]), sortValue: (r) => r.q[2], emptyLabel: "Nil", exportFormat: "currency" },
+      q3: { label: "Q3 (Oct–Dec)", value: (r) => money(r.q[3]), sortValue: (r) => r.q[3], emptyLabel: "Nil", exportFormat: "currency" },
+      q4: { label: "Q4 (Jan–Mar)", value: (r) => money(r.q[4]), sortValue: (r) => r.q[4], emptyLabel: "Nil", exportFormat: "currency" },
+      bus: { label: "Transport", value: (r) => money(r.bus), sortValue: (r) => r.bus, emptyLabel: "Nil", exportFormat: "currency" },
+      late_fee: { label: "Late Fee", value: (r) => money(r.late_fee), sortValue: (r) => r.late_fee, emptyLabel: "None", exportFormat: "currency" },
+      discount: { label: "Discount", value: (r) => money(r.discount), sortValue: (r) => r.discount, emptyLabel: "None", exportFormat: "currency" },
+      paid_ahead: { label: "Paid Ahead", value: (r) => money(r.paidAhead), sortValue: (r) => r.paidAhead, emptyLabel: "None", exportFormat: "currency" },
+      total: { label: "Total Outstanding", value: (r) => (r.total > 0 ? inr(r.total) : "Nil"), sortValue: (r) => r.total, exportFormat: "currency" },
+    }),
+    []
+  );
+  const table = useTableControls({ rows: qrows, columns });
+  const pagination = useTablePagination(table.rows, {
+    defaultPageSize: 50,
+    resetKey: `quarters:${basis}:${table.filterSummary.map((f) => `${f.label}=${f.value}`).join("|")}`,
+  });
+  // Column totals over the filtered rows, so a filtered view adds up too.
+  const totals = useMemo(() => {
+    const t = { q1: 0, q2: 0, q3: 0, q4: 0, bus: 0, late: 0, discount: 0, ahead: 0, total: 0 };
+    for (const r of table.rows) {
+      t.q1 += r.q[1];
+      t.q2 += r.q[2];
+      t.q3 += r.q[3];
+      t.q4 += r.q[4];
+      t.bus += r.bus;
+      t.late += r.late_fee;
+      t.discount += r.discount;
+      t.ahead += r.paidAhead;
+      t.total += r.total;
+    }
+    return t;
+  }, [table.rows]);
+
+  if (rows.length === 0) {
+    return <p className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">{emptyMessage}</p>;
+  }
+  const cell = (n: number) => (n > 0 ? inr(n) : "—");
+  return (
+    <>
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+        <TableFilterSummary ctl={table} total={qrows.length} shown={table.rows.length} className="mb-0 mr-auto" />
+        <TableExportButton
+          ctl={table}
+          filename={basis === "due" ? "fee-dues-by-quarter" : "fee-session-outstanding-by-quarter"}
+          title={basis === "due" ? "Quarter-wise Dues (till today)" : "Quarter-wise Outstanding (whole session)"}
+          featureKey="fees"
+        />
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <SortFilterHead ctl={table} col="admission_no" />
+            <SortFilterHead ctl={table} col="full_name" />
+            {showClass && <SortFilterHead ctl={table} col="class_label" />}
+            <SortFilterHead ctl={table} col="q1" align="right" />
+            <SortFilterHead ctl={table} col="q2" align="right" />
+            <SortFilterHead ctl={table} col="q3" align="right" />
+            <SortFilterHead ctl={table} col="q4" align="right" />
+            <SortFilterHead ctl={table} col="bus" align="right" />
+            <SortFilterHead ctl={table} col="late_fee" align="right" />
+            <SortFilterHead ctl={table} col="discount" align="right" />
+            <SortFilterHead ctl={table} col="paid_ahead" align="right" />
+            <SortFilterHead ctl={table} col="total" align="right" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {pagination.total === 0 && (
+            <TableRow>
+              <TableCell colSpan={showClass ? 12 : 11} className="py-10 text-center text-gray-500 dark:text-gray-400">
+                No students match the column filters.
+              </TableCell>
+            </TableRow>
+          )}
+          {pagination.pageRows.map((r) => (
+            <TableRow key={r.student_id}>
+              <TableCell className="font-medium">{r.admission_no}</TableCell>
+              <TableCell>
+                <Link
+                  href={`/fees/payments?student_id=${r.student_id}`}
+                  className="text-blue-600 hover:underline dark:text-blue-400"
+                  title="Open this student's payments & history"
+                >
+                  {r.full_name}
+                </Link>
+              </TableCell>
+              {showClass && (
+                <TableCell className="text-gray-600 dark:text-gray-300">{r.class_label || "Unassigned"}</TableCell>
+              )}
+              {([1, 2, 3, 4] as const).map((q) => (
+                <TableCell
+                  key={q}
+                  className={cn("text-right tabular-nums", r.q[q] > 0 && "font-medium text-red-700 dark:text-red-400")}
+                >
+                  {cell(r.q[q])}
+                </TableCell>
+              ))}
+              <TableCell className={cn("text-right tabular-nums", r.bus > 0 && "font-medium text-red-700 dark:text-red-400")}>
+                {cell(r.bus)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-amber-700 dark:text-amber-400">{cell(r.late_fee)}</TableCell>
+              <TableCell className="text-right tabular-nums text-gray-600 dark:text-gray-300">{cell(r.discount)}</TableCell>
+              <TableCell
+                className="text-right tabular-nums text-gray-600 dark:text-gray-300"
+                title="Paid beyond its own instalment, or against no current instalment — it counts against the total"
+              >
+                {r.paidAhead > 0 ? `−${inr(r.paidAhead)}` : "—"}
+              </TableCell>
+              <TableCell className="text-right tabular-nums font-semibold">{r.total > 0 ? inr(r.total) : "Nil"}</TableCell>
+            </TableRow>
+          ))}
+          {table.rows.length > 1 && (
+            <TableRow className="bg-gray-50 dark:bg-muted/40 font-semibold">
+              <TableCell colSpan={showClass ? 3 : 2}>Total ({table.rows.length} students)</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.q1)}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.q2)}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.q3)}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.q4)}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.bus)}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.late)}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.discount)}</TableCell>
+              <TableCell className="text-right tabular-nums">{totals.ahead > 0 ? `−${inr(totals.ahead)}` : "—"}</TableCell>
+              <TableCell className="text-right tabular-nums">{cell(totals.total)}</TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+      <TablePaginationBar ctl={pagination} noun="students" />
+    </>
+  );
+}
+
+const INSTALMENT_STATE: Record<
+  InstalmentPosition["state"],
+  { label: string; className: string }
+> = {
+  paid: { label: "Paid", className: "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400" },
+  part: { label: "Part paid", className: "bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300" },
+  overdue: { label: "Overdue", className: "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400" },
+  due: { label: "Due", className: "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400" },
+  upcoming: { label: "Not yet due", className: "bg-gray-100 text-gray-600 dark:bg-muted dark:text-gray-300" },
+};
+
+/** One line of the instalment ledger, under its fee card. */
+function InstalmentPositionLine({
+  row,
+  showQuarterLabel,
+}: {
+  row: InstalmentPosition;
+  showQuarterLabel: boolean;
+}) {
+  const state = INSTALMENT_STATE[row.state];
+  return (
+    <div className="mt-2 border-t border-gray-100 dark:border-border pt-2 text-xs">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {row.quarter && (
+          <span className="rounded bg-gray-100 dark:bg-muted px-1.5 py-0.5 font-medium text-gray-700 dark:text-gray-300">
+            Q{row.quarter}
+          </span>
+        )}
+        {showQuarterLabel && row.months && (
+          <span className="text-gray-500 dark:text-gray-400">{formatMonthSpan(row.months)}</span>
+        )}
+        <span className={cn("rounded px-1.5 py-0.5 font-medium", state.className)}>{state.label}</span>
+      </div>
+      <p className="mt-1 text-gray-600 dark:text-gray-300 tabular-nums">
+        Paid {inr(row.paid)}
+        {row.discount > 0 ? ` · Discount ${inr(row.discount)}` : ""}
+        {row.outstanding > 0 ? (
+          <>
+            {" · "}
+            <span className="font-medium text-gray-900 dark:text-white">
+              Outstanding {inr(row.outstanding)}
+            </span>
+            {row.dueNow > 0 && row.dueNow < row.outstanding ? ` (${inr(row.dueNow)} due now)` : ""}
+          </>
+        ) : null}
+      </p>
+    </div>
+  );
+}
+
 function LateFeeNote({
   line,
   settled,
@@ -948,6 +1252,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   // Which side of the register is open, in the URL so the dashboard's
   // "Paid" / "Remaining" tiles can land on the matching list.
   const [duesTab, setDuesTab] = useUrlState("dues_tab", "dues-list");
+  // Quarter-wise tab: count what has fallen due, or the whole session.
+  const [quarterBasis, setQuarterBasis] = useUrlState("quarter_basis", "due");
+  const [quarterOwingOnly, setQuarterOwingOnly] = useState(true);
   const [duesSearch, setDuesSearch] = useState("");
   const [duesRows, setDuesRows] = useState<DuesRow[]>([]);
   const [duesLoading, setDuesLoading] = useState(false);
@@ -1733,6 +2040,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       type PayRow = {
         student_id: string;
         fee_structure_id: string | null;
+        bus_stop_id: string | null;
+        month: string | null;
+        payment_method: string | null;
         amount_paid: number;
         waiver_amount: number;
         refund_amount: number | null;
@@ -1758,7 +2068,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           let q = supabase
             .from("fee_payments")
             .select(
-              "student_id, fee_structure_id, amount_paid, waiver_amount, refund_amount, status"
+              "student_id, fee_structure_id, bus_stop_id, month, payment_method, amount_paid, waiver_amount, refund_amount, status"
             )
             .in("status", ["paid", "partial", "refunded"])
             .eq("academic_year_id", academicYearId);
@@ -1801,6 +2111,18 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       // (legacy monthly/quarterly rows, transport stop fees): they run with the
       // academic year, so periods elapse from its start.
       const yearStartDate = academicYearRange?.start_date ?? null;
+      const monthList =
+        academicYearRange?.start_date && academicYearRange?.end_date
+          ? sessionMonths(academicYearRange.start_date, academicYearRange.end_date)
+          : [];
+      // Group receipts by student once; filtering the whole list per student
+      // is quadratic across a school.
+      const paymentsByStudent = new Map<string, PayRow[]>();
+      for (const pay of payments) {
+        const list = paymentsByStudent.get(pay.student_id);
+        if (list) list.push(pay);
+        else paymentsByStudent.set(pay.student_id, [pay]);
+      }
       const rows: DuesRow[] = (enrollments ?? []).map((e) => {
         const stu = e.students as unknown as {
           full_name: string;
@@ -1846,13 +2168,23 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         // longer on the roll. Their schedule stops on the day they left — the
         // whole reason the arrears column stayed honest after migration 123.
         const billingCutoff = resolveBillingCutoff(e as BillableEnrollment);
+        const studentPays = paymentsByStudent.get(e.student_id as string) ?? [];
         const breakdown = computeDuesBreakdown({
           lines,
-          payments: payments.filter((pay) => pay.student_id === e.student_id),
+          payments: studentPays,
           today,
           yearStartDate,
           billingCutoff,
         });
+        const ledger = computeInstalmentLedger({
+          lines,
+          payments: studentPays,
+          today,
+          yearStartDate,
+          sessionMonthList: monthList,
+          billingCutoff,
+        });
+        const sum = (q: Record<Quarter, number>) => q[1] + q[2] + q[3] + q[4];
         return {
           student_id: e.student_id as string,
           admission_no: stu?.admission_no ?? "",
@@ -1867,6 +2199,12 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
           paid: breakdown.paid,
           late_fee: breakdown.lateFee,
           dues: breakdown.dues,
+          discount: ledger.discount,
+          quarters_due: ledger.dueByQuarter.academic,
+          quarters_session: ledger.outstandingByQuarter.academic,
+          transport_due: sum(ledger.dueByQuarter.transport),
+          transport_session: sum(ledger.outstandingByQuarter.transport),
+          credit: ledger.credit,
         };
       });
       rows.sort((a, b) => b.dues - a.dues || a.full_name.localeCompare(b.full_name));
@@ -2014,6 +2352,39 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     () => new Map(transportMonths.map((tm) => [tm.month, tm])),
     [transportMonths]
   );
+
+  // The open student's position instalment by instalment — the same ledger
+  // the Quarter-wise register is built from, so the two always agree.
+  const selectedLedger = useMemo<InstalmentLedger | null>(() => {
+    if (!selectedStudent || !academicYearId) return null;
+    return computeInstalmentLedger({
+      lines: applicableFeeLines,
+      payments: yearPayments,
+      today: todayISO(),
+      yearStartDate: academicYearRange?.start_date ?? null,
+      sessionMonthList:
+        academicYearRange?.start_date && academicYearRange?.end_date
+          ? sessionMonths(academicYearRange.start_date, academicYearRange.end_date)
+          : [],
+      billingCutoff: selectedBillingCutoff,
+    });
+  }, [
+    selectedStudent,
+    academicYearId,
+    applicableFeeLines,
+    yearPayments,
+    academicYearRange,
+    selectedBillingCutoff,
+  ]);
+  const ledgerRowByLine = useMemo(() => {
+    const m = new Map<string, InstalmentPosition[]>();
+    for (const row of selectedLedger?.rows ?? []) {
+      const list = m.get(row.line.id);
+      if (list) list.push(row);
+      else m.set(row.line.id, [row]);
+    }
+    return m;
+  }, [selectedLedger]);
 
   // The ticked months, priced: the amount they owe and how the typed amount
   // would split across them. The route runs the same allocateAcrossMonths().
@@ -3054,6 +3425,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                   {selectedStudentDues && (
                     <StudentDuesSummary
                       dues={selectedStudentDues}
+                      ledger={selectedLedger}
                       loading={paymentsLoading}
                       classId={paymentsClassId || selectedStudentClassId}
                     />
@@ -3134,6 +3506,16 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                 line={line}
                                 settled={settledByLine.get(line.id) ?? 0}
                               />
+                              {/* Where this line stands: paid, discounted,
+                                  and what is still owed on it — per quarter
+                                  for a bus fee. */}
+                              {(ledgerRowByLine.get(line.id) ?? []).map((row) => (
+                                <InstalmentPositionLine
+                                  key={row.key}
+                                  row={row}
+                                  showQuarterLabel={isTransport}
+                                />
+                              ))}
                               {(() => {
                                 // A discount filed for this instalment and
                                 // not yet approved — so it isn't filed twice.
@@ -3533,7 +3915,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </p>
               ) : (
                 <Tabs
-                  value={duesTab === "clear-list" ? "clear-list" : "dues-list"}
+                  value={
+                    duesTab === "clear-list" || duesTab === "quarters"
+                      ? duesTab
+                      : "dues-list"
+                  }
                   onValueChange={(v) => v && setDuesTab(String(v))}
                 >
                   <TabsList>
@@ -3543,7 +3929,64 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     <TabsTrigger value="clear-list">
                       No Dues ({duesSummary.clear.length})
                     </TabsTrigger>
+                    <TabsTrigger value="quarters">Quarter-wise</TabsTrigger>
                   </TabsList>
+                  <TabsContent value="quarters">
+                    <div className="mt-3 space-y-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="inline-flex rounded-lg border p-0.5" role="group" aria-label="Count">
+                          {(
+                            [
+                              ["due", "Due till today"],
+                              ["session", "Whole session"],
+                            ] as const
+                          ).map(([value, label]) => (
+                            <Button
+                              key={value}
+                              size="sm"
+                              variant={quarterBasis === value ? "default" : "ghost"}
+                              onClick={() => setQuarterBasis(value)}
+                              aria-pressed={quarterBasis === value}
+                            >
+                              {label}
+                            </Button>
+                          ))}
+                        </div>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={quarterOwingOnly}
+                            onCheckedChange={(v) => setQuarterOwingOnly(Boolean(v))}
+                          />
+                          Only students who owe
+                        </label>
+                        <p className="basis-full text-xs text-gray-500 dark:text-gray-400">
+                          {quarterBasis === "session"
+                            ? "Everything still unpaid for the session, by the quarter its instalment falls due in — including instalments not due yet."
+                            : "What has fallen due and is unpaid, by the quarter its instalment fell due in. The total is the Dues tab's figure."}{" "}
+                          Paid Ahead is money paid beyond its own instalment; it counts
+                          against the total.
+                        </p>
+                      </div>
+                      <QuarterTable
+                        rows={
+                          quarterOwingOnly
+                            ? filteredDuesRows.filter((r) =>
+                                quarterBasis === "session"
+                                  ? r.expected - r.paid > 0.005 || r.late_fee > 0
+                                  : r.dues > 0
+                              )
+                            : filteredDuesRows
+                        }
+                        basis={quarterBasis === "session" ? "session" : "due"}
+                        showClass={!duesClassId}
+                        emptyMessage={
+                          duesSearch.trim()
+                            ? "No students match your search."
+                            : "Nobody owes anything on this basis."
+                        }
+                      />
+                    </div>
+                  </TabsContent>
 
                   {(["dues-list", "clear-list"] as const).map((key) => (
                     <TabsContent value={key} key={key}>

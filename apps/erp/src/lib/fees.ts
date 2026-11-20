@@ -752,6 +752,272 @@ export function computeDuesBreakdown(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// Instalment-wise position — which quarter the money is owed against
+// ---------------------------------------------------------------------------
+//
+// computeDuesBreakdown() answers "how much does this student owe today" with
+// one number: everything billed to date, less everything settled. That is the
+// right headline, but it cannot say WHICH instalment is unpaid — money paid
+// ahead on the third instalment quietly covers an unpaid second one, and the
+// fee office reported it could no longer tell "the quarter against which the
+// amount is due". The ledger below splits the same money per instalment (and
+// per quarter of bus months), and is built so that its total is the
+// headline's total to the paisa:
+//
+//   dues = max(0, Σ dueNow − credit) + lateFee
+//
+// where `credit` is money settled beyond what its own row has billed (paid
+// ahead) plus money that fits no row at all (a removed instalment, a bus
+// payment with no readable month).
+
+export type Quarter = 1 | 2 | 3 | 4;
+
+/** Quarter of the session a date falls in: its first three months are Q1. */
+export function academicQuarterOf(date: string, yearStartDate: string): Quarter {
+  const [y, m] = date.slice(0, 7).split("-").map(Number);
+  const [sy, sm] = yearStartDate.slice(0, 7).split("-").map(Number);
+  const diff = (y - sy) * 12 + (m - sm);
+  return Math.min(4, Math.floor(Math.max(0, diff) / 3) + 1) as Quarter;
+}
+
+export type LedgerPayment = DuesPaymentRow & {
+  bus_stop_id?: string | null;
+  month?: string | null;
+  payment_method?: string | null;
+};
+
+export type InstalmentState = "paid" | "part" | "overdue" | "due" | "upcoming";
+
+export interface InstalmentPosition {
+  /** The line id, or `<stop id>:Q<n>` for a quarter of bus months. */
+  key: string;
+  kind: "fee_structure" | "transport";
+  /** The fee line, for its label (instalment name, stop). */
+  line: EffectiveFeeLine;
+  /** For a bus-fee quarter: the months it covers (YYYY-MM). */
+  months: string[] | null;
+  quarter: Quarter | null;
+  due_date: string | null;
+  /** Whole-session amount of this row — to the leaving date, for a leaver. */
+  amount: number;
+  /** The slice of `amount` that has fallen due. */
+  billed: number;
+  /** Cash received against this row, net of refunds. */
+  paid: number;
+  discount: number;
+  /** `amount − paid − discount`, floored at 0. */
+  outstanding: number;
+  /** `billed − paid − discount`, floored at 0: what is owed on it today. */
+  dueNow: number;
+  /** Settled beyond what has fallen due — money paid ahead. */
+  advance: number;
+  lateFee: number;
+  state: InstalmentState;
+}
+
+export interface InstalmentLedger {
+  rows: InstalmentPosition[];
+  /** Settled money that fits no row. Counts as credit. */
+  unallocated: number;
+  /** Σ dueNow by quarter, academic lines and bus fee kept apart. */
+  dueByQuarter: { academic: Record<Quarter, number>; transport: Record<Quarter, number> };
+  /** Σ outstanding (whole session) by quarter. */
+  outstandingByQuarter: { academic: Record<Quarter, number>; transport: Record<Quarter, number> };
+  /** Σ dueNow over every row. */
+  dueNowGross: number;
+  /** Paid ahead plus unallocated — what nets the gross figure down to the headline. */
+  credit: number;
+  /** Discounts recorded for the session, on any row or none. */
+  discount: number;
+  /** Equals computeDuesBreakdown().lateFee. */
+  lateFee: number;
+  /** Equals computeDuesBreakdown().dues. */
+  dues: number;
+}
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
+const zeroQuarters = (): Record<Quarter, number> => ({ 1: 0, 2: 0, 3: 0, 4: 0 });
+
+function rowState(row: { outstanding: number; billed: number; paid: number; discount: number; lateFee: number }): InstalmentState {
+  if (row.outstanding <= 0.005) return "paid";
+  const settled = row.paid + row.discount;
+  if (row.billed <= 0.005) return settled > 0 ? "part" : "upcoming";
+  if (settled > 0.005) return "part";
+  return row.lateFee > 0 ? "overdue" : "due";
+}
+
+export function computeInstalmentLedger(opts: {
+  lines: EffectiveFeeLine[];
+  /** The session's receipts, as computeDuesBreakdown takes them. */
+  payments: LedgerPayment[];
+  today: string;
+  yearStartDate: string | null;
+  /** The session's months (sessionMonths()), for placing bus fees by month. */
+  sessionMonthList: string[];
+  billingCutoff?: string | null;
+}): InstalmentLedger {
+  const { lines, payments, today, yearStartDate, sessionMonthList } = opts;
+  const billingCutoff = opts.billingCutoff ?? null;
+  const asOf = effectiveBillingDate(today, billingCutoff);
+  const quarterOf = (d: string | null) =>
+    d && yearStartDate ? academicQuarterOf(d, yearStartDate) : null;
+  const used = new Set<number>();
+  const cash = (p: DuesPaymentRow) =>
+    Math.max(0, Number(p.amount_paid) - Number(p.refund_amount ?? 0));
+  const waived = (p: DuesPaymentRow) => Number(p.waiver_amount ?? 0);
+  const rows: InstalmentPosition[] = [];
+
+  for (const line of lines) {
+    const monthly = line.kind === "transport_stop" && line.frequency === "monthly";
+    if (!monthly) {
+      // An instalment — or a non-monthly bus fee, which bills as one row.
+      let paid = 0;
+      let discount = 0;
+      payments.forEach((p, i) => {
+        const match =
+          line.kind === "transport_stop"
+            ? p.bus_stop_id === line.id
+            : p.fee_structure_id === line.id;
+        if (!match) return;
+        used.add(i);
+        paid += cash(p);
+        discount += waived(p);
+      });
+      const billed = amountBilledToDate(line, asOf, yearStartDate);
+      const amount = billingCutoff ? billed : annualizedAmount(line);
+      const settled = paid + discount;
+      // The same per-line test computeDuesBreakdown applies.
+      const lateFee =
+        line.kind === "fee_structure" && settled < amount
+          ? computeLateFee(line, asOf)
+          : 0;
+      const row = {
+        amount: r2(amount),
+        billed: r2(billed),
+        paid: r2(paid),
+        discount: r2(discount),
+        outstanding: r2(Math.max(0, amount - settled)),
+        dueNow: r2(Math.max(0, billed - settled)),
+        advance: r2(Math.max(0, settled - billed)),
+        lateFee,
+      };
+      rows.push({
+        key: line.id,
+        kind: line.kind === "transport_stop" ? "transport" : "fee_structure",
+        line,
+        months: null,
+        quarter: quarterOf(line.due_date ?? yearStartDate),
+        due_date: line.due_date ?? null,
+        ...row,
+        state: rowState(row),
+      });
+      continue;
+    }
+
+    // A monthly bus fee, one row per quarter of months. Which months have
+    // fallen due is taken from amountBilledToDate, so the billed total is
+    // exactly the headline's.
+    const fee = Number(line.amount);
+    const billedTotal = amountBilledToDate(line, asOf, yearStartDate);
+    const billedCount = fee > 0 ? Math.round(billedTotal / fee) : 0;
+    const monthsInScope = billingCutoff
+      ? sessionMonthList.slice(0, billedCount)
+      : sessionMonthList;
+    const settledByMonth = new Map<string, { paid: number; discount: number }>();
+    payments.forEach((p, i) => {
+      if (p.bus_stop_id !== line.id) return;
+      const key = feeMonthSortKey(p.month);
+      if (!key || key.startsWith("~") || !monthsInScope.includes(key)) return;
+      used.add(i);
+      const cur = settledByMonth.get(key) ?? { paid: 0, discount: 0 };
+      cur.paid += cash(p);
+      cur.discount += waived(p);
+      settledByMonth.set(key, cur);
+    });
+    const byQuarter = new Map<Quarter, string[]>();
+    for (const m of monthsInScope) {
+      const q = quarterOf(`${m}-01`) ?? 1;
+      byQuarter.set(q, [...(byQuarter.get(q) ?? []), m]);
+    }
+    for (const [q, months] of byQuarter) {
+      let paid = 0;
+      let discount = 0;
+      let billed = 0;
+      for (const m of months) {
+        const st = settledByMonth.get(m);
+        paid += st?.paid ?? 0;
+        discount += st?.discount ?? 0;
+        if (sessionMonthList.indexOf(m) < billedCount) billed += fee;
+      }
+      const amount = fee * months.length;
+      const settled = paid + discount;
+      const row = {
+        amount: r2(amount),
+        billed: r2(billed),
+        paid: r2(paid),
+        discount: r2(discount),
+        outstanding: r2(Math.max(0, amount - settled)),
+        dueNow: r2(Math.max(0, billed - settled)),
+        advance: r2(Math.max(0, settled - billed)),
+        lateFee: 0,
+      };
+      rows.push({
+        key: `${line.id}:Q${q}`,
+        kind: "transport",
+        line,
+        months,
+        quarter: q,
+        due_date: `${months[0]}-01`,
+        ...row,
+        state: rowState(row),
+      });
+    }
+  }
+
+  let unallocated = 0;
+  let discount = 0;
+  let totalSettled = 0;
+  payments.forEach((p, i) => {
+    const settled = cash(p) + waived(p);
+    totalSettled += settled;
+    discount += waived(p);
+    if (!used.has(i)) unallocated += settled;
+  });
+
+  const dueByQuarter = { academic: zeroQuarters(), transport: zeroQuarters() };
+  const outstandingByQuarter = { academic: zeroQuarters(), transport: zeroQuarters() };
+  let dueNowGross = 0;
+  let advance = 0;
+  let billedTotal = 0;
+  let lateFeeSum = 0;
+  for (const row of rows) {
+    const bucket = row.kind === "transport" ? "transport" : "academic";
+    const q = row.quarter ?? 1;
+    dueByQuarter[bucket][q] = r2(dueByQuarter[bucket][q] + row.dueNow);
+    outstandingByQuarter[bucket][q] = r2(outstandingByQuarter[bucket][q] + row.outstanding);
+    dueNowGross += row.dueNow;
+    advance += row.advance;
+    billedTotal += row.billed;
+    lateFeeSum += row.lateFee;
+  }
+  // The headline, from the same aggregates computeDuesBreakdown uses.
+  const baseDues = Math.max(0, billedTotal - totalSettled);
+  const lateFee = baseDues > 0 ? lateFeeSum : 0;
+
+  return {
+    rows,
+    unallocated: r2(unallocated),
+    dueByQuarter,
+    outstandingByQuarter,
+    dueNowGross: r2(dueNowGross),
+    credit: r2(advance + unallocated),
+    discount: r2(discount),
+    lateFee: r2(lateFee),
+    dues: r2(baseDues + lateFee),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Collection summary
 // ---------------------------------------------------------------------------
 
