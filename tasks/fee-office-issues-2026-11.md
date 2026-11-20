@@ -76,13 +76,17 @@ duplicates"), and migration 139 skips its index while any remain; D6 several
 tuition instalments on one receipt — **not built**, ask if wanted.
 
 **To deploy:**
-1. Merge and deploy.
-2. Clear the duplicate discount requests: Fees → Change Requests → Select
+1. Run `scripts/migrations/erp/migration-139-payment-groups.sql` in the
+   Supabase SQL editor **first** (both campuses). It adds
+   `fee_payments.payment_group_id`, which a multi-month bus payment writes.
+   While duplicate discount requests are still pending, it reports that and
+   skips only its unique index, so it is safe to run now.
+2. Merge and deploy. (Single payments and receipts don't depend on the new
+   column, so a deploy that lands first breaks only multi-month bus
+   payments, until step 1.)
+3. Clear the duplicate discount requests: Fees → Change Requests → Select
    duplicates → Reject selected.
-3. Run `scripts/migrations/erp/migration-139-payment-groups.sql` in the
-   Supabase SQL editor. The ERP needs it before a multi-month bus payment
-   can be recorded: until then the insert names a column that doesn't exist
-   yet. Run it again if it reports duplicates.
+4. Run migration 139 again; this time it creates the index.
 
 **Known limits, left alone:**
 - A student who changes stop mid-year is priced at the new stop for the

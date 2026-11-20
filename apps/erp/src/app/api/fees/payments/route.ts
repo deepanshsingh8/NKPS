@@ -194,7 +194,10 @@ export async function POST(request: Request) {
         payment_method,
         month: sl.month,
         receipt_number: slices.length > 1 ? `${receiptBase}/${i + 1}` : receiptBase,
-        payment_group_id: groupId,
+        // Named only when there is a group. A single payment then never
+        // depends on migration 139's column, so recording keeps working on a
+        // database the migration hasn't reached yet.
+        ...(groupId ? { payment_group_id: groupId } : {}),
         payment_date,
         status: sl.status,
         recorded_by: user.id,

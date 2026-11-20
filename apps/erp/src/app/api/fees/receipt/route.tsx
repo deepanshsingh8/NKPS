@@ -56,7 +56,11 @@ export async function GET(request: Request) {
     const { data: payment, error: payErr } = await admin
       .from("fee_payments")
       .select(
-        "id, student_id, amount_paid, waiver_amount, waiver_reason, payment_group_id, payment_date, payment_method, receipt_number, month, status, remarks, refund_amount, refund_reason, refunded_at, cheque_number, cheque_date, bank_name, payer_name, transaction_ref, payment_provider, fee_structure:fee_structures(fee_type, instalment_name, month_label, academic_year_id, academic_years(name)), bus_stop:bus_stops(name), academic_year:academic_years(name)"
+        // `*` rather than a column list: payment_group_id (migration 139) is
+        // read when it exists, and a database the migration hasn't reached
+        // yet still prints every receipt instead of failing on a missing
+        // column.
+        "*, fee_structure:fee_structures(fee_type, instalment_name, month_label, academic_year_id, academic_years(name)), bus_stop:bus_stops(name), academic_year:academic_years(name)"
       )
       .eq("id", paymentId)
       .single();
