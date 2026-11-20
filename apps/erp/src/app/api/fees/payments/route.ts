@@ -236,6 +236,10 @@ export async function POST(request: Request) {
     // One receipt number for the collection; with several rows each carries
     // it with a /1, /2… suffix, as the day-book import's split rows do.
     const groupId = slices.length > 1 ? randomUUID() : null;
+    // Whether to write payment_group_id. Dropped if the database doesn't have
+    // the column yet (migration 139 not applied): the rows still share one
+    // receipt number, which is what the receipt groups them by in that case.
+    let withGroupColumn = groupId !== null;
     const buildRows = (receiptBase: string) =>
       slices.map((sl, i) => ({
         student_id,
@@ -249,7 +253,7 @@ export async function POST(request: Request) {
         // Named only when there is a group. A single payment then never
         // depends on migration 139's column, so recording keeps working on a
         // database the migration hasn't reached yet.
-        ...(groupId ? { payment_group_id: groupId } : {}),
+        ...(withGroupColumn ? { payment_group_id: groupId } : {}),
         payment_date,
         status: sl.status,
         recorded_by: user.id,
@@ -278,6 +282,22 @@ export async function POST(request: Request) {
         break;
       }
       error = res.error ?? { message: "insert returned no rows" };
+      // PGRST204: the column isn't in the database yet. Production hit this
+      // on 20 Nov — the code went live before migration 139 was run, and
+      // every payment covering several fees failed with "Failed to record
+      // payment". Record it without the group link rather than refuse money
+      // the parent has handed over.
+      if (
+        res.error?.code === "PGRST204" &&
+        withGroupColumn &&
+        /payment_group_id/.test(res.error.message ?? "")
+      ) {
+        console.warn(
+          "[fees.payments] payment_group_id missing — run migration 139. Recording without it."
+        );
+        withGroupColumn = false;
+        continue;
+      }
       // Only a receipt-number collision is retryable (it's the sole UNIQUE
       // constraint besides the PK); any other error is terminal.
       if (res.error?.code !== "23505") break;

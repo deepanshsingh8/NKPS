@@ -183,14 +183,22 @@ export async function GET(request: Request) {
       month: string | null;
       lines: Array<{ label: string; amount: number; part: boolean }>;
     } | null = null;
-    if (payment.payment_group_id) {
-      const { data: groupRows } = await admin
+    // A collection's rows share payment_group_id — or, when they were recorded
+    // before migration 139 gave the database that column, the receipt number
+    // they all carry with a /1, /2… suffix. (Day-book import slices end -1,
+    // -2, so they never match.)
+    const sharedReceipt = /^(.+)\/\d+$/.exec(String(payment.receipt_number ?? ""))?.[1] ?? null;
+    if (payment.payment_group_id || sharedReceipt) {
+      let groupQuery = admin
         .from("fee_payments")
         .select(
           "id, month, amount_paid, status, receipt_number, fee_structure_id, bus_stop_id, fee_structure:fee_structures(fee_type, instalment_name), bus_stop:bus_stops(name)"
         )
-        .eq("payment_group_id", payment.payment_group_id)
         .eq("student_id", payment.student_id);
+      groupQuery = payment.payment_group_id
+        ? groupQuery.eq("payment_group_id", payment.payment_group_id)
+        : groupQuery.like("receipt_number", `${sharedReceipt}/%`);
+      const { data: groupRows } = await groupQuery;
       const suffix = (r: { receipt_number: string | null }) =>
         Number(String(r.receipt_number ?? "").split("/")[1] ?? 0);
       const rows = (groupRows ?? []).sort((a, b) => suffix(a) - suffix(b));
