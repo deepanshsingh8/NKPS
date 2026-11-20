@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, Suspense, Fragment } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, Suspense, Fragment } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@nkps/shared/lib/supabase/client";
 import { todayISO } from "@nkps/shared/lib/date";
@@ -1115,6 +1115,41 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     setStudentPayments([]);
     setStudentResults([]);
   }, []);
+
+  // Closing a student also drops ?student_id. The dues register links here
+  // with it, and left in the URL it made a refresh reopen the student the
+  // office had just finished with.
+  const dropStudentFromUrl = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("student_id")) return;
+    url.searchParams.delete("student_id");
+    window.history.replaceState(null, "", url.toString());
+  }, []);
+
+  const studentSearchRef = useRef<HTMLInputElement>(null);
+
+  // Back to the student list, keeping whatever was typed in the search.
+  const closeStudent = useCallback(() => {
+    clearSelectedStudent();
+    dropStudentFromUrl();
+  }, [clearSelectedStudent, dropStudentFromUrl]);
+
+  // Done with this student: an empty search with the cursor in it, ready for
+  // the next name. Moving on used to mean leaving Payment Management,
+  // coming back and refreshing — the search box stayed on screen, but its
+  // matches only rendered while no student was open, and the only way back
+  // to the list was a button that appeared when a class had been picked.
+  const startNextStudent = useCallback(() => {
+    closeStudent();
+    setClassStudentSearch("");
+    requestAnimationFrame(() => {
+      const el = studentSearchRef.current;
+      if (!el) return;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.focus({ preventScroll: true });
+    });
+  }, [closeStudent]);
 
   // Deep-link: if ?student_id=... is in URL, auto-select that student once.
   useEffect(() => {
@@ -2263,7 +2298,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     if (!res.ok) {
       toast.error(data.error || "Failed to record payment");
     } else {
-      toast.success(`Payment recorded. Receipt: ${data.payment.receipt_number}`);
+      // The office takes fees in a queue: offer the next student right here.
+      toast.success(`Payment recorded. Receipt: ${data.payment.receipt_number}`, {
+        duration: 8000,
+        action: { label: "Next student", onClick: startNextStudent },
+      });
       setRecordPaymentOpen(false);
       setNewPayment({
         fee_target: "",
@@ -2615,7 +2654,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                     value={paymentsClassId}
                     onChange={(e) => {
                       setPaymentsClassId(e.target.value);
-                      clearSelectedStudent();
+                      closeStudent();
                       setClassStudentSearch("");
                     }}
                     className="block min-w-[220px]"
@@ -2629,15 +2668,53 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                   </NativeSelect>
                 </div>
                 <div className="flex-1">
-                  <Label className="mb-2 block text-xs font-medium">
-                    Search Students
+                  <Label
+                    htmlFor="payments-student-search"
+                    className="mb-2 block text-xs font-medium"
+                  >
+                    {selectedStudent ? "Search Another Student" : "Search Students"}
                   </Label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
                     <Input
-                      placeholder="Search by name, admission no or father…"
+                      id="payments-student-search"
+                      ref={studentSearchRef}
+                      placeholder={
+                        selectedStudent
+                          ? "Type the next student's name, admission no or father…"
+                          : "Search by name, admission no or father…"
+                      }
                       value={classStudentSearch}
-                      onChange={(e) => setClassStudentSearch(e.target.value)}
+                      // With a student open, the box searches for the next
+                      // one: focusing selects the old text so typing replaces
+                      // it, and the first keystroke closes this student and
+                      // brings back the matching list.
+                      onFocus={(e) => {
+                        if (selectedStudent) e.currentTarget.select();
+                      }}
+                      onChange={(e) => {
+                        setClassStudentSearch(e.target.value);
+                        if (selectedStudent) closeStudent();
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          setClassStudentSearch("");
+                          return;
+                        }
+                        if (e.key !== "Enter" || selectedStudent) return;
+                        // Enter opens the only match — type, Enter, record.
+                        if (!classStudentSearch.trim()) return;
+                        if (filteredClassStudents.length === 1) {
+                          e.preventDefault();
+                          void selectStudentById(filteredClassStudents[0].id);
+                        } else if (
+                          filteredClassStudents.length === 0 &&
+                          studentResults.length === 1
+                        ) {
+                          e.preventDefault();
+                          void selectStudent(studentResults[0]);
+                        }
+                      }}
                       className="pl-10"
                     />
                   </div>
@@ -2646,17 +2723,29 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
 
               {selectedStudent && (
                 <>
-                  {paymentsClassId && (
+                  {/* Always offered: it used to appear only once a class had
+                      been picked, so a student found under "All classes" had
+                      no way back to the list short of leaving the page. */}
+                  <div className="mb-4 -ml-2 flex flex-wrap items-center gap-1">
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={clearSelectedStudent}
-                      className="mb-4 -ml-2 text-gray-600 dark:text-gray-300"
+                      onClick={closeStudent}
+                      className="text-gray-600 dark:text-gray-300"
                     >
                       <ArrowLeft className="h-4 w-4 mr-1" />
-                      Back to class list
+                      {paymentsClassId ? "Back to class list" : "Back to student list"}
                     </Button>
-                  )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={startNextStudent}
+                      className="text-gray-600 dark:text-gray-300"
+                    >
+                      <Search className="h-4 w-4 mr-1" />
+                      Next student
+                    </Button>
+                  </div>
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h3 className="font-heading text-lg font-semibold text-navy-900 dark:text-white">

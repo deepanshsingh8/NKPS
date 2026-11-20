@@ -1335,6 +1335,16 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded.",
       },
       {
+        name: "Move on to the next student",
+        steps: [
+          'After recording a payment, click "Next student" on the confirmation — or the "Next student" button above the student\'s name.',
+          'Type the next name, admission number or father\'s name in "Search Another Student". Typing closes the current student and lists the matches.',
+          "Click the student, or press Enter when only one matches.",
+        ],
+        gotcha:
+          '"Back to student list" returns to the list with your last search still applied. There is no need to leave Payment Management or refresh the page.',
+      },
+      {
         name: "Change a payment's date",
         steps: [
           'Scroll to "Payment History".',
