@@ -246,6 +246,10 @@ export interface FeeReceiptData {
   payer_name?: string | null;
   transaction_ref?: string | null;
   payment_provider?: string | null;
+  // When the payment's date, mode or details were last corrected. A receipt
+  // re-downloaded after a correction differs from the one first handed over,
+  // and has to say so.
+  corrected_at?: string | null;
 }
 
 interface Props {
@@ -265,10 +269,14 @@ function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
   const d = new Date(value);
   if (isNaN(d.getTime())) return value;
+  // India time: the server renders in UTC, which would date a correction
+  // made before 05:30 IST to the day before. A date-only value parses as UTC
+  // midnight, which is the same calendar day in IST.
   return d.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "Asia/Kolkata",
   });
 }
 
@@ -437,6 +445,11 @@ function Copy({
         <Text style={styles.amountValue}>{amountText}</Text>
       </View>
       <Text style={styles.words}>{numberToWords(data.amount)}</Text>
+      {data.corrected_at ? (
+        <Text style={styles.words}>
+          {`Payment details corrected on ${formatDate(data.corrected_at)}. This copy replaces any receipt issued before that date.`}
+        </Text>
+      ) : null}
 
       {data.remarks ? (
         <View style={styles.gridRow}>

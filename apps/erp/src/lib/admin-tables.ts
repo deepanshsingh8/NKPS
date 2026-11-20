@@ -86,6 +86,15 @@ export const EDITOR_RESTRICTED_ACTIONS = {
   fee_payments: ["update", "delete"],
 } as const;
 
+// Actions nobody — admins included — may take through the generic proxy,
+// because a dedicated route does the same write with its checks and an audit
+// row: /api/fees/payments (record), /payments/[id]/correct, /refund, and the
+// change-request approve route (delete). No screen writes fee_payments
+// through the proxy; this closes the one path that could do so unrecorded.
+export const AUDITED_ROUTE_ACTIONS = {
+  fee_payments: ["insert", "update", "delete"],
+} as const;
+
 // student_enrollments is owned by the students module, but /transport/assignments
 // updates only its transport columns. Without this, an editor granted 'transport'
 // could open the page and save nothing. The rule is column-scoped, so a transport

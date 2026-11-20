@@ -1345,15 +1345,16 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           '"Back to student list" returns to the list with your last search still applied. There is no need to leave Payment Management or refresh the page.',
       },
       {
-        name: "Change a payment's date",
+        name: "Correct a payment's date, mode or details",
         steps: [
           'Scroll to "Payment History".',
           "Click the pencil icon on the row.",
-          'Pick the "Payment Date" the parent actually paid and give a reason.',
-          'Click "Save Date" — or, as an editor, "Submit Request" for an admin to approve.',
+          'Change the "Payment Date", the "Payment Method" and the cheque, bank-transfer or online details that appear — for a transport payment, also "For Month".',
+          "Give a reason of at least five characters.",
+          'Click "Save Correction" — or, as an editor, "Submit Request" for an admin to approve at Fees → Change Requests.',
         ],
         gotcha:
-          "The date cannot be in the future. Waiver rows have no payment date and no pencil.",
+          'A change to cheque, bank transfer or online needs that method\'s details, and switching method clears the details that no longer apply. The date cannot be in the future. Discounts, payments made through the online gateway and refunded payments have no pencil. A corrected row shows "Corrected" next to its method — hover for who changed what, when and why — and its receipt notes the correction.',
       },
       {
         name: "Check which month a payment covers",

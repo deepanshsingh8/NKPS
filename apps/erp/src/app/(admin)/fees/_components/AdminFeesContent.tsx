@@ -58,6 +58,13 @@ import { FeeScheduleImportDialog } from "@/components/FeeScheduleImportDialog";
 import { StudentConcessionImportDialog } from "@/components/StudentConcessionImportDialog";
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import { isRefundRequest } from "@/lib/fee-change-requests";
+import { correctionLockReason } from "@/lib/payment-correction";
+import { fieldLabel, formatFieldValue } from "@/lib/change-request-display";
+import {
+  EMPTY_PAYMENT_DETAILS,
+  PaymentMethodFields,
+  type PaymentMethodDetails,
+} from "./PaymentMethodFields";
 import {
   resolveEffectiveFeeStructures,
   resolveEffectiveFeeLines,
@@ -210,6 +217,39 @@ interface DuesRow {
 }
 
 export type FeesSection = "academic" | "payments" | "dues";
+
+/** One correction to a recorded payment, as /api/fees/payments/corrections reports it. */
+interface PaymentCorrection {
+  at: string;
+  by: string | null;
+  reason: string | null;
+  changes: Array<{ field: string; before: unknown; after: unknown }>;
+}
+
+/** "18 Nov 2026 · Asha Verma: Payment method Cash → Cheque. Reason: …" */
+function describeCorrection(c: PaymentCorrection): string {
+  const when = new Date(c.at).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const what = c.changes
+    .map(
+      (ch) =>
+        `${fieldLabel(ch.field)} ${formatFieldValue(ch.field, ch.before, {})} → ${formatFieldValue(ch.field, ch.after, {})}`
+    )
+    .join("; ");
+  return `${when}${c.by ? ` · ${c.by}` : ""}: ${what}.${c.reason ? ` Reason: ${c.reason}` : ""}`;
+}
+
+const DETAIL_KEYS = [
+  "cheque_number",
+  "cheque_date",
+  "bank_name",
+  "payer_name",
+  "transaction_ref",
+  "payment_provider",
+] as const satisfies ReadonlyArray<keyof PaymentMethodDetails>;
 
 const inr = (n: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -856,14 +896,32 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   const [refundForm, setRefundForm] = useState({ amount: "", reason: "" });
   const [refundSubmitting, setRefundSubmitting] = useState(false);
 
-  // Correcting the date on a recorded payment. Admins change it directly;
-  // editors file a change request, same as any other edit to fee_payments.
-  const [dateEditPayment, setDateEditPayment] = useState<{
-    id: string;
-    receipt_number: string | null;
-  } | null>(null);
-  const [dateEditForm, setDateEditForm] = useState({ payment_date: "", reason: "" });
-  const [dateEditSubmitting, setDateEditSubmitting] = useState(false);
+  // Correcting a recorded payment: the day it was paid, how it was paid and
+  // the details that go with that, and a transport payment's month. Admins
+  // apply it directly; editors file a change request. The payment row type
+  // is the history table's own.
+  const [correctPayment, setCorrectPayment] = useState<
+    (typeof studentPayments)[number] | null
+  >(null);
+  const [correctForm, setCorrectForm] = useState<
+    PaymentMethodDetails & {
+      payment_date: string;
+      payment_method: string;
+      month: string;
+      reason: string;
+    }
+  >({
+    payment_date: "",
+    payment_method: "cash",
+    month: "",
+    reason: "",
+    ...EMPTY_PAYMENT_DETAILS,
+  });
+  const [correctSubmitting, setCorrectSubmitting] = useState(false);
+  // payment id → its corrections, for the "Corrected" marker in history.
+  const [paymentCorrections, setPaymentCorrections] = useState<
+    Record<string, PaymentCorrection[]>
+  >({});
 
   const [waiverOpen, setWaiverOpen] = useState(false);
 
@@ -1082,6 +1140,22 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       })[]) ?? []
     );
     setPaymentsLoading(false);
+
+    // Which of these payments have been corrected — read through the API,
+    // since the audit log is admin-only under RLS and the clerk needs it too.
+    // Keyed by payment id, so a late answer for a student since closed
+    // matches no row on screen.
+    try {
+      const res = await adminFetch(
+        `/api/fees/payments/corrections?student_id=${student.id}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setPaymentCorrections(data.corrections ?? {});
+      }
+    } catch {
+      // The marker is a courtesy; the history still loads without it.
+    }
   }, [supabase, academicYearId]);
 
   // Re-fetch the full Student row by id (the roster select only carries a few
@@ -1114,6 +1188,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     setStudentFeeStructures([]);
     setStudentPayments([]);
     setStudentResults([]);
+    setPaymentCorrections({});
   }, []);
 
   // Closing a student also drops ?student_id. The dues register links here
@@ -2127,54 +2202,69 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     }
   };
 
-  const handleChangePaymentDate = async () => {
-    if (!dateEditPayment || !selectedStudent) return;
-    const { payment_date, reason } = dateEditForm;
-    if (!payment_date) {
+  const openCorrectPayment = (p: (typeof studentPayments)[number]) => {
+    setCorrectPayment(p);
+    setCorrectForm({
+      payment_date: p.payment_date ?? todayISO(),
+      payment_method: p.payment_method,
+      // The month picker takes YYYY-MM. A day-book import stored "APR"-style
+      // months; those start blank and are shown as the current value.
+      month: /^\d{4}-\d{2}$/.test(p.month ?? "") ? (p.month as string) : "",
+      reason: "",
+      cheque_number: p.cheque_number ?? "",
+      cheque_date: p.cheque_date ?? "",
+      bank_name: p.bank_name ?? "",
+      payer_name: p.payer_name ?? "",
+      transaction_ref: p.transaction_ref ?? "",
+      payment_provider: p.payment_provider ?? "",
+    });
+  };
+
+  const handleCorrectPayment = async () => {
+    if (!correctPayment || !selectedStudent) return;
+    const f = correctForm;
+    const p = correctPayment;
+    if (!f.payment_date) {
       toast.error("Please enter the payment date");
       return;
     }
-    if (payment_date > todayISO()) {
+    if (f.payment_date > todayISO()) {
       toast.error("Payment date cannot be in the future");
       return;
     }
-    if (reason.trim().length < 5) {
+    if (f.reason.trim().length < 5) {
       toast.error("Reason is required (min 5 chars)");
       return;
     }
-    setDateEditSubmitting(true);
+    // Send what changed; the server keeps only the details the resulting
+    // method uses and checks them against it.
+    const body: Record<string, unknown> = { reason: f.reason.trim() };
+    if (f.payment_date !== p.payment_date) body.payment_date = f.payment_date;
+    if (f.payment_method !== p.payment_method) body.payment_method = f.payment_method;
+    for (const key of DETAIL_KEYS) body[key] = f[key];
+    if (p.bus_stop_id && f.month && f.month !== (p.month ?? "")) body.month = f.month;
+
+    setCorrectSubmitting(true);
     try {
-      const res = isEditor
-        ? await adminFetch("/api/fees/change-requests", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              target_table: "fee_payments",
-              target_id: dateEditPayment.id,
-              action: "update",
-              proposed_changes: { payment_date },
-              reason: reason.trim(),
-            }),
-          })
-        : await adminFetch(`/api/fees/payments/${dateEditPayment.id}/date`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ payment_date, reason: reason.trim() }),
-          });
+      const res = await adminFetch(`/api/fees/payments/${p.id}/correct`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error ?? "Failed to change payment date");
+        toast.error(data.error ?? "Failed to correct the payment", { duration: 8000 });
         return;
       }
       toast.success(
-        isEditor
-          ? "Change request filed — an admin will review it."
-          : "Payment date updated"
+        data.pending
+          ? "Correction request filed — an admin will review it. The payment stays as it is until then."
+          : "Payment corrected. The change and your reason are in the fee audit log."
       );
-      setDateEditPayment(null);
-      if (!isEditor) selectStudent(selectedStudent);
+      setCorrectPayment(null);
+      selectStudent(selectedStudent);
     } finally {
-      setDateEditSubmitting(false);
+      setCorrectSubmitting(false);
     }
   };
 
@@ -2944,10 +3034,25 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                 </span>
                               )}
                             </TableCell>
-                            <TableCell className="capitalize">
-                              {isDiscountPayment(p)
-                                ? "Discount"
-                                : p.payment_method?.replace("_", " ") ?? "--"}
+                            <TableCell>
+                              <span className="capitalize">
+                                {isDiscountPayment(p)
+                                  ? "Discount"
+                                  : p.payment_method === "historical_unknown"
+                                    ? "Unknown (imported)"
+                                    : p.payment_method?.replace("_", " ") ?? "--"}
+                              </span>
+                              {paymentCorrections[p.id]?.length ? (
+                                <Badge
+                                  variant="outline"
+                                  className="ml-1.5 text-[10px] font-normal"
+                                  title={paymentCorrections[p.id]
+                                    .map(describeCorrection)
+                                    .join("\n")}
+                                >
+                                  Corrected
+                                </Badge>
+                              ) : null}
                             </TableCell>
                             <TableCell className="font-mono text-xs">
                               {p.receipt_number ?? "--"}
@@ -2970,23 +3075,16 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                     <Download className="h-4 w-4" />
                                   )}
                                 </Button>
-                                {p.payment_method !== "waiver" && (
+                                {/* Discounts, gateway payments and refunded
+                                    rows can't be corrected (correctionLockReason). */}
+                                {!correctionLockReason(p) && (
                                   <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    onClick={() => {
-                                      setDateEditPayment({
-                                        id: p.id,
-                                        receipt_number: p.receipt_number,
-                                      });
-                                      setDateEditForm({
-                                        payment_date: p.payment_date ?? todayISO(),
-                                        reason: "",
-                                      });
-                                    }}
+                                    onClick={() => openCorrectPayment(p)}
                                     disabled={userRole === null}
-                                    title="Change payment date"
-                                    aria-label="Change payment date"
+                                    title="Correct this payment — date, payment mode and its details"
+                                    aria-label="Correct payment"
                                   >
                                     <Pencil className="h-4 w-4" />
                                   </Button>
@@ -3723,145 +3821,12 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             {/* Method-specific fields. Only what's relevant to the chosen
                 payment method is rendered, and the corresponding required
                 fields are validated server-side via feePaymentSchema. */}
-            {newPayment.payment_method === "cheque" && (
-              <div className="rounded-xl border border-gray-200 dark:border-border p-3 space-y-3">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Cheque details
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Cheque No.</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="e.g. 412309"
-                      value={newPayment.cheque_number}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, cheque_number: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Cheque Date</Label>
-                    <Input
-                      className="h-9"
-                      type="date"
-                      value={newPayment.cheque_date}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, cheque_date: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Drawee Bank</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="e.g. SBI"
-                      value={newPayment.bank_name}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, bank_name: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Payee Name (optional)</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="As on cheque"
-                      value={newPayment.payer_name}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, payer_name: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {newPayment.payment_method === "bank_transfer" && (
-              <div className="rounded-xl border border-gray-200 dark:border-border p-3 space-y-3">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Bank transfer details
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Originating Bank</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="e.g. HDFC"
-                      value={newPayment.bank_name}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, bank_name: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Payer Name (optional)</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="As on transfer"
-                      value={newPayment.payer_name}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, payer_name: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Transaction Reference (UTR / NEFT)</Label>
-                  <Input
-                    className="h-9"
-                    placeholder="e.g. SBIN0123456789"
-                    value={newPayment.transaction_ref}
-                    onChange={(e) =>
-                      setNewPayment({ ...newPayment, transaction_ref: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-            )}
-
-            {newPayment.payment_method === "online" && (
-              <div className="rounded-xl border border-gray-200 dark:border-border p-3 space-y-3">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Online payment details
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Provider</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="PhonePe / GPay / Paytm / Razorpay"
-                      list="payment-providers"
-                      value={newPayment.payment_provider}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, payment_provider: e.target.value })
-                      }
-                    />
-                    <datalist id="payment-providers">
-                      <option value="PhonePe" />
-                      <option value="Google Pay" />
-                      <option value="Paytm" />
-                      <option value="BHIM" />
-                      <option value="Razorpay" />
-                      <option value="Other" />
-                    </datalist>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Transaction ID</Label>
-                    <Input
-                      className="h-9"
-                      placeholder="UPI / order id"
-                      value={newPayment.transaction_ref}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, transaction_ref: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+            <PaymentMethodFields
+              method={newPayment.payment_method}
+              value={newPayment}
+              onChange={(patch) => setNewPayment({ ...newPayment, ...patch })}
+              idPrefix="record"
+            />
 
             <Button
               onClick={handleRecordPayment}
@@ -3881,64 +3846,131 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Change Payment Date — also serves the editor "request a change" flow */}
+      {/* Correct Payment — also serves the editor "request a correction" flow */}
       <Dialog
-        open={dateEditPayment !== null}
+        open={correctPayment !== null}
         onOpenChange={(open) => {
-          if (!open) setDateEditPayment(null);
+          if (!open) setCorrectPayment(null);
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {isEditor ? "Request Date Change" : "Change Payment Date"}
+              {isEditor ? "Request a Correction" : "Correct Payment"}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {isEditor
-                ? "Your request goes to an admin, who sees the current date and yours side by side. The payment keeps its date until it is approved."
-                : `The day the parent paid${
-                    dateEditPayment?.receipt_number
-                      ? ` for receipt ${dateEditPayment.receipt_number}`
-                      : ""
-                  }. The change and your reason are kept in the fee audit log.`}
-            </p>
-            <div>
-              <Label className="text-sm font-medium">Payment Date</Label>
-              <Input
-                type="date"
-                required
-                max={todayISO()}
-                value={dateEditForm.payment_date}
-                onChange={(e) =>
-                  setDateEditForm((p) => ({ ...p, payment_date: e.target.value }))
-                }
-                className="mt-1"
+          {correctPayment && (
+            <div className="space-y-4 py-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {isEditor
+                  ? "Your correction goes to an admin, who sees the current entry and yours side by side. The payment stays as it is until it is approved."
+                  : `Fix how ${
+                      correctPayment.receipt_number
+                        ? `receipt ${correctPayment.receipt_number}`
+                        : "this payment"
+                    } was recorded. The change and your reason are kept in the fee audit log, and the receipt notes the correction.`}
+              </p>
+              <div className="rounded-md border bg-gray-50 dark:bg-muted/40 px-3 py-2 text-xs text-gray-600 dark:text-gray-300">
+                Currently:{" "}
+                <span className="font-medium capitalize">
+                  {correctPayment.payment_method === "historical_unknown"
+                    ? "Unknown (imported)"
+                    : correctPayment.payment_method.replace("_", " ")}
+                </span>
+                {" · "}
+                {correctPayment.payment_date ?? "no date"}
+                {correctPayment.bus_stop_id && (
+                  <> · For {formatFeeMonth(correctPayment.month) ?? "no month"}</>
+                )}
+                {" · "}
+                {new Intl.NumberFormat("en-IN", {
+                  style: "currency",
+                  currency: "INR",
+                  maximumFractionDigits: 0,
+                }).format(correctPayment.amount_paid)}
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Payment Date</Label>
+                  <Input
+                    className="h-9"
+                    type="date"
+                    required
+                    max={todayISO()}
+                    value={correctForm.payment_date}
+                    onChange={(e) =>
+                      setCorrectForm((f) => ({ ...f, payment_date: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Payment Method</Label>
+                  <NativeSelect
+                    value={correctForm.payment_method}
+                    onChange={(e) =>
+                      setCorrectForm((f) => ({ ...f, payment_method: e.target.value }))
+                    }
+                    className="w-full"
+                  >
+                    {/* An imported entry keeps "unknown" until someone
+                        knows better; it is not one of the choices otherwise. */}
+                    {correctPayment.payment_method === "historical_unknown" && (
+                      <option value="historical_unknown">Unknown (imported)</option>
+                    )}
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m} value={m}>
+                        {m.charAt(0).toUpperCase() + m.slice(1).replace("_", " ")}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+              </div>
+              {correctPayment.bus_stop_id && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">For Month</Label>
+                  <Input
+                    className="h-9"
+                    type="month"
+                    value={correctForm.month}
+                    onChange={(e) =>
+                      setCorrectForm((f) => ({ ...f, month: e.target.value }))
+                    }
+                  />
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    The month this bus fee was for. Moving it to a month that is
+                    already paid is refused.
+                  </p>
+                </div>
+              )}
+              <PaymentMethodFields
+                method={correctForm.payment_method}
+                value={correctForm}
+                onChange={(patch) => setCorrectForm((f) => ({ ...f, ...patch }))}
+                idPrefix="correct"
               />
+              <div>
+                <Label className="text-sm font-medium">Reason</Label>
+                <textarea
+                  value={correctForm.reason}
+                  onChange={(e) =>
+                    setCorrectForm((f) => ({ ...f, reason: e.target.value }))
+                  }
+                  rows={3}
+                  placeholder="e.g. Recorded as cash, but the parent paid by cheque no. 412309…"
+                  className="mt-1 w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">Min 5 chars.</p>
+              </div>
             </div>
-            <div>
-              <Label className="text-sm font-medium">Reason</Label>
-              <textarea
-                value={dateEditForm.reason}
-                onChange={(e) =>
-                  setDateEditForm((p) => ({ ...p, reason: e.target.value }))
-                }
-                rows={3}
-                placeholder="e.g. Cheque received on Friday, entered on Monday…"
-                className="mt-1 w-full rounded-md border border-gray-200 dark:border-border bg-white dark:bg-muted px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
-              />
-              <p className="text-[10px] text-gray-500 mt-1">Min 5 chars.</p>
-            </div>
-          </div>
+          )}
           <div className="flex justify-end gap-2">
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
             <Button
-              onClick={handleChangePaymentDate}
-              disabled={dateEditSubmitting || userRole === null}
+              onClick={handleCorrectPayment}
+              disabled={correctSubmitting || userRole === null}
               className="bg-navy-900 hover:bg-navy-800 text-white dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-900"
             >
-              {dateEditSubmitting ? (
+              {correctSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Saving...
@@ -3946,7 +3978,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
               ) : isEditor ? (
                 "Submit Request"
               ) : (
-                "Save Date"
+                "Save Correction"
               )}
             </Button>
           </div>

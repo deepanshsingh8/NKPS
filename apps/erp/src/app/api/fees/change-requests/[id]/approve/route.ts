@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminWithUser } from "@nkps/shared/lib/verify-admin";
 import { feeChangeRequestReviewSchema } from "@nkps/shared/lib/validations";
-import { todayISO } from "@nkps/shared/lib/date";
 import { generateReceiptNumber } from "@nkps/shared/lib/password";
 import { validateWaiver } from "@/lib/fee-waiver";
+import { correctionColumnsIn, validateCorrection } from "@/lib/payment-correction";
 import {
   describeVerdict,
   isRefundRequest,
@@ -312,13 +312,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
         );
       }
     }
-    if ("payment_date" in patch) {
-      const d = String(patch.payment_date);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d > todayISO()) {
-        await revert("invalid payment_date");
+    // A correction (date, mode and its details, transport month) is checked
+    // again here with the rules it was filed under: the payment may have been
+    // refunded since, and a mode change must still carry the details that
+    // mode needs. Approving a cash → cheque change with no cheque number used
+    // to go straight through.
+    const correction = correctionColumnsIn(patch);
+    if (correction.length > 0) {
+      const subset = Object.fromEntries(correction.map((k) => [k, patch[k]]));
+      const problem = await validateCorrection(admin, liveRow, subset);
+      if (problem) {
+        await revert(`correction rejected: ${problem}`);
         return NextResponse.json(
-          { error: "Proposed payment date must be a valid date, not in the future." },
-          { status: 400 }
+          { error: `This correction can't be applied: ${problem}` },
+          { status: 409 }
         );
       }
     }

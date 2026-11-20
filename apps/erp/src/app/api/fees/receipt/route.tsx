@@ -12,6 +12,7 @@ import {
   isDiscountPayment,
   paymentDisplayAmount,
 } from "@/lib/fees";
+import { CORRECTION_COLUMNS } from "@/lib/payment-correction";
 
 export const runtime = "nodejs";
 
@@ -165,6 +166,25 @@ export async function GET(request: Request) {
 
     const logoData = await loadLogo();
 
+    // The latest correction of this payment's date, mode, details or month,
+    // if any — printed so a re-downloaded receipt says it differs from the
+    // one first handed over.
+    const { data: auditRows } = await admin
+      .from("fee_change_audit_log")
+      .select("before_snapshot, after_snapshot, performed_at")
+      .eq("target_table", "fee_payments")
+      .eq("target_id", payment.id)
+      .eq("action", "update")
+      .order("performed_at", { ascending: false });
+    const correctedAt =
+      (auditRows ?? []).find((r) => {
+        const before = (r.before_snapshot ?? {}) as Record<string, unknown>;
+        const after = (r.after_snapshot ?? {}) as Record<string, unknown>;
+        return CORRECTION_COLUMNS.some(
+          (c) => JSON.stringify(before[c] ?? null) !== JSON.stringify(after[c] ?? null)
+        );
+      })?.performed_at ?? null;
+
     const buffer = await renderToBuffer(
       <FeeReceiptPDF
         school={{
@@ -198,6 +218,7 @@ export async function GET(request: Request) {
           payer_name: payment.payer_name ?? null,
           transaction_ref: payment.transaction_ref ?? null,
           payment_provider: payment.payment_provider ?? null,
+          corrected_at: (correctedAt as string | null) ?? null,
           student: {
             full_name: student.full_name,
             admission_no: student.admission_no,

@@ -3,6 +3,11 @@ import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import { feePaymentSchema } from "@nkps/shared/lib/validations";
 import { generateReceiptNumber } from "@nkps/shared/lib/password";
 import { todayISO } from "@nkps/shared/lib/date";
+import {
+  type FeeTarget,
+  resolveExpectedAmount,
+  settledForPeriod,
+} from "@/lib/fee-payment-guards";
 
 export async function POST(request: Request) {
   try {
@@ -52,68 +57,14 @@ export async function POST(request: Request) {
     //   2. Downgrade an over-eager 'paid' request to 'partial' when the
     //      caller paid less than the target amount.
     let status: "paid" | "partial" = requestedStatus ?? "paid";
-    let expected: number;
-    let academicYearId: string;
-    const targetLabel = bus_stop_id ? "bus stop fee" : "fee structure";
-
-    if (bus_stop_id) {
-      // Resolve the student's current transport config so the expected amount
-      // matches what they actually owe: the stop's flat fee, or their one-side
-      // custom override. The enrollment also supplies the academic year (stops
-      // are not year-scoped; their fee is).
-      const { data: enrollment } = await admin
-        .from("student_enrollments")
-        .select(
-          "academic_year_id, transport_direction, transport_fee_override, bus_stop_id"
-        )
-        .eq("student_id", student_id)
-        .eq("has_transport", true)
-        .order("enrollment_date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!enrollment || !enrollment.academic_year_id) {
-        return NextResponse.json(
-          { error: "Student has no active transport enrollment" },
-          { status: 400 }
-        );
-      }
-      academicYearId = enrollment.academic_year_id as string;
-      const isOneSide =
-        (enrollment.transport_direction as string) !== "both" &&
-        enrollment.transport_fee_override != null;
-      if (isOneSide) {
-        expected = Number(enrollment.transport_fee_override);
-      } else {
-        const { data: stopFee } = await admin
-          .from("bus_stop_fees")
-          .select("amount")
-          .eq("bus_stop_id", bus_stop_id)
-          .eq("academic_year_id", academicYearId)
-          .eq("is_active", true)
-          .maybeSingle();
-        if (!stopFee) {
-          return NextResponse.json(
-            { error: "No active fee is defined for this bus stop" },
-            { status: 400 }
-          );
-        }
-        expected = Number(stopFee.amount);
-      }
-    } else {
-      const { data: structure } = await admin
-        .from("fee_structures")
-        .select("amount, academic_year_id")
-        .eq("id", fee_structure_id!)
-        .maybeSingle();
-      if (!structure) {
-        return NextResponse.json(
-          { error: "Fee structure not found" },
-          { status: 400 }
-        );
-      }
-      expected = Number(structure.amount);
-      academicYearId = structure.academic_year_id as string;
+    const target: FeeTarget = bus_stop_id
+      ? { bus_stop_id }
+      : { fee_structure_id: fee_structure_id! };
+    const resolved = await resolveExpectedAmount(admin, student_id, target);
+    if (!resolved.ok) {
+      return NextResponse.json({ error: resolved.error }, { status: resolved.status });
     }
+    const { expected, academicYearId, label: targetLabel } = resolved;
 
     if (Number.isFinite(expected) && amount_paid > expected) {
       return NextResponse.json(
@@ -132,25 +83,11 @@ export async function POST(request: Request) {
     // month), net of refunds, and reject if this payment would push the total
     // past `expected`.
     if (Number.isFinite(expected)) {
-      let settledQuery = admin
-        .from("fee_payments")
-        .select("amount_paid, refund_amount, waiver_amount")
-        .eq("student_id", student_id)
-        .in("status", ["paid", "partial", "refunded"]);
-      settledQuery = bus_stop_id
-        ? settledQuery.eq("bus_stop_id", bus_stop_id)
-        : settledQuery.eq("fee_structure_id", fee_structure_id!);
-      settledQuery = month
-        ? settledQuery.eq("month", month)
-        : settledQuery.is("month", null);
-      const { data: priorRows } = await settledQuery;
-      const alreadySettled = (priorRows ?? []).reduce(
-        (sum, p) =>
-          sum +
-          Math.max(0, Number(p.amount_paid) - Number(p.refund_amount ?? 0)) +
-          Number(p.waiver_amount ?? 0),
-        0
-      );
+      const alreadySettled = await settledForPeriod(admin, {
+        student_id,
+        target,
+        month: month || null,
+      });
       // Round to paise to avoid float noise on numeric(10,2) values.
       const cumulative = Math.round((alreadySettled + amount_paid) * 100) / 100;
       if (cumulative > expected + 0.005) {
