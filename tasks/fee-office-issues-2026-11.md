@@ -67,13 +67,22 @@ Code only, with no database access. Each item is a commit on
 | **Issue 2** (2a–2e) | Month chips in Record Payment. `months[]` is split oldest month first (`allocateAcrossMonths`), one row per month in one insert, tied by `payment_group_id`, with suffixed receipt numbers and one combined receipt. A month is now required. The transport card shows each month. |
 | **Issue 3** (3a–3f) | `computeInstalmentLedger()` matches `computeDuesBreakdown()` to the paisa (randomised check over 3,000 students). A **Quarter-wise** tab on Dues & No-Dues (due till today / whole session, CSV). A Discount column. Per-instalment position on each fee card, and "Unpaid by quarter". "Spread across unpaid" discounts. Change or remove a discount via `PATCH/DELETE /api/fees/discounts/[id]`. |
 
-**Decisions taken with the recommended defaults** (say if any should change):
-D1 fee change requests (confirmed by the data); D2 a discount on a paid
-instalment is spread over the unpaid ones, with no credit balance; D3 admins
-correct payments directly (audited), editors through approval; D4 quarters
-by due date, Apr–Jun = Q1; D5 duplicates are rejected by hand ("Select
-duplicates"), and migration 139 skips its index while any remain; D6 several
-tuition instalments on one receipt — **not built**, ask if wanted.
+**Decisions — confirmed by the school on 20 Nov:**
+- D1: the request the Vice Principal couldn't approve (Shagun) was on Fee
+  Change Requests.
+- D2: a discount on a paid instalment is spread over the unpaid ones, in
+  proportion to what each owes, with no credit balance.
+- D3: admins correct a payment's mode directly (audited); the clerk asks
+  for approval.
+- D4: quarters by due date, Apr–Jun = Q1.
+- D5: an admin rejects the duplicates ("Select duplicates"); migration 139
+  skips its index while any remain.
+- D6: **yes**: one receipt can cover several instalments and bus months
+  together, money clearing the oldest due first and only the last-due fee
+  part-paid. Built: Record Payment's "Fees being paid" checklist,
+  `items[]` on `POST /api/fees/payments`, `allocateOldestFirst()`, and the
+  receipt listing each fee.
+- A bus payment must name its month(s).
 
 **To deploy:**
 1. Run `scripts/migrations/erp/migration-139-payment-groups.sql` in the

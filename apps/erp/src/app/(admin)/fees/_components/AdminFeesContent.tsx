@@ -81,8 +81,9 @@ import {
   feeMonthSortKey,
   sessionMonths,
   transportMonthLedger,
-  allocateAcrossMonths,
+  allocateOldestFirst,
   formatMonthSpan,
+  type CollectionAllocation,
   computeInstalmentLedger,
   type InstalmentLedger,
   type InstalmentPosition,
@@ -1265,11 +1266,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     // or "stop:<uuid>" (bus_stop_id); we decode at submit time. Keeps the state
     // model simple and the UI single-select even though the underlying FK lives
     // on two columns.
-    fee_target: "",
+    // What this payment is for: any mix of instalments (fee structure ids)
+    // and months of the student's bus fee (YYYY-MM). One receipt for all.
+    fs_ids: [] as string[],
     amount_paid: "",
     payment_method: "cash" as (typeof PAYMENT_METHODS)[number],
-    month: "",
-    // Transport: the bus months this payment covers (YYYY-MM).
     months: [] as string[],
     payment_date: todayISO(),
     cheque_number: "",
@@ -2396,37 +2397,84 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     return m;
   }, [selectedLedger]);
 
-  // The ticked months, priced: the amount they owe and how the typed amount
-  // would split across them. The route runs the same allocateAcrossMonths().
-  const monthPreview = useMemo(() => {
-    if (!newPayment.fee_target.startsWith("stop:")) return null;
-    const picked = newPayment.months
-      .map((m) => transportMonthByKey.get(m))
-      .filter((tm): tm is TransportMonthStatus => Boolean(tm));
-    const amount = parseFloat(newPayment.amount_paid);
-    if (picked.length === 0) return { ok: false as const, error: "Tick the month(s) this payment is for." };
-    if (!Number.isFinite(amount) || amount <= 0) return null;
-    const result = allocateAcrossMonths(
-      amount,
-      picked.map((tm) => ({ month: tm.month, remaining: tm.remaining }))
-    );
-    return result;
-  }, [newPayment.fee_target, newPayment.months, newPayment.amount_paid, transportMonthByKey]);
+  // Every instalment the payment form offers, with what it still owes. A
+  // legacy recurring row is charged per period, so it offers one period.
+  const payableInstalments = useMemo(
+    () =>
+      applicableFeeLines
+        .filter((l) => l.kind === "fee_structure")
+        .map((line) => {
+          const row = ledgerRowByLine.get(line.id)?.[0];
+          const remaining = Math.max(
+            0,
+            Math.min(Number(line.amount), row ? row.outstanding : Number(line.amount))
+          );
+          return { line, row, remaining: Math.round(remaining * 100) / 100 };
+        }),
+    [applicableFeeLines, ledgerRowByLine]
+  );
 
-  // Ticking or unticking a month re-prices the payment at what the ticked
-  // months still owe; the amount can then be lowered for a part-payment.
+  // Everything ticked, priced, and how the typed amount would split across
+  // it — oldest due first, only the last-due part-paid. The payments route
+  // runs the same allocateOldestFirst() on the same figures.
+  const collectionItems = useMemo(() => {
+    const items: Array<{ key: string; label: string; due: string; remaining: number }> = [];
+    for (const id of newPayment.fs_ids) {
+      const it = payableInstalments.find((p) => p.line.id === id);
+      if (!it) continue;
+      items.push({
+        key: `fs:${id}`,
+        label: feeLineLabel(it.line),
+        due: it.line.due_date ?? academicYearRange?.start_date ?? "",
+        remaining: it.remaining,
+      });
+    }
+    for (const m of newPayment.months) {
+      const tm = transportMonthByKey.get(m);
+      if (!tm) continue;
+      items.push({
+        key: `bus:${m}`,
+        label: `Transport — ${formatFeeMonth(m)}`,
+        due: `${m}-01`,
+        remaining: tm.remaining,
+      });
+    }
+    return items;
+  }, [newPayment.fs_ids, newPayment.months, payableInstalments, transportMonthByKey, academicYearRange]);
+
+  const collectionPreview = useMemo<CollectionAllocation | null>(() => {
+    if (collectionItems.length === 0) {
+      return { ok: false, error: "Tick what this payment is for." };
+    }
+    const amount = parseFloat(newPayment.amount_paid);
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    return allocateOldestFirst(amount, collectionItems, { one: "fee", many: "fees" });
+  }, [collectionItems, newPayment.amount_paid]);
+
+  // Ticking or unticking re-prices the payment at what everything ticked
+  // still owes; the amount can then be lowered for a part-payment.
+  const repriced = (fsIds: string[], months: string[]) => {
+    const owed =
+      fsIds.reduce(
+        (sum, id) => sum + (payableInstalments.find((p) => p.line.id === id)?.remaining ?? 0),
+        0
+      ) + months.reduce((sum, m) => sum + (transportMonthByKey.get(m)?.remaining ?? 0), 0);
+    return owed > 0 ? String(Math.round(owed * 100) / 100) : "";
+  };
+  const toggleInstalment = (id: string, on: boolean) => {
+    const fsIds = on
+      ? [...new Set([...newPayment.fs_ids, id])]
+      : newPayment.fs_ids.filter((x) => x !== id);
+    setNewPayment({ ...newPayment, fs_ids: fsIds, amount_paid: repriced(fsIds, newPayment.months) });
+  };
   const toggleTransportMonth = (month: string) => {
     const nextMonths = newPayment.months.includes(month)
       ? newPayment.months.filter((m) => m !== month)
       : [...newPayment.months, month].sort();
-    const owed = nextMonths.reduce(
-      (sum, m) => sum + (transportMonthByKey.get(m)?.remaining ?? 0),
-      0
-    );
     setNewPayment({
       ...newPayment,
       months: nextMonths,
-      amount_paid: owed > 0 ? String(Math.round(owed * 100) / 100) : "",
+      amount_paid: repriced(newPayment.fs_ids, nextMonths),
     });
   };
 
@@ -3006,8 +3054,12 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       toast.error("Please enter a valid amount");
       return;
     }
-    if (!newPayment.fee_target) {
-      toast.error("Please select a fee");
+    if (newPayment.fs_ids.length === 0 && newPayment.months.length === 0) {
+      toast.error("Tick what this payment is for");
+      return;
+    }
+    if (collectionPreview && !collectionPreview.ok) {
+      toast.error(collectionPreview.error);
       return;
     }
     if (!newPayment.payment_date) {
@@ -3018,17 +3070,14 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       toast.error("Payment date cannot be in the future");
       return;
     }
-    // Decode the dropdown value: "fs:<uuid>" → fee_structure_id,
-    // "stop:<uuid>" → bus_stop_id. Server enforces the XOR.
-    const [kind, id] = newPayment.fee_target.split(":");
-    if (kind === "stop" && monthPreview && !monthPreview.ok) {
-      toast.error(monthPreview.error);
-      return;
-    }
-    const fkPayload =
-      kind === "stop"
-        ? { bus_stop_id: id }
-        : { fee_structure_id: id };
+    // Instalments by id (their month comes from the schedule); bus months
+    // against the student's stop.
+    const items = [
+      ...newPayment.fs_ids.map((id) => ({ fee_structure_id: id })),
+      ...(transportLine
+        ? newPayment.months.map((m) => ({ bus_stop_id: transportLine.id, month: m }))
+        : []),
+    ];
 
     setPaymentSubmitting(true);
     const m = newPayment.payment_method;
@@ -3037,14 +3086,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         student_id: selectedStudent.id,
-        ...fkPayload,
         amount_paid: amount,
         payment_method: m,
-        // A bus fee names its months; an instalment's month comes from the
-        // schedule.
-        ...(kind === "stop"
-          ? { months: newPayment.months }
-          : { month: newPayment.month || "" }),
+        items,
         payment_date: newPayment.payment_date,
         // Only send the fields that apply to the chosen method. Sending
         // the rest as empty strings is fine — the schema treats empty as
@@ -3072,12 +3116,10 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       toast.error(data.error || "Failed to record payment");
     } else {
       // The office takes fees in a queue: offer the next student right here.
-      const coveredMonths = ((data.payments ?? []) as Array<{ month: string | null }>)
-        .map((r) => r.month)
-        .filter((m): m is string => Boolean(m && /^\d{4}-\d{2}$/.test(m)));
+      const rowsRecorded = ((data.payments ?? []) as unknown[]).length;
       toast.success(
         `Payment recorded${
-          coveredMonths.length > 0 ? ` for ${formatMonthSpan(coveredMonths)}` : ""
+          rowsRecorded > 1 ? ` for ${rowsRecorded} fees on one receipt` : ""
         }. Receipt: ${data.payment.receipt_number}`,
         {
         duration: 8000,
@@ -3086,10 +3128,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       );
       setRecordPaymentOpen(false);
       setNewPayment({
-        fee_target: "",
+        fs_ids: [],
         amount_paid: "",
         payment_method: "cash",
-        month: "",
         months: [],
         payment_date: todayISO(),
         cheque_number: "",
@@ -4519,67 +4560,114 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             </div>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Fee</Label>
-              <NativeSelect
-                value={newPayment.fee_target}
-                onChange={(e) => {
-                  // A scheduled instalment already says which period it
-                  // covers ("April, 2026"), so Month comes from the schedule
-                  // rather than the clerk. Switching fees resets it, so one
-                  // fee's month never rides along onto another.
-                  const [kind, id] = e.target.value.split(":");
-                  const picked =
-                    kind === "fs"
-                      ? applicableFeeStructures.find((fs) => fs.id === id)
-                      : undefined;
-                  // A bus fee starts on the earliest month still owing
-                  // (part-paid or due), else the next one to come.
-                  const firstOpen =
-                    kind === "stop"
-                      ? transportMonths.find((tm) => tm.state === "part" || tm.state === "due") ??
-                        transportMonths.find((tm) => tm.state === "upcoming")
-                      : undefined;
-                  setNewPayment({
-                    ...newPayment,
-                    fee_target: e.target.value,
-                    month: picked?.month_label ?? "",
-                    months: firstOpen ? [firstOpen.month] : [],
-                    amount_paid: firstOpen
-                      ? String(firstOpen.remaining)
-                      : picked
-                        ? newPayment.amount_paid
-                        : "",
-                  });
-                }}
-                className="w-full"
-              >
-                <option value="">Select fee</option>
-                {applicableFeeLines.map((line) => {
-                  const isTransport = line.kind === "transport_stop";
-                  const value = `${isTransport ? "stop" : "fs"}:${line.id}`;
-                  const amountText = new Intl.NumberFormat("en-IN", {
-                    style: "currency",
-                    currency: "INR",
-                    maximumFractionDigits: 0,
-                  }).format(line.amount);
-                  // Instalments of the same head are otherwise
-                  // indistinguishable in this list — name and due date are
-                  // what tells the 2nd instalment from the 3rd.
-                  const label = isTransport
-                    ? `Transport — ${line.stop_name} (${amountText})`
-                    : `${feeLineLabel(line)}${
-                        line.stream_id && streamById[line.stream_id]
-                          ? ` (${streamById[line.stream_id]})`
-                          : ""
-                      }${line.due_date ? ` · due ${line.due_date}` : ""} - ${amountText}`;
+            {/* What this payment is for: any mix of instalments and bus
+                months, on one receipt. The money clears the oldest due first;
+                only the last-due one can be part-paid. */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Fees being paid</Label>
+              {payableInstalments.length === 0 && !transportLine && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  No fee is set up for this student&apos;s class yet.
+                </p>
+              )}
+              <div className="space-y-1">
+                {payableInstalments.map(({ line, row, remaining }) => {
+                  const on = newPayment.fs_ids.includes(line.id);
+                  const full = remaining <= 0.005;
                   return (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
+                    <label
+                      key={line.id}
+                      className={cn(
+                        "flex min-h-11 items-start gap-2.5 rounded-md border px-2.5 py-2 text-sm",
+                        full ? "opacity-60" : "cursor-pointer",
+                        on && "border-navy-900 dark:border-gold-500"
+                      )}
+                    >
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={on}
+                        disabled={full}
+                        onCheckedChange={(v) => toggleInstalment(line.id, Boolean(v))}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium">
+                          {feeLineLabel(line)}
+                          {line.stream_id && streamById[line.stream_id]
+                            ? ` (${streamById[line.stream_id]})`
+                            : ""}
+                        </span>
+                        <span className="block text-xs text-gray-500 dark:text-gray-400">
+                          {[
+                            line.due_date ? `Due ${line.due_date}` : null,
+                            row?.quarter ? `Q${row.quarter}` : null,
+                            full ? "Paid" : `${inr(remaining)} to pay`,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      </span>
+                    </label>
                   );
                 })}
-              </NativeSelect>
+              </div>
+              {/* The student's bus fee, month by month. */}
+              {transportLine && (
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-xs text-gray-600 dark:text-gray-300">
+                    Bus fee — {transportLine.stop_name} ({inr(transportLine.amount)} a month)
+                  </p>
+                  {transportMonths.length === 0 ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      The session&apos;s dates aren&apos;t set, so its months can&apos;t be listed.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {transportMonths.map((tm) => {
+                        const on = newPayment.months.includes(tm.month);
+                        return (
+                          <button
+                            key={tm.month}
+                            type="button"
+                            disabled={tm.state === "paid"}
+                            onClick={() => toggleTransportMonth(tm.month)}
+                            title={TRANSPORT_MONTH_TITLE(tm)}
+                            aria-pressed={on}
+                            className={cn(
+                              "min-h-9 rounded-md border px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed",
+                              on
+                                ? "border-navy-900 bg-navy-900 text-white dark:border-gold-500 dark:bg-gold-500 dark:text-navy-900"
+                                : TRANSPORT_MONTH_CLASS[tm.state]
+                            )}
+                          >
+                            {shortMonth(tm.month)}
+                            {tm.state === "paid" ? " ✓" : tm.state === "part" ? " · part" : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+              {collectionPreview && (
+                <p
+                  className={cn(
+                    "text-[11px]",
+                    collectionPreview.ok
+                      ? "text-gray-500 dark:text-gray-400"
+                      : "text-amber-700 dark:text-amber-400"
+                  )}
+                >
+                  {collectionPreview.ok
+                    ? (() => {
+                        const labels = new Map(collectionItems.map((it) => [it.key, it.label]));
+                        const part = collectionPreview.slices.find((sl) => !sl.full);
+                        return `One receipt covering ${collectionPreview.slices.length} fee${
+                          collectionPreview.slices.length === 1 ? "" : "s"
+                        }${part ? ` — ${labels.get(part.key)} part-paid` : ""}.`;
+                      })()
+                    : collectionPreview.error}
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
@@ -4587,7 +4675,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 <Input
                   className="h-9"
                   type="number"
-                  placeholder="Enter amount"
+                  placeholder="Fills in from what is ticked"
                   value={newPayment.amount_paid}
                   onChange={(e) =>
                     setNewPayment({ ...newPayment, amount_paid: e.target.value })
@@ -4614,83 +4702,20 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                 </NativeSelect>
               </div>
             </div>
-            {/* The day the parent paid, not the day it was keyed in. Months
-                are asked for transport only (below): a stop's fee is charged
-                per month and carries no schedule to say which one, whereas an
-                instalment's month already comes from the schedule. */}
-            <div className="grid grid-cols-1 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium">Payment Date</Label>
-                <Input
-                  className="h-9"
-                  type="date"
-                  required
-                  max={todayISO()}
-                  value={newPayment.payment_date}
-                  onChange={(e) =>
-                    setNewPayment({ ...newPayment, payment_date: e.target.value })
-                  }
-                />
-              </div>
+            {/* The day the parent paid, not the day it was keyed in. */}
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Payment Date</Label>
+              <Input
+                className="h-9"
+                type="date"
+                required
+                max={todayISO()}
+                value={newPayment.payment_date}
+                onChange={(e) =>
+                  setNewPayment({ ...newPayment, payment_date: e.target.value })
+                }
+              />
             </div>
-            {/* Bus fee: tick every month this payment covers. One payment,
-                one receipt; stored as one row per month, oldest first, so
-                every month but the last is paid in full. */}
-            {newPayment.fee_target.startsWith("stop:") && (
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Months</Label>
-                {transportMonths.length === 0 ? (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    The session&apos;s dates aren&apos;t set, so its months can&apos;t be listed.
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {transportMonths.map((tm) => {
-                      const on = newPayment.months.includes(tm.month);
-                      return (
-                        <button
-                          key={tm.month}
-                          type="button"
-                          disabled={tm.state === "paid"}
-                          onClick={() => toggleTransportMonth(tm.month)}
-                          title={TRANSPORT_MONTH_TITLE(tm)}
-                          aria-pressed={on}
-                          className={cn(
-                            "min-h-9 rounded-md border px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed",
-                            on
-                              ? "border-navy-900 bg-navy-900 text-white dark:border-gold-500 dark:bg-gold-500 dark:text-navy-900"
-                              : TRANSPORT_MONTH_CLASS[tm.state]
-                          )}
-                        >
-                          {shortMonth(tm.month)}
-                          {tm.state === "paid" ? " ✓" : tm.state === "part" ? " · part" : ""}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {monthPreview && (
-                  <p
-                    className={cn(
-                      "text-[11px]",
-                      monthPreview.ok
-                        ? "text-gray-500 dark:text-gray-400"
-                        : "text-amber-700 dark:text-amber-400"
-                    )}
-                  >
-                    {monthPreview.ok
-                      ? `Covers ${formatMonthSpan(monthPreview.slices.map((sl) => sl.month))}${
-                          monthPreview.slices.some((sl) => !sl.full)
-                            ? ` — ${formatFeeMonth(
-                                monthPreview.slices[monthPreview.slices.length - 1].month
-                              )} part-paid`
-                            : ""
-                        }.`
-                      : monthPreview.error}
-                  </p>
-                )}
-              </div>
-            )}
 
             {/* Method-specific fields. Only what's relevant to the chosen
                 payment method is rendered, and the corresponding required

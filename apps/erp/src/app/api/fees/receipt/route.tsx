@@ -171,42 +171,56 @@ export async function GET(request: Request) {
 
     const logoData = await loadLogo();
 
-    // Several bus months taken as one payment (migration 139) are one row per
-    // month but one collection: print them as one receipt, under the shared
-    // receipt number, with the months and the total. Not once any month in
-    // it has been refunded — then each row's receipt has to tell its own story.
+    // A collection (migration 139) — several bus months, several instalments,
+    // or a mix — is one row per fee but one payment: print it as one receipt
+    // under the shared receipt number, listing each fee and the total. Not
+    // once any row in it has been refunded — then each row's receipt has to
+    // tell its own story.
     let collection: {
       receipt_number: string;
       amount: number;
-      month: string;
-      breakdown: string;
+      fee_type: string | null;
+      month: string | null;
+      lines: Array<{ label: string; amount: number; part: boolean }>;
     } | null = null;
     if (payment.payment_group_id) {
       const { data: groupRows } = await admin
         .from("fee_payments")
-        .select("id, month, amount_paid, status, receipt_number")
+        .select(
+          "id, month, amount_paid, status, receipt_number, fee_structure_id, bus_stop_id, fee_structure:fee_structures(fee_type, instalment_name), bus_stop:bus_stops(name)"
+        )
         .eq("payment_group_id", payment.payment_group_id)
         .eq("student_id", payment.student_id);
-      const rows = (groupRows ?? []).sort((a, b) =>
-        String(a.month ?? "").localeCompare(String(b.month ?? ""))
-      );
+      const suffix = (r: { receipt_number: string | null }) =>
+        Number(String(r.receipt_number ?? "").split("/")[1] ?? 0);
+      const rows = (groupRows ?? []).sort((a, b) => suffix(a) - suffix(b));
       if (rows.length > 1 && rows.every((r) => r.status !== "refunded")) {
-        const months = rows.map((r) => String(r.month ?? "")).filter(Boolean);
-        const inr = (n: number) =>
-          `Rs. ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(n)}`;
+        const allBus = rows.every((r) => r.bus_stop_id);
+        const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? v[0] ?? null : v);
         collection = {
           receipt_number: String(payment.receipt_number ?? "").replace(/\/\d+$/, ""),
           amount:
             Math.round(rows.reduce((sum, r) => sum + Number(r.amount_paid), 0) * 100) / 100,
-          month: formatMonthSpan(months),
-          breakdown: rows
-            .map(
-              (r) =>
-                `${formatFeeMonth(r.month as string | null) ?? "—"} ${inr(Number(r.amount_paid))}${
-                  r.status === "partial" ? " (part)" : ""
-                }`
-            )
-            .join(" · "),
+          // Bus months alone keep the familiar "Transport — Stop · For April –
+          // June 2026"; a mix is listed line by line instead.
+          fee_type: allBus ? null : "Several fees (listed below)",
+          month: allBus
+            ? formatMonthSpan(rows.map((r) => String(r.month ?? "")).filter(Boolean))
+            : null,
+          lines: rows.map((r) => {
+            type FsEmbed = { fee_type: string; instalment_name: string | null };
+            const fs = one(r.fee_structure as unknown as FsEmbed | FsEmbed[] | null);
+            const stop = one(r.bus_stop as unknown as { name: string } | { name: string }[] | null);
+            return {
+              label: r.bus_stop_id
+                ? `${allBus ? "" : `Transport${stop?.name ? ` (${stop.name})` : ""} — `}${formatFeeMonth(r.month as string | null) ?? "—"}`
+                : fs
+                  ? feeLineLabel(fs)
+                  : "Fee",
+              amount: Number(r.amount_paid),
+              part: r.status === "partial",
+            };
+          }),
         };
       }
     }
@@ -247,7 +261,7 @@ export async function GET(request: Request) {
             payment.receipt_number ??
             payment.id.slice(0, 8).toUpperCase(),
           payment_date: payment.payment_date,
-          fee_type: feeTypeLabel,
+          fee_type: collection?.fee_type ?? feeTypeLabel,
           // A discount's value lives in waiver_amount; its amount_paid is 0.
           amount: collection?.amount ?? paymentDisplayAmount(payment),
           payment_method: payment.payment_method,
@@ -259,8 +273,8 @@ export async function GET(request: Request) {
           refunded_at: payment.refunded_at ?? null,
           remarks:
             payment.remarks ??
-            collection?.breakdown ??
             (isDiscountPayment(payment) ? payment.waiver_reason ?? null : null),
+          lines: collection?.lines ?? null,
           cheque_number: payment.cheque_number ?? null,
           cheque_date: payment.cheque_date ?? null,
           bank_name: payment.bank_name ?? null,

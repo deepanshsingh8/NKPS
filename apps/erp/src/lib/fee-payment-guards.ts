@@ -90,6 +90,9 @@ export async function settledForPeriod(
     student_id: string;
     target: FeeTarget;
     month: string | null;
+    /** Count every row for the line, whatever its month — an instalment is
+     *  charged once, so its month is a label, not a period. */
+    anyMonth?: boolean;
     excludePaymentId?: string;
   }
 ): Promise<number> {
@@ -101,7 +104,9 @@ export async function settledForPeriod(
   q = opts.target.bus_stop_id
     ? q.eq("bus_stop_id", opts.target.bus_stop_id)
     : q.eq("fee_structure_id", opts.target.fee_structure_id!);
-  q = opts.month ? q.eq("month", opts.month) : q.is("month", null);
+  if (!opts.anyMonth) {
+    q = opts.month ? q.eq("month", opts.month) : q.is("month", null);
+  }
   const { data } = await q;
   const total = (data ?? [])
     .filter((p) => p.id !== opts.excludePaymentId)

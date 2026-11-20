@@ -250,6 +250,10 @@ export interface FeeReceiptData {
   // re-downloaded after a correction differs from the one first handed over,
   // and has to say so.
   corrected_at?: string | null;
+  // A collection of several fees on one receipt (migration 139): each fee
+  // and the amount taken against it, oldest due first. `part` marks the one
+  // that was part-paid.
+  lines?: Array<{ label: string; amount: number; part: boolean }> | null;
 }
 
 interface Props {
@@ -370,6 +374,16 @@ function Copy({
           {data.month ? `   ·   For ${data.month}` : ""}
         </Text>
       </View>
+      {data.lines && data.lines.length > 1
+        ? data.lines.map((line, i) => (
+            <View style={styles.gridRow} key={`line-${i}`}>
+              <Text style={styles.gridLabel}>{i === 0 ? "Fees Paid" : ""}</Text>
+              <Text style={styles.gridValue}>
+                {`${line.label}${line.part ? " (part)" : ""}   ·   ${formatINR(line.amount)}`}
+              </Text>
+            </View>
+          ))
+        : null}
       <View style={styles.gridRow}>
         <Text style={styles.gridLabel}>Payment Method</Text>
         <Text style={styles.gridValue}>

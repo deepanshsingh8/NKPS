@@ -332,16 +332,64 @@ export function transportMonthLedger(opts: {
   });
 }
 
+export type CollectionAllocation =
+  | { ok: true; slices: Array<{ key: string; amount: number; full: boolean }> }
+  | { ok: false; error: string };
+
+/**
+ * Split one payment across everything ticked for it — tuition instalments,
+ * bus months, any mix — oldest due first, which is what a fee counter does.
+ * Every item but the last-due one must be paid in full; that one may be
+ * part-paid. The form previews with this and the payments route enforces it,
+ * so the two can never disagree.
+ */
+export function allocateOldestFirst(
+  amount: number,
+  items: Array<{ key: string; label: string; due: string; remaining: number }>,
+  noun: { one: string; many: string } = { one: "item", many: "items" }
+): CollectionAllocation {
+  if (items.length === 0) {
+    return { ok: false, error: `Tick what this payment is for.` };
+  }
+  const sorted = [...items].sort(
+    (a, b) => a.due.localeCompare(b.due) || a.key.localeCompare(b.key)
+  );
+  const paid = sorted.find((m) => m.remaining <= 0.005);
+  if (paid) {
+    return { ok: false, error: `${paid.label} is already paid. Untick it.` };
+  }
+  const total = Math.round(sorted.reduce((s, m) => s + m.remaining, 0) * 100) / 100;
+  if (amount > total + 0.005) {
+    return {
+      ok: false,
+      error: `₹${amount} is more than the ${sorted.length} ${
+        sorted.length === 1 ? noun.one : noun.many
+      } ticked still owe (₹${total}). Tick another, or reduce the amount.`,
+    };
+  }
+  const slices: Array<{ key: string; amount: number; full: boolean }> = [];
+  let left = Math.round(amount * 100) / 100;
+  for (const [i, m] of sorted.entries()) {
+    const take = Math.round(Math.min(m.remaining, left) * 100) / 100;
+    if (take <= 0) {
+      const needed =
+        Math.round(sorted.slice(0, i).reduce((s, x) => s + x.remaining, 0) * 100) / 100;
+      return {
+        ok: false,
+        error: `₹${amount} doesn't reach ${m.label}. Untick it, or take more than ₹${needed}.`,
+      };
+    }
+    slices.push({ key: m.key, amount: take, full: take >= m.remaining - 0.005 });
+    left = Math.round((left - take) * 100) / 100;
+  }
+  return { ok: true, slices };
+}
+
 export type MonthAllocation =
   | { ok: true; slices: Array<{ month: string; amount: number; full: boolean }> }
   | { ok: false; error: string };
 
-/**
- * Split one payment across the ticked bus months, oldest first — what a fee
- * counter does. Every month but the last must be paid in full; the last may
- * be part-paid. The form previews with this and the payments route enforces
- * it, so the two can never disagree.
- */
+/** allocateOldestFirst for bus months alone. */
 export function allocateAcrossMonths(
   amount: number,
   months: Array<{ month: string; remaining: number }>
@@ -349,43 +397,21 @@ export function allocateAcrossMonths(
   if (months.length === 0) {
     return { ok: false, error: "Pick the month(s) this bus fee is for." };
   }
-  const sorted = [...months].sort((a, b) => a.month.localeCompare(b.month));
-  const paid = sorted.find((m) => m.remaining <= 0.005);
-  if (paid) {
-    return {
-      ok: false,
-      error: `${formatFeeMonth(paid.month)} is already paid. Untick it.`,
-    };
-  }
-  const total = Math.round(sorted.reduce((s, m) => s + m.remaining, 0) * 100) / 100;
-  if (amount > total + 0.005) {
-    return {
-      ok: false,
-      error: `₹${amount} is more than the ${sorted.length} month${
-        sorted.length === 1 ? "" : "s"
-      } ticked still owe (₹${total}). Tick another month, or reduce the amount.`,
-    };
-  }
-  const slices: Array<{ month: string; amount: number; full: boolean }> = [];
-  let left = Math.round(amount * 100) / 100;
-  for (const m of sorted) {
-    const take = Math.round(Math.min(m.remaining, left) * 100) / 100;
-    if (take <= 0) {
-      const needed =
-        Math.round(
-          sorted
-            .slice(0, sorted.indexOf(m))
-            .reduce((s, x) => s + x.remaining, 0) * 100
-        ) / 100;
-      return {
-        ok: false,
-        error: `₹${amount} doesn't reach ${formatFeeMonth(m.month)}. Untick it, or take more than ₹${needed}.`,
-      };
-    }
-    slices.push({ month: m.month, amount: take, full: take >= m.remaining - 0.005 });
-    left = Math.round((left - take) * 100) / 100;
-  }
-  return { ok: true, slices };
+  const result = allocateOldestFirst(
+    amount,
+    months.map((m) => ({
+      key: m.month,
+      label: formatFeeMonth(m.month) ?? m.month,
+      due: `${m.month}-01`,
+      remaining: m.remaining,
+    })),
+    { one: "month", many: "months" }
+  );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    slices: result.slices.map((sl) => ({ month: sl.key, amount: sl.amount, full: sl.full })),
+  };
 }
 
 /** "April – June 2026", "April, May and July 2026", "December 2026 – January 2027". */

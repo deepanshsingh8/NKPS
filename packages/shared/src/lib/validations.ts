@@ -499,6 +499,20 @@ export const feePaymentSchema = z
       .array(z.string().regex(/^\d{4}-\d{2}$/, "Month must be a month"))
       .max(12, "At most 12 months in one payment")
       .optional(),
+    // One collection covering several fees — tuition instalments and bus
+    // months in any mix, one receipt. Each item names an instalment, or a
+    // bus stop and the month (YYYY-MM). When given, it replaces
+    // fee_structure_id / bus_stop_id / months.
+    items: z
+      .array(
+        z.object({
+          fee_structure_id: z.string().uuid("Invalid fee structure").optional(),
+          bus_stop_id: z.string().uuid("Invalid bus stop").optional(),
+          month: z.string().regex(/^\d{4}-\d{2}$/, "Month must be a month").optional(),
+        })
+      )
+      .max(24, "At most 24 items in one payment")
+      .optional(),
     // The day the money was actually received — a cheque collected on Friday
     // and keyed in on Monday is Friday's collection, not Monday's. The route
     // rejects a date in the future.
@@ -515,6 +529,42 @@ export const feePaymentSchema = z
     payment_provider: optionalTrimmedString,
   })
   .superRefine((val, ctx) => {
+    if (val.items && val.items.length > 0) {
+      if (val.fee_structure_id || val.bus_stop_id || (val.months && val.months.length > 0)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Send either items or a single fee, not both",
+          path: ["items"],
+        });
+      }
+      val.items.forEach((item, i) => {
+        if (Boolean(item.fee_structure_id) === Boolean(item.bus_stop_id)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Each item is an instalment or a bus month",
+            path: ["items", i],
+          });
+        }
+        if (item.bus_stop_id && !item.month) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "A bus fee item names its month",
+            path: ["items", i, "month"],
+          });
+        }
+        if (item.fee_structure_id && item.month) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "An instalment takes its month from the fee schedule",
+            path: ["items", i, "month"],
+          });
+        }
+      });
+      for (const issue of paymentMethodDetailIssues(val)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue.message, path: [issue.path] });
+      }
+      return;
+    }
     const hasFs = Boolean(val.fee_structure_id);
     const hasStop = Boolean(val.bus_stop_id);
     if (hasFs === hasStop) {

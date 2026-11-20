@@ -1324,16 +1324,16 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Pick a class and find the student with the search box.",
           'Click the row, or its "View Fees" button.',
           'Click "Record Payment".',
-          'Choose the instalment in the "Fee" dropdown, enter the "Amount" and pick a "Payment Method".',
+          'Under "Fees being paid", tick everything the parent is paying for: any instalments (each shows what it still owes) and, for a student on the bus, the months under "Bus fee". One payment can mix both.',
+          'The "Amount" fills in with what the ticked fees still owe; lower it to part-pay. Pick a "Payment Method".',
           'Set "Payment Date" to the day the parent paid — it starts at today and cannot be a future date.',
-          'For a transport line, tick every month the parent is paying for under "Months" — the earliest month still owing is ticked for you, and the amount fills in. Lower the amount to part-pay the last month.',
           "Fill the cheque, bank-transfer or online block that appears.",
           'Click "Record Payment" — the toast carries the receipt number.',
         ],
         needs:
           "A fee structure must already exist for that class and stream, or the Fee dropdown is empty and the save fails. A transport line only appears if the student has a stop assigned AND that stop has a fee.",
         gotcha:
-          'The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded. Paid there is cash; Discount is shown on its own, and "Unpaid by quarter" names the quarters still owed. Each fee card shows its quarter, whether it is paid, part paid, due or not yet due, and what was paid, discounted and is still outstanding on it. Several bus months taken together print as one receipt ("For April – June 2026") and appear in Payment History as one row per month, sharing the receipt number with a /1, /2… suffix. A paid month cannot be ticked; every month but the last must be paid in full. The transport card shows each month: green paid, amber part-paid, red due, grey not yet due.',
+          'The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded. Paid there is cash; Discount is shown on its own, and "Unpaid by quarter" names the quarters still owed. Each fee card shows its quarter, whether it is paid, part paid, due or not yet due, and what was paid, discounted and is still outstanding on it. Several fees taken together print as one receipt — bus months alone read "For April – June 2026", a mix lists each fee — and appear in Payment History as one row per fee, sharing the receipt number with a /1, /2… suffix. The money clears the earliest-due fee first: every fee but the last-due one must be paid in full, and only that one can be part-paid. A paid instalment or month cannot be ticked. The transport card shows each month: green paid, amber part-paid, red due, grey not yet due.',
       },
       {
         name: "Move on to the next student",
