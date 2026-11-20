@@ -40,6 +40,8 @@ import { AcademicSessionPicker } from "@nkps/shared/components/AcademicSessionPi
 import { useAcademicSession } from "@nkps/shared/lib/hooks/use-academic-session";
 import { useUrlState } from "@nkps/shared/lib/hooks/use-url-state";
 import { toast } from "sonner";
+import { todayISO } from "@nkps/shared/lib/date";
+import { TransportHistoryPanel } from "./TransportHistoryPanel";
 import {
   Loader2,
   Bus as BusIcon,
@@ -266,6 +268,12 @@ export default function StudentTransportAssignmentsPage() {
   const [overrideFee, setOverrideFee] = useState<string>("");
   const [pickupAddress, setPickupAddress] = useState<string>("");
   const [errors, setErrors] = useState<{ stop?: string; override?: string }>({});
+  // When a change takes effect (migration 140). The bus fee is priced month
+  // by month at the arrangement in force, so a change needs its date — the
+  // screen used to overwrite the assignment with none, which priced a new
+  // stop back to April and erased a dropped student's months ridden.
+  const [effectiveFrom, setEffectiveFrom] = useState<string>("");
+  const [removeEffectiveFrom, setRemoveEffectiveFrom] = useState<string>("");
 
   // Stop assignments and stop fees are both year-scoped, so which session is
   // on screen decides what this page means.
@@ -569,8 +577,20 @@ export default function StudentTransportAssignmentsPage() {
   // Dialog handlers
   // -------------------------------------------------------------------------
 
+  // Today, kept inside the session on screen (a past session's change is
+  // dated within it).
+  const defaultEffectiveDate = useCallback(() => {
+    const today = todayISO();
+    const start = activeYear?.start_date?.slice(0, 10) ?? null;
+    const end = activeYear?.end_date?.slice(0, 10) ?? null;
+    if (start && today < start) return start;
+    if (end && today > end) return end;
+    return today;
+  }, [activeYear]);
+
   const openEdit = (row: EnrollmentRow) => {
     setEditing(row);
+    setEffectiveFrom(defaultEffectiveDate());
     setHasTransport(row.has_transport);
     setBusStopId(row.bus_stop_id ?? "");
     setBusId(row.bus_id ?? "");
@@ -620,19 +640,22 @@ export default function StudentTransportAssignmentsPage() {
     if (!removing) return;
     setRemoveSubmitting(true);
 
-    const result = await adminApi({
-      action: "update",
-      table: "student_enrollments",
-      data: {
+    // Off the bus from a date: the months before it stay billed.
+    const res = await adminFetch(`/api/transport/assignments/${removing.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: "change",
+        effective_from: removeEffectiveFrom || defaultEffectiveDate(),
         has_transport: false,
-        bus_stop_id: null,
-        bus_id: null,
         transport_direction: "both",
-        transport_fee_override: null,
         pickup_address: null,
-      },
-      match: { column: "id", value: removing.id },
+      }),
     });
+    const body = await res.json().catch(() => ({}));
+    const result = res.ok
+      ? { success: true as const, error: undefined, warning: body.warning as string | undefined }
+      : { success: false as const, error: (body.error as string) ?? undefined, warning: undefined };
 
     if (!result.success) {
       toast.error(result.error || "Failed to remove transport assignment");
@@ -640,6 +663,7 @@ export default function StudentTransportAssignmentsPage() {
       toast.success(
         `${removing.students?.full_name ?? "Student"} removed from transport`
       );
+      if (result.warning) toast.warning(result.warning, { duration: 10000 });
       setRemoving(null);
       await fetchData();
     }
@@ -670,40 +694,42 @@ export default function StudentTransportAssignmentsPage() {
 
     setSubmitting(true);
 
-    let data: Record<string, unknown>;
-    if (!hasTransport) {
-      // Clearing transport — reset all dependent fields so DB checks pass.
-      data = {
-        has_transport: false,
-        bus_stop_id: null,
-        bus_id: null,
-        transport_direction: "both",
-        transport_fee_override: null,
-        pickup_address: pickupAddress.trim() || null,
-      };
-    } else {
-      data = {
-        has_transport: true,
-        bus_stop_id: busStopId,
-        bus_id: busId || null,
-        transport_direction: direction,
-        transport_fee_override:
-          direction === "both" ? null : Number(overrideFee),
-        pickup_address: pickupAddress.trim() || null,
-      };
-    }
-
-    const result = await adminApi({
-      action: "update",
-      table: "student_enrollments",
-      data,
-      match: { column: "id", value: editing.id },
+    // Saved as the assignment from `effectiveFrom`: the transport history
+    // keeps the old one for the months before it.
+    const res = await adminFetch(`/api/transport/assignments/${editing.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        hasTransport
+          ? {
+              kind: "change",
+              effective_from: effectiveFrom || defaultEffectiveDate(),
+              has_transport: true,
+              bus_stop_id: busStopId,
+              bus_id: busId || null,
+              transport_direction: direction,
+              transport_fee_override: direction === "both" ? null : Number(overrideFee),
+              pickup_address: pickupAddress.trim() || null,
+            }
+          : {
+              kind: "change",
+              effective_from: effectiveFrom || defaultEffectiveDate(),
+              has_transport: false,
+              transport_direction: "both",
+              pickup_address: pickupAddress.trim() || null,
+            }
+      ),
     });
+    const body = await res.json().catch(() => ({}));
+    const result = res.ok
+      ? { success: true as const, error: undefined, warning: body.warning as string | undefined }
+      : { success: false as const, error: (body.error as string) ?? undefined, warning: undefined };
 
     if (!result.success) {
       toast.error(result.error || "Failed to save transport assignment");
     } else {
       toast.success("Transport assignment saved");
+      if (result.warning) toast.warning(result.warning, { duration: 10000 });
       setDialogOpen(false);
       setEditing(null);
       await fetchData();
@@ -934,7 +960,10 @@ export default function StudentTransportAssignmentsPage() {
                             <Button
                               variant="ghost"
                               size="icon-sm"
-                              onClick={() => setRemoving(row)}
+                              onClick={() => {
+                                setRemoveEffectiveFrom(defaultEffectiveDate());
+                                setRemoving(row);
+                              }}
                               aria-label="Remove transport assignment"
                               title="Remove from transport"
                               className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
@@ -985,6 +1014,24 @@ export default function StudentTransportAssignmentsPage() {
                 Uses school transport
               </span>
             </label>
+
+            {/* The bus fee is charged month by month at the arrangement in
+                force, so a change needs the date it takes effect. */}
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Change takes effect from</Label>
+              <Input
+                type="date"
+                value={effectiveFrom}
+                min={activeYear?.start_date?.slice(0, 10)}
+                max={activeYear?.end_date?.slice(0, 10)}
+                onChange={(e) => setEffectiveFrom(e.target.value)}
+              />
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                The new bus fee is charged from this month; earlier months keep the
+                old arrangement. Pick an earlier date for a change that already
+                happened.
+              </p>
+            </div>
 
             {hasTransport && (
               <div className="space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
@@ -1169,6 +1216,17 @@ export default function StudentTransportAssignmentsPage() {
               </div>
             )}
 
+            {editing && (
+              <TransportHistoryPanel
+                key={editing.id}
+                enrollmentId={editing.id}
+                stops={stops.map((st) => ({ id: st.id, name: st.name }))}
+                sessionStart={activeYear?.start_date?.slice(0, 10) ?? null}
+                sessionEnd={activeYear?.end_date?.slice(0, 10) ?? null}
+                onChanged={() => void fetchData()}
+              />
+            )}
+
             <DialogFooter>
               <Button
                 type="button"
@@ -1244,12 +1302,20 @@ export default function StudentTransportAssignmentsPage() {
                 </div>
               </dl>
 
-              {/* The transport charge is derived from these columns, not
-                  stored as ledger rows, so clearing them drops the charge for
-                  the whole year — including months already ridden. Payments
-                  already receipted are untouched. Worth saying plainly: it is
-                  the difference between "stop billing them" and "write off
-                  what they owe", and the office cannot see it otherwise. */}
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Off the bus from</Label>
+                <Input
+                  type="date"
+                  value={removeEffectiveFrom}
+                  min={activeYear?.start_date?.slice(0, 10)}
+                  max={activeYear?.end_date?.slice(0, 10)}
+                  onChange={(e) => setRemoveEffectiveFrom(e.target.value)}
+                />
+              </div>
+
+              {/* Before migration 140 this cleared the bus fee for the whole
+                  year, months already ridden included. It is now recorded
+                  from a date, and the months before it stay billed. */}
               <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                 <div className="space-y-1">
@@ -1262,11 +1328,9 @@ export default function StudentTransportAssignmentsPage() {
                     .
                   </p>
                   <p>
-                    Transport fees are calculated from this assignment, so any{" "}
-                    <span className="font-semibold">unpaid</span> transport
-                    charge for {activeYear?.name ?? "this year"} also
-                    disappears from their dues. Transport payments already
-                    recorded are kept.
+                    No bus fee is charged from the month above. The months they
+                    rode before it stay billed — anything unpaid for them is
+                    still due — and transport payments already recorded are kept.
                   </p>
                 </div>
               </div>

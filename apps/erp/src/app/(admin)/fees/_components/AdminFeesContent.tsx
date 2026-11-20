@@ -59,6 +59,7 @@ import { StudentConcessionImportDialog } from "@/components/StudentConcessionImp
 import { useIsAdmin } from "@nkps/shared/hooks/useIsAdmin";
 import { isRefundRequest } from "@/lib/fee-change-requests";
 import { correctionLockReason } from "@/lib/payment-correction";
+import { loadSessionStopFees, loadTransportPeriods } from "@/lib/transport-history";
 import { fieldLabel, formatFieldValue } from "@/lib/change-request-display";
 import {
   EMPTY_PAYMENT_DETAILS,
@@ -80,6 +81,7 @@ import {
   paymentDisplayAmount,
   feeMonthSortKey,
   sessionMonths,
+  sessionMonthOf,
   transportMonthLedger,
   allocateOldestFirst,
   formatMonthSpan,
@@ -101,6 +103,7 @@ import type {
   Stream,
   EffectiveFeeLine,
   TransportDirection,
+  TransportPeriod,
   FeeFrequency,
   FeeStudentType,
 } from "@nkps/shared/types";
@@ -246,6 +249,7 @@ const TRANSPORT_MONTH_CLASS: Record<TransportMonthStatus["state"], string> = {
   part: "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300",
   due: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400",
   upcoming: "border-gray-200 bg-white text-gray-600 dark:border-border dark:bg-muted dark:text-gray-300",
+  off: "border-dashed border-gray-200 bg-transparent text-gray-400 dark:border-border dark:text-gray-500",
 };
 
 function TRANSPORT_MONTH_TITLE(tm: TransportMonthStatus): string {
@@ -253,6 +257,8 @@ function TRANSPORT_MONTH_TITLE(tm: TransportMonthStatus): string {
   switch (tm.state) {
     case "paid":
       return `${label}: paid`;
+    case "off":
+      return `${label}: not on the bus — nothing to pay`;
     case "part":
       return `${label}: ₹${tm.settled} paid, ₹${tm.remaining} still owed`;
     case "due":
@@ -1217,6 +1223,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   const [studentStopFeeAmount, setStudentStopFeeAmount] = useState<
     number | null
   >(null);
+  // The open student's transport history (migration 140), and every stop fee
+  // of the session, so the bus fee is priced month by month at the stop the
+  // student was on.
+  const [studentTransportPeriods, setStudentTransportPeriods] = useState<TransportPeriod[]>([]);
+  const [sessionStopFees, setSessionStopFees] = useState<StopFeeLookup[]>([]);
   const [studentStopFeeFrequency, setStudentStopFeeFrequency] =
     useState<FeeFrequency>("monthly");
   const [studentFeeStructures, setStudentFeeStructures] = useState<
@@ -1438,6 +1449,13 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       .limit(1)
       .maybeSingle();
 
+    const periods = enrollment?.id
+      ? (await loadTransportPeriods(supabase, { enrollmentIds: [enrollment.id as string] })).get(
+          enrollment.id as string
+        ) ?? []
+      : [];
+    setStudentTransportPeriods(periods);
+
     const classRaw = (enrollment?.classes as unknown as { name: string; section: string } | null) ?? null;
     const className = classRaw?.name ?? "";
     const streamId = enrollment?.stream_id ?? null;
@@ -1592,6 +1610,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     setStudentPayments([]);
     setStudentResults([]);
     setPaymentCorrections({});
+    setStudentTransportPeriods([]);
   }, []);
 
   // Closing a student also drops ?student_id. The dues register links here
@@ -1647,6 +1666,19 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       cancelled = true;
     };
   }, [initialStudentId, supabase, selectStudent]);
+
+  // Every stop fee of the session, for pricing a transport history.
+  useEffect(() => {
+    if (!academicYearId) return;
+    let cancelled = false;
+    (async () => {
+      const { stopFees } = await loadSessionStopFees(supabase, academicYearId);
+      if (!cancelled) setSessionStopFees(stopFees);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, academicYearId]);
 
   // Fetch classes once (for dues tab filter)
   useEffect(() => {
@@ -2046,6 +2078,18 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       const stopFeesById = new Map(
         stopFeeRows.map((f) => [f.bus_stop_id, f])
       );
+      // Every stop's fee, for students whose transport history spans stops,
+      // and the session's histories in one read (migration 140).
+      const allStopFees: StopFeeLookup[] = stopFeeRows.map((f) => ({
+        bus_stop_id: f.bus_stop_id,
+        stop_name: "",
+        amount: f.amount,
+        frequency: f.frequency,
+        is_active: true,
+      }));
+      const periodsByEnrollment = await loadTransportPeriods(supabase, {
+        academicYearId,
+      });
 
       const studentIds = (enrollments ?? []).map((e) => e.student_id as string);
       type PayRow = {
@@ -2172,8 +2216,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                   frequency: stopFee.frequency,
                   is_active: true,
                 },
+                ...allStopFees.filter((f) => f.bus_stop_id !== stopFee.bus_stop_id),
               ]
-            : [],
+            : allStopFees,
+          transportPeriods: periodsByEnrollment.get(e.id as string) ?? null,
+          sessionMonthList: monthList,
         });
         // With "include leavers" on, the register prices students who are no
         // longer on the roll. Their schedule stops on the day they left — the
@@ -2284,7 +2331,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   // is resolved from bus_stop_fees (migration 074); a one-side facility bills
   // the per-student override.
   const applicableFeeLines = useMemo<EffectiveFeeLine[]>(() => {
-    const stopFees: StopFeeLookup[] =
+    const current: StopFeeLookup[] =
       studentBusStopId && studentStopFeeAmount != null
         ? [
             {
@@ -2296,6 +2343,12 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
             },
           ]
         : [];
+    // The current stop's fee first, then every other stop of the session —
+    // a history can price months at a stop the student has since left.
+    const stopFees = [
+      ...current,
+      ...sessionStopFees.filter((f) => f.bus_stop_id !== studentBusStopId),
+    ];
     return resolveEffectiveFeeLines({
       structures: studentFeeStructures,
       studentStreamId: selectedStudentStreamId,
@@ -2305,8 +2358,16 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
       direction: studentTransportDirection,
       feeOverride: studentTransportFeeOverride,
       stopFees,
+      transportPeriods: studentTransportPeriods,
+      sessionMonthList:
+        academicYearRange?.start_date && academicYearRange?.end_date
+          ? sessionMonths(academicYearRange.start_date, academicYearRange.end_date)
+          : [],
     });
   }, [
+    sessionStopFees,
+    studentTransportPeriods,
+    academicYearRange,
     studentFeeStructures,
     selectedStudentStreamId,
     selectedStudentType,
@@ -2339,6 +2400,15 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     [studentPayments, academicYearId]
   );
 
+  // The session's months, for reading which month a payment names.
+  const studentSessionMonthList = useMemo(
+    () =>
+      academicYearRange?.start_date && academicYearRange?.end_date
+        ? sessionMonths(academicYearRange.start_date, academicYearRange.end_date)
+        : [],
+    [academicYearRange]
+  );
+
   // The student's bus fee, month by month: what each session month owes and
   // has been paid. Drives the month strip on the transport card and the
   // month picker in Record Payment — the same figures the payments route
@@ -2354,6 +2424,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     return transportMonthLedger({
       months: sessionMonths(academicYearRange.start_date, academicYearRange.end_date),
       fee: transportLine.amount,
+      monthFees: transportLine.kind === "transport_stop" ? transportLine.month_fees : null,
       busStopId: transportLine.id,
       payments: yearPayments,
       today: todayISO(),
@@ -3798,7 +3869,30 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                                   : "--"}
                             </TableCell>
                             <TableCell className="whitespace-nowrap">
-                              {formatFeeMonth(p.month) ?? "--"}
+                              {/* A bus payment saved without a month (before
+                                  months were required) can't be placed on
+                                  the month strip or the quarter report, and
+                                  only counts as money paid ahead. Say so, and
+                                  offer the fix. */}
+                              {p.bus_stop_id &&
+                              !sessionMonthOf(p.month, studentSessionMonthList) ? (
+                                !correctionLockReason(p) && !pendingByPayment.has(p.id) ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openCorrectPayment(p)}
+                                    className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+                                    title="This bus payment names no month, so it can't be placed on one. Click to set the month it was for."
+                                  >
+                                    {formatFeeMonth(p.month) ?? "No month"} · set month
+                                  </button>
+                                ) : (
+                                  <span className="text-amber-700 dark:text-amber-400">
+                                    {formatFeeMonth(p.month) ?? "No month"}
+                                  </span>
+                                )
+                              ) : (
+                                formatFeeMonth(p.month) ?? "--"
+                              )}
                             </TableCell>
                             <TableCell>
                               {new Intl.NumberFormat("en-IN", {
@@ -4628,7 +4722,7 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                           <button
                             key={tm.month}
                             type="button"
-                            disabled={tm.state === "paid"}
+                            disabled={tm.state === "paid" || tm.state === "off"}
                             onClick={() => toggleTransportMonth(tm.month)}
                             title={TRANSPORT_MONTH_TITLE(tm)}
                             aria-pressed={on}

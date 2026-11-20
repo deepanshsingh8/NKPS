@@ -4,7 +4,12 @@ import { verifyAdminOrEditorWithUser } from "@nkps/shared/lib/verify-admin";
 import { feePaymentSchema } from "@nkps/shared/lib/validations";
 import { generateReceiptNumber } from "@nkps/shared/lib/password";
 import { todayISO } from "@nkps/shared/lib/date";
-import { resolveExpectedAmount, settledForPeriod } from "@/lib/fee-payment-guards";
+import {
+  type BusPricing,
+  resolveBusPricing,
+  settledForBusMonth,
+  settledForPeriod,
+} from "@/lib/fee-payment-guards";
 import { allocateOldestFirst, feeLineLabel, formatFeeMonth } from "@/lib/fees";
 
 // POST /api/fees/payments — record one collection: a single instalment, one
@@ -128,28 +133,42 @@ export async function POST(request: Request) {
     }
 
     // ── Bus fee ───────────────────────────────────────────────────────────
-    const stopIds = Array.from(
-      new Set(items.flatMap((it) => (it.kind === "bus" ? [it.bus_stop_id] : [])))
-    );
-    if (stopIds.length > 1) {
-      return NextResponse.json(
-        { error: "A payment can cover one bus stop's fee." },
-        { status: 400 }
-      );
-    }
-    let busFee: { expected: number; academicYearId: string } | null = null;
-    if (stopIds.length === 1) {
-      const resolved = await resolveExpectedAmount(admin, student_id, { bus_stop_id: stopIds[0] });
+    // Each month priced at the arrangement in force in it (migration 140), at
+    // the stop the student was on then — a student who has since moved stop,
+    // or left the bus, still pays the months they rode at what they cost.
+    const busItems = items.filter((it): it is Extract<Item, { kind: "bus" }> => it.kind === "bus");
+    let bus: Extract<BusPricing, { ok: true }> | null = null;
+    if (busItems.length > 0) {
+      const resolved = await resolveBusPricing(admin, student_id);
       if (!resolved.ok) {
         return NextResponse.json({ error: resolved.error }, { status: resolved.status });
       }
-      busFee = { expected: resolved.expected, academicYearId: resolved.academicYearId };
+      bus = resolved;
+      const months = resolved.sessionMonthList;
+      const outside = busItems.find((it) => months.length > 0 && !months.includes(it.month));
+      if (outside) {
+        return NextResponse.json(
+          {
+            error: `${formatFeeMonth(outside.month)} is outside this session (${formatFeeMonth(months[0])} – ${formatFeeMonth(months[months.length - 1])}).`,
+          },
+          { status: 400 }
+        );
+      }
+      const offBus = busItems.find((it) => !resolved.monthFee(it.month));
+      if (offBus) {
+        return NextResponse.json(
+          {
+            error: `The student wasn't on the bus in ${formatFeeMonth(offBus.month)}, so there is no bus fee for it. Untick it.`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Every fee in one collection belongs to one session.
     const years = new Set<string>([
       ...Array.from(structures.values()).map((s) => s.academic_year_id),
-      ...(busFee ? [busFee.academicYearId] : []),
+      ...(bus ? [bus.academicYearId] : []),
     ]);
     if (years.size !== 1) {
       return NextResponse.json(
@@ -161,25 +180,10 @@ export async function POST(request: Request) {
 
     const { data: year } = await admin
       .from("academic_years")
-      .select("start_date, end_date")
+      .select("start_date")
       .eq("id", academicYearId)
       .maybeSingle();
     const yearStart = year?.start_date ? String(year.start_date).slice(0, 10) : null;
-    if (busFee && year?.start_date && year?.end_date) {
-      const first = String(year.start_date).slice(0, 7);
-      const last = String(year.end_date).slice(0, 7);
-      const outside = items.find(
-        (it) => it.kind === "bus" && (it.month < first || it.month > last)
-      );
-      if (outside && outside.kind === "bus") {
-        return NextResponse.json(
-          {
-            error: `${formatFeeMonth(outside.month)} is outside this session (${formatFeeMonth(first)} – ${formatFeeMonth(last)}).`,
-          },
-          { status: 400 }
-        );
-      }
-    }
 
     // What each item still owes — the over-collection guard, per item.
     const priced = await Promise.all(
@@ -204,17 +208,20 @@ export async function POST(request: Request) {
             row: { fee_structure_id: st.id, bus_stop_id: null, month: st.month_label ?? null },
           };
         }
-        const settled = await settledForPeriod(admin, {
+        const fee = bus!.monthFee(it.month)!;
+        // Every bus payment for the month counts, whichever stop it was taken at.
+        const settled = await settledForBusMonth(admin, {
           student_id,
-          target: { bus_stop_id: it.bus_stop_id },
           month: it.month,
+          sessionMonthList: bus!.sessionMonthList,
         });
         return {
           key: `bus:${it.month}`,
           label: `Transport — ${formatFeeMonth(it.month)}`,
           due: `${it.month}-01`,
-          remaining: Math.max(0, Math.round((busFee!.expected - settled) * 100) / 100),
-          row: { fee_structure_id: null, bus_stop_id: it.bus_stop_id, month: it.month },
+          remaining: Math.max(0, Math.round((fee.amount - settled) * 100) / 100),
+          // Recorded against the stop the month is charged at.
+          row: { fee_structure_id: null, bus_stop_id: fee.bus_stop_id, month: it.month },
         };
       })
     );

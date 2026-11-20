@@ -53,7 +53,9 @@ import {
   settledAmount,
   type BillableEnrollment,
   type StopFeeLookup,
+  sessionMonths,
 } from "./fees";
+import { loadTransportPeriods } from "./transport-history";
 
 /**
  * Enrollment columns the fee maths needs regardless of which fee field was
@@ -61,6 +63,8 @@ import {
  * sheet still reads the narrow set.
  */
 const FEE_ENROLLMENT_COLUMNS = [
+  // The enrollment's transport history (migration 140) is keyed by its id.
+  "id",
   "stream_id",
   "has_transport",
   "bus_stop_id",
@@ -454,6 +458,14 @@ export async function runStudentReport(
       paymentsByStudent.set(row.student_id, list);
     }
 
+    // Transport histories: each month's bus fee at the stop the student was
+    // on, and the months ridden by those who have since left the bus.
+    const periodsByEnrollment = await loadTransportPeriods(admin, {
+      academicYearId: sessionInfo.id,
+    });
+    const allStopFees = Array.from(stopFeesByStop.values()).flat();
+    const monthList = sessionMonths(sessionInfo.start_date, sessionInfo.end_date);
+
     for (const raw of enrollments) {
       const e = raw as unknown as Record<string, unknown>;
       const studentId = e.student_id as string;
@@ -478,7 +490,12 @@ export async function runStudentReport(
           "both") as TransportDirection,
         feeOverride:
           e.transport_fee_override != null ? Number(e.transport_fee_override) : null,
-        stopFees: busStopId ? stopFeesByStop.get(busStopId) ?? [] : [],
+        stopFees: [
+          ...(busStopId ? stopFeesByStop.get(busStopId) ?? [] : []),
+          ...allStopFees.filter((f) => f.bus_stop_id !== busStopId),
+        ],
+        transportPeriods: periodsByEnrollment.get(e.id as string) ?? null,
+        sessionMonthList: monthList,
       });
 
       // Leavers stop being billed on their leaving date. A report run over

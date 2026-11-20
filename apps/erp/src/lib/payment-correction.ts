@@ -6,7 +6,7 @@ import {
   type FeePaymentCorrectionData,
 } from "@nkps/shared/lib/validations";
 import { todayISO } from "@nkps/shared/lib/date";
-import { resolveExpectedAmount, settledForPeriod } from "./fee-payment-guards";
+import { resolveBusPricing, settledForBusMonth } from "./fee-payment-guards";
 
 // Correcting a recorded payment: the day it was paid, how it was paid and the
 // details that go with that, and — transport only — the month it covers.
@@ -169,20 +169,23 @@ export async function validateCorrection(
       return "Only a transport payment's month can be corrected.";
     }
     if (!/^\d{4}-\d{2}$/.test(month)) return "Month must be a month.";
-    const target = { bus_stop_id: live.bus_stop_id };
-    const expected = await resolveExpectedAmount(admin, live.student_id, target);
-    if (expected.ok) {
-      const already = await settledForPeriod(admin, {
+    // Priced the way every fee screen prices it (migration 140): the month's
+    // own fee, at the stop the student was on then.
+    const pricing = await resolveBusPricing(admin, live.student_id);
+    if (pricing.ok) {
+      const fee = pricing.monthFee(month);
+      if (!fee) return "The student wasn't on the bus that month, so there is no bus fee to move this payment to.";
+      const already = await settledForBusMonth(admin, {
         student_id: live.student_id,
-        target,
         month,
+        sessionMonthList: pricing.sessionMonthList,
         excludePaymentId: live.id,
       });
       const mine =
         Math.max(0, Number(live.amount_paid) - Number(live.refund_amount ?? 0)) +
         Number(live.waiver_amount ?? 0);
-      if (already + mine > expected.expected + 0.005) {
-        return `That month already has ${already} settled against a fee of ${expected.expected}; moving this ${mine} there would over-collect it.`;
+      if (already + mine > fee.amount + 0.005) {
+        return `That month already has ${already} settled against a fee of ${fee.amount}; moving this ${mine} there would over-collect it.`;
       }
     }
   }

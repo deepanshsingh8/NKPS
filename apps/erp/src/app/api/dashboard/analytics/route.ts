@@ -5,11 +5,13 @@ import {
   resolveEffectiveFeeLines,
   computeDuesBreakdown,
   summariseFeeCollection,
+  sessionMonths,
   type FeeCollectionEntry,
   type StopFeeLookup,
   type DuesPaymentRow,
 } from "@/lib/fees";
 import type { FeeStructure, TransportDirection } from "@nkps/shared/types";
+import { loadTransportPeriods } from "@/lib/transport-history";
 import type { FeatureKey } from "@nkps/shared/lib/permissions";
 import { todayISO, toISODate } from "@nkps/shared/lib/date";
 import { fetchAllRows, type PagedResult } from "@nkps/shared/lib/fetch-all-rows";
@@ -84,6 +86,7 @@ export async function GET() {
     bus_stops: { name: string } | { name: string }[] | null;
   };
   type EnrollmentRow = {
+    id: string;
     student_id: string;
     class_id: string;
     stream_id: string | null;
@@ -201,7 +204,7 @@ export async function GET() {
             admin
               .from("student_enrollments")
               .select(
-                "student_id, class_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, classes!inner(name, section, academic_year_id), streams(name, code), students(admission_date)"
+                "id, student_id, class_id, stream_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, classes!inner(name, section, academic_year_id), streams(name, code), students(admission_date)"
               )
               .eq("classes.academic_year_id", currentYearId)
               .eq("status", "active")
@@ -380,6 +383,15 @@ export async function GET() {
     // year's fee_payments — put money from students who have since left the
     // roll into a numerator whose denominator excluded them, so the card
     // compared two different schools.
+    // Transport histories (migration 140): each month's bus fee at the stop
+    // the student was on, and the months ridden by those who have left it.
+    const periodsByEnrollment = currentYearId
+      ? await loadTransportPeriods(admin, { academicYearId: currentYearId })
+      : new Map();
+    const monthList =
+      currentYearRange?.start_date && currentYearRange?.end_date
+        ? sessionMonths(currentYearRange.start_date, currentYearRange.end_date)
+        : [];
     const entries: FeeCollectionEntry[] = [];
     for (const e of enrollments) {
       const raw = e.classes;
@@ -400,6 +412,8 @@ export async function GET() {
         direction: e.transport_direction ?? "both",
         feeOverride: e.transport_fee_override,
         stopFees,
+        transportPeriods: periodsByEnrollment.get(e.id) ?? null,
+        sessionMonthList: monthList,
       });
       const receipts = paymentsByStudent.get(e.student_id) ?? [];
       entries.push({

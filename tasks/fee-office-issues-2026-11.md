@@ -97,15 +97,33 @@ Code only, with no database access. Each item is a commit on
    duplicates → Reject selected.
 4. Run migration 139 again; this time it creates the index.
 
-**Known limits, left alone:**
-- A student who changes stop mid-year is priced at the new stop for the
-  whole year.
-- A bus payment stored with a yearless month ("APR", from the day-book
-  import) can't be placed on a month. It still counts in the totals, as
-  Paid Ahead.
+**Known limits — fixed on 20 Nov (migration 140):**
+- ~~A student who changes stop mid-year is priced at the new stop for the
+  whole year.~~ The bus fee is now priced month by month from a transport
+  history (`student_transport_periods`). The school chose:
+  - a change takes effect from the month it falls in;
+  - a student taken off the bus keeps the months they rode billed;
+  - temporary changes don't change the fee;
+  - Student Assignments asks for an effective date, shows the history, and
+    records past changes.
+
+  Every place that prices a bus fee reads the same history: the fee desk,
+  the register, both portals, the download gate, the dashboard, the report
+  builder, and the payments and correction routes. A bus payment counts for
+  its month whichever stop it was taken at. The migration was tested on a
+  local Postgres: re-runnable, functions, trigger and RLS.
+- ~~A bus payment stored with a yearless month can't be placed.~~ No import
+  writes bus payments, so the yearless case can't arise from any current
+  flow. Month reading still places "APR"/"April" in its session everywhere.
+  The real leftover case, a bus payment with **no** month, is flagged in
+  Payment History as "No month · set month".
+- Before deploying: run migration 140 on both campuses. Until then
+  everything keeps the old pricing, and Student Assignments saves changes
+  without a date.
 - Nothing was tried in a browser against real data. Checks run:
-  typecheck, lint, all repo checks, the production build, and scratch tests
-  of the new rules.
+  typecheck, lint, all repo checks, the production build, scratch tests of
+  the new rules (including 2,000 random transport histories reconciled
+  against the dues total), and the migration on a local Postgres.
 
 ---
 
