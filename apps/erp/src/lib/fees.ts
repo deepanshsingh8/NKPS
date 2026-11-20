@@ -5,6 +5,8 @@ import type {
   FeeStudentType,
   TransportDirection,
   TransportFeeLine,
+  TransportMonthFee,
+  TransportPeriod,
 } from "@nkps/shared/types";
 
 export const FEE_FREQ_MULTIPLIER: Record<string, number> = {
@@ -14,9 +16,17 @@ export const FEE_FREQ_MULTIPLIER: Record<string, number> = {
   one_time: 1,
 };
 
-type Annualizable = { amount: number | string; frequency: string };
+type Annualizable = {
+  amount: number | string;
+  frequency: string;
+  /** A bus fee priced month by month from the transport history. */
+  month_fees?: TransportMonthFee[] | null;
+};
 
 export function annualizedAmount(fs: Annualizable): number {
+  if (fs.month_fees) {
+    return fs.month_fees.reduce((sum, m) => sum + Number(m.amount), 0);
+  }
   const mult = FEE_FREQ_MULTIPLIER[fs.frequency] ?? 1;
   return Number(fs.amount) * mult;
 }
@@ -55,11 +65,40 @@ function wholeMonthsBetween(from: string, to: string): number {
 //   • no anchor at all    — billed in full. An undated fee has no schedule to
 //                          defer it by, and under-reporting a real debt is the
 //                          worse error.
-export function amountBilledToDate(
-  fs: { amount: number | string; frequency: string; due_date?: string | null },
+/**
+ * How many months of a bus fee priced month by month have fallen due — the
+ * same count amountBilledToDate charges a uniform monthly fee for, so the two
+ * paths bill the same months.
+ */
+export function billedMonthCount(
+  fs: { frequency: string; due_date?: string | null; month_fees?: TransportMonthFee[] | null },
   today: string,
   yearStartDate?: string | null
 ): number {
+  const anchor = (fs.due_date ?? yearStartDate ?? "").slice(0, 10);
+  const cap = fs.month_fees ? fs.month_fees.length : FEE_FREQ_MULTIPLIER[fs.frequency] ?? 12;
+  if (!anchor) return cap;
+  if (anchor > today.slice(0, 10)) return 0;
+  const elapsed = wholeMonthsBetween(anchor, today) + 1;
+  return Math.min(Math.max(elapsed, 0), cap);
+}
+
+export function amountBilledToDate(
+  fs: {
+    amount: number | string;
+    frequency: string;
+    due_date?: string | null;
+    month_fees?: TransportMonthFee[] | null;
+  },
+  today: string,
+  yearStartDate?: string | null
+): number {
+  // A bus fee priced month by month: the months that have fallen due, each
+  // at the arrangement in force that month.
+  if (fs.month_fees) {
+    const n = billedMonthCount(fs, today, yearStartDate);
+    return fs.month_fees.slice(0, n).reduce((sum, m) => sum + Number(m.amount), 0);
+  }
   const amount = Number(fs.amount);
   if (!Number.isFinite(amount)) return 0;
   const step = FEE_FREQ_STEP_MONTHS[fs.frequency];
@@ -252,6 +291,73 @@ export function feeMonthSortKey(month: string | null | undefined): string | null
 // ---------------------------------------------------------------------------
 
 /** Every month of the session as YYYY-MM, from its start date to its end date. */
+const MONTH_ABBREVIATIONS = MONTH_NAMES.map((m) => m.slice(0, 3).toLowerCase());
+
+/**
+ * A payment's month as the session month (YYYY-MM) it belongs to, or null
+ * when it can't be placed. Reads every shape fee_payments.month holds —
+ * "2026-04", "April, 2026", and a yearless "APR"/"April", which is placed in
+ * the session because a session's twelve months name each calendar month
+ * once.
+ */
+export function sessionMonthOf(
+  month: string | null | undefined,
+  sessionMonthList: string[]
+): string | null {
+  const key = feeMonthSortKey(month);
+  if (!key) return null;
+  if (!key.startsWith("~")) return key;
+  const word = key.slice(1).replace(/[^a-z]/g, "").slice(0, 3);
+  const idx = MONTH_ABBREVIATIONS.indexOf(word);
+  if (idx < 0) return null;
+  const mm = String(idx + 1).padStart(2, "0");
+  const matches = sessionMonthList.filter((m) => m.slice(5, 7) === mm);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+/**
+ * The bus fee month by month from a student's transport history (migration
+ * 140). Each month is priced at the arrangement in force in it — a change
+ * takes effect from the month it falls in, as the school chose — and is 0 in
+ * a month off the bus. Null when there is no history, or a stop's fee is not
+ * monthly: the caller then bills the current arrangement every month, as
+ * before.
+ */
+export function transportMonthFees(opts: {
+  periods: TransportPeriod[] | null | undefined;
+  sessionMonthList: string[];
+  stopFees: StopFeeLookup[];
+}): TransportMonthFee[] | null {
+  const periods = [...(opts.periods ?? [])].sort((a, b) =>
+    a.effective_from.localeCompare(b.effective_from)
+  );
+  if (periods.length === 0 || opts.sessionMonthList.length === 0) return null;
+  const out: TransportMonthFee[] = [];
+  for (const month of opts.sessionMonthList) {
+    let inForce = periods[0];
+    for (const p of periods) {
+      if (p.effective_from.slice(0, 7) <= month) inForce = p;
+    }
+    if (!inForce.has_transport || !inForce.bus_stop_id) {
+      out.push({ month, amount: 0, bus_stop_id: null });
+      continue;
+    }
+    const fee = opts.stopFees.find(
+      (f) => f.bus_stop_id === inForce.bus_stop_id && f.is_active
+    );
+    if (fee && fee.frequency !== "monthly") return null;
+    const oneSide =
+      inForce.transport_direction !== "both" && inForce.transport_fee_override != null;
+    const amount = oneSide
+      ? Number(inForce.transport_fee_override)
+      : fee
+        ? Number(fee.amount)
+        : 0;
+    out.push({ month, amount, bus_stop_id: inForce.bus_stop_id });
+  }
+  return out;
+}
+
 export function sessionMonths(startDate: string, endDate: string): string[] {
   const [sy, sm] = startDate.slice(0, 7).split("-").map(Number);
   const [ey, em] = endDate.slice(0, 7).split("-").map(Number);
@@ -271,7 +377,7 @@ export function sessionMonths(startDate: string, endDate: string): string[] {
   return out;
 }
 
-export type TransportMonthState = "paid" | "part" | "due" | "upcoming";
+export type TransportMonthState = "paid" | "part" | "due" | "upcoming" | "off";
 
 export interface TransportMonthStatus {
   /** YYYY-MM */
@@ -279,19 +385,27 @@ export interface TransportMonthStatus {
   fee: number;
   settled: number;
   remaining: number;
+  /** "off": not on the bus that month, so nothing is charged. */
   state: TransportMonthState;
+  /** The stop the month is priced at; null when off the bus. */
+  bus_stop_id: string | null;
 }
 
 /**
  * Each session month of a bus fee, with what has been settled against it.
- * `payments` are the student's rows (any line); only this stop's are read.
- * A payment stored with an unreadable month ("APR", no year) or none at all
- * is not placed on any month — it still counts in the dues total.
+ * Every bus payment counts toward the month it names, whichever stop it was
+ * taken at — a payment made before a change of stop still covers its month.
+ * A payment with no month at all can't be placed; it still counts in the
+ * dues total.
  */
 export function transportMonthLedger(opts: {
   months: string[];
+  /** The monthly fee when there is no month-by-month pricing. */
   fee: number;
-  busStopId: string;
+  /** The fee month by month (TransportFeeLine.month_fees), when known. */
+  monthFees?: TransportMonthFee[] | null;
+  /** The stop a uniform fee is charged at. */
+  busStopId?: string | null;
   payments: Array<{
     bus_stop_id?: string | null;
     month?: string | null;
@@ -305,10 +419,10 @@ export function transportMonthLedger(opts: {
 }): TransportMonthStatus[] {
   const settledByMonth = new Map<string, number>();
   for (const p of opts.payments) {
-    if (p.bus_stop_id !== opts.busStopId) continue;
+    if (!p.bus_stop_id) continue;
     if (!["paid", "partial", "refunded"].includes(p.status)) continue;
-    const key = feeMonthSortKey(p.month);
-    if (!key || key.startsWith("~")) continue;
+    const key = sessionMonthOf(p.month, opts.months);
+    if (!key) continue;
     settledByMonth.set(key, (settledByMonth.get(key) ?? 0) + settledAmount({
       fee_structure_id: null,
       amount_paid: p.amount_paid,
@@ -318,17 +432,22 @@ export function transportMonthLedger(opts: {
   }
   const thisMonth = opts.today.slice(0, 7);
   return opts.months.map((month) => {
+    const priced = opts.monthFees?.find((m) => m.month === month);
+    const fee = priced ? Number(priced.amount) : opts.fee;
+    const stop = priced ? priced.bus_stop_id : opts.busStopId ?? null;
     const settled = Math.round((settledByMonth.get(month) ?? 0) * 100) / 100;
-    const remaining = Math.max(0, Math.round((opts.fee - settled) * 100) / 100);
+    const remaining = Math.max(0, Math.round((fee - settled) * 100) / 100);
     const state: TransportMonthState =
-      remaining <= 0.005
-        ? "paid"
-        : settled > 0
-          ? "part"
-          : month <= thisMonth
-            ? "due"
-            : "upcoming";
-    return { month, fee: opts.fee, settled, remaining, state };
+      fee <= 0.005
+        ? "off"
+        : remaining <= 0.005
+          ? "paid"
+          : settled > 0
+            ? "part"
+            : month <= thisMonth
+              ? "due"
+              : "upcoming";
+    return { month, fee, settled, remaining, state, bus_stop_id: stop };
   });
 }
 
@@ -521,8 +640,43 @@ export function resolveTransportLine(opts: {
   direction: TransportDirection;
   feeOverride: number | null;
   stopFees: StopFeeLookup[];
+  /** The student's transport history (migration 140). */
+  transportPeriods?: TransportPeriod[] | null;
+  /** The session's months, for pricing the history month by month. */
+  sessionMonthList?: string[];
 }): TransportFeeLine | null {
   const { hasTransport, busStopId, direction, feeOverride, stopFees } = opts;
+
+  // With a transport history, the line covers every month the student was on
+  // the bus — so a student taken off it in October is still billed April to
+  // September, and one who moved stop is billed each month at the stop they
+  // were on.
+  const monthFees = transportMonthFees({
+    periods: opts.transportPeriods,
+    sessionMonthList: opts.sessionMonthList ?? [],
+    stopFees,
+  });
+  if (monthFees) {
+    if (!monthFees.some((m) => m.amount > 0)) return null;
+    const lastStop = [...monthFees].reverse().find((m) => m.bus_stop_id)?.bus_stop_id ?? null;
+    const stopId = hasTransport && busStopId ? busStopId : lastStop;
+    const fee = stopFees.find((f) => f.bus_stop_id === stopId && f.is_active);
+    const isOneSide = hasTransport && direction !== "both";
+    const lastBilled = [...monthFees].reverse().find((m) => m.amount > 0)?.amount ?? 0;
+    const amount =
+      hasTransport && busStopId
+        ? isOneSide && feeOverride != null
+          ? Number(feeOverride)
+          : Number(fee?.amount ?? lastBilled)
+        : lastBilled;
+    return {
+      ...transportLineShape(stopId ?? "", fee?.stop_name ?? "", direction),
+      amount,
+      frequency: "monthly",
+      month_fees: monthFees,
+    };
+  }
+
   if (!hasTransport || !busStopId) return null;
   const fee = stopFees.find((f) => f.bus_stop_id === busStopId && f.is_active);
   if (!fee) return null;
@@ -532,11 +686,22 @@ export function resolveTransportLine(opts: {
     isOneSide && feeOverride != null ? Number(feeOverride) : Number(fee.amount);
 
   return {
-    kind: "transport_stop",
-    id: fee.bus_stop_id,
-    fee_type: "Transport",
+    ...transportLineShape(fee.bus_stop_id, fee.stop_name, direction),
     amount,
     frequency: fee.frequency as FeeFrequency,
+    month_fees: null,
+  };
+}
+
+function transportLineShape(
+  stopId: string,
+  stopName: string,
+  direction: TransportDirection
+): Omit<TransportFeeLine, "amount" | "frequency" | "month_fees"> {
+  return {
+    kind: "transport_stop",
+    id: stopId,
+    fee_type: "Transport",
     due_date: null,
     late_fee_percent: 0,
     late_fee_fixed_amount: 0,
@@ -548,7 +713,7 @@ export function resolveTransportLine(opts: {
     instalment_name: null,
     month_label: null,
     student_type: "both",
-    stop_name: fee.stop_name,
+    stop_name: stopName,
     direction,
   };
 }
@@ -565,6 +730,10 @@ export function resolveEffectiveFeeLines(opts: {
   direction: TransportDirection;
   feeOverride: number | null;
   stopFees: StopFeeLookup[];
+  /** The student's transport history (migration 140), if any. */
+  transportPeriods?: TransportPeriod[] | null;
+  /** The session's months, needed with transportPeriods. */
+  sessionMonthList?: string[];
 }): EffectiveFeeLine[] {
   const academic = resolveEffectiveFeeStructures(opts.structures, {
     studentStreamId: opts.studentStreamId,
@@ -900,9 +1069,11 @@ export function computeInstalmentLedger(opts: {
       let paid = 0;
       let discount = 0;
       payments.forEach((p, i) => {
+        // Every bus payment belongs to the student's one bus-fee line,
+        // whichever stop it was taken at.
         const match =
           line.kind === "transport_stop"
-            ? p.bus_stop_id === line.id
+            ? Boolean(p.bus_stop_id)
             : p.fee_structure_id === line.id;
         if (!match) return;
         used.add(i);
@@ -941,19 +1112,27 @@ export function computeInstalmentLedger(opts: {
     }
 
     // A monthly bus fee, one row per quarter of months. Which months have
-    // fallen due is taken from amountBilledToDate, so the billed total is
-    // exactly the headline's.
+    // fallen due is the count amountBilledToDate bills, so the billed total
+    // is exactly the headline's; each month is priced at its own fee when the
+    // line carries month-by-month pricing (migration 140).
     const fee = Number(line.amount);
-    const billedTotal = amountBilledToDate(line, asOf, yearStartDate);
-    const billedCount = fee > 0 ? Math.round(billedTotal / fee) : 0;
+    const monthFees = line.kind === "transport_stop" ? line.month_fees ?? null : null;
+    const feeOf = (m: string) =>
+      monthFees ? Number(monthFees.find((x) => x.month === m)?.amount ?? 0) : fee;
+    const billedCount = monthFees
+      ? billedMonthCount(line, asOf, yearStartDate)
+      : fee > 0
+        ? Math.round(amountBilledToDate(line, asOf, yearStartDate) / fee)
+        : 0;
     const monthsInScope = billingCutoff
       ? sessionMonthList.slice(0, billedCount)
       : sessionMonthList;
     const settledByMonth = new Map<string, { paid: number; discount: number }>();
     payments.forEach((p, i) => {
-      if (p.bus_stop_id !== line.id) return;
-      const key = feeMonthSortKey(p.month);
-      if (!key || key.startsWith("~") || !monthsInScope.includes(key)) return;
+      // Any bus payment, whichever stop it was taken at, counts for its month.
+      if (!p.bus_stop_id) return;
+      const key = sessionMonthOf(p.month, sessionMonthList);
+      if (!key || !monthsInScope.includes(key)) return;
       used.add(i);
       const cur = settledByMonth.get(key) ?? { paid: 0, discount: 0 };
       cur.paid += cash(p);
@@ -969,13 +1148,17 @@ export function computeInstalmentLedger(opts: {
       let paid = 0;
       let discount = 0;
       let billed = 0;
+      let amount = 0;
       for (const m of months) {
         const st = settledByMonth.get(m);
         paid += st?.paid ?? 0;
         discount += st?.discount ?? 0;
-        if (sessionMonthList.indexOf(m) < billedCount) billed += fee;
+        amount += feeOf(m);
+        if (sessionMonthList.indexOf(m) < billedCount) billed += feeOf(m);
       }
-      const amount = fee * months.length;
+      // A quarter spent wholly off the bus, with nothing paid in it, is not a
+      // row at all.
+      if (amount <= 0.005 && paid + discount <= 0.005) continue;
       const settled = paid + discount;
       const row = {
         amount: r2(amount),

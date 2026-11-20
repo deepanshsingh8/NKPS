@@ -27,7 +27,9 @@ import {
   formatFeeMonth,
   isDiscountPayment,
   paymentDisplayAmount,
+  sessionMonths,
 } from "@/lib/fees";
+import { loadTransportPeriods } from "@/lib/transport-history";
 import type { StopFeeLookup } from "@/lib/fees";
 import { ReceiptDownloadButton } from "@/components/ReceiptDownloadButton";
 import type {
@@ -95,7 +97,7 @@ export default function StudentFeesPage() {
       const { data: enrollment } = await supabase
         .from("student_enrollments")
         .select(
-          "class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, exit_date, status_changed_at, classes(name)"
+          "id, class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, exit_date, status_changed_at, classes(name)"
         )
         .eq("student_id", studentId)
         .order("enrollment_date", { ascending: false })
@@ -196,6 +198,15 @@ export default function StudentFeesPage() {
           frequency: row.frequency,
           is_active: row.is_active,
         }));
+        // The transport history (migration 140): each month's bus fee at the
+        // stop actually used, and the months ridden after leaving the bus —
+        // the same figures the school office sees.
+        const enrollmentId = (enrollment?.id as string | undefined) ?? null;
+        const periods = enrollmentId
+          ? (await loadTransportPeriods(supabase, { enrollmentIds: [enrollmentId] })).get(
+              enrollmentId
+            ) ?? []
+          : [];
         const resolved = resolveEffectiveFeeLines({
           structures: (structuresData as FeeStructure[]) ?? [],
           studentStreamId: streamId,
@@ -205,6 +216,11 @@ export default function StudentFeesPage() {
           direction,
           feeOverride,
           stopFees,
+          transportPeriods: periods,
+          sessionMonthList:
+            year?.start_date && year?.end_date
+              ? sessionMonths(year.start_date, year.end_date)
+              : [],
         });
         setFeeLines(resolved);
       }

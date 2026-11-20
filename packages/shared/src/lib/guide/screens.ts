@@ -1333,7 +1333,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         needs:
           "A fee structure must already exist for that class and stream, or the Fee dropdown is empty and the save fails. A transport line only appears if the student has a stop assigned AND that stop has a fee.",
         gotcha:
-          'The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded. Paid there is cash; Discount is shown on its own, and "Unpaid by quarter" names the quarters still owed. Each fee card shows its quarter, whether it is paid, part paid, due or not yet due, and what was paid, discounted and is still outstanding on it. Several fees taken together print as one receipt — bus months alone read "For April – June 2026", a mix lists each fee — and appear in Payment History as one row per fee, sharing the receipt number with a /1, /2… suffix. The money clears the earliest-due fee first: every fee but the last-due one must be paid in full, and only that one can be part-paid. A paid instalment or month cannot be ticked. The transport card shows each month: green paid, amber part-paid, red due, grey not yet due.',
+          'The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded. Paid there is cash; Discount is shown on its own, and "Unpaid by quarter" names the quarters still owed. Each fee card shows its quarter, whether it is paid, part paid, due or not yet due, and what was paid, discounted and is still outstanding on it. Several fees taken together print as one receipt — bus months alone read "For April – June 2026", a mix lists each fee — and appear in Payment History as one row per fee, sharing the receipt number with a /1, /2… suffix. The money clears the earliest-due fee first: every fee but the last-due one must be paid in full, and only that one can be part-paid. A paid instalment or month cannot be ticked. The transport card shows each month: green paid, amber part-paid, red due, grey not yet due, and a dashed outline for a month the student was not on the bus. Each month is charged at the stop the student was on that month.',
       },
       {
         name: "Move on to the next student",
@@ -1365,7 +1365,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'To see every payment for one month, click the "Month" header and tick that month.',
         ],
         gotcha:
-          'A transport payment recorded before months were required may show "--"; set it with the pencil (Correct Payment → For Month). Instalments take their month from the fee schedule.',
+          'A bus payment saved before months were required shows "No month · set month" in amber — click it to set the month it was for. Until then it counts toward the total but not toward any month. Instalments take their month from the fee schedule.',
       },
       {
         name: "Download a receipt",
@@ -1637,11 +1637,23 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Tick "Uses school transport".',
           'Pick a "Bus Stop", optionally a "Bus (optional)", and a "Direction".',
           'If the direction is not both sides, enter a "Custom one-side fee (₹)".',
+          'Set "Change takes effect from" — today for a change happening now, an earlier date for one that already happened.',
           'Click "Save".',
         ],
         needs: "The stop must exist and carry a fee for this year.",
         gotcha:
-          "A one-way rider without a custom fee is refused — the flat stop fee covers both legs, so saving without it would bill them wrong. Changing the stop clears a bus that no longer serves it.",
+          "A one-way rider without a custom fee is refused — the flat stop fee covers both legs, so saving without it would bill them wrong. Changing the stop clears a bus that no longer serves it. The bus fee is charged month by month at the arrangement in force: the new stop's fee from the month of the date you pick, the old one before it.",
+      },
+      {
+        name: "See or correct a student's transport history",
+        steps: [
+          "Click the blue pencil on the student's row.",
+          'Read "Transport history": what the arrangement was from each date.',
+          'To record a change that happened earlier (for example a stop changed before this screen asked for dates), click "Record a past change", give the date it took effect and the arrangement from then, and click "Record change".',
+          "To remove an entry made by mistake, click its red trash icon.",
+        ],
+        gotcha:
+          "The bus fee for each month is the arrangement in force that month, so every entry here re-prices the bus fee from its month on. A temporary change on Transport → Changes (one with an end date) never appears here — it changes the pickup, not the fee.",
       },
       {
         name: "Quick-assign the suggested bus",
@@ -1654,10 +1666,11 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         name: "Remove a student from transport",
         steps: [
           "Click the red trash icon on the row.",
+          'Set "Off the bus from" to the date they stopped using it.',
           'Read the summary and click "Remove from transport".',
         ],
         gotcha:
-          "The transport charge is derived from these columns, not stored as ledger rows — so clearing them removes the unpaid transport dues for the WHOLE year, including months already ridden. Receipted payments are kept.",
+          "No bus fee is charged from that month on. The months they rode before it stay billed, and anything unpaid for them is still due. Receipted payments are kept.",
       },
     ],
     related: ["/transport/stops", "/transport/buses", "/transport/changes", "/fees/payments"],

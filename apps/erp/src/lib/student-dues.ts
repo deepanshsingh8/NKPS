@@ -10,10 +10,12 @@ import {
   resolveBillingCutoff,
   resolveEffectiveFeeLines,
   resolveStudentType,
+  sessionMonths,
   type DuesBreakdown,
   type DuesPaymentRow,
   type StopFeeLookup,
 } from "./fees";
+import { loadSessionStopFees, loadTransportPeriods } from "./transport-history";
 
 export interface StudentDues {
   /** Outstanding amount in rupees, clamped at 0 and rounded. */
@@ -95,7 +97,7 @@ export async function getStudentDuesPosition(
   const { data: enrollment, error: enrollmentError } = await admin
     .from("student_enrollments")
     .select(
-      "class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, exit_date, status_changed_at, classes(name, section)"
+      "id, class_id, stream_id, academic_year_id, has_transport, bus_stop_id, transport_direction, transport_fee_override, status, exit_date, status_changed_at, classes(name, section)"
     )
     .eq("student_id", studentId)
     .order("enrollment_date", { ascending: false })
@@ -211,6 +213,22 @@ export async function getStudentDuesPosition(
         };
       }
     );
+    // The transport history (migration 140) prices each month at the stop
+    // the student was on, and keeps the months ridden after they leave the
+    // bus — so the gate and the fee screens agree on what is owed.
+    const periods =
+      (await loadTransportPeriods(admin, { enrollmentIds: [enrollment.id as string] })).get(
+        enrollment.id as string
+      ) ?? [];
+    if (periods.length > 0 && academicYearId) {
+      const session = await loadSessionStopFees(admin, academicYearId);
+      if (session.error) {
+        throw new Error(`Failed to load bus stop fees for dues: ${session.error}`);
+      }
+      for (const f of session.stopFees) {
+        if (!stopFees.some((x) => x.bus_stop_id === f.bus_stop_id)) stopFees.push(f);
+      }
+    }
     lines = resolveEffectiveFeeLines({
       structures: (structuresData as FeeStructure[]) ?? [],
       studentStreamId: streamId,
@@ -220,6 +238,9 @@ export async function getStudentDuesPosition(
       direction,
       feeOverride,
       stopFees,
+      transportPeriods: periods,
+      sessionMonthList:
+        year?.start_date && year?.end_date ? sessionMonths(year.start_date, year.end_date) : [],
     });
   }
 

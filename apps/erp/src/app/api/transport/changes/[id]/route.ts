@@ -109,7 +109,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     .maybeSingle();
   if (!claimed) return alreadyReviewed();
 
-  const applyResult = await applyTransportChange(admin, change);
+  const applyResult = await applyTransportChange(admin, change, user.id);
   if (applyResult.error) {
     // Nothing was applied: put the request back so it can be retried.
     await admin

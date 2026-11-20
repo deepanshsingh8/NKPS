@@ -797,6 +797,33 @@ export interface TransportFeeLine {
   student_type: 'both';
   stop_name: string;          // for UI label, e.g. "100 Feet Road"
   direction: TransportDirection;
+  // Migration 140 — the fee month by month (YYYY-MM), from the student's
+  // transport history: each month priced at the arrangement in force that
+  // month, 0 for a month off the bus. Null when there is no history, and the
+  // line is then billed at `amount` every month, as before.
+  month_fees?: TransportMonthFee[] | null;
+}
+
+/** One month of a bus fee priced from the transport history (migration 140). */
+export interface TransportMonthFee {
+  month: string;              // YYYY-MM
+  amount: number;
+  bus_stop_id: string | null; // null: not on the bus that month
+}
+
+/** A student's bus arrangement from a date (student_transport_periods). */
+export interface TransportPeriod {
+  id?: string;
+  enrollment_id?: string;
+  effective_from: string;     // YYYY-MM-DD
+  has_transport: boolean;
+  bus_stop_id: string | null;
+  transport_direction: TransportDirection;
+  transport_fee_override: number | string | null;
+  source?: string;
+  note?: string | null;
+  recorded_by?: string | null;
+  created_at?: string;
 }
 
 export type EffectiveFeeLine =
