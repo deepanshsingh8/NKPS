@@ -24,6 +24,13 @@
 //
 // This is a reconstruction, not a record. Totals, dues and late fees come out
 // right; the line attribution of any individual receipt is an inference.
+//
+// ── The bus fee ─────────────────────────────────────────────────────────────
+// A "Transport Fee" head is the same waterfall over the student's bus months
+// instead of the schedule: oldest month first, each month filled to what it
+// costs that student (migration 140 prices them one by one), nothing for a
+// month the bus does not run. A slice then lands on bus_stop_id + month rather
+// than on an instalment — the row shape the fee desk's own bus payments use.
 
 import type { FeeStructure } from "@nkps/shared/types";
 import { annualizedAmount, compareScheduleRows } from "./fees";
@@ -60,7 +67,12 @@ export interface AllocationSlice {
   /** 1-based index of this slice within its receipt, for the receipt number. */
   slice_no: number;
   head: string;
-  fee_structure_id: string;
+  /** The instalment settled; null for a bus-month slice. */
+  fee_structure_id: string | null;
+  /** The stop the month is charged at, for a bus-month slice. */
+  bus_stop_id?: string | null;
+  /** The bus month settled (YYYY-MM), for a bus-month slice. */
+  month?: string | null;
   instalment_name: string | null;
   month_label: string | null;
   amount: number;
@@ -87,6 +99,27 @@ export interface AllocationResult {
   slices: AllocationSlice[];
   /** Heads that could not be placed at all. These block their row. */
   problems: AllocationProblem[];
+}
+
+/** One month of a student's bus fee the waterfall can fill. */
+export interface AllocatableBusMonth {
+  /** YYYY-MM */
+  month: string;
+  /** What the month costs this student; months costing nothing are skipped. */
+  amount: number;
+  /** The stop the month is charged at. */
+  bus_stop_id: string;
+}
+
+/**
+ * A head is the bus fee when it says so. The old software's column is
+ * "Transport Fee" on the sample; a school may also have called it Bus Fee,
+ * Conveyance or Van Fee. The operator's head mapping wins where it is used.
+ */
+export const TRANSPORT_HEAD = "Transport";
+
+export function isTransportHead(head: string): boolean {
+  return /\b(transport|bus|conveyance|van)\b/i.test(String(head ?? ""));
 }
 
 /** Rupees → paise, so the waterfall never leaks a float remainder. */
@@ -158,9 +191,20 @@ export function allocateStudentReceipts(args: {
    * settled.
    */
   alreadyFilledPaise?: Map<string, number>;
+  /**
+   * The student's bus months, for a transport head. Omit it and a transport
+   * head is a problem — the student is not on the bus, or has no stop fee.
+   */
+  busMonths?: AllocatableBusMonth[];
+  /** Money already settled against a bus month, in paise, keyed by YYYY-MM. */
+  busAlreadyFilledPaise?: Map<string, number>;
 }): AllocationResult {
   const { receipts, scheduleByHead, fallbackByHead } = args;
   const filled = new Map(args.alreadyFilledPaise ?? []);
+  const busFilled = new Map(args.busAlreadyFilledPaise ?? []);
+  const busMonths = [...(args.busMonths ?? [])]
+    .filter((m) => m.amount > 0)
+    .sort((a, b) => a.month.localeCompare(b.month));
 
   const slices: AllocationSlice[] = [];
   const problems: AllocationProblem[] = [];
@@ -179,6 +223,69 @@ export function allocateStudentReceipts(args: {
     let sliceNo = 0;
 
     for (const headEntry of receipt.heads) {
+      if (isTransportHead(headEntry.head)) {
+        if (busMonths.length === 0) {
+          problems.push({
+            receipt_no: receipt.receipt_no,
+            source_row: receipt.source_row,
+            head: headEntry.head,
+            amount: headEntry.amount,
+            message:
+              `Pays a bus fee, but the student has no bus stop with a fee for ` +
+              `the selected year. Assign the stop under Transport → Student ` +
+              `Assignments (and a fee for it under Transport → Stops), then re-run.`,
+          });
+          continue;
+        }
+        let remaining = toPaise(headEntry.amount);
+        if (remaining <= 0) continue;
+        for (const bm of busMonths) {
+          if (remaining <= 0) break;
+          const capacity = toPaise(bm.amount) - (busFilled.get(bm.month) ?? 0);
+          if (capacity <= 0) continue;
+          const take = Math.min(capacity, remaining);
+          busFilled.set(bm.month, (busFilled.get(bm.month) ?? 0) + take);
+          remaining -= take;
+          sliceNo += 1;
+          slices.push({
+            receipt_no: receipt.receipt_no,
+            source_row: receipt.source_row,
+            slice_no: sliceNo,
+            head: headEntry.head,
+            fee_structure_id: null,
+            bus_stop_id: bm.bus_stop_id,
+            month: bm.month,
+            instalment_name: null,
+            month_label: null,
+            amount: fromPaise(take),
+            partial: take < capacity,
+            over_allocated: false,
+          });
+        }
+        // Every month of the session is paid and money is left over: parked
+        // on the last month, flagged, for the same reason as below.
+        if (remaining > 0) {
+          const last = busMonths[busMonths.length - 1];
+          busFilled.set(last.month, (busFilled.get(last.month) ?? 0) + remaining);
+          sliceNo += 1;
+          slices.push({
+            receipt_no: receipt.receipt_no,
+            source_row: receipt.source_row,
+            slice_no: sliceNo,
+            head: headEntry.head,
+            fee_structure_id: null,
+            bus_stop_id: last.bus_stop_id,
+            month: last.month,
+            instalment_name: null,
+            month_label: null,
+            amount: fromPaise(remaining),
+            partial: false,
+            over_allocated: true,
+          });
+        }
+        continue;
+      }
+
       const key = normalizeHead(headEntry.head);
       const primary = scheduleByHead.get(key);
       const rows =

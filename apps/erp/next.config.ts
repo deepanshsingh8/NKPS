@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { createHash } from "node:crypto";
 
 // Content-Security-Policy is NOT set here. It carries a fresh nonce per
 // request, so it is built in the proxy (src/proxy.ts → @nkps/shared
@@ -8,6 +9,20 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // No `X-Powered-By: Next.js` — it only tells a scanner what to try.
   poweredByHeader: false,
+  // An opaque token for this build, the same in the client bundle and the
+  // server functions, so an open page can tell when a newer deployment has
+  // replaced the one it loaded (see @nkps/shared lib/build-id.ts). Hashed:
+  // the commit itself has no business in a public bundle.
+  env: {
+    NEXT_PUBLIC_BUILD_ID: createHash("sha256")
+      .update(
+        process.env.VERCEL_GIT_COMMIT_SHA ??
+          process.env.VERCEL_DEPLOYMENT_ID ??
+          String(Date.now())
+      )
+      .digest("hex")
+      .slice(0, 16),
+  },
   transpilePackages: ["@nkps/shared"],
   images: {
     unoptimized: true,

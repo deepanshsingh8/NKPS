@@ -1,5 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sessionMonthOf, sessionMonths, transportMonthFees } from "./fees";
+import {
+  isTransportBillableMonth,
+  sessionMonthOf,
+  sessionMonths,
+  transportMonthFees,
+} from "./fees";
 import { loadSessionStopFees, loadTransportPeriods } from "./transport-history";
 
 // The over-collection guards every fee_payments write shares: what one period
@@ -135,8 +140,10 @@ export async function resolveBusPricing(
     ok: true,
     academicYearId,
     sessionMonthList,
+    // Nothing for a month the bus does not run (June) — the same rule the
+    // month-by-month pricing above applies.
     monthFee: (m) =>
-      sessionMonthList.length === 0 || sessionMonthList.includes(m)
+      isTransportBillableMonth(m) && (sessionMonthList.length === 0 || sessionMonthList.includes(m))
         ? { amount, bus_stop_id: stopId }
         : null,
   };

@@ -346,6 +346,12 @@ export function transportMonthFees(opts: {
       (f) => f.bus_stop_id === inForce.bus_stop_id && f.is_active
     );
     if (fee && fee.frequency !== "monthly") return null;
+    // A month the bus does not run is on the bus (the stop is kept, so the
+    // arrangement reads correctly) but costs nothing.
+    if (!isTransportBillableMonth(month)) {
+      out.push({ month, amount: 0, bus_stop_id: inForce.bus_stop_id });
+      continue;
+    }
     const oneSide =
       inForce.transport_direction !== "both" && inForce.transport_fee_override != null;
     const amount = oneSide
@@ -356,6 +362,30 @@ export function transportMonthFees(opts: {
     out.push({ month, amount, bus_stop_id: inForce.bus_stop_id });
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Months the bus does not run — no bus fee is charged for them
+// ---------------------------------------------------------------------------
+
+/**
+ * Calendar months (1–12) in which the school charges no bus fee. The bus runs
+ * eleven months a year: it does not run in June, the summer break, so the
+ * annual bus fee is eleven monthly charges, not twelve. The fee office asked
+ * for June to be taken out of the bus fee entirely — not shown as a month to
+ * pay, not counted in what is owed, not payable in advance.
+ */
+export const TRANSPORT_FREE_MONTHS: ReadonlySet<number> = new Set([6]);
+
+/** Whether a bus fee is charged for this session month (YYYY-MM). */
+export function isTransportBillableMonth(month: string): boolean {
+  const mm = Number(month.slice(5, 7));
+  return Number.isFinite(mm) && !TRANSPORT_FREE_MONTHS.has(mm);
+}
+
+/** The session's months with the no-charge months taken out. */
+export function transportBillableMonths(sessionMonthList: string[]): string[] {
+  return sessionMonthList.filter(isTransportBillableMonth);
 }
 
 export function sessionMonths(startDate: string, endDate: string): string[] {
@@ -377,7 +407,7 @@ export function sessionMonths(startDate: string, endDate: string): string[] {
   return out;
 }
 
-export type TransportMonthState = "paid" | "part" | "due" | "upcoming" | "off";
+export type TransportMonthState = "paid" | "part" | "due" | "upcoming" | "off" | "free";
 
 export interface TransportMonthStatus {
   /** YYYY-MM */
@@ -385,7 +415,11 @@ export interface TransportMonthStatus {
   fee: number;
   settled: number;
   remaining: number;
-  /** "off": not on the bus that month, so nothing is charged. */
+  /**
+   * "off": not on the bus that month, so nothing is charged. "free": the bus
+   * does not run that month (June), so nothing is charged whoever is on it —
+   * the screens leave these months out of the month strip and the picker.
+   */
   state: TransportMonthState;
   /** The stop the month is priced at; null when off the bus. */
   bus_stop_id: string | null;
@@ -433,12 +467,15 @@ export function transportMonthLedger(opts: {
   const thisMonth = opts.today.slice(0, 7);
   return opts.months.map((month) => {
     const priced = opts.monthFees?.find((m) => m.month === month);
-    const fee = priced ? Number(priced.amount) : opts.fee;
+    const billable = isTransportBillableMonth(month);
+    const fee = !billable ? 0 : priced ? Number(priced.amount) : opts.fee;
     const stop = priced ? priced.bus_stop_id : opts.busStopId ?? null;
     const settled = Math.round((settledByMonth.get(month) ?? 0) * 100) / 100;
     const remaining = Math.max(0, Math.round((fee - settled) * 100) / 100);
     const state: TransportMonthState =
-      fee <= 0.005
+      !billable
+        ? "free"
+        : fee <= 0.005
         ? "off"
         : remaining <= 0.005
           ? "paid"
@@ -685,11 +722,26 @@ export function resolveTransportLine(opts: {
   const amount =
     isOneSide && feeOverride != null ? Number(feeOverride) : Number(fee.amount);
 
+  // No history, but a monthly fee is still priced month by month: the current
+  // arrangement every month the bus runs, and nothing for a month it does not
+  // (June). That is what makes the year eleven charges rather than twelve on
+  // every screen — the annual figure, what has fallen due, the quarter rows
+  // and the month strip all read the same list.
+  const months = opts.sessionMonthList ?? [];
+  const monthFeesFlat =
+    fee.frequency === "monthly" && months.length > 0
+      ? months.map<TransportMonthFee>((month) => ({
+          month,
+          amount: isTransportBillableMonth(month) ? amount : 0,
+          bus_stop_id: fee.bus_stop_id,
+        }))
+      : null;
+
   return {
     ...transportLineShape(fee.bus_stop_id, fee.stop_name, direction),
     amount,
     frequency: fee.frequency as FeeFrequency,
-    month_fees: null,
+    month_fees: monthFeesFlat,
   };
 }
 
@@ -1159,6 +1211,10 @@ export function computeInstalmentLedger(opts: {
       // A quarter spent wholly off the bus, with nothing paid in it, is not a
       // row at all.
       if (amount <= 0.005 && paid + discount <= 0.005) continue;
+      // The row is labelled with the months it charges for: Q1 reads
+      // "April – May", not "April – June", because June is not charged. A
+      // payment that names June still settles into this row.
+      const chargedMonths = transportBillableMonths(months);
       const settled = paid + discount;
       const row = {
         amount: r2(amount),
@@ -1174,7 +1230,7 @@ export function computeInstalmentLedger(opts: {
         key: `${line.id}:Q${q}`,
         kind: "transport",
         line,
-        months,
+        months: chargedMonths.length > 0 ? chargedMonths : months,
         quarter: q,
         due_date: `${months[0]}-01`,
         ...row,

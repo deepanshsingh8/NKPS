@@ -1324,7 +1324,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           "Pick a class and find the student with the search box.",
           'Click the row, or its "View Fees" button.',
           'Click "Record Payment".',
-          'Under "Fees being paid", tick everything the parent is paying for: any instalments (each shows what it still owes) and, for a student on the bus, the months under "Bus fee". One payment can mix both.',
+          'Under "Fees being paid", tick everything the parent is paying for: any instalments (each shows what it still owes) and, for a student on the bus, the months under "Bus fee". One payment can mix both. A grey month is not yet due and can be ticked to take the bus fee in advance — "Tick rest of session" ticks every unpaid month for a parent paying the whole year; "Tick all due" ticks only what is owed today. June is never listed: the bus does not run that month and no fee is charged for it.',
           'The "Amount" fills in with what the ticked fees still owe; lower it to part-pay. Pick a "Payment Method".',
           'Set "Payment Date" to the day the parent paid — it starts at today and cannot be a future date.',
           "Fill the cheque, bank-transfer or online block that appears.",
@@ -1333,7 +1333,7 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         needs:
           "A fee structure must already exist for that class and stream, or the Fee dropdown is empty and the save fails. A transport line only appears if the student has a stop assigned AND that stop has a fee.",
         gotcha:
-          'The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded. Paid there is cash; Discount is shown on its own, and "Unpaid by quarter" names the quarters still owed. Each fee card shows its quarter, whether it is paid, part paid, due or not yet due, and what was paid, discounted and is still outstanding on it. Several fees taken together print as one receipt — bus months alone read "For April – June 2026", a mix lists each fee — and appear in Payment History as one row per fee, sharing the receipt number with a /1, /2… suffix. The money clears the earliest-due fee first: every fee but the last-due one must be paid in full, and only that one can be part-paid. A paid instalment or month cannot be ticked. The transport card shows each month: green paid, amber part-paid, red due, grey not yet due, and a dashed outline for a month the student was not on the bus. Each month is charged at the stop the student was on that month.',
+          'The Outstanding Dues panel shows dues as of today — instalments falling due later this session are deliberately excluded. Paid there is cash; Discount is shown on its own, and "Unpaid by quarter" names the quarters still owed. Each fee card shows its quarter, whether it is paid, part paid, due or not yet due, and what was paid, discounted and is still outstanding on it. Several fees taken together print as one receipt — bus months alone read "For April – June 2026", a mix lists each fee — and appear in Payment History as one row per fee, sharing the receipt number with a /1, /2… suffix. The money clears the earliest-due fee first: every fee but the last-due one must be paid in full, and only that one can be part-paid. A paid instalment or month cannot be ticked. The transport card shows each month: green paid, amber part-paid, red due, grey not yet due, and a dashed outline for a month the student was not on the bus; June is left out because it is not charged, so the year is eleven bus months and Q1 reads "April – May". Each month is charged at the stop the student was on that month. If the cards show no Paid/Due line under them, the window is on an older build — reload the page (a "new version is available" toast offers it).',
       },
       {
         name: "Move on to the next student",
@@ -1414,6 +1414,21 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
         ],
         gotcha:
           "An editor's change or removal goes to an admin for approval. A new amount can't exceed what the instalment still owes (not counting this discount). Removing a discount makes the amount it covered payable again. Both are kept in the fee audit log.",
+      },
+      {
+        name: "Bring fee records over from the old ERP",
+        steps: [
+          'In the old software, export the "Day Book (Head wise) Report" for the whole session to date, as .xls — do not edit it.',
+          'Above the class picker, click "Import Day Book (Head wise)". The dialog links a step-by-step guide.',
+          "Pick the session, choose the file, and click \"Preview\". Nothing is written yet.",
+          'Check the reconciliation: the file\'s own total, what was read, and what will be imported. Map any class or fee head it did not recognise — a Bus Fee / Transport column goes to "Transport".',
+          'Read the counters: "already imported" and "already in ERP" are skipped; "need review" are held back; errors and conflicts block the import until fixed.',
+          'Click "Import". The batch appears under "Import history" with a Revert.',
+        ],
+        needs:
+          "The session's fee schedule must be published for every class in the file, and a student whose receipt carries a bus fee must have a bus stop (with a fee) assigned for the session.",
+        gotcha:
+          'Re-uploading a later export is safe: a receipt is matched by its old receipt number and skipped if it is already in. A receipt that was entered by hand on the fee desk — same student, same date, same amount — is skipped as "Already in ERP". When a student has a hand-entered payment that matches nothing in the file, all of that student\'s remaining receipts are held back as "Needs review" and the row names the payments to check in Payment History; tick "import their receipts too" once you are sure they are different money. A tuition or admission head fills that head\'s instalments oldest first; a bus-fee head fills the student\'s bus months oldest first (June is never charged). A receipt whose total changed since it was imported is a conflict — correct or revert it, then re-run.',
       },
       {
         name: "Undo a day-book import",

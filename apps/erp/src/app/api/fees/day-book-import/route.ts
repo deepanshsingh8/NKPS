@@ -14,6 +14,19 @@
 // A commit is refused while any row is in error or any class/head is unmapped,
 // so the operator always sees a clean preview before money moves.
 //
+// ── Money already entered by hand ───────────────────────────────────────────
+// Once the office starts taking payments on the fee desk, the same receipt can
+// exist twice: in the old software's day book and as a hand-entered ERP row.
+// A file receipt whose student, date and total match a hand-entered receipt
+// is reported "already in ERP" and skipped. A student with hand-entered money
+// that matches nothing in the file is held back for review — the two may be
+// the same rupees entered differently — unless the operator confirms.
+//
+// ── The bus fee ─────────────────────────────────────────────────────────────
+// A Transport / Bus Fee head is placed on the student's bus months, oldest
+// first, each priced the way the fee desk prices it (migration 140), and lands
+// on bus_stop_id + month like a bus payment taken at the desk.
+//
 // ── What makes a re-upload safe ────────────────────────────────────────────
 // The school re-exports the day book as the year goes on, so most of any later
 // file has already been imported. Every row carries `source_receipt_no` — the
@@ -42,15 +55,27 @@ import {
   resolveStreamId,
   streamIsMissing,
 } from "@nkps/shared/lib/stream-alias";
-import { resolveEffectiveFeeStructures, resolveStudentType } from "@/lib/fees";
+import {
+  resolveEffectiveFeeStructures,
+  resolveStudentType,
+  resolveTransportLine,
+  sessionMonthOf,
+  sessionMonths,
+} from "@/lib/fees";
 import {
   allocateStudentReceipts,
   buildImportReceiptNumber,
   groupScheduleByHead,
+  isTransportHead,
   normalizeHead,
+  TRANSPORT_HEAD,
+  type AllocatableBusMonth,
   type AllocatableStructure,
   type AllocationSlice,
 } from "@/lib/fee-allocation";
+import { loadSessionStopFees, loadTransportPeriods } from "@/lib/transport-history";
+import { fetchAllRows } from "@nkps/shared/lib/fetch-all-rows";
+import type { TransportDirection } from "@nkps/shared/types";
 
 export const maxDuration = 300; // 1,500+ receipts fan out to several thousand rows
 
@@ -62,6 +87,7 @@ type RowStatus =
   | "error"
   | "skip_zero"
   | "already_imported"
+  | "already_in_erp"
   | "conflict"
   | "needs_review";
 
@@ -258,8 +284,14 @@ export async function POST(req: NextRequest) {
   for (const head of parsed.heads) {
     const mapped = headMappings[head] ?? head;
     headResolution.set(head, mapped);
-    if (!knownHeads.has(normalizeHead(mapped))) unmappedHeads.add(head);
+    if (!knownHeads.has(normalizeHead(mapped)) && !isTransportHead(mapped)) {
+      unmappedHeads.add(head);
+    }
   }
+  const sessionMonthList =
+    yearRow.start_date && yearRow.end_date
+      ? sessionMonths(String(yearRow.start_date), String(yearRow.end_date))
+      : [];
 
   // ── Existing ledger state for this year ──────────────────────────────────
   // Two things are needed per student: what has already been imported (so a
@@ -268,10 +300,23 @@ export async function POST(req: NextRequest) {
   const {
     importedByReceipt,
     settledByStudentStructure,
+    settledByStudentBusMonth,
     nativeByStudent,
     error: ledgerError,
-  } = await loadLedgerState(admin, academicYearId);
+  } = await loadLedgerState(admin, academicYearId, sessionMonthList);
   if (ledgerError) return NextResponse.json({ error: ledgerError }, { status: 500 });
+
+  // The bus fee month by month for every student on the bus this year, only
+  // when the file carries a transport head at all.
+  const fileHasBusHead = parsed.receipts.some((r) =>
+    r.heads.some((h) => isTransportHead(headResolution.get(h.head) ?? h.head))
+  );
+  const busMonthsByStudent = fileHasBusHead
+    ? await loadBusMonths(admin, academicYearId, sessionMonthList)
+    : new Map<string, AllocatableBusMonth[]>();
+  if (busMonthsByStudent instanceof Error) {
+    return NextResponse.json({ error: busMonthsByStudent.message }, { status: 500 });
+  }
 
   // ── Classify every receipt ───────────────────────────────────────────────
   interface Resolved {
@@ -285,6 +330,9 @@ export async function POST(req: NextRequest) {
   const rowResults: RowResult[] = [];
   const resolved: Resolved[] = [];
   const toCreate = new Map<string, StudentToCreate>();
+  // Receipts of students with hand-entered money, decided once every receipt
+  // in the file has had its chance to match one of those entries.
+  const heldBack: Array<{ row: RowResult; entry: Resolved; studentId: string }> = [];
   const classSpecByKey = new Map<
     string,
     { name: string; section: string; stream_name: string | null }
@@ -435,33 +483,77 @@ export async function POST(req: NextRequest) {
       matchedBy = "will_create";
     }
 
-    // A student with money already entered natively this session is held back:
-    // the file and the ERP may be describing the same rupees, and silent
-    // double-counting is the one failure that is hard to spot afterwards.
-    const native = student ? nativeByStudent.get(student.id) : undefined;
-    if (native && !includeNeedsReview) {
-      rowResults.push({
-        ...base,
-        status: "needs_review",
-        matched_by: matchedBy,
-        message:
-          `This student already has ${native.rows} payment(s) totalling ` +
-          `₹${native.total.toLocaleString("en-IN")} entered directly in the ERP ` +
-          `for ${academicYearName}. Excluded until you confirm they are not the ` +
-          `same money.`,
-      });
-      continue;
-    }
-
-    rowResults.push({ ...base, status: "ok", matched_by: matchedBy });
-    resolved.push({
+    const entry: Resolved = {
       src: r,
       student_id: student?.id ?? null,
       admission_no: admKey,
       norm,
       section,
-    });
+    };
+
+    // Money already entered by hand on the fee desk. The same receipt — same
+    // student, same day, same total — is skipped outright; it is in the
+    // ledger already, just not under its old receipt number. Anything else
+    // for a student with hand-entered money is held back until the whole
+    // file has been read, then decided below.
+    const native = student ? nativeByStudent.get(student.id) ?? [] : [];
+    if (native.length > 0) {
+      const twin = native.find(
+        (n) =>
+          !n.matched &&
+          n.date === r.payment_date &&
+          Math.round((n.total - r.total) * 100) === 0
+      );
+      if (twin) {
+        twin.matched = true;
+        rowResults.push({
+          ...base,
+          status: "already_in_erp",
+          matched_by: matchedBy,
+          message:
+            `Already entered by hand in the ERP as receipt ${twin.receipt_number} ` +
+            `(₹${twin.total.toLocaleString("en-IN")} on ${twin.date}). Skipped, so ` +
+            `it is not counted twice.`,
+        });
+        continue;
+      }
+      if (!includeNeedsReview) {
+        heldBack.push({
+          row: { ...base, status: "needs_review", matched_by: matchedBy },
+          entry,
+          studentId: student!.id,
+        });
+        continue;
+      }
+    }
+
+    rowResults.push({ ...base, status: "ok", matched_by: matchedBy });
+    resolved.push(entry);
   }
+
+  // A held-back receipt imports after all when every hand-entered payment of
+  // its student was matched by some receipt in the file: the ERP then holds
+  // nothing the file does not explain. Otherwise it stays out, and the row
+  // names the hand-entered payments the operator has to account for.
+  for (const h of heldBack) {
+    const unmatched = (nativeByStudent.get(h.studentId) ?? []).filter((n) => !n.matched);
+    if (unmatched.length === 0) {
+      h.row.status = "ok";
+      resolved.push(h.entry);
+    } else {
+      const list = unmatched
+        .slice(0, 4)
+        .map((n) => `${n.receipt_number} ₹${n.total.toLocaleString("en-IN")} on ${n.date}`)
+        .join("; ");
+      h.row.message =
+        `This student has ${unmatched.length} payment(s) entered by hand in the ERP ` +
+        `for ${academicYearName} that match no receipt in this file: ${list}` +
+        `${unmatched.length > 4 ? "; …" : ""}. Held back in case they are the same ` +
+        `money. Check the student's Payment History, then tick "import their receipts too".`;
+    }
+    rowResults.push(h.row);
+  }
+  rowResults.sort((a, b) => a.source_row - b.source_row);
 
   // ── Classes that would be created ────────────────────────────────────────
   const willCreateStreams: string[] = [];
@@ -493,6 +585,8 @@ export async function POST(req: NextRequest) {
     toCreate,
     headResolution,
     settledByStudentStructure,
+    settledByStudentBusMonth,
+    busMonthsByStudent,
     year: {
       start_date: yearRow.start_date as string,
       end_date: yearRow.end_date as string,
@@ -551,7 +645,9 @@ export async function POST(req: NextRequest) {
       rows: rowResults,
       unmapped_classes: [...unmappedClasses],
       unmapped_heads: [...unmappedHeads],
-      known_heads: [...new Set(structures.map((s) => s.fee_type))].sort(),
+      // The bus fee is a head too, though it lives on bus stops, not the
+      // schedule — a "Bus Fee" column is mapped to it.
+      known_heads: [...new Set([...structures.map((s) => s.fee_type), TRANSPORT_HEAD])].sort(),
       students_to_create: [...toCreate.values()],
       reconciliation,
       warnings,
@@ -637,8 +733,15 @@ export async function POST(req: NextRequest) {
       .upsert(chunk, { onConflict: "receipt_number", ignoreDuplicates: true })
       .select("id");
     if (error) {
+      // Several bus months of one receipt share the pre-141 idempotency key.
+      const oldIndex =
+        error.code === "23505" && /source_receipt_unique/.test(error.message ?? "");
       insertErrors.push(
-        `Records ${i + 1}–${i + chunk.length}: ${dbErrorMessage(error, "fees/day-book-import insert")}`
+        oldIndex
+          ? `Records ${i + 1}–${i + chunk.length}: the database still has the old ` +
+            `receipt index — run migration 141 (scripts/migrations/erp/` +
+            `migration-141-source-receipt-bus-months.sql), then import again.`
+          : `Records ${i + 1}–${i + chunk.length}: ${dbErrorMessage(error, "fees/day-book-import insert")}`
       );
       continue;
     }
@@ -665,7 +768,8 @@ export async function POST(req: NextRequest) {
     source_period_end: parsed.period_end,
     row_count: parsed.receipts.length,
     created_count: committed,
-    skipped_count: counts.already_imported + counts.skip_zero + skippedConflicts,
+    skipped_count:
+      counts.already_imported + counts.already_in_erp + counts.skip_zero + skippedConflicts,
     amount_total: amountTotal,
     control_totals: {
       file: parsed.control,
@@ -764,6 +868,7 @@ function tally(rows: RowResult[]) {
     error: 0,
     skip_zero: 0,
     already_imported: 0,
+    already_in_erp: 0,
     conflict: 0,
     needs_review: 0,
   };
@@ -777,6 +882,7 @@ function emptySummary() {
     error: 0,
     skip_zero: 0,
     already_imported: 0,
+    already_in_erp: 0,
     conflict: 0,
     needs_review: 0,
     total_rows: 0,
@@ -828,11 +934,34 @@ type AdminClient = NonNullable<
   Awaited<ReturnType<typeof verifyAdminOrEditorWithUser>>
 >["admin"];
 
-/** Existing ledger state for the year, in three shapes the run needs. */
-async function loadLedgerState(admin: AdminClient, academicYearId: string) {
+/** A payment taken on the fee desk, as one receipt (its rows summed). */
+interface NativeReceipt {
+  receipt_number: string;
+  /** YYYY-MM-DD */
+  date: string;
+  total: number;
+  rows: number;
+  /** Set once a receipt in the file is found to be this same payment. */
+  matched: boolean;
+}
+
+/** Existing ledger state for the year, in the shapes the run needs. */
+async function loadLedgerState(
+  admin: AdminClient,
+  academicYearId: string,
+  sessionMonthList: string[]
+) {
   const importedByReceipt = new Map<string, { total: number; rows: number }>();
   const settledByStudentStructure = new Map<string, Map<string, number>>();
-  const nativeByStudent = new Map<string, { total: number; rows: number }>();
+  const settledByStudentBusMonth = new Map<string, Map<string, number>>();
+  const nativeByStudent = new Map<string, NativeReceipt[]>();
+  const fail = (error: string) => ({
+    importedByReceipt,
+    settledByStudentStructure,
+    settledByStudentBusMonth,
+    nativeByStudent,
+    error,
+  });
 
   // PostgREST caps a page at 1000 rows; a full session runs to several
   // thousand payments, so page explicitly rather than silently truncating —
@@ -842,7 +971,7 @@ async function loadLedgerState(admin: AdminClient, academicYearId: string) {
     const { data, error } = await admin
       .from("fee_payments")
       .select(
-        "student_id, fee_structure_id, bus_stop_id, amount_paid, waiver_amount, refund_amount, status, source, source_receipt_no"
+        "student_id, fee_structure_id, bus_stop_id, amount_paid, waiver_amount, refund_amount, status, source, source_receipt_no, receipt_number, payment_date, month, payment_method"
       )
       .eq("academic_year_id", academicYearId)
       // Ordered by id so the pages are disjoint: LIMIT/OFFSET without a total
@@ -850,7 +979,7 @@ async function loadLedgerState(admin: AdminClient, academicYearId: string) {
       // double-count a receipt as already imported and drop a real one.
       .order("id", { ascending: true })
       .range(from, from + PAGE - 1);
-    if (error) return { importedByReceipt, settledByStudentStructure, nativeByStudent, error: dbErrorMessage(error, "fees/day-book-import ledger") };
+    if (error) return fail(dbErrorMessage(error, "fees/day-book-import ledger"));
     const rows = data ?? [];
 
     for (const p of rows) {
@@ -867,12 +996,28 @@ async function loadLedgerState(admin: AdminClient, academicYearId: string) {
           rows: prev.rows + 1,
         });
       }
-      if (p.source === "erp_native" && counts) {
-        const prev = nativeByStudent.get(p.student_id as string) ?? { total: 0, rows: 0 };
-        nativeByStudent.set(p.student_id as string, {
-          total: prev.total + Number(p.amount_paid ?? 0),
-          rows: prev.rows + 1,
-        });
+      // Hand-entered money, one entry per receipt: a collection covering
+      // several fees is several rows sharing a receipt number with a /1, /2…
+      // suffix, and the day book knows it as one receipt for the total. A
+      // discount is not money received, so it is not a receipt to match.
+      if (p.source === "erp_native" && counts && p.payment_method !== "waiver") {
+        const list = nativeByStudent.get(p.student_id as string) ?? [];
+        const receiptNo = String(p.receipt_number ?? "").replace(/\/\d+$/, "") || "(no receipt no.)";
+        const date = String(p.payment_date ?? "").slice(0, 10);
+        const cur = list.find((n) => n.receipt_number === receiptNo && n.date === date);
+        if (cur) {
+          cur.total = Math.round((cur.total + Number(p.amount_paid ?? 0)) * 100) / 100;
+          cur.rows += 1;
+        } else {
+          list.push({
+            receipt_number: receiptNo,
+            date,
+            total: Number(p.amount_paid ?? 0),
+            rows: 1,
+            matched: false,
+          });
+        }
+        nativeByStudent.set(p.student_id as string, list);
       }
       const target = (p.fee_structure_id ?? p.bus_stop_id) as string | null;
       if (target && counts) {
@@ -881,12 +1026,84 @@ async function loadLedgerState(admin: AdminClient, academicYearId: string) {
         perStudent.set(target, (perStudent.get(target) ?? 0) + Math.round(settled * 100));
         settledByStudentStructure.set(p.student_id as string, perStudent);
       }
+      // Bus money by the month it names, whichever stop it was taken at — the
+      // bus waterfall starts on top of it.
+      if (p.bus_stop_id && counts) {
+        const key = sessionMonthOf(p.month as string | null, sessionMonthList);
+        if (key) {
+          const perStudent =
+            settledByStudentBusMonth.get(p.student_id as string) ?? new Map<string, number>();
+          perStudent.set(key, (perStudent.get(key) ?? 0) + Math.round(settled * 100));
+          settledByStudentBusMonth.set(p.student_id as string, perStudent);
+        }
+      }
     }
 
     if (rows.length < PAGE) break;
   }
 
-  return { importedByReceipt, settledByStudentStructure, nativeByStudent, error: null as string | null };
+  return {
+    importedByReceipt,
+    settledByStudentStructure,
+    settledByStudentBusMonth,
+    nativeByStudent,
+    error: null as string | null,
+  };
+}
+
+/**
+ * Every student's bus months for the year, priced exactly as the fee desk
+ * prices them: from the transport history where there is one, else the
+ * current arrangement, and nothing for a month the bus does not run.
+ */
+async function loadBusMonths(
+  admin: AdminClient,
+  academicYearId: string,
+  sessionMonthList: string[]
+): Promise<Map<string, AllocatableBusMonth[]> | Error> {
+  type Enrollment = {
+    id: string;
+    student_id: string;
+    has_transport: boolean | null;
+    bus_stop_id: string | null;
+    transport_direction: TransportDirection | null;
+    transport_fee_override: number | string | null;
+  };
+  const [enrollments, periods, session] = await Promise.all([
+    fetchAllRows<Enrollment>((from, to) =>
+      admin
+        .from("student_enrollments")
+        .select("id, student_id, has_transport, bus_stop_id, transport_direction, transport_fee_override")
+        .eq("academic_year_id", academicYearId)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+    loadTransportPeriods(admin, { academicYearId }),
+    loadSessionStopFees(admin, academicYearId),
+  ]);
+  if (enrollments.error) {
+    return new Error(`Failed to load transport enrollments: ${enrollments.error}`);
+  }
+  if (session.error) return new Error(`Failed to load the bus stop fees: ${session.error}`);
+
+  const out = new Map<string, AllocatableBusMonth[]>();
+  for (const e of enrollments.data) {
+    const line = resolveTransportLine({
+      hasTransport: Boolean(e.has_transport),
+      busStopId: e.bus_stop_id,
+      direction: e.transport_direction ?? "both",
+      feeOverride: e.transport_fee_override != null ? Number(e.transport_fee_override) : null,
+      stopFees: session.stopFees,
+      transportPeriods: periods.get(e.id) ?? [],
+      sessionMonthList,
+    });
+    if (!line?.month_fees) continue;
+    const months = line.month_fees
+      .filter((m) => m.amount > 0 && m.bus_stop_id)
+      .map((m) => ({ month: m.month, amount: Number(m.amount), bus_stop_id: m.bus_stop_id! }));
+    if (months.length > 0) out.set(e.student_id, months);
+  }
+  return out;
 }
 
 async function materializeClasses(
@@ -1100,9 +1317,14 @@ function buildPaymentRow(args: {
   const { studentId, academicYearId, yearPrefix, slice, src, recordedBy, batchId } = args;
   const isCheque = src.payment_method === "cheque";
 
+  const isBus = Boolean(slice.bus_stop_id);
   const remarkParts = [
     `Day Book import · original receipt #${src.receipt_no}`,
-    slice.instalment_name ? `${slice.head} · ${slice.instalment_name}` : slice.head,
+    isBus
+      ? `${slice.head} · ${slice.month}`
+      : slice.instalment_name
+        ? `${slice.head} · ${slice.instalment_name}`
+        : slice.head,
   ];
   if (slice.over_allocated) {
     remarkParts.push("Paid beyond the published schedule for this head.");
@@ -1111,12 +1333,15 @@ function buildPaymentRow(args: {
 
   return {
     student_id: studentId,
-    fee_structure_id: slice.fee_structure_id,
+    fee_structure_id: isBus ? null : slice.fee_structure_id,
+    bus_stop_id: isBus ? slice.bus_stop_id : null,
     academic_year_id: academicYearId,
     amount_paid: slice.amount,
     payment_method: src.payment_method,
     payment_date: src.payment_date,
-    month: slice.month_label ?? null,
+    // A bus slice names the month it settles, as a desk payment does; an
+    // instalment slice carries the schedule's label.
+    month: isBus ? slice.month ?? null : slice.month_label ?? null,
     receipt_number: buildImportReceiptNumber(yearPrefix, src.receipt_no, slice.slice_no),
     source_receipt_no: src.receipt_no,
     status: slice.partial ? "partial" : "paid",
@@ -1157,6 +1382,8 @@ function allocate(args: {
   toCreate: Map<string, StudentToCreate>;
   headResolution: Map<string, string>;
   settledByStudentStructure: Map<string, Map<string, number>>;
+  settledByStudentBusMonth: Map<string, Map<string, number>>;
+  busMonthsByStudent: Map<string, AllocatableBusMonth[]>;
   year: { start_date: string; end_date: string };
 }): {
   slices: AllocationSlice[];
@@ -1171,6 +1398,8 @@ function allocate(args: {
     toCreate,
     headResolution,
     settledByStudentStructure,
+    settledByStudentBusMonth,
+    busMonthsByStudent,
     year,
   } = args;
 
@@ -1242,6 +1471,12 @@ function allocate(args: {
       // A student who does not exist yet has no ledger to stack on.
       alreadyFilledPaise: first.student_id
         ? settledByStudentStructure.get(first.student_id)
+        : undefined,
+      // A student still to be created has no enrollment, so no bus months: a
+      // transport head on their receipt is reported, not guessed.
+      busMonths: first.student_id ? busMonthsByStudent.get(first.student_id) : undefined,
+      busAlreadyFilledPaise: first.student_id
+        ? settledByStudentBusMonth.get(first.student_id)
         : undefined,
     });
 

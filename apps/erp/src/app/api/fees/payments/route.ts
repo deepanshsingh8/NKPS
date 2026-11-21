@@ -10,7 +10,12 @@ import {
   settledForBusMonth,
   settledForPeriod,
 } from "@/lib/fee-payment-guards";
-import { allocateOldestFirst, feeLineLabel, formatFeeMonth } from "@/lib/fees";
+import {
+  allocateOldestFirst,
+  feeLineLabel,
+  formatFeeMonth,
+  isTransportBillableMonth,
+} from "@/lib/fees";
 
 // POST /api/fees/payments — record one collection: a single instalment, one
 // or more months of the student's bus fee, or any mix of instalments and bus
@@ -150,6 +155,17 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error: `${formatFeeMonth(outside.month)} is outside this session (${formatFeeMonth(months[0])} – ${formatFeeMonth(months[months.length - 1])}).`,
+          },
+          { status: 400 }
+        );
+      }
+      // The bus does not run in June, so no bus fee is charged for it — not
+      // even in advance.
+      const free = busItems.find((it) => !isTransportBillableMonth(it.month));
+      if (free) {
+        return NextResponse.json(
+          {
+            error: `No bus fee is charged for ${formatFeeMonth(free.month)} — the bus does not run that month. Untick it.`,
           },
           { status: 400 }
         );

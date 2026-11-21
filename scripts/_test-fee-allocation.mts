@@ -88,5 +88,37 @@ eq("head key normalised", r.slices.map(s=>s.fee_structure_id), ["t1"]);
 // 11. Receipt number shape
 eq("receipt number", buildImportReceiptNumber("2026","1242",2), "DB-2026-1242-2");
 
+// 12. Bus fee: a Transport head fills the student's bus months oldest first.
+// June is absent from the list — the bus does not run, so it is not a month.
+const bus = [
+  { month: "2026-04", amount: 1000, bus_stop_id: "stopA" },
+  { month: "2026-05", amount: 1000, bus_stop_id: "stopA" },
+  { month: "2026-07", amount: 1200, bus_stop_id: "stopB" },
+  { month: "2026-08", amount: 1200, bus_stop_id: "stopB" },
+];
+r = allocateStudentReceipts({ receipts: [R("12","2026-04-05",[["Transport Fee",2000]])], scheduleByHead: schedule, busMonths: bus });
+eq("bus: two months, on their stops",
+   r.slices.map(s=>[s.fee_structure_id,s.bus_stop_id,s.month,s.amount,s.partial]),
+   [[null,"stopA","2026-04",1000,false],[null,"stopA","2026-05",1000,false]]);
+eq("bus: no problem", r.problems.length, 0);
+
+// 13. Bus fee on top of money already against April, part-paying July
+r = allocateStudentReceipts({ receipts: [R("13","2026-07-10",[["Transport Fee",1500]])], scheduleByHead: schedule,
+                              busMonths: bus, busAlreadyFilledPaise: new Map([["2026-04", 100000], ["2026-05", 100000]]) });
+eq("bus: skips settled months, part-pays the next",
+   r.slices.map(s=>[s.month,s.amount,s.partial]), [["2026-07",1200,false],["2026-08",300,true]]);
+
+// 14. Tuition and bus on one receipt: one slice sequence
+r = allocateStudentReceipts({ receipts: [R("14","2026-04-05",[["Tuition Fee",11300],["Bus Fee",1000]])], scheduleByHead: schedule, busMonths: bus });
+eq("mixed receipt: slice_no continues across heads",
+   r.slices.map(s=>[s.head,s.fee_structure_id ?? s.month,s.slice_no]),
+   [["Tuition Fee","t1",1],["Bus Fee","2026-04",2]]);
+
+// 15. Bus fee beyond the session: parked on the last month, flagged
+r = allocateStudentReceipts({ receipts: [R("15","2026-04-05",[["Transport Fee",5000]])], scheduleByHead: schedule, busMonths: bus });
+eq("bus over-allocation: surplus on the last month",
+   r.slices.map(s=>[s.month,s.amount,s.over_allocated]),
+   [["2026-04",1000,false],["2026-05",1000,false],["2026-07",1200,false],["2026-08",1200,false],["2026-08",600,true]]);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

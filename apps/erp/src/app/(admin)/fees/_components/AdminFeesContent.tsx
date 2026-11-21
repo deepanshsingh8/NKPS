@@ -250,6 +250,9 @@ const TRANSPORT_MONTH_CLASS: Record<TransportMonthStatus["state"], string> = {
   due: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400",
   upcoming: "border-gray-200 bg-white text-gray-600 dark:border-border dark:bg-muted dark:text-gray-300",
   off: "border-dashed border-gray-200 bg-transparent text-gray-400 dark:border-border dark:text-gray-500",
+  // Never rendered: a month the bus does not run (June) is left out of the
+  // strip and the picker altogether. Listed so the map stays total.
+  free: "hidden",
 };
 
 function TRANSPORT_MONTH_TITLE(tm: TransportMonthStatus): string {
@@ -259,6 +262,8 @@ function TRANSPORT_MONTH_TITLE(tm: TransportMonthStatus): string {
       return `${label}: paid`;
     case "off":
       return `${label}: not on the bus — nothing to pay`;
+    case "free":
+      return `${label}: the bus does not run — no fee`;
     case "part":
       return `${label}: ₹${tm.settled} paid, ₹${tm.remaining} still owed`;
     case "due":
@@ -1649,8 +1654,11 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
   }, [closeStudent]);
 
   // Deep-link: if ?student_id=... is in URL, auto-select that student once.
+  // Not before the session is known: selectStudent reads the year to pick the
+  // student's schedule, stop fee and history, and opened early it showed the
+  // fee cards with no position under them and no transport card at all.
   useEffect(() => {
-    if (!initialStudentId) return;
+    if (!initialStudentId || !academicYearId) return;
     let cancelled = false;
     (async () => {
       const { data } = await supabase
@@ -1665,7 +1673,26 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     return () => {
       cancelled = true;
     };
-  }, [initialStudentId, supabase, selectStudent]);
+  }, [initialStudentId, academicYearId, supabase, selectStudent]);
+
+  // The session changed under an open student (the picker, or the current
+  // year resolving after a deep link): reload them for the year now shown,
+  // or the cards keep the old year's schedule beside the new year's roster.
+  const selectedStudentRef = useRef<Student | null>(null);
+  useEffect(() => {
+    selectedStudentRef.current = selectedStudent;
+  }, [selectedStudent]);
+  const lastSelectYearRef = useRef<string>("");
+  useEffect(() => {
+    if (!academicYearId || lastSelectYearRef.current === academicYearId) return;
+    const first = lastSelectYearRef.current === "";
+    lastSelectYearRef.current = academicYearId;
+    if (first) return;
+    const open = selectedStudentRef.current;
+    if (open) void selectStudent(open);
+    // selectStudent is keyed on academicYearId, which is the dependency here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [academicYearId]);
 
   // Every stop fee of the session, for pricing a transport history.
   useEffect(() => {
@@ -2434,6 +2461,24 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     () => new Map(transportMonths.map((tm) => [tm.month, tm])),
     [transportMonths]
   );
+  // The months a person can act on. June is not charged, so it is not a
+  // month to pay — it is left out rather than shown greyed, as the fee
+  // office asked.
+  const visibleTransportMonths = useMemo(
+    () => transportMonths.filter((tm) => tm.state !== "free"),
+    [transportMonths]
+  );
+  // Months that can still be ticked in Record Payment, for the quick picks:
+  // everything owed today, and everything still to come in the session. A
+  // parent paying the whole year at once ticks the lot in one click.
+  const payableTransportMonths = useMemo(
+    () => visibleTransportMonths.filter((tm) => tm.state !== "paid" && tm.state !== "off"),
+    [visibleTransportMonths]
+  );
+  const dueTransportMonths = useMemo(
+    () => payableTransportMonths.filter((tm) => tm.state === "due" || tm.state === "part"),
+    [payableTransportMonths]
+  );
 
   // The open student's position instalment by instalment — the same ledger
   // the Quarter-wise register is built from, so the two always agree.
@@ -2542,6 +2587,16 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
     const nextMonths = newPayment.months.includes(month)
       ? newPayment.months.filter((m) => m !== month)
       : [...newPayment.months, month].sort();
+    setNewPayment({
+      ...newPayment,
+      months: nextMonths,
+      amount_paid: repriced(newPayment.fs_ids, nextMonths),
+    });
+  };
+  // Tick a whole run of months at once — what is due today, or everything
+  // left in the session for a parent paying the bus fee in advance.
+  const selectTransportMonths = (months: string[]) => {
+    const nextMonths = [...months].sort();
     setNewPayment({
       ...newPayment,
       months: nextMonths,
@@ -3752,9 +3807,9 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                               </p>
                               {/* The bus fee month by month: which months are
                                   paid, part-paid, due, or still to come. */}
-                              {isTransport && transportMonths.length > 0 && (
+                              {isTransport && visibleTransportMonths.length > 0 && (
                                 <div className="mt-2 flex flex-wrap gap-1" aria-label="Bus fee by month">
-                                  {transportMonths.map((tm) => (
+                                  {visibleTransportMonths.map((tm) => (
                                     <span
                                       key={tm.month}
                                       title={TRANSPORT_MONTH_TITLE(tm)}
@@ -4710,13 +4765,13 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                   <p className="text-xs text-gray-600 dark:text-gray-300">
                     Bus fee — {transportLine.stop_name} ({inr(transportLine.amount)} a month)
                   </p>
-                  {transportMonths.length === 0 ? (
+                  {visibleTransportMonths.length === 0 ? (
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       The session&apos;s dates aren&apos;t set, so its months can&apos;t be listed.
                     </p>
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
-                      {transportMonths.map((tm) => {
+                      {visibleTransportMonths.map((tm) => {
                         const on = newPayment.months.includes(tm.month);
                         return (
                           <button
@@ -4738,6 +4793,42 @@ function AdminFeesContentInner({ section }: AdminFeesContentInnerProps) {
                           </button>
                         );
                       })}
+                    </div>
+                  )}
+                  {/* Paying ahead is allowed — a grey month is only "not yet
+                      due", and some families clear the whole year's bus fee
+                      in one go. Say so, and give them one click for it. */}
+                  {payableTransportMonths.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
+                      <span>
+                        Grey months are not yet due — tick them to take the bus fee in advance.
+                        No fee is charged for June.
+                      </span>
+                      {dueTransportMonths.length > 0 && (
+                        <button
+                          type="button"
+                          className="font-medium text-navy-900 underline-offset-2 hover:underline dark:text-gold-500"
+                          onClick={() => selectTransportMonths(dueTransportMonths.map((tm) => tm.month))}
+                        >
+                          Tick all due ({dueTransportMonths.length})
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="font-medium text-navy-900 underline-offset-2 hover:underline dark:text-gold-500"
+                        onClick={() => selectTransportMonths(payableTransportMonths.map((tm) => tm.month))}
+                      >
+                        Tick rest of session ({payableTransportMonths.length})
+                      </button>
+                      {newPayment.months.length > 0 && (
+                        <button
+                          type="button"
+                          className="underline-offset-2 hover:underline"
+                          onClick={() => selectTransportMonths([])}
+                        >
+                          Clear
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
