@@ -66,7 +66,13 @@ const CLASS_NAMES: readonly string[] = CLASS_ORDER;
 const STREAMS = ["", "Science", "Commerce", "Arts"] as const;
 
 type RowStatus =
-  | "ok" | "error" | "skip_zero" | "already_imported" | "conflict" | "needs_review";
+  | "ok"
+  | "error"
+  | "skip_zero"
+  | "already_imported"
+  | "already_in_erp"
+  | "conflict"
+  | "needs_review";
 
 interface RowResult {
   source_row: number;
@@ -109,6 +115,7 @@ interface Summary {
   error: number;
   skip_zero: number;
   already_imported: number;
+  already_in_erp?: number;
   conflict: number;
   needs_review: number;
   total_rows: number;
@@ -159,8 +166,15 @@ const STATUS_LABEL: Record<RowStatus, string> = {
   conflict: "Conflict",
   needs_review: "Needs review",
   already_imported: "Already imported",
+  already_in_erp: "Already in ERP",
   skip_zero: "Zero value",
 };
+
+/** Rows that need nobody's attention: the money is in the ledger already. */
+const SETTLED_STATUSES: ReadonlySet<RowStatus> = new Set(["ok", "already_imported", "already_in_erp"]);
+
+/** The step-by-step guide, a static page served by the ERP itself. */
+const GUIDE_URL = "/guides/import-fees-from-old-erp.html";
 
 interface Props {
   triggerLabel?: string;
@@ -294,7 +308,7 @@ export function DayBookImportDialog({
 
   const downloadIssues = () => {
     if (!result) return;
-    const issues = result.rows.filter((r) => r.status !== "ok" && r.status !== "already_imported");
+    const issues = result.rows.filter((r) => !SETTLED_STATUSES.has(r.status));
     const header = [
       "Excel Row", "Receipt No", "Date", "SR No", "Student", "Class", "Section",
       "Mode", "Amount", "Status", "Message",
@@ -343,8 +357,18 @@ export function DayBookImportDialog({
           <DialogTitle>Import Day Book (Head wise)</DialogTitle>
           <DialogDescription>
             Upload the previous software&apos;s Day Book export exactly as it comes —
-            no editing. Receipts already imported are skipped, so re-uploading a
-            later export that overlaps this one is safe.
+            no editing. Receipts already imported, and receipts already entered by
+            hand on the fee desk (same student, date and amount), are skipped, so
+            re-uploading a later export that overlaps this one is safe. A Transport
+            or Bus Fee column is placed on the student&apos;s bus months.{" "}
+            <a
+              href={GUIDE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-navy-900 underline underline-offset-2 dark:text-gold-500"
+            >
+              Step-by-step guide
+            </a>
           </DialogDescription>
         </DialogHeader>
 
@@ -494,6 +518,11 @@ export function DayBookImportDialog({
             {s.already_imported > 0 ? (
               <Badge variant="outline">{s.already_imported} already imported</Badge>
             ) : null}
+            {(s.already_in_erp ?? 0) > 0 ? (
+              <Badge variant="outline" title="Entered by hand on the fee desk — same student, date and amount. Skipped so it is not counted twice.">
+                {s.already_in_erp} already in ERP
+              </Badge>
+            ) : null}
             {s.skip_zero > 0 ? (
               <Badge variant="outline">{s.skip_zero} zero value</Badge>
             ) : null}
@@ -514,7 +543,7 @@ export function DayBookImportDialog({
             ) : null}
             {s.payments_to_create ? (
               <Badge variant="outline">
-                {s.payments_to_create} instalment row(s)
+                {s.payments_to_create} fee row(s)
               </Badge>
             ) : null}
             {s.over_allocated_rows ? (
@@ -599,7 +628,9 @@ export function DayBookImportDialog({
             ))}
             <p className="text-xs text-muted-foreground">
               Nothing here? Publish the fee schedule for this session first — money
-              can only be attached to an instalment that exists.
+              can only be attached to an instalment that exists. A bus-fee column
+              (Transport, Bus Fee, Conveyance) is recognised on its own; map any
+              other name for it to &quot;Transport&quot;.
             </p>
           </MappingPanel>
         ) : null}
@@ -612,8 +643,12 @@ export function DayBookImportDialog({
               have payments entered directly in the ERP
             </div>
             <p className="mb-2 text-sm text-muted-foreground">
-              They are held back because the file and the ERP may be describing the
-              same money. Check those students, then tick below to include them.
+              A receipt that matches a hand-entered payment exactly (same student,
+              date and amount) is already skipped as &quot;Already in ERP&quot;. These
+              are the rest: their students have hand-entered payments that match no
+              receipt in this file, so the two may be the same money. Each row names
+              the payments to check in the student&apos;s Payment History. Tick below
+              to import them anyway.
             </p>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox
@@ -777,7 +812,7 @@ function IssueTable({
   rows: RowResult[];
   onDownload: () => void;
 }) {
-  const issues = rows.filter((r) => r.status !== "ok" && r.status !== "already_imported");
+  const issues = rows.filter((r) => !SETTLED_STATUSES.has(r.status));
 
   // Errors cluster: an unpublished schedule takes out one whole class at once.
   // Leading with that turns "34 rows need attention" into "34 of them are

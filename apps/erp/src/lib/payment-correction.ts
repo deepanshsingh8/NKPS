@@ -7,6 +7,7 @@ import {
 } from "@nkps/shared/lib/validations";
 import { todayISO } from "@nkps/shared/lib/date";
 import { resolveBusPricing, settledForBusMonth } from "./fee-payment-guards";
+import { formatFeeMonth, isTransportBillableMonth } from "./fees";
 
 // Correcting a recorded payment: the day it was paid, how it was paid and the
 // details that go with that, and — transport only — the month it covers.
@@ -169,6 +170,9 @@ export async function validateCorrection(
       return "Only a transport payment's month can be corrected.";
     }
     if (!/^\d{4}-\d{2}$/.test(month)) return "Month must be a month.";
+    if (!isTransportBillableMonth(month)) {
+      return `No bus fee is charged for ${formatFeeMonth(month)} — the bus does not run that month.`;
+    }
     // Priced the way every fee screen prices it (migration 140): the month's
     // own fee, at the stop the student was on then.
     const pricing = await resolveBusPricing(admin, live.student_id);

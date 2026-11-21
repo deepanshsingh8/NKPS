@@ -7266,6 +7266,9 @@ COMMENT ON COLUMN fee_payments.source_receipt_no IS
   'schedule changes), so it is the idempotency key for the day-book importer '
   'and the number the office searches by.';
 
+-- Superseded by migration 141 (below), which adds the month so one old
+-- receipt can settle several bus months. Kept here as the historical shape;
+-- the 141 block drops and recreates it.
 CREATE UNIQUE INDEX IF NOT EXISTS fee_payments_source_receipt_unique
   ON fee_payments (
     academic_year_id,
@@ -8995,3 +8998,28 @@ CREATE TRIGGER trg_enrollment_transport_history
   FOR EACH ROW
   EXECUTE FUNCTION public.record_unrecorded_transport_change();
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration 141 — one old-software receipt may settle several bus months
+-- (mirrored from scripts/migrations/erp/migration-141-source-receipt-bus-months.sql)
+--
+-- The day-book importer places a Transport head on the student's bus months,
+-- one fee_payments row per month (bus_stop_id + month), so the idempotency
+-- index from migration 115 — keyed on COALESCE(fee_structure_id, bus_stop_id)
+-- — gains the month. An instalment slice's month is the schedule's label, one
+-- per instalment, so nothing is loosened there.
+-- ═══════════════════════════════════════════════════════════════════════════
+DROP INDEX IF EXISTS fee_payments_source_receipt_unique;
+
+CREATE UNIQUE INDEX IF NOT EXISTS fee_payments_source_receipt_unique
+  ON fee_payments (
+    academic_year_id,
+    source_receipt_no,
+    COALESCE(fee_structure_id, bus_stop_id),
+    COALESCE(month, '')
+  )
+  WHERE source_receipt_no IS NOT NULL;
+
+COMMENT ON INDEX fee_payments_source_receipt_unique IS
+  'Idempotency key for the day-book importer: one row per (year, old receipt '
+  'number, instalment or bus stop, month). The month is what lets one old '
+  'receipt settle several bus months (migration 141).';

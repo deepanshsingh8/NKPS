@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+<title>Import Fees from the Old ERP</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: a single A4-ish column; six numbered steps, each with a small mock of the screen it happens on. */
+:root{
+  --bg:#f8f6f0; --surface:#ffffff; --fg:#1b2437; --muted:#5b6578; --line:#d9d4c7;
+  --navy:#17264a; --gold:#c9a227; --gold-soft:#fbf3d8; --ok:#1f7a3a; --ok-soft:#e6f4ea;
+  --warn:#9a6400; --warn-soft:#fff4d6; --bad:#b42318; --bad-soft:#fde9e7; --info-soft:#e8eef9;
+  --font-head:"Playfair Display",Georgia,"Times New Roman",serif;
+  --font-body:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12182a; --surface:#1a2238; --fg:#edf0f6; --muted:#aab3c5; --line:#2e3a57;
+  --navy:#edf0f6; --gold:#e3c250; --gold-soft:#3a3214; --ok:#6fd28f; --ok-soft:#163322;
+  --warn:#f0c04a; --warn-soft:#3a2f12; --bad:#ff8a7a; --bad-soft:#3c1c19; --info-soft:#1f2a46; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12182a; --surface:#1a2238; --fg:#edf0f6; --muted:#aab3c5; --line:#2e3a57;
+  --navy:#edf0f6; --gold:#e3c250; --gold-soft:#3a3214; --ok:#6fd28f; --ok-soft:#163322;
+  --warn:#f0c04a; --warn-soft:#3a2f12; --bad:#ff8a7a; --bad-soft:#3c1c19; --info-soft:#1f2a46; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:15px;line-height:1.55}
+.page{max-width:860px;margin:0 auto;padding-block:28px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{border-bottom:3px solid var(--gold);padding-bottom:14px;margin-bottom:22px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+h1{font-family:var(--font-head);font-size:30px;line-height:1.15;margin:4px 0 0;color:var(--navy);text-wrap:balance}
+h2{font-family:var(--font-head);font-size:19px;margin:0 0 8px;color:var(--navy)}
+.lede{color:var(--muted);max-width:60ch;margin:6px 0 0}
+.meta{font-size:12px;color:var(--muted);text-align:right}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px}
+@media (max-width:640px){.grid{grid-template-columns:1fr}}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.box.gold{border-color:var(--gold);background:var(--gold-soft)}
+ul.check{list-style:none;padding:0;margin:0;display:grid;gap:6px}
+ul.check li{padding-left:24px;position:relative}
+ul.check li::before{content:"";position:absolute;left:0;top:6px;width:14px;height:14px;border:2px solid var(--gold);border-radius:3px}
+ol.steps{list-style:none;padding:0;margin:0;display:grid;gap:18px;counter-reset:step}
+ol.steps>li{display:grid;grid-template-columns:44px 1fr 300px;gap:14px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+@media (max-width:720px){ol.steps>li{grid-template-columns:44px 1fr}ol.steps>li .shot{grid-column:2}}
+.num::before{content:counter(step)}
+.num{counter-increment:step;width:40px;height:40px;border-radius:50%;background:var(--navy);color:var(--bg);display:grid;place-items:center;font-family:var(--font-head);font-weight:700;font-size:20px}
+:root[data-theme="dark"] .num{background:var(--gold);color:#12182a}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .num{background:var(--gold);color:#12182a}}
+.step h3{margin:2px 0 6px;font-size:16px}
+.step p{margin:0 0 6px}
+.step p:last-child{margin:0}
+.step .tip{font-size:13px;color:var(--muted)}
+.shot{min-width:0}
+.shot svg{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.shot figcaption{font-size:11.5px;color:var(--muted);margin-top:4px}
+.rules{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:10px}
+@media (max-width:720px){.rules{grid-template-columns:1fr}}
+.rule{border-radius:8px;padding:10px 12px;font-size:13.5px;min-width:0}
+.rule b{display:block;margin-bottom:3px;font-size:13px}
+.rule.ok{background:var(--ok-soft)} .rule.warn{background:var(--warn-soft)} .rule.bad{background:var(--bad-soft)}
+.pill{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:600;border:1px solid var(--line)}
+.pill.ok{color:var(--ok);background:var(--ok-soft);border-color:transparent}
+.pill.warn{color:var(--warn);background:var(--warn-soft);border-color:transparent}
+.pill.bad{color:var(--bad);background:var(--bad-soft);border-color:transparent}
+kbd.btn{font-family:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:6px;padding:1px 7px;background:var(--bg);white-space:nowrap}
+kbd.btn.primary{background:var(--gold);border-color:var(--gold);color:#17264a;font-weight:600}
+section{margin-bottom:22px}
+footer{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px;display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between}
+a{color:inherit}
+.svgtxt{font-family:var(--font-body)}
+@media print{body{background:#fff}.page{padding-block:0}.box,ol.steps>li{break-inside:avoid}}
+</style>
+</head>
+<body>
+
+<div class="page">
+<header class="top">
+  <div>
+    <div class="eyebrow">NK Public School · ERP · Fee office</div>
+    <h1>Import fee records from the old ERP</h1>
+    <p class="lede">Bring every receipt from the old software into the new ERP in one upload, as often as you like, without entering any receipt twice.</p>
+  </div>
+  <div class="meta">Fees → Payments → Import Day Book (Head wise)<br>Takes about ten minutes · Admin or editor with the Fees permission</div>
+</header>
+
+<section class="grid">
+  <div class="box">
+    <h2>Before you start</h2>
+    <ul class="check">
+      <li>The session's <b>fee schedule is published</b> for every class (Fees → Academic Fees). A receipt can only land on an instalment that exists.</li>
+      <li>Every bus student has a <b>bus stop assigned</b> for the session, and the stop has a fee (Transport → Stops / Student Assignments). The bus fee column lands on those months.</li>
+      <li>The old software's <b>Day Book (Head wise) Report</b>, exported as <b>.xls</b> for the whole session to date. Export it fresh each time; do not edit it.</li>
+    </ul>
+  </div>
+  <div class="box gold">
+    <h2>How duplicates are avoided</h2>
+    <p style="margin:0 0 8px">You can upload the same, or a later, export again and again. Three checks run on every receipt before anything is written:</p>
+    <div class="rules" style="grid-template-columns:1fr">
+      <div class="rule ok"><b>Old receipt number</b> A receipt already imported is matched by its old number and skipped as <span class="pill ok">Already imported</span>. If its total changed in the old software, it becomes a <span class="pill bad">Conflict</span> that you resolve by hand.</div>
+      <div class="rule ok"><b>Entered by hand on the fee desk</b> A receipt with the same student, date and amount as a payment you recorded directly in the ERP is skipped as <span class="pill ok">Already in ERP</span>.</div>
+      <div class="rule warn"><b>Held back for you to check</b> When a student has a hand-entered payment that matches nothing in the file, the rest of their receipts wait as <span class="pill warn">Needs review</span>. The row names the payment to check in Payment History. Tick “import their receipts too” once you are sure it is different money.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+<h2>The six steps</h2>
+<ol class="steps">
+  <li><div class="num"></div><div class="step"><h3>Export the Day Book from the old software</h3><p>Reports → <b>Day Book (Head wise)</b>, from the first day of the session to today, saved as <b>.xls</b>. One file for the whole session; the importer skips what it has already seen, so the overlap with your last export is harmless.</p><p class="tip">The Account-wise report is a different layout and uses the other button. Use Head-wise: it carries the receipt number, the payment mode and the fee head, which is what makes re-uploads safe.</p></div><figure class="shot"><svg viewBox="0 0 300 150" role="img" aria-hidden="false">
+<style>.t{font-family:Inter,system-ui,sans-serif;fill:var(--fg)} .m{fill:var(--muted)} .l{stroke:var(--line);fill:none} .f{fill:var(--bg)} .g{fill:var(--gold)} .n{fill:var(--navy)}</style>
+
+<rect x="0" y="0" width="300" height="22" class="n"/>
+<text x="10" y="15" class="t" font-size="10" fill="#fff" style="fill:#fff">Old software — Reports</text>
+<rect x="10" y="32" width="120" height="108" rx="4" class="l"/>
+<text x="18" y="48" class="t m" font-size="9">Fee Reports</text>
+<text x="18" y="66" class="t" font-size="10">Day Book (Head wise)</text>
+<rect x="14" y="56" width="112" height="15" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/>
+<text x="18" y="67" class="t" font-size="10" font-weight="600">Day Book (Head wise)</text>
+<text x="18" y="86" class="t m" font-size="10">Day Book (Account wise)</text>
+<text x="18" y="104" class="t m" font-size="10">Defaulter List</text>
+<rect x="146" y="32" width="144" height="108" rx="4" class="l"/>
+<text x="154" y="48" class="t m" font-size="9">From</text><rect x="154" y="52" width="58" height="14" rx="2" class="l"/><text x="158" y="62" class="t" font-size="9">01-04-2026</text>
+<text x="222" y="48" class="t m" font-size="9">To</text><rect x="222" y="52" width="58" height="14" rx="2" class="l"/><text x="226" y="62" class="t" font-size="9">today</text>
+<rect x="154" y="78" width="126" height="18" rx="3" class="g"/>
+<text x="170" y="90" font-size="10" font-weight="600" style="fill:#17264a" class="t">Export to Excel (.xls)</text>
+<text x="154" y="120" class="t m" font-size="8.5">Whole session, one file.</text>
+<text x="154" y="132" class="t m" font-size="8.5">Do not edit it afterwards.</text>
+</svg><figcaption>The report and the export in the old software.</figcaption></figure></li>
+
+  <li><div class="num"></div><div class="step"><h3>Open the importer in the ERP</h3><p>Go to <b>Fees → Payments</b>. Above the class picker, click <kbd class="btn">⇧ Import Day Book (Head wise)</kbd>. The dialog has a link to this guide.</p><p class="tip">Nothing is written until you press Import in step 6. You can close the dialog at any point.</p></div><figure class="shot"><svg viewBox="0 0 300 150" role="img" aria-hidden="false">
+<style>.t{font-family:Inter,system-ui,sans-serif;fill:var(--fg)} .m{fill:var(--muted)} .l{stroke:var(--line);fill:none} .f{fill:var(--bg)} .g{fill:var(--gold)} .n{fill:var(--navy)}</style>
+
+<rect x="0" y="0" width="300" height="20" class="f"/>
+<text x="10" y="13" class="t" font-size="9" font-weight="600">Fees  ›  Payments</text>
+<rect x="120" y="30" width="78" height="18" rx="4" class="l"/>
+<text x="126" y="42" class="t" font-size="8">Import Concessions</text>
+<rect x="204" y="30" width="86" height="18" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/>
+<text x="208" y="42" class="t" font-size="8" font-weight="600">⇧ Import Day Book</text>
+<rect x="10" y="60" width="280" height="80" rx="6" class="l"/>
+<text x="20" y="76" class="t m" font-size="9">Class</text><rect x="20" y="80" width="90" height="14" rx="3" class="l"/>
+<text x="130" y="76" class="t m" font-size="9">Search another student</text><rect x="130" y="80" width="150" height="14" rx="3" class="l"/>
+<line x1="20" y1="108" x2="280" y2="108" class="l"/>
+<text x="20" y="122" class="t" font-size="9">Aarav Sharma · 1024 · V-A</text>
+<text x="20" y="134" class="t" font-size="9">Diya Verma · 1025 · V-A</text>
+</svg><figcaption>The button sits above the student list.</figcaption></figure></li>
+
+  <li><div class="num"></div><div class="step"><h3>Pick the session, choose the file, click Preview</h3><p>Select the session the receipts belong to (normally the current one), choose the .xls, and click <kbd class="btn">Preview</kbd>. Leave both boxes ticked: students who paid but are not on the roster are created as inactive records so their money has an owner, and a receipt with no SR number is matched by the student's and father's names when exactly one student fits.</p></div><figure class="shot"><svg viewBox="0 0 300 150" role="img" aria-hidden="false">
+<style>.t{font-family:Inter,system-ui,sans-serif;fill:var(--fg)} .m{fill:var(--muted)} .l{stroke:var(--line);fill:none} .f{fill:var(--bg)} .g{fill:var(--gold)} .n{fill:var(--navy)}</style>
+
+<text x="10" y="16" class="t" font-size="10" font-weight="600">Import Day Book (Head wise)</text>
+<text x="10" y="34" class="t m" font-size="8.5">Session</text><rect x="10" y="38" width="120" height="16" rx="3" class="l"/><text x="16" y="49" class="t" font-size="9">2026-27 (current)</text>
+<text x="150" y="34" class="t m" font-size="8.5">Day Book file (.xls / .xlsx)</text><rect x="150" y="38" width="140" height="16" rx="3" class="l"/><text x="156" y="49" class="t" font-size="9">daybook-2026-27.xls</text>
+<rect x="10" y="66" width="12" height="12" rx="2" class="l"/><path d="M12 72 l3 3 l6 -6" stroke="var(--ok)" stroke-width="1.6" fill="none"/>
+<text x="27" y="76" class="t" font-size="8.5">Create students who paid but are not on the roster</text>
+<rect x="10" y="84" width="12" height="12" rx="2" class="l"/><path d="M12 90 l3 3 l6 -6" stroke="var(--ok)" stroke-width="1.6" fill="none"/>
+<text x="27" y="94" class="t" font-size="8.5">Match on name when the SR No is unknown</text>
+<rect x="10" y="108" width="280" height="30" rx="5" class="l"/>
+<text x="20" y="127" class="t" font-size="9">📄 daybook-2026-27.xls · 412 KB</text>
+<rect x="232" y="114" width="50" height="18" rx="4" class="n"/>
+<text x="243" y="126" font-size="9" font-weight="600" style="fill:#fff" class="t">Preview</text>
+</svg><figcaption>Preview reads the file and reports; it writes nothing.</figcaption></figure></li>
+
+  <li><div class="num"></div><div class="step"><h3>Read the reconciliation and the counters</h3><p>The first panel compares three totals: what the file's own footer says, what the ERP read from it, and what this run will write. <b>The first two must be equal</b>; if they are not, stop and send the file to support. Below them, the counters say what happens to each receipt. Green imports; grey is already in the ledger and skipped; amber waits for your decision; red blocks the import until fixed.</p><p class="tip">“Fee rows” is larger than “receipts” because one receipt that paid two instalments, or several bus months, becomes one row per instalment or month, all sharing the receipt number.</p></div><figure class="shot"><svg viewBox="0 0 300 150" role="img" aria-hidden="false">
+<style>.t{font-family:Inter,system-ui,sans-serif;fill:var(--fg)} .m{fill:var(--muted)} .l{stroke:var(--line);fill:none} .f{fill:var(--bg)} .g{fill:var(--gold)} .n{fill:var(--navy)}</style>
+
+<text x="10" y="16" class="t" font-size="10" font-weight="600">Reconciliation</text>
+<rect x="10" y="24" width="88" height="44" rx="5" class="l"/><text x="16" y="38" class="t m" font-size="8">File says</text><text x="16" y="56" class="t" font-size="12" font-weight="600">₹ 48,21,650</text>
+<rect x="106" y="24" width="88" height="44" rx="5" class="l"/><text x="112" y="38" class="t m" font-size="8">We read</text><text x="112" y="56" class="t" font-size="12" font-weight="600">₹ 48,21,650</text>
+<rect x="202" y="24" width="88" height="44" rx="5" fill="var(--ok-soft)"/><text x="208" y="38" class="t m" font-size="8">Will import</text><text x="208" y="56" class="t" font-size="12" font-weight="600">₹ 6,12,100</text>
+<rect x="10" y="80" width="62" height="16" rx="8" fill="var(--ok-soft)"/><text x="17" y="91" font-size="8.5" font-weight="600" style="fill:var(--ok)" class="t">141 will import</text>
+<rect x="78" y="80" width="88" height="16" rx="8" class="f" stroke="var(--line)"/><text x="84" y="91" class="t" font-size="8.5">1,380 already imported</text>
+<rect x="172" y="80" width="70" height="16" rx="8" class="f" stroke="var(--line)"/><text x="178" y="91" class="t" font-size="8.5">9 already in ERP</text>
+<rect x="10" y="102" width="68" height="16" rx="8" fill="var(--warn-soft)"/><text x="17" y="113" font-size="8.5" font-weight="600" style="fill:var(--warn)" class="t">4 need review</text>
+<rect x="84" y="102" width="46" height="16" rx="8" fill="var(--bad-soft)"/><text x="91" y="113" font-size="8.5" font-weight="600" style="fill:var(--bad)" class="t">0 errors</text>
+<rect x="136" y="102" width="58" height="16" rx="8" fill="var(--bad-soft)"/><text x="143" y="113" font-size="8.5" font-weight="600" style="fill:var(--bad)" class="t">0 conflicts</text>
+<text x="10" y="138" class="t m" font-size="8.5">Held back: Needs review ₹ 24,200 · Already in ERP ₹ 1,08,900</text>
+</svg><figcaption>Totals first, then one counter per outcome.</figcaption></figure></li>
+
+  <li><div class="num"></div><div class="step"><h3>Map anything it did not recognise, review what is held back</h3><p>A class name or a fee head the ERP does not know gets a dropdown: pick the ERP class or head it means, then click Preview again. A <b>Bus Fee / Transport / Conveyance</b> column is recognised on its own; map any other name for it to <b>Transport</b>. Tuition and admission heads fill that head's instalments oldest first; the bus head fills the student's bus months oldest first, and <b>June is never charged</b>, so it is never filled.</p><p>Rows marked <span class="pill warn">Needs review</span> name a hand-entered payment to check. Open the student in Payment History; if the hand-entered payment is genuinely different money, tick <b>“I have checked these students — import their receipts too”</b> and Preview again. A <span class="pill bad">Conflict</span> or an error must be fixed first: correct the receipt in the ERP, or revert the batch that created it, then re-run.</p></div><figure class="shot"><svg viewBox="0 0 300 150" role="img" aria-hidden="false">
+<style>.t{font-family:Inter,system-ui,sans-serif;fill:var(--fg)} .m{fill:var(--muted)} .l{stroke:var(--line);fill:none} .f{fill:var(--bg)} .g{fill:var(--gold)} .n{fill:var(--navy)}</style>
+
+<text x="10" y="16" class="t" font-size="10" font-weight="600">Map what was not recognised</text>
+<text x="10" y="36" class="t m" font-size="8.5">Class in file</text><text x="150" y="36" class="t m" font-size="8.5">ERP class</text>
+<rect x="10" y="40" width="130" height="16" rx="3" class="l"/><text x="16" y="51" class="t" font-size="9">XI-Arts</text>
+<rect x="150" y="40" width="140" height="16" rx="3" class="l"/><text x="156" y="51" class="t" font-size="9">XI · Humanities ▾</text>
+<text x="10" y="80" class="t m" font-size="8.5">Fee head in file</text><text x="150" y="80" class="t m" font-size="8.5">ERP fee head</text>
+<rect x="10" y="84" width="130" height="16" rx="3" class="l"/><text x="16" y="95" class="t" font-size="9">Bus Fee</text>
+<rect x="150" y="84" width="140" height="16" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="156" y="95" class="t" font-size="9" font-weight="600">Transport ▾</text>
+<rect x="10" y="106" width="130" height="16" rx="3" class="l"/><text x="16" y="117" class="t" font-size="9">Tution Fee</text>
+<rect x="150" y="106" width="140" height="16" rx="3" class="l"/><text x="156" y="117" class="t" font-size="9">Tuition Fee ▾</text>
+<text x="10" y="140" class="t m" font-size="8.5">Then click Preview again.</text>
+</svg><figcaption>Mapping is remembered for the rest of this upload.</figcaption><svg viewBox="0 0 300 150" role="img" aria-hidden="false">
+<style>.t{font-family:Inter,system-ui,sans-serif;fill:var(--fg)} .m{fill:var(--muted)} .l{stroke:var(--line);fill:none} .f{fill:var(--bg)} .g{fill:var(--gold)} .n{fill:var(--navy)}</style>
+
+<rect x="8" y="8" width="284" height="64" rx="6" fill="var(--warn-soft)"/>
+<text x="16" y="24" class="t" font-size="9.5" font-weight="600">⚠ 4 receipt(s) belong to students who already have</text>
+<text x="16" y="36" class="t" font-size="9.5" font-weight="600">payments entered directly in the ERP</text>
+<text x="16" y="50" class="t m" font-size="8.5">Each row names the hand-entered payment to check.</text>
+<rect x="16" y="56" width="10" height="10" rx="2" class="l"/><text x="31" y="65" class="t" font-size="8.5">I have checked these students — import their receipts too</text>
+<rect x="8" y="82" width="284" height="60" rx="6" class="l"/>
+<text x="16" y="96" class="t m" font-size="8">Row  Receipt  Student            Status          Detail</text>
+<text x="16" y="112" class="t" font-size="8.5">212   1190     Pratham B. · 2385</text>
+<rect x="148" y="103" width="56" height="13" rx="6" fill="var(--warn-soft)"/><text x="153" y="112" font-size="8" style="fill:var(--warn)" class="t">Needs review</text>
+<text x="210" y="112" class="t m" font-size="7.5">NK-2026-1050 ₹12,100</text>
+<text x="16" y="130" class="t" font-size="8.5">230   1203     Diya V. · 1025</text>
+<rect x="148" y="121" width="56" height="13" rx="6" fill="var(--bad-soft)"/><text x="156" y="130" font-size="8" style="fill:var(--bad)" class="t">Conflict</text>
+<text x="210" y="130" class="t m" font-size="7.5">total changed since import</text>
+</svg><figcaption>Each held-back row says what to check.</figcaption></figure></li>
+
+  <li><div class="num"></div><div class="step"><h3>Import, then check one student</h3><p>When the counters show no errors and no conflicts, click <kbd class="btn primary">Import</kbd>. The batch appears under <b>Import history</b> with the count, the amount and a <kbd class="btn">Revert</kbd> that removes the whole batch if something was wrong. Open one or two students afterwards: their instalment cards should read Paid, and each bus month should be green.</p><p class="tip">Imported receipts carry the number <b>DB-2026-&lt;old receipt&gt;-1</b> (and -2, -3 for a receipt split across instalments). The old number is also searchable in Payment History.</p></div><figure class="shot"><svg viewBox="0 0 300 150" role="img" aria-hidden="false">
+<style>.t{font-family:Inter,system-ui,sans-serif;fill:var(--fg)} .m{fill:var(--muted)} .l{stroke:var(--line);fill:none} .f{fill:var(--bg)} .g{fill:var(--gold)} .n{fill:var(--navy)}</style>
+
+<rect x="190" y="10" width="100" height="22" rx="5" class="g"/>
+<text x="214" y="25" font-size="10" font-weight="600" style="fill:#17264a" class="t">Import 141 receipts</text>
+<rect x="10" y="44" width="280" height="96" rx="6" class="l"/>
+<text x="20" y="60" class="t" font-size="10" font-weight="600">Import history</text>
+<line x1="20" y1="68" x2="280" y2="68" class="l"/>
+<text x="20" y="84" class="t" font-size="8.5">21 Nov 2026 · Day Book (Head wise) · daybook-2026-27.xls</text>
+<text x="20" y="96" class="t m" font-size="8">141 receipts · 263 fee rows · ₹ 6,12,100 · by Office</text>
+<rect x="232" y="76" width="46" height="16" rx="4" class="l"/><text x="242" y="87" class="t" font-size="8.5">Revert</text>
+<text x="20" y="116" class="t" font-size="8.5">14 Nov 2026 · Day Book (Head wise) · daybook-nov.xls</text>
+<text x="20" y="128" class="t m" font-size="8">1,380 receipts · ₹ 42,09,550 · by Office</text>
+</svg><figcaption>Every import is one batch, and every batch can be reverted.</figcaption></figure></li>
+</ol>
+</section>
+
+<section class="grid">
+  <div class="box">
+    <h2>Working day to day</h2>
+    <p style="margin:0 0 6px">Payments recorded on the fee desk and payments imported from the old software live in the same ledger. Keep recording today's receipts in the ERP; when the old software's export arrives, upload it. Receipts you already keyed in are matched and skipped, and only the rest come across.</p>
+    <p style="margin:0">A parent paying the bus fee for the whole year: in Record Payment, click <b>“Tick rest of session”</b> under Bus fee; every month still unpaid is ticked and the amount fills in. Months not yet due can always be ticked to pay in advance.</p>
+  </div>
+  <div class="box">
+    <h2>If something looks wrong</h2>
+    <ul class="check" style="gap:4px">
+      <li><b>A student shows no Paid / Due line under the fee cards:</b> the browser window is on an older build. Reload the page; a “new version is available” message offers it.</li>
+      <li><b>The same receipt appears twice:</b> revert the newer batch from Import history, then re-upload.</li>
+      <li><b>“Pays a bus fee, but the student has no bus stop”:</b> assign the stop under Transport, then Preview again.</li>
+      <li><b>“The database still has the old receipt index”:</b> ask the administrator to run migration 141, then import again.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <span>NKPS ERP · Fee import guide · November 2026</span>
+  <span>Also in the ERP: the <b>?</b> guide on Fees → Payments, task “Bring fee records over from the old ERP”.</span>
+</footer>
+</div>
+</body>
+</html>
