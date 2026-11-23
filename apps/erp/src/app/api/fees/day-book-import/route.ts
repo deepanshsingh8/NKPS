@@ -327,11 +327,26 @@ export async function POST(req: NextRequest) {
   // somewhere. Heads the operator has mapped resolve to their target label.
   const headResolution = new Map<string, string>();
   const unmappedHeads = new Set<string>();
+  // Only a head that carries money on some receipt needs a home. A column
+  // that is zero all the way down — Practical Fee, in a file with no science
+  // practicals in it — has nothing to allocate, and blocking the whole import
+  // until it is mapped would only invite mapping it somewhere arbitrary.
+  // (The parser keeps a head on a receipt only when its amount is non-zero.)
+  const headsWithMoney = new Set(
+    parsed.receipts.flatMap((r) => r.heads.map((h) => h.head))
+  );
   for (const head of parsed.heads) {
     const mapped = headMappings[head] ?? head;
     headResolution.set(head, mapped);
     if (!knownHeads.has(normalizeHead(mapped)) && !isTransportHead(mapped)) {
-      unmappedHeads.add(head);
+      if (headsWithMoney.has(head)) {
+        unmappedHeads.add(head);
+      } else {
+        warnings.push(
+          `The "${head}" column is zero on every receipt, so it was ignored. ` +
+            `It is not a published fee head for ${academicYearName}.`
+        );
+      }
     }
   }
   const sessionMonthList =
@@ -383,6 +398,25 @@ export async function POST(req: NextRequest) {
     string,
     { name: string; section: string; stream_name: string | null }
   >();
+
+  // The section a receipt's class lands in. For a stream class the two
+  // systems letter sections differently: the old software can file XI
+  // Commerce as section "A" where the ERP calls it XI-C. The stream already
+  // says which class it is, so when exactly one class of that name carries
+  // that stream, use its section — otherwise the commit would create an
+  // empty "XI-A (Commerce)" beside the real XI-C, and every class list,
+  // register and timetable would show it.
+  const sectionFor = (norm: NormalizedClass, rawSection: string): string => {
+    const asGiven = (rawSection || "A").toUpperCase();
+    if (!norm.stream_name) return asGiven;
+    const sid = resolveStreamId(streamByName, norm.stream_name);
+    if (!sid || classesByKey.has(classKey(norm.class_name, asGiven, sid))) return asGiven;
+    const sameStream = [...classesByKey.values()].filter(
+      (c) =>
+        c.name.trim().toUpperCase() === norm.class_name.toUpperCase() && c.stream_id === sid
+    );
+    return sameStream.length === 1 ? sameStream[0].section.trim().toUpperCase() : asGiven;
+  };
 
   // The first row seen for each old receipt number in this file.
   const firstByReceipt = new Map<string, ParsedDayBookReceipt>();
@@ -484,7 +518,7 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    const section = (r.raw_section || "A").toUpperCase();
+    const section = sectionFor(norm, r.raw_section);
     const sKey = `${norm.class_name}::${section}::${norm.stream_name ?? ""}`;
     if (!classSpecByKey.has(sKey)) {
       classSpecByKey.set(sKey, {
