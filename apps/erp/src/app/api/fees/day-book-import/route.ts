@@ -89,7 +89,8 @@ type RowStatus =
   | "already_imported"
   | "already_in_erp"
   | "conflict"
-  | "needs_review";
+  | "needs_review"
+  | "duplicate_in_file";
 
 interface RowResult {
   source_row: number;
@@ -204,6 +205,22 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // ── Right session? ───────────────────────────────────────────────────────
+  // Every safeguard against double-counting is scoped to the academic year:
+  // the old receipt series restarts each session, so "already imported" is
+  // looked up within the year picked here. Import a file into the wrong year
+  // and nothing collides — and when it is later imported into the right one,
+  // nothing collides either, so the money lands twice. Refuse the mistake
+  // up front, while it is still only a mistake.
+  const sessionMismatch = checkSession(parsed, {
+    name: academicYearName,
+    start_date: yearRow.start_date as string | null,
+    end_date: yearRow.end_date as string | null,
+  });
+  if (sessionMismatch) {
+    return NextResponse.json({ error: sessionMismatch }, { status: 400 });
+  }
+
   // ── Lookups, all in one round ────────────────────────────────────────────
   const [streamsRes, classesRes, studentsRes, structuresRes] = await Promise.all([
     // `kind` comes along so buildStreamLookup can skip wings (migration 118).
@@ -212,15 +229,44 @@ export async function POST(req: NextRequest) {
       .from("classes")
       .select("id, name, section, stream_id")
       .eq("academic_year_id", academicYearId),
-    admin.from("students").select("id, admission_no, full_name, father_name, admission_date"),
+    // Every student, paged. A single select stops at PostgREST's 1000-row cap
+    // without saying so, and a student past the cap would look missing: the
+    // preview would offer to create them, the commit would attach the money
+    // to the existing record anyway (admission_no is unique) — but with no
+    // check against their hand-entered fee-desk payments, which is how one
+    // payment gets into the ledger twice.
+    fetchAllRows<{
+      id: string;
+      admission_no: string | null;
+      full_name: string | null;
+      father_name: string | null;
+      admission_date: string | null;
+    }>((from, to) =>
+      admin
+        .from("students")
+        .select("id, admission_no, full_name, father_name, admission_date")
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
     admin
       .from("fee_structures")
       .select("*")
       .eq("academic_year_id", academicYearId)
       .eq("is_active", true),
   ]);
-  for (const res of [streamsRes, classesRes, studentsRes, structuresRes]) {
+  for (const res of [streamsRes, classesRes, structuresRes]) {
     if (res.error) return dbErrorResponse(res.error, "fees/day-book-import load lookups");
+  }
+  if (studentsRes.error || studentsRes.truncated) {
+    return NextResponse.json(
+      {
+        error:
+          "Could not read the full student list, so receipts cannot be matched " +
+          "to students safely. Nothing was imported — try again.",
+        details: studentsRes.error ?? undefined,
+      },
+      { status: 500 }
+    );
   }
 
   // Alias-aware: the file says "XI-Arts" and the school stores the stream as
@@ -281,11 +327,26 @@ export async function POST(req: NextRequest) {
   // somewhere. Heads the operator has mapped resolve to their target label.
   const headResolution = new Map<string, string>();
   const unmappedHeads = new Set<string>();
+  // Only a head that carries money on some receipt needs a home. A column
+  // that is zero all the way down — Practical Fee, in a file with no science
+  // practicals in it — has nothing to allocate, and blocking the whole import
+  // until it is mapped would only invite mapping it somewhere arbitrary.
+  // (The parser keeps a head on a receipt only when its amount is non-zero.)
+  const headsWithMoney = new Set(
+    parsed.receipts.flatMap((r) => r.heads.map((h) => h.head))
+  );
   for (const head of parsed.heads) {
     const mapped = headMappings[head] ?? head;
     headResolution.set(head, mapped);
     if (!knownHeads.has(normalizeHead(mapped)) && !isTransportHead(mapped)) {
-      unmappedHeads.add(head);
+      if (headsWithMoney.has(head)) {
+        unmappedHeads.add(head);
+      } else {
+        warnings.push(
+          `The "${head}" column is zero on every receipt, so it was ignored. ` +
+            `It is not a published fee head for ${academicYearName}.`
+        );
+      }
     }
   }
   const sessionMonthList =
@@ -338,6 +399,28 @@ export async function POST(req: NextRequest) {
     { name: string; section: string; stream_name: string | null }
   >();
 
+  // The section a receipt's class lands in. For a stream class the two
+  // systems letter sections differently: the old software can file XI
+  // Commerce as section "A" where the ERP calls it XI-C. The stream already
+  // says which class it is, so when exactly one class of that name carries
+  // that stream, use its section — otherwise the commit would create an
+  // empty "XI-A (Commerce)" beside the real XI-C, and every class list,
+  // register and timetable would show it.
+  const sectionFor = (norm: NormalizedClass, rawSection: string): string => {
+    const asGiven = (rawSection || "A").toUpperCase();
+    if (!norm.stream_name) return asGiven;
+    const sid = resolveStreamId(streamByName, norm.stream_name);
+    if (!sid || classesByKey.has(classKey(norm.class_name, asGiven, sid))) return asGiven;
+    const sameStream = [...classesByKey.values()].filter(
+      (c) =>
+        c.name.trim().toUpperCase() === norm.class_name.toUpperCase() && c.stream_id === sid
+    );
+    return sameStream.length === 1 ? sameStream[0].section.trim().toUpperCase() : asGiven;
+  };
+
+  // The first row seen for each old receipt number in this file.
+  const firstByReceipt = new Map<string, ParsedDayBookReceipt>();
+
   for (const r of parsed.receipts) {
     const base = baseRow(r);
 
@@ -353,6 +436,34 @@ export async function POST(req: NextRequest) {
       rowResults.push({ ...base, status: "error", message: "Receipt No is missing." });
       continue;
     }
+
+    // The same old receipt twice in one file — two exports pasted together,
+    // or a row copied by hand. Every check below looks only at what is
+    // already saved, so both copies would pass: the second would carry on
+    // down the student's instalments and could put part of the same money in
+    // the ledger twice. An exact repeat is counted once; a repeat that
+    // disagrees means one of the two rows is wrong, and blocks the import.
+    const firstCopy = firstByReceipt.get(r.receipt_no);
+    if (firstCopy) {
+      if (sameReceipt(firstCopy, r)) {
+        rowResults.push({
+          ...base,
+          status: "duplicate_in_file",
+          message: `Repeats row ${firstCopy.source_row} exactly — counted once, not twice.`,
+        });
+      } else {
+        rowResults.push({
+          ...base,
+          status: "error",
+          message:
+            `Receipt No ${r.receipt_no} also appears on row ${firstCopy.source_row} with a ` +
+            `different student, date or amount. One of the two rows is wrong — correct ` +
+            `the file, then preview again.`,
+        });
+      }
+      continue;
+    }
+    firstByReceipt.set(r.receipt_no, r);
 
     // Zero-value receipts: fee_payments_amount_positive forbids a non-waiver
     // zero row, and they contribute nothing to any total, so they are skipped
@@ -407,7 +518,7 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    const section = (r.raw_section || "A").toUpperCase();
+    const section = sectionFor(norm, r.raw_section);
     const sKey = `${norm.class_name}::${section}::${norm.stream_name ?? ""}`;
     if (!classSpecByKey.has(sKey)) {
       classSpecByKey.set(sKey, {
@@ -769,7 +880,11 @@ export async function POST(req: NextRequest) {
     row_count: parsed.receipts.length,
     created_count: committed,
     skipped_count:
-      counts.already_imported + counts.already_in_erp + counts.skip_zero + skippedConflicts,
+      counts.already_imported +
+      counts.already_in_erp +
+      counts.skip_zero +
+      counts.duplicate_in_file +
+      skippedConflicts,
     amount_total: amountTotal,
     control_totals: {
       file: parsed.control,
@@ -844,6 +959,64 @@ function nameLookupKey(fullName: string, fatherName: string | null): string | nu
   return `${a}|${b}`;
 }
 
+/** True when two rows of one file record the same receipt identically. */
+function sameReceipt(a: ParsedDayBookReceipt, b: ParsedDayBookReceipt): boolean {
+  const heads = (r: ParsedDayBookReceipt) =>
+    r.heads
+      .map((h) => `${h.head}=${Math.round(h.amount * 100)}`)
+      .sort()
+      .join("|");
+  return (
+    normalizeAdmissionNo(a.admission_no ?? "") === normalizeAdmissionNo(b.admission_no ?? "") &&
+    a.payment_date === b.payment_date &&
+    Math.round(a.total * 100) === Math.round(b.total * 100) &&
+    heads(a) === heads(b)
+  );
+}
+
+/** "2026-09-01" → "01-09-2026", the way the office writes dates. */
+function displayDate(iso: string): string {
+  return iso.slice(0, 10).split("-").reverse().join("-");
+}
+
+/**
+ * Why this file cannot be the selected session's day book, or null.
+ *
+ * The title line names the session when the file has one ("Session :
+ * 2026-2027"), and its first year must be the selected year's. Failing that,
+ * the receipt dates decide. A day book opens with admissions taken a few
+ * weeks before 1 April — the 2026-27 export starts on 14 March — so a few
+ * receipts outside the year are normal; most of the file outside it means the
+ * wrong session is selected.
+ */
+function checkSession(
+  parsed: ReturnType<typeof parseHeadWiseDayBook>,
+  year: { name: string; start_date: string | null; end_date: string | null }
+): string | null {
+  const yearFirst = year.name.match(/(\d{4})/)?.[1] ?? null;
+  const fileFirst = parsed.session_label?.match(/^(\d{4})/)?.[1] ?? null;
+  if (yearFirst && fileFirst && yearFirst !== fileFirst) {
+    return (
+      `This file is the day book for session ${parsed.session_label}, but ${year.name} ` +
+      `is selected. Select the matching session, then preview again. Nothing was imported.`
+    );
+  }
+
+  if (!year.start_date || !year.end_date) return null;
+  const start = year.start_date.slice(0, 10);
+  const end = year.end_date.slice(0, 10);
+  const dated = parsed.receipts.filter((r) => r.payment_date);
+  const outside = dated.filter((r) => r.payment_date! < start || r.payment_date! > end);
+  if (dated.length > 0 && outside.length * 2 > dated.length) {
+    return (
+      `${outside.length} of the ${dated.length} receipts in this file are dated outside ` +
+      `${year.name} (${displayDate(start)} to ${displayDate(end)}). Check that the right ` +
+      `session is selected, then preview again. Nothing was imported.`
+    );
+  }
+  return null;
+}
+
 function minDate(a: string | null, b: string): string {
   return a && a < b ? a : b;
 }
@@ -871,6 +1044,7 @@ function tally(rows: RowResult[]) {
     already_in_erp: 0,
     conflict: 0,
     needs_review: 0,
+    duplicate_in_file: 0,
   };
   for (const r of rows) c[r.status] += 1;
   return c;
@@ -885,6 +1059,7 @@ function emptySummary() {
     already_in_erp: 0,
     conflict: 0,
     needs_review: 0,
+    duplicate_in_file: 0,
     total_rows: 0,
     dry_run: true,
     committed: false,
