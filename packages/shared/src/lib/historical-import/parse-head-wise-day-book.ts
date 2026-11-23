@@ -74,19 +74,63 @@ const MONTH_ABBR: Record<string, number> = {
   JUL: 7, AUG: 8, SEP: 9, OCT: 10, NOV: 11, DEC: 12,
 };
 
-/** Uppercase, strip whitespace — used to match header cells. */
+/** How far down each sheet to look for the column header. */
+const HEADER_SCAN_ROWS = 30;
+
+/**
+ * Uppercase, keep only letters and digits — used to match header cells.
+ *
+ * Punctuation goes too, not just whitespace: "S.No" and "S.No." look the same
+ * on screen, as do "Receipt No" and "Receipt No.", and an operator can't
+ * see which one the file has. "S.No." and "SR. No." still stay apart (SNO vs
+ * SRNO).
+ */
 function normHeader(s: unknown): string {
-  return String(s ?? "").trim().toUpperCase().replace(/\s+/g, "");
+  return String(s ?? "").toUpperCase().replace(/[^\p{L}\p{N}]/gu, "");
 }
 
-function findHeaderRow(rows: unknown[][]): number {
-  for (let i = 0; i < Math.min(rows.length, 15); i++) {
+/**
+ * The header row's index, or -1 — plus, when there is no header, the row that
+ * came closest and the required columns it lacks, so the error can name them.
+ */
+function findHeaderRow(rows: unknown[][]): {
+  index: number;
+  closest: { row: number; missing: string[] } | null;
+} {
+  let closest: { row: number; missing: string[] } | null = null;
+  for (let i = 0; i < Math.min(rows.length, HEADER_SCAN_ROWS); i++) {
     const row = rows[i];
     if (!row) continue;
     const set = new Set(row.map(normHeader));
-    if (REQUIRED_HEADERS.every((k) => set.has(normHeader(k)))) return i;
+    const missing = REQUIRED_HEADERS.filter((k) => !set.has(normHeader(k)));
+    if (missing.length === 0) return { index: i, closest: null };
+    if (
+      missing.length < REQUIRED_HEADERS.length &&
+      (!closest || missing.length < closest.missing.length)
+    ) {
+      closest = { row: i, missing };
+    }
   }
-  return -1;
+  return { index: -1, closest };
+}
+
+function headerNotFoundMessage(
+  closest: { sheet: string; row: number; missing: string[] } | null,
+  sheetNames: string[]
+): string {
+  const where =
+    closest === null
+      ? `None of the first ${HEADER_SCAN_ROWS} rows of ` +
+        (sheetNames.length === 1 ? "the sheet" : `any of its ${sheetNames.length} sheets`) +
+        " has any of those column headings."
+      : `The closest is row ${closest.row + 1}` +
+        (sheetNames.length > 1 ? ` of sheet "${closest.sheet}"` : "") +
+        `, which has no ${closest.missing.map((m) => `"${m}"`).join(", ")} column.`;
+  return (
+    "Could not find the Head-wise Day Book column header. Expected a row " +
+    `containing: ${REQUIRED_HEADERS.join(", ")}. ${where} If this is the ` +
+    '"Day Book (Account Wise)" report instead, use the historical fees importer.'
+  );
 }
 
 function buildHeaderIndex(headerRow: unknown[]): Map<string, number> {
@@ -259,25 +303,49 @@ function parseFooterModes(text: string): Record<string, number> {
 
 export function parseHeadWiseDayBook(buf: ArrayBuffer | Uint8Array): ParsedDayBook {
   // No `cellDates` — see the header note. Date cells stay numeric serials.
-  const workbook = readUntrustedWorkbook(buf);
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) throw new Error("XLSX has no sheets");
-  const sheet = workbook.Sheets[sheetName];
-  if (!sheet) throw new Error(`Sheet "${sheetName}" not found in workbook`);
+  //
+  // `nodim`: an .xlsx whose writer declared the wrong used range opens fine
+  // in Excel but, read naively, loses its header row, and the office is told
+  // the header is missing from a sheet they can see has one. The header is
+  // found by scanning below, so the A1 start `nodim` brings is harmless here.
+  //
+  // `raw` matters only when the ".xls" is really text or a web page, which
+  // some exporters produce and Excel opens without complaint. Left to itself,
+  // SheetJS would read a text "01-09-2026" as US month/day and hand back
+  // 9 January as a real date — the silent swap the header note is about.
+  // With `raw`, the text reaches toIsoDate(), which refuses to guess.
+  const workbook = readUntrustedWorkbook(buf, { nodim: true, raw: true });
+  if (workbook.SheetNames.length === 0) throw new Error("XLSX has no sheets");
 
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    defval: null,
-    raw: true,
-  });
-
-  const headerRowIdx = findHeaderRow(rows);
+  // The day book is normally the only sheet, but a workbook someone has
+  // worked on in Excel can carry another sheet in front of it. Take the first
+  // sheet that has the header rather than insisting on the first sheet.
+  let rows: unknown[][] = [];
+  let headerRowIdx = -1;
+  let closest: { sheet: string; row: number; missing: string[] } | null = null;
+  for (const name of workbook.SheetNames) {
+    const sheet = workbook.Sheets[name];
+    if (!sheet) continue;
+    const sheetRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      defval: null,
+      raw: true,
+    });
+    const found = findHeaderRow(sheetRows);
+    if (found.index >= 0) {
+      rows = sheetRows;
+      headerRowIdx = found.index;
+      break;
+    }
+    if (
+      found.closest &&
+      (!closest || found.closest.missing.length < closest.missing.length)
+    ) {
+      closest = { sheet: name, ...found.closest };
+    }
+  }
   if (headerRowIdx < 0) {
-    throw new Error(
-      "Could not find the Head-wise Day Book column header. Expected a row " +
-        `containing: ${REQUIRED_HEADERS.join(", ")}. If this is the "Day Book ` +
-        '(Account Wise)" report instead, use the historical fees importer.'
-    );
+    throw new Error(headerNotFoundMessage(closest, workbook.SheetNames));
   }
 
   const headerRow = rows[headerRowIdx] ?? [];
