@@ -29,8 +29,25 @@ const SAFE_READ_OPTS = {
   WTF: false,
 } as const satisfies XLSX.ParsingOptions;
 
-/** The only per-caller knobs; everything else is fixed above. */
-export type UntrustedReadOptions = Pick<XLSX.ParsingOptions, "cellDates">;
+/**
+ * The only per-caller knobs; everything else is fixed above.
+ *
+ * `nodim` — measure the sheet from the cells actually in it, not from the
+ * "used range" the writing program declared in an .xlsx. Excel ignores that
+ * declaration, so a file whose writer got it wrong opens perfectly in Excel,
+ * while SheetJS trusts it and silently drops every cell outside it: a declared
+ * range starting at row 2 hides the header row, and one of just "A1" hides
+ * everything but the first cell. The catch is that `nodim` also makes every
+ * sheet start at A1. That is right for a reader that scans for its header
+ * row (and its row numbers then match Excel's), but wrong for
+ * `sheet_to_json` in object mode, which takes the first row of the range as
+ * the header and would take a blank top row instead. Hence opt-in.
+ *
+ * `raw` — stop SheetJS converting values in plain-text formats (CSV, TSV,
+ * an HTML table saved as ".xls"). Binary workbooks are unaffected. See the
+ * Day Book parser for why that matters for dates.
+ */
+export type UntrustedReadOptions = Pick<XLSX.ParsingOptions, "cellDates" | "raw" | "nodim">;
 
 export function readUntrustedWorkbook(
   data: ArrayBuffer | Uint8Array,
