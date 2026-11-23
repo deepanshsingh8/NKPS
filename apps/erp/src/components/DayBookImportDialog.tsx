@@ -72,7 +72,8 @@ type RowStatus =
   | "already_imported"
   | "already_in_erp"
   | "conflict"
-  | "needs_review";
+  | "needs_review"
+  | "duplicate_in_file";
 
 interface RowResult {
   source_row: number;
@@ -118,6 +119,7 @@ interface Summary {
   already_in_erp?: number;
   conflict: number;
   needs_review: number;
+  duplicate_in_file?: number;
   total_rows: number;
   heads?: string[];
   period_start?: string | null;
@@ -168,6 +170,7 @@ const STATUS_LABEL: Record<RowStatus, string> = {
   already_imported: "Already imported",
   already_in_erp: "Already in ERP",
   skip_zero: "Zero value",
+  duplicate_in_file: "Repeated in file",
 };
 
 /** Rows that need nobody's attention: the money is in the ledger already. */
@@ -525,6 +528,15 @@ export function DayBookImportDialog({
             ) : null}
             {s.skip_zero > 0 ? (
               <Badge variant="outline">{s.skip_zero} zero value</Badge>
+            ) : null}
+            {(s.duplicate_in_file ?? 0) > 0 ? (
+              <Badge
+                variant="outline"
+                className="border-amber-400 text-amber-700 dark:text-amber-400"
+                title="The same receipt appears more than once in this file. It is counted once; the repeats are listed below."
+              >
+                {s.duplicate_in_file} repeated in file
+              </Badge>
             ) : null}
             {s.needs_review > 0 ? (
               <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-400">

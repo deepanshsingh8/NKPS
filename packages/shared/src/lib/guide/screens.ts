@@ -1422,13 +1422,13 @@ export const SCREEN_GUIDES: ScreenGuide[] = [
           'Above the class picker, click "Import Day Book (Head wise)". The dialog links a step-by-step guide.',
           "Pick the session, choose the file, and click \"Preview\". Nothing is written yet.",
           'Check the reconciliation: the file\'s own total, what was read, and what will be imported. Map any class or fee head it did not recognise — a Bus Fee / Transport column goes to "Transport".',
-          'Read the counters: "already imported" and "already in ERP" are skipped; "need review" are held back; errors and conflicts block the import until fixed.',
+          'Read the counters: "already imported" and "already in ERP" are skipped; "repeated in file" means the same receipt appears twice in the file and is counted once; "need review" are held back; errors and conflicts block the import until fixed.',
           'Click "Import". The batch appears under "Import history" with a Revert.',
         ],
         needs:
           "The session's fee schedule must be published for every class in the file, and a student whose receipt carries a bus fee must have a bus stop (with a fee) assigned for the session.",
         gotcha:
-          'Re-uploading a later export is safe: a receipt is matched by its old receipt number and skipped if it is already in. A receipt that was entered by hand on the fee desk — same student, same date, same amount — is skipped as "Already in ERP". When a student has a hand-entered payment that matches nothing in the file, all of that student\'s remaining receipts are held back as "Needs review" and the row names the payments to check in Payment History; tick "import their receipts too" once you are sure they are different money. A tuition or admission head fills that head\'s instalments oldest first; a bus-fee head fills the student\'s bus months oldest first (June is never charged). A receipt whose total changed since it was imported is a conflict — correct or revert it, then re-run.',
+          'Re-uploading a later export is safe: a receipt is matched by its old receipt number and skipped if it is already in. A receipt that was entered by hand on the fee desk — same student, same date, same amount — is skipped as "Already in ERP". When a student has a hand-entered payment that matches nothing in the file, all of that student\'s remaining receipts are held back as "Needs review" and the row names the payments to check in Payment History; tick "import their receipts too" once you are sure they are different money. A tuition or admission head fills that head\'s instalments oldest first; a bus-fee head fills the student\'s bus months oldest first (June is never charged). A receipt whose total changed since it was imported is a conflict — correct or revert it, then re-run. A file whose receipts are mostly dated outside the selected session is refused, so it cannot be imported into the wrong year.',
       },
       {
         name: "Undo a day-book import",
